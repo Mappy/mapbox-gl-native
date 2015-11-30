@@ -51,6 +51,7 @@
         '../include/mbgl/ios/MGLShape.h',
         '../platform/ios/MGLShape.m',
         '../include/mbgl/ios/MGLAnnotationImage.h',
+        '../platform/ios/MGLAnnotationImage_Private.h',
         '../platform/ios/MGLAnnotationImage.m',
         '../include/mbgl/ios/MGLStyle.h',
         '../platform/ios/MGLStyle.mm',
