@@ -2512,7 +2512,7 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
 {
     // remove sprite
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
-    _mbglMap->removeSprite(symbolName.UTF8String);
+    _mbglMap->removeAnnotationIcon(symbolName.UTF8String);
     [self installAnnotationImage:annotationImage];
     _mbglMap->update(mbgl::Update::Annotations);
 }

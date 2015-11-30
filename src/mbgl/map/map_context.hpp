@@ -49,6 +49,7 @@ public:
     bool isLoaded() const;
 
     void addAnnotationIcon(const std::string&, std::shared_ptr<const SpriteImage>);
+    void removeAnnotationIcon(const std::string&);
     double getTopOffsetPixelsForAnnotationIcon(const std::string&);
     void updateAnnotations();
 
