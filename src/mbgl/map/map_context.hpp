@@ -57,6 +57,7 @@ public:
     void cleanup();
 
     void setSprite(const std::string&, std::shared_ptr<const SpriteImage>);
+    void removeSprite(const std::string&);
 
     // Style::Observer implementation.
     void onTileDataChanged() override;

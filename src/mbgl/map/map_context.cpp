@@ -307,6 +307,17 @@ void MapContext::setSprite(const std::string& name, std::shared_ptr<const Sprite
 
     style->spriteAtlas->updateDirty();
 }
+    
+void MapContext::removeSprite(const std::string& name) {
+    if (!style) {
+        Log::Info(Event::Sprite, "Ignoring sprite without stylesheet");
+        return;
+    }
+    
+    style->spriteStore->removeSprite(name);
+    
+    style->spriteAtlas->updateDirty();
+}
 
 void MapContext::onTileDataChanged() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
