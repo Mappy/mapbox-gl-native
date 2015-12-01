@@ -1,24 +1,103 @@
 #include "storage.hpp"
 
-#include <uv.h>
-
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/platform/platform.hpp>
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/run_loop.hpp>
+#include <mbgl/util/thread.hpp>
+
+namespace {
+
+std::string getFileSourceRoot() {
+#ifdef MBGL_ASSET_ZIP
+    return "test/fixtures/storage/assets.zip";
+#else
+    return "";
+#endif
+}
+
+class TestWorker {
+public:
+    TestWorker(mbgl::DefaultFileSource* fs_) : fs(fs_) {}
+
+    void run(std::function<void()> endCallback) {
+        const std::string asset("asset://TEST_DATA/fixtures/storage/nonempty");
+
+        requestCallback = [this, asset, endCallback](mbgl::Response res) {
+            EXPECT_EQ(nullptr, res.error);
+            ASSERT_TRUE(res.data.get());
+            EXPECT_EQ("content is here\n", *res.data);
+
+            if (res.stale) {
+                return;
+            }
+
+            if (!--numRequests) {
+                endCallback();
+                request.reset();
+            } else {
+                request = fs->request({ mbgl::Resource::Unknown, asset }, requestCallback);
+            }
+        };
+
+        request = fs->request({ mbgl::Resource::Unknown, asset }, requestCallback);
+    }
+
+private:
+    unsigned numRequests = 1000;
+
+    mbgl::DefaultFileSource* fs;
+    std::unique_ptr<mbgl::FileRequest> request;
+
+    std::function<void(mbgl::Response)> requestCallback;
+};
+
+}
+
+TEST_F(Storage, AssetStress) {
+    SCOPED_TEST(AssetStress)
+
+    using namespace mbgl;
+
+    util::RunLoop loop;
+
+    mbgl::DefaultFileSource fs(nullptr, getFileSourceRoot());
+
+    unsigned numThreads = 50;
+
+    auto callback = [&] {
+        if (!--numThreads) {
+            loop.stop();
+        }
+    };
+
+    std::vector<std::unique_ptr<util::Thread<TestWorker>>> threads;
+    std::vector<std::unique_ptr<mbgl::WorkRequest>> requests;
+    util::ThreadContext context = { "Test", util::ThreadType::Map, util::ThreadPriority::Regular };
+
+    for (unsigned i = 0; i < numThreads; ++i) {
+        std::unique_ptr<util::Thread<TestWorker>> thread =
+            std::make_unique<util::Thread<TestWorker>>(context, &fs);
+
+        requests.push_back(
+            thread->invokeWithCallback(&TestWorker::run, callback));
+
+        threads.push_back(std::move(thread));
+    }
+
+    loop.run();
+
+    AssetStress.finish();
+}
 
 TEST_F(Storage, AssetEmptyFile) {
     SCOPED_TEST(EmptyFile)
 
     using namespace mbgl;
 
-#ifdef MBGL_ASSET_ZIP
-    DefaultFileSource fs(nullptr, "test/fixtures/storage/assets.zip");
-#else
-    DefaultFileSource fs(nullptr);
-#endif
+    util::RunLoop loop;
 
-    util::RunLoop loop(uv_default_loop());
+    DefaultFileSource fs(nullptr, getFileSourceRoot());
 
     std::unique_ptr<FileRequest> req = fs.request({ Resource::Unknown, "asset://TEST_DATA/fixtures/storage/empty" }, [&](Response res) {
         req.reset();
@@ -33,7 +112,7 @@ TEST_F(Storage, AssetEmptyFile) {
         EmptyFile.finish();
     });
 
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    loop.run();
 }
 
 TEST_F(Storage, AssetNonEmptyFile) {
@@ -41,13 +120,9 @@ TEST_F(Storage, AssetNonEmptyFile) {
 
     using namespace mbgl;
 
-#ifdef MBGL_ASSET_ZIP
-    DefaultFileSource fs(nullptr, "test/fixtures/storage/assets.zip");
-#else
-    DefaultFileSource fs(nullptr);
-#endif
+    util::RunLoop loop;
 
-    util::RunLoop loop(uv_default_loop());
+    DefaultFileSource fs(nullptr, getFileSourceRoot());
 
     std::unique_ptr<FileRequest> req = fs.request({ Resource::Unknown, "asset://TEST_DATA/fixtures/storage/nonempty" }, [&](Response res) {
         req.reset();
@@ -64,7 +139,7 @@ TEST_F(Storage, AssetNonEmptyFile) {
         NonEmptyFile.finish();
     });
 
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    loop.run();
 }
 
 TEST_F(Storage, AssetNonExistentFile) {
@@ -72,13 +147,9 @@ TEST_F(Storage, AssetNonExistentFile) {
 
     using namespace mbgl;
 
-#ifdef MBGL_ASSET_ZIP
-    DefaultFileSource fs(nullptr, "test/fixtures/storage/assets.zip");
-#else
-    DefaultFileSource fs(nullptr);
-#endif
+    util::RunLoop loop;
 
-    util::RunLoop loop(uv_default_loop());
+    DefaultFileSource fs(nullptr, getFileSourceRoot());
 
     std::unique_ptr<FileRequest> req = fs.request({ Resource::Unknown, "asset://TEST_DATA/fixtures/storage/does_not_exist" }, [&](Response res) {
         req.reset();
@@ -90,13 +161,13 @@ TEST_F(Storage, AssetNonExistentFile) {
         EXPECT_EQ(Seconds::zero(), res.modified);
         EXPECT_EQ("", res.etag);
 #ifdef MBGL_ASSET_ZIP
-        EXPECT_EQ("No such file", res.error->message);
+        EXPECT_EQ("Could not stat file in zip archive", res.error->message);
 #elif MBGL_ASSET_FS
-        EXPECT_EQ("no such file or directory", res.error->message);
+        EXPECT_EQ("No such file or directory", res.error->message);
 #endif
         loop.stop();
         NonExistentFile.finish();
     });
 
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    loop.run();
 }

@@ -45,6 +45,7 @@
         'api/set_style.cpp',
 
 
+        'miscellaneous/async_task.cpp',
         'miscellaneous/clip_ids.cpp',
         'miscellaneous/binpack.cpp',
         'miscellaneous/bilinear.cpp',
@@ -60,7 +61,9 @@
         'miscellaneous/style_parser.cpp',
         'miscellaneous/text_conversions.cpp',
         'miscellaneous/thread.cpp',
+        'miscellaneous/thread_local.cpp',
         'miscellaneous/tile.cpp',
+        'miscellaneous/timer.cpp',
         'miscellaneous/token.cpp',
         'miscellaneous/transform.cpp',
         'miscellaneous/work_queue.cpp',
@@ -96,14 +99,12 @@
       ],
       'libraries': [
         '<@(gtest_static_libs)',
-        '<@(libuv_static_libs)',
         '<@(sqlite_static_libs)',
         '<@(geojsonvt_static_libs)',
       ],
       'variables': {
         'cflags_cc': [
           '<@(gtest_cflags)',
-          '<@(libuv_cflags)',
           '<@(opengl_cflags)',
           '<@(boost_cflags)',
           '<@(sqlite_cflags)',
@@ -114,7 +115,6 @@
         ],
         'ldflags': [
           '<@(gtest_ldflags)',
-          '<@(libuv_ldflags)',
           '<@(sqlite_ldflags)',
         ],
       },

@@ -1,7 +1,5 @@
 #include "storage.hpp"
 
-#include <uv.h>
-
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/run_loop.hpp>
@@ -11,13 +9,13 @@ TEST_F(Storage, AssetReadDirectory) {
 
     using namespace mbgl;
 
+    util::RunLoop loop;
+
 #ifdef MBGL_ASSET_ZIP
     DefaultFileSource fs(nullptr, "test/fixtures/storage/assets.zip");
 #else
     DefaultFileSource fs(nullptr);
 #endif
-
-    util::RunLoop loop(uv_default_loop());
 
     std::unique_ptr<FileRequest> req = fs.request({ Resource::Unknown, "asset://TEST_DATA/fixtures/storage" }, [&](Response res) {
         req.reset();
@@ -29,14 +27,14 @@ TEST_F(Storage, AssetReadDirectory) {
         EXPECT_EQ(Seconds::zero(), res.modified);
         EXPECT_EQ("", res.etag);
 #ifdef MBGL_ASSET_ZIP
-        EXPECT_EQ("No such file", res.error->message);
+        EXPECT_EQ("Could not stat file in zip archive", res.error->message);
 #elif MBGL_ASSET_FS
-        EXPECT_EQ("illegal operation on a directory", res.error->message);
+        EXPECT_EQ("Is a directory", res.error->message);
 #endif
 
         loop.stop();
         ReadDirectory.finish();
     });
 
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    loop.run();
 }

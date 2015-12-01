@@ -7,7 +7,6 @@
 #include <mbgl/platform/platform.hpp>
 #include <mbgl/platform/log.hpp>
 
-#include <mbgl/util/uv_detail.hpp>
 #include <mbgl/util/thread.hpp>
 #include <mbgl/util/mapbox.hpp>
 #include <mbgl/util/exception.hpp>
@@ -78,21 +77,20 @@ void DefaultFileSource::cancel(const Resource& res, FileRequest* req) {
 // ----- Impl -----
 
 DefaultFileSource::Impl::Impl(FileCache* cache_, const std::string& root)
-    : loop(util::RunLoop::getLoop()),
-      cache(cache_),
+    : cache(cache_),
       assetRoot(root.empty() ? platform::assetRoot() : root),
-      assetContext(AssetContextBase::createContext(loop)),
-      httpContext(HTTPContextBase::createContext(loop)),
-      reachability(std::make_unique<uv::async>(loop, std::bind(&Impl::networkIsReachableAgain, this))) {
+      assetContext(AssetContextBase::createContext()),
+      httpContext(HTTPContextBase::createContext()),
+      reachability(std::bind(&Impl::networkIsReachableAgain, this)) {
     // Subscribe to network status changes, but make sure that this async handle doesn't keep the
     // loop alive; otherwise our app wouldn't terminate. After all, we only need status change
     // notifications when our app is still running.
-    NetworkStatus::Subscribe(reachability->get());
-    reachability->unref();
+    NetworkStatus::Subscribe(&reachability);
+    reachability.unref();
 }
 
 DefaultFileSource::Impl::~Impl() {
-    NetworkStatus::Unsubscribe(reachability->get());
+    NetworkStatus::Unsubscribe(&reachability);
 }
 
 void DefaultFileSource::Impl::networkIsReachableAgain() {
@@ -202,10 +200,10 @@ void DefaultFileSource::Impl::startRealRequest(DefaultFileRequestImpl& request) 
 
     if (algo::starts_with(request.resource.url, "asset://")) {
         request.realRequest =
-            assetContext->createRequest(request.resource, callback, loop, assetRoot);
+            assetContext->createRequest(request.resource, callback, assetRoot);
     } else {
         request.realRequest =
-            httpContext->createRequest(request.resource, callback, loop, request.getResponse());
+            httpContext->createRequest(request.resource, callback, request.getResponse());
     }
 }
 
@@ -237,11 +235,10 @@ void DefaultFileSource::Impl::reschedule(DefaultFileRequestImpl& request) {
         update(request);
     } else if (timeout > Seconds::zero()) {
         if (!request.timerRequest) {
-            request.timerRequest = std::make_unique<uv::timer>(util::RunLoop::getLoop());
+            request.timerRequest = std::make_unique<util::Timer>();
         }
 
-        // timeout is in seconds, but the timer takes milliseconds.
-        request.timerRequest->start(asMilliseconds(timeout).count(), 0, [this, &request] {
+        request.timerRequest->start(timeout, Duration::zero(), [this, &request] {
             assert(!request.realRequest);
             startRealRequest(request);
         });
