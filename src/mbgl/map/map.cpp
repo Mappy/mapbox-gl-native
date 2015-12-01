@@ -414,7 +414,7 @@ void Map::setSprite(const std::string& name, std::shared_ptr<const SpriteImage> 
 }
 
 void Map::removeSprite(const std::string& name) {
-    setSprite(name, nullptr);
+    context->invoke(&MapContext::removeSprite, name);
 }
 
 
