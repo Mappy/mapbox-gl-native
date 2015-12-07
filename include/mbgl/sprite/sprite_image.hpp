@@ -13,7 +13,7 @@ namespace mbgl {
 class SpriteImage : private util::noncopyable {
 public:
     SpriteImage(
-        uint16_t width, uint16_t height, float pixelRatio, std::string&& data, bool sdf = false);
+                uint16_t width, uint16_t height, float pixelRatio, std::string&& data, bool sdf = false, vec2<float> offset = {0.0, 0.0});
 
     // Logical dimensions of the sprite image.
     const uint16_t width;
@@ -33,6 +33,9 @@ public:
 
     // Whether this image should be interpreted as a signed distance field icon.
     const bool sdf;
+    
+    // position offset
+    const vec2<float> offset;
 };
 
 } // namespace mbgl

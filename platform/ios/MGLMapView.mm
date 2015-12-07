@@ -2259,7 +2259,9 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
         uint16_t(annotationImage.image.size.width),
         uint16_t(annotationImage.image.size.height),
         float(annotationImage.image.scale),
-        std::move(pixels));
+        std::move(pixels),
+        Boolean(false),
+        mbgl::vec2<float>{static_cast<float>(annotationImage.centerOffset.x), static_cast<float>(annotationImage.centerOffset.y)});
 
     // sprite upload
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
