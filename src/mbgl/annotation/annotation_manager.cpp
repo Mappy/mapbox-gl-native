@@ -164,7 +164,7 @@ void AnnotationManager::addIcon(const std::string& name, std::shared_ptr<const S
 
 double AnnotationManager::getTopOffsetPixelsForIcon(const std::string& name) {
     auto sprite = spriteStore.getSprite(name);
-    return sprite ? -sprite->height / 2 : 0;
+    return sprite ? (sprite->offset.y - (sprite->height / 2.0)) : 0;
 }
 
 } // namespace mbgl
