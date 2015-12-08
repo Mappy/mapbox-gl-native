@@ -42,6 +42,7 @@ class MapData;
 
 class AnnotationTileMonitor : public GeometryTileMonitor {
 public:
+    // TODO: should just take AnnotationManager&, but we need to eliminate util::exclusive<AnnotationManager> from MapData first.
     AnnotationTileMonitor(const TileID&, MapData&);
     ~AnnotationTileMonitor();
 
@@ -55,6 +56,6 @@ private:
     GeometryTileMonitor::Callback callback;
 };
 
-}
+} // namespace mbgl
 
 #endif

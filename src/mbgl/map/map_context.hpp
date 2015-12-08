@@ -5,6 +5,7 @@
 #include <mbgl/map/update.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/map/map.hpp>
+#include <mbgl/map/map_data.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/util/async_task.hpp>
 #include <mbgl/util/gl_object_store.hpp>
@@ -27,8 +28,10 @@ struct FrameData {
 
 class MapContext : public Style::Observer {
 public:
-    MapContext(View&, FileSource&, MapData&);
+    MapContext(View&, FileSource&, MapMode, GLContextMode, const float pixelRatio);
     ~MapContext();
+
+    MapData& getData() { return data; }
 
     void pause();
 
@@ -45,16 +48,15 @@ public:
 
     bool isLoaded() const;
 
-    double getTopOffsetPixelsForAnnotationSymbol(const std::string& symbol);
+    void addAnnotationIcon(const std::string&, std::shared_ptr<const SpriteImage>);
+    void removeAnnotationIcon(const std::string&);
+    double getTopOffsetPixelsForAnnotationIcon(const std::string&);
     void updateAnnotations();
 
     void setSourceTileCacheSize(size_t size);
     void onLowMemory();
 
     void cleanup();
-
-    void setSprite(const std::string&, std::shared_ptr<const SpriteImage>);
-    void removeSprite(const std::string&);
 
     // Style::Observer implementation.
     void onTileDataChanged() override;
@@ -70,6 +72,7 @@ private:
     void loadStyleJSON(const std::string& json, const std::string& base);
 
     View& view;
+    std::unique_ptr<MapData> dataPtr;
     MapData& data;
 
     util::GLObjectStore glObjectStore;
@@ -93,6 +96,6 @@ private:
     FrameData frameData;
 };
 
-}
+} // namespace mbgl
 
 #endif

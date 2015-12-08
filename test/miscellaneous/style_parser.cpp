@@ -1,6 +1,5 @@
 #include "../fixtures/util.hpp"
 
-#include <mbgl/map/map_data.hpp>
 #include <mbgl/style/style_parser.hpp>
 #include <mbgl/util/io.hpp>
 
@@ -21,7 +20,7 @@ typedef std::vector<Message> Messages;
 class StyleParserTest : public ::testing::TestWithParam<std::string> {};
 
 TEST_P(StyleParserTest, ParseStyle) {
-    const std::string &base = "test/fixtures/style_parser/" + GetParam();
+    const std::string base = std::string("test/fixtures/style_parser/") + GetParam();
 
     rapidjson::Document infoDoc;
     infoDoc.Parse<0>(util::read_file(base + ".info.json").c_str());
@@ -36,9 +35,7 @@ TEST_P(StyleParserTest, ParseStyle) {
     FixtureLogObserver* observer = new FixtureLogObserver();
     Log::setObserver(std::unique_ptr<Log::Observer>(observer));
 
-    double fakePixelRatio = 1.0;
-    MapData data(MapMode::Continuous, GLContextMode::Unique, fakePixelRatio);
-    StyleParser parser(data);
+    StyleParser parser;
     parser.parse(styleDoc);
 
     for (auto it = infoDoc.MemberBegin(), end = infoDoc.MemberEnd(); it != end; it++) {

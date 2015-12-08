@@ -24,7 +24,7 @@ public:
         : mode(mode_)
         , contextMode(contextMode_)
         , pixelRatio(pixelRatio_)
-        , annotationManager(*this)
+        , annotationManager(pixelRatio)
         , animationTime(Duration::zero())
         , defaultFadeDuration(mode_ == MapMode::Continuous ? std::chrono::milliseconds(300) : Duration::zero())
         , defaultTransitionDuration(Duration::zero())
@@ -152,6 +152,6 @@ public:
     bool loading = false;
 };
 
-}
+} // namespace mbgl
 
 #endif

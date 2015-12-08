@@ -115,13 +115,7 @@ GLFWView::~GLFWView() {
 
 void GLFWView::initialize(mbgl::Map *map_) {
     View::initialize(map_);
-}
-
-void GLFWView::notifyMapChange(mbgl::MapChange change) {
-    if (change == mbgl::MapChange::MapChangeDidFinishLoadingMap && !initializedDefaultMarker) {
-        initializedDefaultMarker = true;
-        map->setSprite("default_marker", makeSpriteImage(22, 22, 1));
-    }
+    map->addAnnotationIcon("default_marker", makeSpriteImage(22, 22, 1));
 }
 
 void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, int mods) {
@@ -228,7 +222,7 @@ void GLFWView::addRandomCustomPointAnnotations(int count) {
     for (int i = 0; i < count; i++) {
         static int spriteID = 1;
         const auto name = std::string{ "marker-" } + mbgl::util::toString(spriteID++);
-        map->setSprite(name, makeSpriteImage(22, 22, 1));
+        map->addAnnotationIcon(name, makeSpriteImage(22, 22, 1));
         spriteIDs.push_back(name);
         points.emplace_back(makeRandomPoint(), name);
     }
@@ -542,5 +536,5 @@ void showColorDebugImage(std::string name, const char *data, size_t logicalWidth
 }
 #endif
 
-}
-}
+} // namespace platform
+} // namespace mbgl

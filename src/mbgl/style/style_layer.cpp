@@ -36,6 +36,8 @@ bool StyleLayer::hasRenderPass(RenderPass pass) const {
 }
 
 void StyleLayer::copy(const StyleLayer& src) {
+    id = src.id;
+    ref = src.ref;
     type = src.type;
     source = src.source;
     sourceLayer = src.sourceLayer;
@@ -45,4 +47,4 @@ void StyleLayer::copy(const StyleLayer& src) {
     visibility = src.visibility;
 }
 
-}
+} // namespace mbgl

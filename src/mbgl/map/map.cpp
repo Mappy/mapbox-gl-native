@@ -17,8 +17,10 @@ namespace mbgl {
 Map::Map(View& view_, FileSource& fileSource, MapMode mapMode, GLContextMode contextMode, ConstrainMode constrainMode)
     : view(view_),
       transform(std::make_unique<Transform>(view, constrainMode)),
-      data(std::make_unique<MapData>(mapMode, contextMode, view.getPixelRatio())),
-      context(std::make_unique<util::Thread<MapContext>>(util::ThreadContext{"Map", util::ThreadType::Map, util::ThreadPriority::Regular}, view, fileSource, *data))
+      context(std::make_unique<util::Thread<MapContext>>(
+        util::ThreadContext{"Map", util::ThreadType::Map, util::ThreadPriority::Regular},
+        view, fileSource, mapMode, contextMode, view.getPixelRatio())),
+      data(&context->invokeSync<MapData&>(&MapContext::getData))
 {
     view.initialize(this);
     update(Update::Dimensions);
@@ -365,8 +367,16 @@ LatLng Map::latLngForPixel(const PrecisionPoint& pixel) const {
 
 #pragma mark - Annotations
 
-double Map::getTopOffsetPixelsForAnnotationSymbol(const std::string& symbol) {
-    return context->invokeSync<double>(&MapContext::getTopOffsetPixelsForAnnotationSymbol, symbol);
+void Map::addAnnotationIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
+    context->invoke(&MapContext::addAnnotationIcon, name, sprite);
+}
+
+void Map::removeAnnotationIcon(const std::string& name) {
+    removeAnnotationIcon(name);
+}
+
+double Map::getTopOffsetPixelsForAnnotationIcon(const std::string& symbol) {
+    return context->invokeSync<double>(&MapContext::getTopOffsetPixelsForAnnotationIcon, symbol);
 }
 
 AnnotationID Map::addPointAnnotation(const PointAnnotation& annotation) {
@@ -405,18 +415,6 @@ AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
 LatLngBounds Map::getBoundsForAnnotations(const AnnotationIDs& annotations) {
     return data->getAnnotationManager()->getBoundsForAnnotations(annotations);
 }
-
-
-#pragma mark - Sprites
-
-void Map::setSprite(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
-    context->invoke(&MapContext::setSprite, name, sprite);
-}
-
-void Map::removeSprite(const std::string& name) {
-    context->invoke(&MapContext::removeSprite, name);
-}
-
 
 #pragma mark - Toggles
 
@@ -502,4 +500,4 @@ void Map::dumpDebugLogs() const {
     context->invokeSync(&MapContext::dumpDebugLogs);
 }
 
-}
+} // namespace mbgl

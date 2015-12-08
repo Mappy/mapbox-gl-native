@@ -22,9 +22,7 @@
 
 namespace mbgl {
 
-class MapData;
-class TexturePool;
-class Style;
+class StyleUpdateParameters;
 class Painter;
 class FileRequest;
 class TransformState;
@@ -62,7 +60,7 @@ public:
         virtual void onTileLoadingFailed(std::exception_ptr error) = 0;
     };
 
-    Source(MapData&);
+    Source();
     ~Source();
 
     void load();
@@ -72,10 +70,7 @@ public:
     // will return true if all the tiles were scheduled for updating of false if
     // they were not. shouldReparsePartialTiles must be set to "true" if there is
     // new data available that a tile in the "partial" state might be interested at.
-    bool update(const TransformState&,
-                Style&,
-                TexturePool&,
-                bool shouldReparsePartialTiles);
+    bool update(const StyleUpdateParameters&);
 
     void updateMatrices(const mat4 &projMatrix, const TransformState &transform);
     void drawClippingMasks(Painter &painter);
@@ -94,7 +89,7 @@ public:
     bool enabled;
 
 private:
-    void tileLoadingCompleteCallback(const TileID&, const TransformState&);
+    void tileLoadingCompleteCallback(const TileID&, const TransformState&, bool collisionDebug);
 
     void emitSourceLoaded();
     void emitSourceLoadingFailed(const std::string& message);
@@ -107,17 +102,11 @@ private:
     int32_t coveringZoomLevel(const TransformState&) const;
     std::forward_list<TileID> coveringTiles(const TransformState&) const;
 
-    TileData::State addTile(const TransformState&,
-                            Style&,
-                            TexturePool&,
-                            const TileID&);
-
-    TileData::State hasTile(const TileID& id);
+    TileData::State addTile(const TileID&, const StyleUpdateParameters&);
+    TileData::State hasTile(const TileID&);
     void updateTilePtrs();
 
     double getZoom(const TransformState &state) const;
-
-    MapData& data;
 
     bool loaded = false;
 
@@ -133,6 +122,6 @@ private:
     Observer* observer_ = nullptr;
 };
 
-}
+} // namespace mbgl
 
 #endif

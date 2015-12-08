@@ -1,6 +1,5 @@
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/annotation/annotation_tile.hpp>
-#include <mbgl/map/map_data.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/layer/symbol_layer.hpp>
 
@@ -11,7 +10,10 @@ namespace mbgl {
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
 const std::string AnnotationManager::PointLayerID = "com.mapbox.annotations.points";
 
-AnnotationManager::AnnotationManager(MapData& data_) : data(data_) {}
+AnnotationManager::AnnotationManager(float pixelRatio)
+    : spriteStore(pixelRatio),
+      spriteAtlas(512, 512, pixelRatio, spriteStore) {
+}
 
 AnnotationManager::~AnnotationManager() = default;
 
@@ -110,7 +112,7 @@ std::unique_ptr<AnnotationTile> AnnotationManager::getTile(const TileID& tileID)
 void AnnotationManager::updateStyle(Style& style) {
     // Create annotation source, point layer, and point bucket
     if (!style.getSource(SourceID)) {
-        std::unique_ptr<Source> source = std::make_unique<Source>(data);
+        std::unique_ptr<Source> source = std::make_unique<Source>();
         source->info.type = SourceType::Annotations;
         source->info.source_id = SourceID;
         source->enabled = true;
@@ -124,6 +126,7 @@ void AnnotationManager::updateStyle(Style& style) {
         layer->sourceLayer = PointLayerID;
         layer->layout.icon.image = std::string("{sprite}");
         layer->layout.icon.allowOverlap = true;
+        layer->spriteAtlas = &spriteAtlas;
 
         style.addLayer(std::move(layer));
     }
@@ -154,4 +157,19 @@ void AnnotationManager::removeTileMonitor(AnnotationTileMonitor& monitor) {
     monitors.erase(&monitor);
 }
 
+void AnnotationManager::addIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
+    spriteStore.setSprite(name, sprite);
+    spriteAtlas.updateDirty();
 }
+    
+void AnnotationManager::removeIcon(const std::string& name) {
+    spriteStore.removeSprite(name);
+    spriteAtlas.updateDirty();
+}
+
+double AnnotationManager::getTopOffsetPixelsForIcon(const std::string& name) {
+    auto sprite = spriteStore.getSprite(name);
+    return sprite ? -sprite->height / 2 : 0;
+}
+
+} // namespace mbgl

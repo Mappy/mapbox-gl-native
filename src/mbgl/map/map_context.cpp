@@ -25,9 +25,10 @@
 
 namespace mbgl {
 
-MapContext::MapContext(View& view_, FileSource& fileSource, MapData& data_)
+MapContext::MapContext(View& view_, FileSource& fileSource, MapMode mode_, GLContextMode contextMode_, const float pixelRatio_)
     : view(view_),
-      data(data_),
+      dataPtr(std::make_unique<MapData>(mode_, contextMode_, pixelRatio_)),
+      data(*dataPtr),
       asyncUpdate([this] { update(); }),
       asyncInvalidate([&view_] { view_.invalidate(); }),
       texturePool(std::make_unique<TexturePool>()) {
@@ -57,6 +58,7 @@ void MapContext::cleanup() {
     style.reset();
     painter.reset();
     texturePool.reset();
+    dataPtr.reset();
 
     glObjectStore.performCleanup();
 
@@ -241,10 +243,10 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
     glObjectStore.performCleanup();
 
     if (!painter) painter = std::make_unique<Painter>(data, transformState);
-    painter->render(*style, frame);
+    painter->render(*style, frame, data.getAnnotationManager()->getSpriteAtlas());
 
     if (data.mode == MapMode::Still) {
-        callback(nullptr, std::move(view.readStillImage()));
+        callback(nullptr, view.readStillImage());
         callback = nullptr;
     }
 
@@ -265,14 +267,19 @@ bool MapContext::isLoaded() const {
     return style->isLoaded();
 }
 
-double MapContext::getTopOffsetPixelsForAnnotationSymbol(const std::string& symbol) {
+void MapContext::addAnnotationIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
-    auto sprite = style->spriteStore->getSprite(symbol);
-    if (sprite) {
-        return -sprite->height / 2;
-    } else {
-        return 0;
-    }
+    data.getAnnotationManager()->addIcon(name, sprite);
+}
+    
+void MapContext::removeAnnotationIcon(const std::string& name) {
+    assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
+    data.getAnnotationManager()->removeIcon(name);
+}
+
+double MapContext::getTopOffsetPixelsForAnnotationIcon(const std::string& name) {
+    assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
+    return data.getAnnotationManager()->getTopOffsetPixelsForIcon(name);
 }
 
 void MapContext::setSourceTileCacheSize(size_t size) {
@@ -280,9 +287,7 @@ void MapContext::setSourceTileCacheSize(size_t size) {
     if (size != sourceCacheSize) {
         sourceCacheSize = size;
         if (!style) return;
-        for (const auto &source : style->sources) {
-            source->setCacheSize(sourceCacheSize);
-        }
+        style->setSourceTileCacheSize(size);
         asyncInvalidate.send();
     }
 }
@@ -290,37 +295,12 @@ void MapContext::setSourceTileCacheSize(size_t size) {
 void MapContext::onLowMemory() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
     if (!style) return;
-    for (const auto &source : style->sources) {
-        source->onLowMemory();
-    }
+    style->onLowMemory();
     asyncInvalidate.send();
-}
-
-void MapContext::setSprite(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
-    if (!style) {
-        Log::Info(Event::Sprite, "Ignoring sprite without stylesheet");
-        return;
-    }
-
-    style->spriteStore->setSprite(name, sprite);
-
-    style->spriteAtlas->updateDirty();
-}
-    
-void MapContext::removeSprite(const std::string& name) {
-    if (!style) {
-        Log::Info(Event::Sprite, "Ignoring sprite without stylesheet");
-        return;
-    }
-    
-    style->spriteStore->removeSprite(name);
-    
-    style->spriteAtlas->updateDirty();
 }
 
 void MapContext::onTileDataChanged() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
-
     updateFlags |= Update::Repaint;
     asyncUpdate.send();
 }
@@ -345,4 +325,4 @@ void MapContext::dumpDebugLogs() const {
     Log::Info(Event::General, "--------------------------------------------------------------------------------");
 }
 
-}
+} // namespace mbgl

@@ -247,10 +247,10 @@ void SymbolBucket::addFeatures(uintptr_t tileUID,
         // if feature has icon, get sprite atlas position
         if (feature.sprite.length()) {
             auto image = spriteAtlas.getImage(feature.sprite, false);
-            if (image.pos.hasArea() && image.texture) {
-                shapedIcon = shapeIcon(image.pos, layout);
-                assert(image.texture);
-                if (image.texture->sdf) {
+            if (image) {
+                shapedIcon = shapeIcon((*image).pos, layout);
+                assert((*image).texture);
+                if ((*image).texture->sdf) {
                     sdfIcons = true;
                 }
             }
@@ -616,4 +616,4 @@ void SymbolBucket::drawCollisionBoxes(CollisionBoxShader &shader) {
         MBGL_CHECK_ERROR(glDrawArrays(GL_LINES, 0, group->vertex_length));
     }
 }
-}
+} // namespace mbgl

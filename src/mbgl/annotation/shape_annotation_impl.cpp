@@ -72,6 +72,7 @@ void ShapeAnnotationImpl::updateStyle(Style& style) {
             : ProjectedFeatureType::Polygon;
 
         layer->id = layerID;
+        layer->ref = "";
         layer->source = AnnotationManager::SourceID;
         layer->sourceLayer = layer->id;
         layer->visibility = VisibilityType::Visible;
@@ -157,4 +158,4 @@ LatLngBounds ShapeAnnotationImpl::bounds() const {
     return result;
 }
 
-}
+} // namespace mbgl

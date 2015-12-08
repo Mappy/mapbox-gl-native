@@ -341,6 +341,10 @@ public class MainActivity extends AppCompatActivity {
                                 startActivity(new Intent(getApplicationContext(), InfoWindowAdapterActivity.class));
                                 return true;
 
+                            case R.id.action_tilt:
+                                startActivity(new Intent(getApplicationContext(), TiltActivity.class));
+                                return true;
+
                             case R.id.action_map_fragment:
                                 startActivity(new Intent(getApplicationContext(), MapFragmentActivity.class));
                                 return true;
@@ -359,6 +363,10 @@ public class MainActivity extends AppCompatActivity {
 
                             case R.id.action_info_window:
                                 startActivity(new Intent(getApplicationContext(), InfoWindowActivity.class));
+                                return true;
+
+                            case R.id.action_info_window_concurrent:
+                                startActivity(new Intent(getApplicationContext(), InfoWindowConcurrentActivity.class));
                                 return true;
 
                             case R.id.action_visible_bounds:

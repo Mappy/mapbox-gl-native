@@ -1,20 +1,16 @@
 #include <mbgl/style/style_parser.hpp>
-#include <mbgl/style/style_layer.hpp>
 
-#include <mbgl/map/map_data.hpp>
 #include <mbgl/platform/log.hpp>
 
 #include <algorithm>
 
 namespace mbgl {
 
-StyleParser::StyleParser(MapData& data_)
-    : data(data_) {
-}
+StyleParser::~StyleParser() = default;
 
 void StyleParser::parse(const JSVal& document) {
     if (document.HasMember("version")) {
-        version = document["version"].GetInt();
+        int version = document["version"].GetInt();
         if (version != 8) {
             Log::Warning(Event::ParseStyle, "current renderer implementation only supports style spec version 8; using an outdated style will cause rendering errors");
         }
@@ -54,7 +50,7 @@ void StyleParser::parseSources(const JSVal& value) {
         const JSVal& nameVal = itr->name;
         const JSVal& sourceVal = itr->value;
 
-        std::unique_ptr<Source> source = std::make_unique<Source>(data);
+        std::unique_ptr<Source> source = std::make_unique<Source>();
 
         source->info.source_id = { nameVal.GetString(), nameVal.GetStringLength() };
 
@@ -139,7 +135,7 @@ void StyleParser::parseLayers(const JSVal& value) {
             continue;
         }
 
-        layersMap.emplace(layerID, std::pair<const JSVal&, util::ptr<StyleLayer>> { layerValue, nullptr });
+        layersMap.emplace(layerID, std::pair<const JSVal&, std::unique_ptr<StyleLayer>> { layerValue, nullptr });
         ids.push_back(layerID);
     }
 
@@ -149,14 +145,18 @@ void StyleParser::parseLayers(const JSVal& value) {
         parseLayer(it->first,
                    it->second.first,
                    it->second.second);
+    }
+
+    for (const auto& id : ids) {
+        auto it = layersMap.find(id);
 
         if (it->second.second) {
-            layers.emplace_back(it->second.second);
+            layers.emplace_back(std::move(it->second.second));
         }
     }
 }
 
-void StyleParser::parseLayer(const std::string& id, const JSVal& value, util::ptr<StyleLayer>& layer) {
+void StyleParser::parseLayer(const std::string& id, const JSVal& value, std::unique_ptr<StyleLayer>& layer) {
     if (layer) {
         // Skip parsing this again. We already have a valid layer definition.
         return;
@@ -190,7 +190,7 @@ void StyleParser::parseLayer(const std::string& id, const JSVal& value, util::pt
                    it->second.second);
         stack.pop_front();
 
-        util::ptr<StyleLayer> reference = it->second.second;
+        StyleLayer* reference = it->second.second.get();
         if (!reference) {
             return;
         }
@@ -288,4 +288,4 @@ void StyleParser::parseVisibility(StyleLayer& layer, const JSVal& value) {
     layer.visibility = VisibilityTypeClass({ value["visibility"].GetString(), value["visibility"].GetStringLength() });
 }
 
-}
+} // namespace mbgl
