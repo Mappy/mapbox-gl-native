@@ -6,7 +6,7 @@
 #import <CoreLocation/CoreLocation.h>
 
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
-static NSString * const kOffsetMarkerTitle = @"Offset Marker";
+static NSString * const kOffsetMarkerTitle = @"Offset Marker and Callout";
 
 typedef NS_ENUM(NSInteger, settingIndex) {
     settingIndexResetNorth = 0,
@@ -390,6 +390,7 @@ typedef NS_ENUM(NSInteger, settingIndex) {
         UIImage *imagePng = [UIImage imageNamed:@"default_marker"];
         MGLAnnotationImage *image = [MGLAnnotationImage annotationImageWithImage:imagePng reuseIdentifier:kOffsetMarkerTitle];
         image.centerOffset = CGPointMake(0.0, -12.0);
+        image.calloutOffset = CGPointMake(-8.0, 3.0);
         return image;
     }
 

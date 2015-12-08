@@ -1097,7 +1097,6 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
         {
             // pare down nearby annotations to only enabled ones
             NSEnumerator *metadataEnumerator = [self.annotationMetadataByAnnotation objectEnumerator];
-            NSString *prefix = [NSString stringWithUTF8String:spritePrefix.c_str()];
             std::unordered_set<uint32_t> disabledAnnotationIDs;
 
             while (NSDictionary *metadata = [metadataEnumerator nextObject])
@@ -1105,10 +1104,10 @@ std::chrono::steady_clock::duration durationInSeconds(float duration)
                 // This iterates ALL annotations' metadata dictionaries, using their
                 // reuse identifiers to get at the stored annotation image objects,
                 // which we can then query for enabled status.
-                NSString *reuseIdentifier = [metadata[MGLAnnotationSymbolKey] stringByReplacingOccurrencesOfString:prefix
+                NSString *reuseIdentifier = [metadata[MGLAnnotationSymbolKey] stringByReplacingOccurrencesOfString:MGLAnnotationSpritePrefix
                                                                                                         withString:@""
                                                                                                            options:NSAnchoredSearch
-                                                                                                             range:NSMakeRange(0, prefix.length)];
+                                                                                                             range:NSMakeRange(0, MGLAnnotationSpritePrefix.length)];
 
                 MGLAnnotationImage *annotationImage = self.annotationImages[reuseIdentifier];
 
@@ -2396,11 +2395,27 @@ CLLocationCoordinate2D MGLLocationCoordinate2DFromLatLng(mbgl::LatLng latLng)
             NSString *customSymbol = [[self.annotationMetadataByAnnotation objectForKey:annotation] objectForKey:MGLAnnotationSymbolKey];
             NSString *symbolName = [customSymbol length] ? customSymbol : MGLDefaultStyleMarkerSymbolName;
             std::string cSymbolName([symbolName UTF8String]);
+            CGPoint calloutViewOrigin;
 
             // determine anchor point based on symbol
             CGPoint calloutAnchorPoint = [self convertCoordinate:annotation.coordinate toPointToView:self];
-            double y = _mbglMap->getTopOffsetPixelsForAnnotationIcon(cSymbolName);
-            calloutBounds = CGRectMake(calloutAnchorPoint.x - 1, calloutAnchorPoint.y + y, 0, 0);
+            calloutViewOrigin.x = calloutAnchorPoint.x -1;
+            calloutViewOrigin.y = calloutAnchorPoint.y;
+            
+            // remove icon y offset
+            double iconYOffset = _mbglMap->getTopOffsetPixelsForAnnotationIcon(cSymbolName);
+            calloutViewOrigin.y += iconYOffset;
+            
+            // get callout offset set by user from annotationImage
+            NSString *annotationImageKey = [symbolName stringByReplacingOccurrencesOfString:MGLAnnotationSpritePrefix
+                                                                                 withString:@""
+                                                                                    options:NSAnchoredSearch
+                                                                                      range:NSMakeRange(0, MGLAnnotationSpritePrefix.length)];
+            MGLAnnotationImage *annotationImage = self.annotationImages[annotationImageKey];
+            calloutViewOrigin.x += annotationImage.calloutOffset.x;
+            calloutViewOrigin.y += annotationImage.calloutOffset.y;
+            
+            calloutBounds = CGRectMake(calloutViewOrigin.x, calloutViewOrigin.y, 0, 0);
         }
 
         // consult delegate for left and/or right accessory views
