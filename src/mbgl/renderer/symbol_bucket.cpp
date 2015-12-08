@@ -248,8 +248,8 @@ void SymbolBucket::addFeatures(uintptr_t tileUID,
         if (feature.sprite.length()) {
             auto image = spriteAtlas.getImage(feature.sprite, false);
             if (image) {
-                shapedIcon = shapeIcon((*image).pos, layout);
                 assert((*image).texture);
+                shapedIcon = shapeIcon((*image).pos, layout, (*image).texture->offset);
                 if ((*image).texture->sdf) {
                     sdfIcons = true;
                 }

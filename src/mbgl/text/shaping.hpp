@@ -24,7 +24,7 @@ namespace mbgl {
 
     class SymbolLayoutProperties;
 
-    PositionedIcon shapeIcon(const Rect<uint16_t>& image, const SymbolLayoutProperties&);
+    PositionedIcon shapeIcon(const Rect<uint16_t>& image, const SymbolLayoutProperties&, const vec2<float> offset);
 
 } // namespace mbgl
 

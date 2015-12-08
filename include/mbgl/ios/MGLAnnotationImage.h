@@ -32,6 +32,17 @@ NS_ASSUME_NONNULL_BEGIN
 *   The default value of this property is `YES`. If the value of this property is `NO`, the annotation image ignores touch events and cannot be selected. */
 @property (nonatomic, getter=isEnabled) BOOL enabled;
 
+/** The offset (in points) at which to display the image.
+ *
+ * By default, the center point of an annotation image is placed at the coordinate point of the associated annotation. */
+@property(nonatomic) CGPoint centerOffset;
+
+
+/** The offset (in points) at which to place the callout bubble.
+ *
+ * This property determines the additional distance by which to move the callout bubble. */
+@property(nonatomic) CGPoint calloutOffset;
+
 @end
 
 NS_ASSUME_NONNULL_END

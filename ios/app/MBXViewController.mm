@@ -6,11 +6,27 @@
 #import <CoreLocation/CoreLocation.h>
 
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
+static NSString * const kOffsetMarkerTitle = @"Offset Marker and Callout";
+
+typedef NS_ENUM(NSInteger, settingIndex) {
+    settingIndexResetNorth = 0,
+    settingIndexResetPosition,
+    settingIndexCycleDebugOptions,
+    settingIndexEmptyMemory,
+    settingIndexAdd100Points,
+    settingIndexAdd1000Points,
+    settingIndexAdd10000Points,
+    settingIndexAddTestShapes,
+    settingIndexAddOffsetAnnotations,
+    settingIndexRemoveAnnotations,
+    settingsNbr                         // keep last
+};
 
 @interface MBXViewController () <UIActionSheetDelegate, MGLMapViewDelegate>
 
 @property (nonatomic) MGLMapView *mapView;
 @property (nonatomic) NSUInteger styleIndex;
+@property (nonatomic, strong) NSDictionary *settingsDictionary;
 
 @end
 
@@ -79,6 +95,18 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
     [self.mapView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)]];
 
     [self restoreState:nil];
+    
+    self.settingsDictionary = @{@(settingIndexResetNorth): @"Reset North",
+                                @(settingIndexResetPosition): @"Reset Position",
+                                @(settingIndexCycleDebugOptions): @"Cycle debug options",
+                                @(settingIndexEmptyMemory): @"Empty Memory",
+                                @(settingIndexAdd100Points): @"Add 100 Points",
+                                @(settingIndexAdd1000Points): @"Add 1,000 Points",
+                                @(settingIndexAdd10000Points): @"Add 10,000 Points",
+                                @(settingIndexAddTestShapes): @"Add Test Shapes",
+                                @(settingIndexAddOffsetAnnotations): @"Add offset annotations",
+                                @(settingIndexRemoveAnnotations): @"Remove Annotations"
+                                };
 }
 
 - (void)saveState:(__unused NSNotification *)notification
@@ -130,127 +158,58 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
                                                        delegate:self
                                               cancelButtonTitle:@"Cancel"
                                          destructiveButtonTitle:nil
-                                              otherButtonTitles:@"Reset North",
-                                                                @"Reset Position",
-                                                                @"Cycle debug options",
-                                                                @"Empty Memory",
-                                                                @"Add 100 Points",
-                                                                @"Add 1,000 Points",
-                                                                @"Add 10,000 Points",
-                                                                @"Add Test Shapes",
-                                                                @"Remove Annotations",
-                                                                nil];
+                                              otherButtonTitles:nil];
+    for (NSInteger i = 0; i < settingsNbr; i++) {
+        [sheet addButtonWithTitle:[self.settingsDictionary objectForKey:@(i)]];
+    }
 
     [sheet showFromBarButtonItem:self.navigationItem.leftBarButtonItem animated:YES];
 }
 
-- (void)actionSheet:(UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex
+- (void)actionSheet:(__unused UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex
 {
-    if (buttonIndex == actionSheet.firstOtherButtonIndex)
-    {
-        [self.mapView resetNorth];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 1)
-    {
-        [self.mapView resetPosition];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 2)
-    {
-        [self.mapView cycleDebugOptions];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 3)
-    {
-        [self.mapView emptyMemoryCache];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 4)
-    {
-        [self parseFeaturesAddingCount:100];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 5)
-    {
-        [self parseFeaturesAddingCount:1000];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 6)
-    {
-        [self parseFeaturesAddingCount:10000];
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 7)
-    {
-        // PNW triangle
-        //
-        CLLocationCoordinate2D triangleCoordinates[3] =
-        {
-            CLLocationCoordinate2DMake(44, -122),
-            CLLocationCoordinate2DMake(46, -122),
-            CLLocationCoordinate2DMake(46, -121)
-        };
-
-        MGLPolygon *triangle = [MGLPolygon polygonWithCoordinates:triangleCoordinates count:3];
-
-        [self.mapView addAnnotation:triangle];
-
-        // Orcas Island hike
-        //
-        NSDictionary *hike = [NSJSONSerialization JSONObjectWithData:
-                                 [NSData dataWithContentsOfFile:
-                                     [[NSBundle mainBundle] pathForResource:@"polyline" ofType:@"geojson"]]
-                                                             options:0
-                                                               error:nil];
-
-        NSArray *hikeCoordinatePairs = hike[@"features"][0][@"geometry"][@"coordinates"];
-
-        CLLocationCoordinate2D *polylineCoordinates = (CLLocationCoordinate2D *)malloc([hikeCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
-
-        for (NSUInteger i = 0; i < [hikeCoordinatePairs count]; i++)
-        {
-            polylineCoordinates[i] = CLLocationCoordinate2DMake([hikeCoordinatePairs[i][1] doubleValue], [hikeCoordinatePairs[i][0] doubleValue]);
-        }
-
-        MGLPolyline *polyline = [MGLPolyline polylineWithCoordinates:polylineCoordinates
-                                                               count:[hikeCoordinatePairs count]];
-
-        [self.mapView addAnnotation:polyline];
-
-        free(polylineCoordinates);
-
-        // PA/NJ/DE polys
-        //
-        NSDictionary *threestates = [NSJSONSerialization JSONObjectWithData:
-                              [NSData dataWithContentsOfFile:
-                               [[NSBundle mainBundle] pathForResource:@"threestates" ofType:@"geojson"]]
-                                                             options:0
-                                                               error:nil];
-
-        for (NSDictionary *feature in threestates[@"features"])
-        {
-            NSArray *stateCoordinatePairs = feature[@"geometry"][@"coordinates"];
-
-            while ([stateCoordinatePairs count] == 1) stateCoordinatePairs = stateCoordinatePairs[0];
-
-            CLLocationCoordinate2D *polygonCoordinates = (CLLocationCoordinate2D *)malloc([stateCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
-
-            for (NSUInteger i = 0; i < [stateCoordinatePairs count]; i++)
-            {
-                polygonCoordinates[i] = CLLocationCoordinate2DMake([stateCoordinatePairs[i][1] doubleValue], [stateCoordinatePairs[i][0] doubleValue]);
-            }
-
-            MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:polygonCoordinates count:[stateCoordinatePairs count]];
-
-            [self.mapView addAnnotation:polygon];
-
-            free(polygonCoordinates);
-        }
-    }
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 8)
-    {
-        [self.mapView removeAnnotations:self.mapView.annotations];
+    NSInteger settingChoice = buttonIndex - 1;      // cancel is index 0
+    switch (settingChoice) {
+        case settingIndexResetNorth:
+            [self.mapView resetNorth];
+            break;
+        case settingIndexResetPosition:
+            [self.mapView resetPosition];
+            break;
+        case settingIndexCycleDebugOptions:
+            [self.mapView cycleDebugOptions];
+            break;
+        case settingIndexEmptyMemory:
+            [self.mapView emptyMemoryCache];
+            break;
+        case settingIndexAdd100Points:
+            [self parseFeaturesAddingCount:100];
+            break;
+        case settingIndexAdd1000Points:
+            [self parseFeaturesAddingCount:1000];
+            break;
+        case settingIndexAdd10000Points:
+            [self parseFeaturesAddingCount:10000];
+            break;
+        case settingIndexAddTestShapes:
+            [self parseShapes];
+            break;
+        case settingIndexAddOffsetAnnotations:
+            [self addOffsetAnnotations];
+            break;
+        case settingIndexRemoveAnnotations:
+            [self.mapView removeAnnotations:self.mapView.annotations];
+            break;
+        default:
+            NSLog(@"Error, unknown setting action");
+            break;
     }
 }
 
 - (void)parseFeaturesAddingCount:(NSUInteger)featuresCount
 {
     [self.mapView removeAnnotations:self.mapView.annotations];
-
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^
     {
         NSData *featuresData = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"points" ofType:@"geojson"]];
@@ -332,6 +291,85 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
     self.mapView.userTrackingMode = nextMode;
 }
 
+- (void)parseShapes
+{
+    // PNW triangle
+    //
+    CLLocationCoordinate2D triangleCoordinates[3] =
+    {
+        CLLocationCoordinate2DMake(44, -122),
+        CLLocationCoordinate2DMake(46, -122),
+        CLLocationCoordinate2DMake(46, -121)
+    };
+    
+    MGLPolygon *triangle = [MGLPolygon polygonWithCoordinates:triangleCoordinates count:3];
+    
+    [self.mapView addAnnotation:triangle];
+    
+    // Orcas Island hike
+    //
+    NSDictionary *hike = [NSJSONSerialization JSONObjectWithData:
+                          [NSData dataWithContentsOfFile:
+                           [[NSBundle mainBundle] pathForResource:@"polyline" ofType:@"geojson"]]
+                                                         options:0
+                                                           error:nil];
+    
+    NSArray *hikeCoordinatePairs = hike[@"features"][0][@"geometry"][@"coordinates"];
+    
+    CLLocationCoordinate2D *polylineCoordinates = (CLLocationCoordinate2D *)malloc([hikeCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
+    
+    for (NSUInteger i = 0; i < [hikeCoordinatePairs count]; i++)
+    {
+        polylineCoordinates[i] = CLLocationCoordinate2DMake([hikeCoordinatePairs[i][1] doubleValue], [hikeCoordinatePairs[i][0] doubleValue]);
+    }
+    
+    MGLPolyline *polyline = [MGLPolyline polylineWithCoordinates:polylineCoordinates
+                                                           count:[hikeCoordinatePairs count]];
+    
+    [self.mapView addAnnotation:polyline];
+    
+    free(polylineCoordinates);
+    
+    // PA/NJ/DE polys
+    //
+    NSDictionary *threestates = [NSJSONSerialization JSONObjectWithData:
+                                 [NSData dataWithContentsOfFile:
+                                  [[NSBundle mainBundle] pathForResource:@"threestates" ofType:@"geojson"]]
+                                                                options:0
+                                                                  error:nil];
+    
+    for (NSDictionary *feature in threestates[@"features"])
+    {
+        NSArray *stateCoordinatePairs = feature[@"geometry"][@"coordinates"];
+        
+        while ([stateCoordinatePairs count] == 1) stateCoordinatePairs = stateCoordinatePairs[0];
+        
+        CLLocationCoordinate2D *polygonCoordinates = (CLLocationCoordinate2D *)malloc([stateCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
+        
+        for (NSUInteger i = 0; i < [stateCoordinatePairs count]; i++)
+        {
+            polygonCoordinates[i] = CLLocationCoordinate2DMake([stateCoordinatePairs[i][1] doubleValue], [stateCoordinatePairs[i][0] doubleValue]);
+        }
+        
+        MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:polygonCoordinates count:[stateCoordinatePairs count]];
+        
+        [self.mapView addAnnotation:polygon];
+        
+        free(polygonCoordinates);
+    }
+}
+
+- (void)addOffsetAnnotations
+{
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    
+    MGLPointAnnotation *annotation = [MGLPointAnnotation new];
+    annotation.coordinate = CLLocationCoordinate2DMake(48.8533940, 2.3775439);
+    annotation.title = kOffsetMarkerTitle;
+    [self.mapView addAnnotation:annotation];
+    [self.mapView showAnnotations:@[annotation] animated:YES];
+}
+
 #pragma mark - Destruction
 
 - (void)dealloc
@@ -345,7 +383,16 @@ static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:
 
 - (MGLAnnotationImage *)mapView:(MGLMapView * __nonnull)mapView imageForAnnotation:(id <MGLAnnotation> __nonnull)annotation
 {
-    if ([annotation.title isEqualToString:@"Dropped Marker"]) return nil; // use default marker
+    if ([annotation.title isEqualToString:@"Dropped Marker"])
+        return nil; // use default marker
+    
+    if ([annotation.title isEqualToString:kOffsetMarkerTitle]) {
+        UIImage *imagePng = [UIImage imageNamed:@"default_marker"];
+        MGLAnnotationImage *image = [MGLAnnotationImage annotationImageWithImage:imagePng reuseIdentifier:kOffsetMarkerTitle];
+        image.centerOffset = CGPointMake(0.0, -12.0);
+        image.calloutOffset = CGPointMake(-8.0, 3.0);
+        return image;
+    }
 
     NSString *annotationIdentifier = [self identifierOfAnnotation:annotation];
 

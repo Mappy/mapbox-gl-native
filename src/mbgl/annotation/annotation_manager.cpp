@@ -169,7 +169,7 @@ void AnnotationManager::removeIcon(const std::string& name) {
 
 double AnnotationManager::getTopOffsetPixelsForIcon(const std::string& name) {
     auto sprite = spriteStore.getSprite(name);
-    return sprite ? -sprite->height / 2 : 0;
+    return sprite ? (sprite->offset.y - (sprite->height / 2.0)) : 0;
 }
 
 } // namespace mbgl
