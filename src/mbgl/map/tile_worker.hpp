@@ -23,6 +23,7 @@ class GlyphAtlas;
 class GlyphStore;
 class Bucket;
 class StyleLayer;
+class SymbolLayer;
 
 // We're using this class to shuttle the resulting buckets from the worker thread to the MapContext
 // thread. This class is movable-only because the vector contains movable-only value elements.
@@ -51,12 +52,11 @@ public:
 
     TileParseResult parsePendingLayers();
 
-    void redoPlacement(std::vector<std::unique_ptr<StyleLayer>>,
-                       const std::unordered_map<std::string, std::unique_ptr<Bucket>>*,
+    void redoPlacement(const std::unordered_map<std::string, std::unique_ptr<Bucket>>*,
                        PlacementConfig);
 
 private:
-    void parseLayer(std::unique_ptr<StyleLayer>, const GeometryTile&);
+    void parseLayer(const StyleLayer*, const GeometryTile&);
     void insertBucket(const std::string& name, std::unique_ptr<Bucket>);
 
     const TileID id;
@@ -69,11 +69,12 @@ private:
 
     bool partialParse = false;
 
+    std::vector<std::unique_ptr<StyleLayer>> layers;
     std::unique_ptr<CollisionTile> collisionTile;
 
     // Contains buckets that we couldn't parse so far due to missing resources.
     // They will be attempted on subsequent parses.
-    std::list<std::pair<std::unique_ptr<StyleLayer>, std::unique_ptr<Bucket>>> pending;
+    std::list<std::pair<const SymbolLayer*, std::unique_ptr<Bucket>>> pending;
 
     // Temporary holder
     TileParseResultBuckets result;
