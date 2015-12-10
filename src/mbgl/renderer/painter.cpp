@@ -10,8 +10,10 @@
 
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/style_layer.hpp>
+#include <mbgl/style/style_render_parameters.hpp>
 
 #include <mbgl/layer/background_layer.hpp>
+#include <mbgl/layer/custom_layer.hpp>
 
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/geometry/line_atlas.hpp>
@@ -215,25 +217,37 @@ void Painter::renderPass(RenderPass pass_,
                   pass == RenderPass::Opaque ? "opaque" : "translucent");
     }
 
-    if (pass == RenderPass::Translucent) {
-        config.blendFunc.reset();
-        config.blend = GL_TRUE;
-    } else {
-        config.blend = GL_FALSE;
-    }
-
     for (; it != end; ++it, i += increment) {
         currentLayer = i;
+
         const auto& item = *it;
-        if (item.bucket && item.tile) {
-            if (item.layer.hasRenderPass(pass)) {
-                MBGL_DEBUG_GROUP(item.layer.id + " - " + std::string(item.tile->id));
-                prepareTile(*item.tile);
-                item.bucket->render(*this, item.layer, item.tile->id, item.tile->matrix);
-            }
+        const StyleLayer& layer = item.layer;
+
+        if (!layer.hasRenderPass(pass))
+            continue;
+
+        if (pass == RenderPass::Translucent) {
+            config.blendFunc.reset();
+            config.blend = GL_TRUE;
         } else {
+            config.blend = GL_FALSE;
+        }
+
+        config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
+        config.stencilMask = 0x0;
+        config.viewport = { 0, 0, frame.framebufferSize[0], frame.framebufferSize[1] };
+
+        if (layer.is<BackgroundLayer>()) {
             MBGL_DEBUG_GROUP("background");
-            renderBackground(*item.layer.template as<BackgroundLayer>());
+            renderBackground(*layer.as<BackgroundLayer>());
+        } else if (layer.is<CustomLayer>()) {
+            MBGL_DEBUG_GROUP(layer.id + " - custom");
+            layer.as<CustomLayer>()->render(StyleRenderParameters(state));
+            config.setDirty();
+        } else {
+            MBGL_DEBUG_GROUP(layer.id + " - " + std::string(item.tile->id));
+            prepareTile(*item.tile);
+            item.bucket->render(*this, layer, item.tile->id, item.tile->matrix);
         }
     }
 
@@ -251,7 +265,7 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         mapbox::util::optional<SpriteAtlasPosition> imagePosA = spriteAtlas->getPosition(properties.pattern.value.from, true);
         mapbox::util::optional<SpriteAtlasPosition> imagePosB = spriteAtlas->getPosition(properties.pattern.value.to, true);
 
-        if ((properties.opacity >= 1.0f) != (pass == RenderPass::Opaque) || !imagePosA || !imagePosB)
+        if (!imagePosA || !imagePosB)
             return;
 
         float zoomFraction = state.getZoomFraction();
@@ -309,6 +323,7 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
     config.stencilTest = GL_FALSE;
     config.depthFunc.reset();
     config.depthTest = GL_TRUE;
+    config.depthMask = GL_FALSE;
     config.depthRange = { 1.0f, 1.0f };
 
     MBGL_CHECK_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));

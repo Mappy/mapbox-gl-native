@@ -7,6 +7,7 @@
 #include <mbgl/map/map_data.hpp>
 #include <mbgl/annotation/point_annotation.hpp>
 #include <mbgl/annotation/shape_annotation.hpp>
+#include <mbgl/style/style_layer.hpp>
 
 #include <mbgl/util/projection.hpp>
 #include <mbgl/util/thread.hpp>
@@ -153,6 +154,12 @@ void Map::jumpTo(const CameraOptions& options) {
 
 void Map::easeTo(const CameraOptions& options) {
     transform->easeTo(options);
+    update(options.zoom ? Update::Zoom : Update::Repaint);
+}
+    
+    
+void Map::flyTo(const CameraOptions& options) {
+    transform->flyTo(options);
     update(options.zoom ? Update::Zoom : Update::Repaint);
 }
 
@@ -414,6 +421,16 @@ AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
 
 LatLngBounds Map::getBoundsForAnnotations(const AnnotationIDs& annotations) {
     return data->getAnnotationManager()->getBoundsForAnnotations(annotations);
+}
+    
+#pragma mark - Style API
+
+void Map::addLayer(std::unique_ptr<StyleLayer> layer) {
+    context->invoke(&MapContext::addLayer, std::move(layer), mapbox::util::optional<std::string>());
+}
+
+void Map::addLayer(std::unique_ptr<StyleLayer> layer, const std::string& before) {
+    context->invoke(&MapContext::addLayer, std::move(layer), before);
 }
 
 #pragma mark - Toggles
