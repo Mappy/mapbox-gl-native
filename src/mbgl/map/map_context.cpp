@@ -303,7 +303,7 @@ void MapContext::onLowMemory() {
     style->onLowMemory();
     asyncInvalidate.send();
 }
-
+    
 void MapContext::onTileDataChanged() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
     updateFlags |= Update::Repaint;

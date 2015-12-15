@@ -116,7 +116,6 @@ public class MainActivity extends AppCompatActivity {
 
         mMapView = (MapView) findViewById(R.id.mainMapView);
         mMapView.setAccessToken(ApiAccess.getToken(this));
-        mMapView.setZoomControlsEnabled(true);
         mMapView.onCreate(savedInstanceState);
 
         mMapView.setOnFpsChangedListener(new MyOnFpsChangedListener());
@@ -229,11 +228,12 @@ public class MainActivity extends AppCompatActivity {
         mMapView.onStart();
     }
 
+    // Called when our app comes into the foreground
     @Override
-    protected void onStop() {
-        super.onStop();
+    public void onResume() {
+        super.onResume();
 
-        mMapView.onStop();
+        mMapView.onResume();
     }
 
     // Called when our app goes into the background
@@ -244,12 +244,11 @@ public class MainActivity extends AppCompatActivity {
         mMapView.onPause();
     }
 
-    // Called when our app comes into the foreground
     @Override
-    public void onResume() {
-        super.onResume();
+    protected void onStop() {
+        super.onStop();
 
-        mMapView.onResume();
+        mMapView.onStop();
     }
 
     @Override
@@ -355,6 +354,10 @@ public class MainActivity extends AppCompatActivity {
 
                             case R.id.action_manual_zoom:
                                 startActivity(new Intent(getApplicationContext(), ManualZoomActivity.class));
+                                return true;
+
+                            case R.id.action_coordinate_change:
+                                startActivity(new Intent(getApplicationContext(), CoordinateChangeActivity.class));
                                 return true;
 
                             case R.id.action_bulk_markers:

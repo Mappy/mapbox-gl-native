@@ -91,8 +91,6 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     const std::set<Source*>& sources = renderData.sources;
     const Color& background = renderData.backgroundColor;
 
-    config.viewport = { 0, 0, frame.framebufferSize[0], frame.framebufferSize[1] };
-
     // Update the default matrices to the current viewport dimensions.
     state.getProjMatrix(projMatrix);
 
@@ -133,6 +131,7 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
         config.stencilMask = 0xFF;
         config.depthTest = GL_FALSE;
         config.depthMask = GL_TRUE;
+        config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
         config.clearColor = { background[0], background[1], background[2], background[3] };
         config.clearStencil = 0;
         config.clearDepth = 1;
@@ -235,14 +234,13 @@ void Painter::renderPass(RenderPass pass_,
 
         config.colorMask = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
         config.stencilMask = 0x0;
-        config.viewport = { 0, 0, frame.framebufferSize[0], frame.framebufferSize[1] };
 
         if (layer.is<BackgroundLayer>()) {
             MBGL_DEBUG_GROUP("background");
             renderBackground(*layer.as<BackgroundLayer>());
         } else if (layer.is<CustomLayer>()) {
             MBGL_DEBUG_GROUP(layer.id + " - custom");
-            layer.as<CustomLayer>()->render(StyleRenderParameters(state));
+            layer.as<CustomLayer>()->render(state);
             config.setDirty();
         } else {
             MBGL_DEBUG_GROUP(layer.id + " - " + std::string(item.tile->id));
@@ -257,8 +255,8 @@ void Painter::renderPass(RenderPass pass_,
 }
 
 void Painter::renderBackground(const BackgroundLayer& layer) {
-    // Note: This function is only called for textured background. Otherwise, the background color
-    // is created with glClear.
+    // Note that for bottommost layers without a pattern, the background color is drawn with
+    // glClear rather than this method.
     const BackgroundPaintProperties& properties = layer.paint;
 
     if (!properties.pattern.value.to.empty()) {
@@ -318,13 +316,24 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         backgroundBuffer.bind();
         patternShader->bind(0);
         spriteAtlas->bind(true);
+    } else {
+        Color color = properties.color;
+        color[0] *= properties.opacity;
+        color[1] *= properties.opacity;
+        color[2] *= properties.opacity;
+        color[3] *= properties.opacity;
+
+        config.program = plainShader->program;
+        plainShader->u_matrix = identityMatrix;
+        plainShader->u_color = color;
+        backgroundArray.bind(*plainShader, backgroundBuffer, BUFFER_OFFSET(0));
     }
 
     config.stencilTest = GL_FALSE;
     config.depthFunc.reset();
     config.depthTest = GL_TRUE;
     config.depthMask = GL_FALSE;
-    config.depthRange = { 1.0f, 1.0f };
+    setDepthSublayer(0);
 
     MBGL_CHECK_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 }
