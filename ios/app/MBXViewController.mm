@@ -1,4 +1,5 @@
 #import "MBXViewController.h"
+#import "MBXCustomCalloutView.h"
 
 #import <mbgl/ios/Mapbox.h>
 #import <mbgl/util/default_styles.hpp>
@@ -6,6 +7,7 @@
 #import <CoreLocation/CoreLocation.h>
 
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
+static NSString * const kCustomCalloutTitle = @"Custom Callout";
 
 static const CLLocationCoordinate2D WorldTourDestinations[] = {
     { 38.9131982, -77.0325453144239 },
@@ -149,6 +151,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                                                                 @"Add 10,000 Points",
                                                                 @"Add Test Shapes",
                                                                 @"Start World Tour",
+                                                                @"Add 1 custom Point",
                                                                 @"Remove Annotations",
                                                                 nil];
 
@@ -258,6 +261,10 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 9)
     {
+        [self presentAnnotationWithCustomCallout];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 10)
+    {
         [self.mapView removeAnnotations:self.mapView.annotations];
     }
 }
@@ -300,6 +307,18 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             });
         }
     });
+}
+
+- (void)presentAnnotationWithCustomCallout
+{
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    
+    MGLPointAnnotation *annotation = [MGLPointAnnotation new];
+    annotation.coordinate = CLLocationCoordinate2DMake(48.8533940, 2.3775439);
+    annotation.title = kCustomCalloutTitle;
+    
+    [self.mapView addAnnotation:annotation];
+    [self.mapView showAnnotations:@[annotation] animated:YES];
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer *)longPress
@@ -400,7 +419,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
 
 - (MGLAnnotationImage *)mapView:(MGLMapView * __nonnull)mapView imageForAnnotation:(id <MGLAnnotation> __nonnull)annotation
 {
-    if ([annotation.title isEqualToString:@"Dropped Marker"]) return nil; // use default marker
+    if ([annotation.title isEqualToString:@"Dropped Marker"]
+        || [annotation.title isEqualToString:kCustomCalloutTitle])
+    {
+        return nil; // use default marker
+    }
 
     NSString *title = [(MGLPointAnnotation *)annotation title];
     if (!title.length) return nil;
@@ -499,6 +522,18 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     [UIView animateWithDuration:0.25 animations:^{
         self.navigationItem.rightBarButtonItem.image = newButtonImage;
     }];
+}
+
+- (UIView<MGLCalloutViewProtocol> *)mapView:(__unused MGLMapView *)mapView customCalloutViewForAnnotation:(id<MGLAnnotation>)annotation
+{
+    if ([annotation respondsToSelector:@selector(title)]
+        && [annotation.title isEqualToString:kCustomCalloutTitle])
+    {
+        MBXCustomCalloutView *calloutView = [[MBXCustomCalloutView alloc] init];
+        calloutView.title = annotation.title;
+        return calloutView;
+    }
+    return nil;
 }
 
 @end

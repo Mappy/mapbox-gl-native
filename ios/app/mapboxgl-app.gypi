@@ -29,6 +29,8 @@
         './main.m',
         './MBXAppDelegate.h',
         './MBXAppDelegate.m',
+        './MBXCustomCalloutView.h',
+        './MBXCustomCalloutView.m',
         './MBXViewController.h',
         './MBXViewController.mm',
       ],
