@@ -1,4 +1,5 @@
 #import "MBXViewController.h"
+#import "MBXCustomCalloutView.h"
 
 #import <mbgl/ios/Mapbox.h>
 #import <mbgl/util/default_styles.hpp>
@@ -18,8 +19,19 @@ typedef NS_ENUM(NSInteger, settingIndex) {
     settingIndexAdd10000Points,
     settingIndexAddTestShapes,
     settingIndexAddOffsetAnnotations,
+    settingIndexShowWorldTour,
+    settingIndexAddOneCustomPoint,
     settingIndexRemoveAnnotations,
     settingsNbr                         // keep last
+};
+
+static NSString * const kCustomCalloutTitle = @"Custom Callout";
+
+static const CLLocationCoordinate2D WorldTourDestinations[] = {
+    { 38.9131982, -77.0325453144239 },
+    { 37.7757368, -122.4135302 },
+    { 12.9810816, 77.6368034 },
+    { -13.15589555, -74.2178961777998 },
 };
 
 @interface MBXViewController () <UIActionSheetDelegate, MGLMapViewDelegate>
@@ -31,6 +43,9 @@ typedef NS_ENUM(NSInteger, settingIndex) {
 @end
 
 @implementation MBXViewController
+{
+    BOOL _isTouringWorld;
+}
 
 #pragma mark - Setup
 
@@ -105,6 +120,8 @@ typedef NS_ENUM(NSInteger, settingIndex) {
                                 @(settingIndexAdd10000Points): @"Add 10,000 Points",
                                 @(settingIndexAddTestShapes): @"Add Test Shapes",
                                 @(settingIndexAddOffsetAnnotations): @"Add offset annotations",
+                                @(settingIndexShowWorldTour): @"Start World Tour",
+                                @(settingIndexAddOneCustomPoint): @"Add 1 custom Point",
                                 @(settingIndexRemoveAnnotations): @"Remove Annotations"
                                 };
 }
@@ -197,6 +214,12 @@ typedef NS_ENUM(NSInteger, settingIndex) {
         case settingIndexAddOffsetAnnotations:
             [self addOffsetAnnotations];
             break;
+        case settingIndexShowWorldTour:
+            [self startWorldTour:actionSheet];
+            break;
+        case settingIndexAddOneCustomPoint:
+            [self presentAnnotationWithCustomCallout];
+            break;
         case settingIndexRemoveAnnotations:
             [self.mapView removeAnnotations:self.mapView.annotations];
             break;
@@ -244,6 +267,18 @@ typedef NS_ENUM(NSInteger, settingIndex) {
             });
         }
     });
+}
+
+- (void)presentAnnotationWithCustomCallout
+{
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    
+    MGLPointAnnotation *annotation = [MGLPointAnnotation new];
+    annotation.coordinate = CLLocationCoordinate2DMake(48.8533940, 2.3775439);
+    annotation.title = kCustomCalloutTitle;
+    
+    [self.mapView addAnnotation:annotation];
+    [self.mapView showAnnotations:@[annotation] animated:YES];
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer *)longPress
@@ -370,6 +405,46 @@ typedef NS_ENUM(NSInteger, settingIndex) {
     [self.mapView showAnnotations:@[annotation] animated:YES];
 }
 
+- (IBAction)startWorldTour:(__unused id)sender
+{
+    _isTouringWorld = YES;
+    
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    NSUInteger numberOfAnnotations = sizeof(WorldTourDestinations) / sizeof(WorldTourDestinations[0]);
+    NSMutableArray *annotations = [NSMutableArray arrayWithCapacity:numberOfAnnotations];
+    for (NSUInteger i = 0; i < numberOfAnnotations; i++)
+    {
+        MGLPointAnnotation *annotation = [[MGLPointAnnotation alloc] init];
+        annotation.coordinate = WorldTourDestinations[i];
+        [annotations addObject:annotation];
+    }
+    [self.mapView addAnnotations:annotations];
+    [self continueWorldTourWithRemainingAnnotations:annotations];
+}
+
+- (void)continueWorldTourWithRemainingAnnotations:(NS_MUTABLE_ARRAY_OF(MGLPointAnnotation *) *)annotations
+{
+    MGLPointAnnotation *nextAnnotation = annotations.firstObject;
+    if (!nextAnnotation || !_isTouringWorld)
+    {
+        _isTouringWorld = NO;
+        return;
+    }
+    
+    [annotations removeObjectAtIndex:0];
+    MGLMapCamera *camera = [MGLMapCamera cameraLookingAtCenterCoordinate:nextAnnotation.coordinate
+                                                            fromDistance:10
+                                                                   pitch:arc4random_uniform(60)
+                                                                 heading:arc4random_uniform(360)];
+    __weak MBXViewController *weakSelf = self;
+    [self.mapView flyToCamera:camera completionHandler:^{
+        MBXViewController *strongSelf = weakSelf;
+        [strongSelf performSelector:@selector(continueWorldTourWithRemainingAnnotations:)
+                         withObject:annotations
+                         afterDelay:2];
+    }];
+}
+
 #pragma mark - Destruction
 
 - (void)dealloc
@@ -383,8 +458,11 @@ typedef NS_ENUM(NSInteger, settingIndex) {
 
 - (MGLAnnotationImage *)mapView:(MGLMapView * __nonnull)mapView imageForAnnotation:(id <MGLAnnotation> __nonnull)annotation
 {
-    if ([annotation.title isEqualToString:@"Dropped Marker"])
+    if ([annotation.title isEqualToString:@"Dropped Marker"]
+        || [annotation.title isEqualToString:kCustomCalloutTitle])
+    {
         return nil; // use default marker
+    }
     
     if ([annotation.title isEqualToString:kOffsetMarkerTitle]) {
         UIImage *imagePng = [UIImage imageNamed:@"default_marker"];
@@ -393,49 +471,51 @@ typedef NS_ENUM(NSInteger, settingIndex) {
         image.calloutOffset = CGPointMake(-8.0, 3.0);
         return image;
     }
-
-    NSString *annotationIdentifier = [self identifierOfAnnotation:annotation];
-
+    
+    NSString *title = [(MGLPointAnnotation *)annotation title];
+    if (!title.length) return nil;
+    NSString *lastTwoCharacters = [title substringFromIndex:title.length - 2];
+    
     UIColor *color;
-
+    
     // make every tenth annotation blue
-    if ([annotationIdentifier hasSuffix:@"0"]) {
+    if ([lastTwoCharacters hasSuffix:@"0"]) {
         color = [UIColor blueColor];
     } else {
         color = [UIColor redColor];
     }
-
-    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:annotationIdentifier];
+    
+    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:lastTwoCharacters];
 
     if ( ! image)
     {
         CGRect rect = CGRectMake(0, 0, 20, 15);
-
+        
         UIGraphicsBeginImageContextWithOptions(rect.size, NO, [[UIScreen mainScreen] scale]);
-
+        
         CGContextRef ctx = UIGraphicsGetCurrentContext();
-
+        
         CGContextSetFillColorWithColor(ctx, [[color colorWithAlphaComponent:0.75] CGColor]);
         CGContextFillRect(ctx, rect);
-
+        
         CGContextSetStrokeColorWithColor(ctx, [[UIColor blackColor] CGColor]);
         CGContextStrokeRectWithWidth(ctx, rect, 2);
-
-        NSAttributedString *drawString = [[NSAttributedString alloc] initWithString:annotationIdentifier attributes:@{
-            NSFontAttributeName: [UIFont fontWithName:@"Arial-BoldMT" size:12],
-            NSForegroundColorAttributeName: [UIColor whiteColor] }];
+        
+        NSAttributedString *drawString = [[NSAttributedString alloc] initWithString:lastTwoCharacters attributes:@{
+                                                                                                                   NSFontAttributeName: [UIFont fontWithName:@"Arial-BoldMT" size:12],
+                                                                                                                   NSForegroundColorAttributeName: [UIColor whiteColor] }];
         CGSize stringSize = drawString.size;
         CGRect stringRect = CGRectMake((rect.size.width - stringSize.width) / 2,
                                        (rect.size.height - stringSize.height) / 2,
                                        stringSize.width,
                                        stringSize.height);
         [drawString drawInRect:stringRect];
-
-        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:annotationIdentifier];
-
+        
+        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:lastTwoCharacters];
+        
         // don't allow touches on blue annotations
         if ([color isEqual:[UIColor blueColor]]) image.enabled = NO;
-
+        
         UIGraphicsEndImageContext();
     }
 
@@ -491,48 +571,16 @@ typedef NS_ENUM(NSInteger, settingIndex) {
     }];
 }
 
-- (UIView *)mapView:(__unused MGLMapView *)mapView calloutViewForAnnotation:(__unused id<MGLAnnotation>)annotation
+- (UIView<MGLCalloutViewProtocol> *)mapView:(__unused MGLMapView *)mapView customCalloutViewForAnnotation:(id<MGLAnnotation>)annotation
 {
-    NSString *annotationIdentifier = [self identifierOfAnnotation: annotation];
-
-    // display custom callout for one of two annotation
-    if (annotationIdentifier.integerValue
-        && annotationIdentifier.integerValue % 2 == 0)
+    if ([annotation respondsToSelector:@selector(title)]
+        && [annotation.title isEqualToString:kCustomCalloutTitle])
     {
-        return [self calloutViewForAnnotation: annotation];
+        MBXCustomCalloutView *calloutView = [[MBXCustomCalloutView alloc] init];
+        calloutView.title = annotation.title;
+        return calloutView;
     }
-    
     return nil;
-}
-
-#pragma mark - Private
-
-- (NSString *)identifierOfAnnotation:(MGLPointAnnotation *)annotation
-{
-    NSString *title = annotation.title;
-    NSString *lastTwoCharacters = [title substringFromIndex:title.length - 2];
-    return lastTwoCharacters;
-}
-
-static CGFloat const calloutViewWidth = 150.;
-static CGFloat const calloutViewHeight = 40.;
-
-- (UIView *)calloutViewForAnnotation:(MGLPointAnnotation *)annotation
-{
-    UIImage *mbIcon = [UIImage imageNamed: @"Icon-40"];
-    UIImageView *imageView = [[UIImageView alloc] initWithImage: mbIcon];
-
-    CGFloat labelOriginX = CGRectGetMaxX(imageView.frame) + 10.;
-    UILabel *label = [[UILabel alloc] initWithFrame: CGRectMake(labelOriginX, 0, calloutViewWidth - labelOriginX, calloutViewHeight)];
-    label.text = annotation.title;
-    label.font = [UIFont boldSystemFontOfSize: [UIFont systemFontSize]];
-    label.textColor = kTintColor;
-
-    UIView *customView = [[UIView alloc] initWithFrame: CGRectMake(0, 0, calloutViewWidth, calloutViewHeight)];
-    [customView addSubview: imageView];
-    [customView addSubview: label];
-
-    return customView;
 }
 
 @end

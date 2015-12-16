@@ -40,6 +40,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
         exMatrix = extrudeMatrix;
         s = state.getAltitude();
         gammaScale = 1.0f;
+        matrix::rotate_z(exMatrix, exMatrix, state.getNorthOrientationAngle());
     }
     matrix::scale(exMatrix, exMatrix, s, s, 1);
 
@@ -48,18 +49,11 @@ void Painter::renderSDF(SymbolBucket &bucket,
     float fontScale = fontSize / sdfFontSize;
     matrix::scale(exMatrix, exMatrix, fontScale, fontScale, 1.0f);
 
-    // calculate how much longer the real world distance is at the top of the screen
-    // than at the middle of the screen.
-    float topedgelength = std::sqrt(std::pow(state.getHeight(), 2) / 4.0f * (1.0f + std::pow(state.getAltitude(), 2)));
-    float x = state.getHeight() / 2.0f * std::tan(state.getPitch());
-    float extra = (topedgelength + x) / topedgelength - 1;
-
     config.program = sdfShader.program;
     sdfShader.u_matrix = vtxMatrix;
     sdfShader.u_exmatrix = exMatrix;
     sdfShader.u_texsize = texsize;
     sdfShader.u_skewed = skewed;
-    sdfShader.u_extra = extra;
 
     // adjust min/max zooms for variable font sies
     float zoomAdjust = std::log(fontSize / bucketProperties.size) / std::log(2);
@@ -218,6 +212,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
                 s = 4096.0f / util::tileSize / id.overscaling / std::pow(2, state.getZoom() - id.z);
             } else {
                 exMatrix = extrudeMatrix;
+                matrix::rotate_z(exMatrix, exMatrix, state.getNorthOrientationAngle());
                 s = state.getAltitude();
             }
             matrix::scale(exMatrix, exMatrix, s, s, 1);

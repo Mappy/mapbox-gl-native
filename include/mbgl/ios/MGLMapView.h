@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol MGLMapViewDelegate;
 @protocol MGLAnnotation;
 @protocol MGLOverlay;
+@protocol MGLCalloutViewProtocol;
 
 /** An MGLMapView object provides an embeddable map interface, similar to the one provided by Apple's MapKit. You use this class to display map information and to manipulate the map contents from your application. You can center the map on a given coordinate, specify the size of the area you want to display, and style the features of the map to fit your application's use case.
 *
@@ -218,12 +219,15 @@ IB_DESIGNABLE
 *   @param completion The block to execute after the animation finishes. */
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion;
 
-#pragma mark - flyTo
+/** Uses a ballistic parabolic motion to "fly" the viewpoint to a different location with respect to the map with a default duration based on the length of the flight path.
+*   @param camera The new viewpoint.
+*   @param completion The block to execute after the animation finishes. */
+- (void)flyToCamera:(MGLMapCamera *)camera completionHandler:(nullable void (^)(void))completion;
 
 /** Uses a ballistic parabolic motion to "fly" the viewpoint to a different location with respect to the map with an optional transition duration.
- *   @param camera The new viewpoint.
- *   @param duration The amount of time, measured in seconds, that the transition animation should take. Specify `0` to jump to the new viewpoint instantaneously.
- *   @param completion The block to execute after the animation finishes. */
+*   @param camera The new viewpoint.
+*   @param duration The amount of time, measured in seconds, that the transition animation should take. Specify `0` to use the default duration, which is based on the length of the flight path.
+*   @param completion The block to execute after the animation finishes. */
 - (void)flyToCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration completionHandler:(nullable void (^)(void))completion;
 
 #pragma mark - Converting Map Coordinates
@@ -572,17 +576,15 @@ IB_DESIGNABLE
 *   @return A Boolean indicating whether the annotation should show a callout. */
 - (BOOL)mapView:(MGLMapView *)mapView annotationCanShowCallout:(id <MGLAnnotation>)annotation;
 
-/** Returns the view to display as the content view of the callout bubble.
+/** Returns a custom callout view to display for the specified annotation.
  *
- *  The returned view is displayed inside the callout in the top-left corner without any margin. The callout adapts its bounds to fit the size of the returned view.
- *  The callout will not display any other view except the ones returned by the left/rightCalloutAccessoryViewForAnnotation callbacks.
+ *   If the method is present in the delegate, it can return a new instance of a view dedicated to display the callout bubble. It will be configured by the map view.
+ *   If the method returns nil, the map will use the default callout view.
  *
- *  If this callback is not implemented or the returned value is `nil`, the callout displays the default content.
- *
- *  @param mapView The map view containing the annotation.
- *  @param annotation The object representing the annotation with the callout.
- *  @return The content view to display. */
-- (nullable UIView *)mapView:(MGLMapView *)mapView calloutViewForAnnotation:(id <MGLAnnotation>)annotation;
+ *   @param mapView The map view that requested the callout view.
+ *   @param annotation The object representing the annotation.
+ *   @return A view following the MGLCalloutView protocol. */
+- (nullable UIView<MGLCalloutViewProtocol> *)mapView:(MGLMapView *)mapView customCalloutViewForAnnotation:(id <MGLAnnotation>)annotation;
 
 /** Return the view to display on the left side of the standard callout bubble.
 *

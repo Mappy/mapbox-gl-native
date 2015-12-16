@@ -38,8 +38,7 @@
 #import "MGLAccountManager_Private.h"
 #import "MGLAnnotationImage_Private.h"
 #import "MGLMapboxEvents.h"
-
-#import "SMCalloutView.h"
+#import "MGLCalloutView.h"
 
 #import <algorithm>
 #import <cstdlib>
@@ -120,7 +119,7 @@ public:
                           GLKViewDelegate,
                           CLLocationManagerDelegate,
                           UIActionSheetDelegate,
-                          SMCalloutViewDelegate,
+                          MGLCalloutViewDelegate,
                           MGLMultiPointDelegate,
                           MGLAnnotationImageDelegate>
 
@@ -141,7 +140,7 @@ public:
 /// Mapping from reusable identifiers to annotation images.
 @property (nonatomic) NS_MUTABLE_DICTIONARY_OF(NSString *, MGLAnnotationImage *) *annotationImagesByIdentifier;
 /// Currently shown popover representing the selected annotation.
-@property (nonatomic) SMCalloutView *calloutViewForSelectedAnnotation;
+@property (nonatomic) UIView<MGLCalloutViewProtocol> *calloutViewForSelectedAnnotation;
 @property (nonatomic) MGLUserLocationAnnotationView *userLocationAnnotationView;
 @property (nonatomic) CLLocationManager *locationManager;
 @property (nonatomic) CGPoint centerPoint;
@@ -1141,7 +1140,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         if (hitAnnotationTag != _selectedAnnotationTag)
         {
             id <MGLAnnotation> annotation = [self annotationWithTag:hitAnnotationTag];
-            NSAssert(annotation, @"Cannot select nonexistent annotation with tag %i", hitAnnotationTag);
+            NSAssert(annotation, @"Cannot select nonexistent annotation with tag %u", hitAnnotationTag);
             [self selectAnnotation:annotation animated:YES];
         }
     }
@@ -1330,12 +1329,12 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     }
 }
 
-- (BOOL)calloutViewShouldHighlight:(__unused SMCalloutView *)calloutView
+- (BOOL)calloutViewShouldHighlight:(__unused MGLCalloutView *)calloutView
 {
     return [self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)];
 }
 
-- (void)calloutViewClicked:(__unused SMCalloutView *)calloutView
+- (void)calloutViewClicked:(__unused MGLCalloutView *)calloutView
 {
     if ([self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)])
     {
@@ -1789,18 +1788,57 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion
 {
-    [self _setCamera:camera withDuration:duration animationTimingFunction:function completionHandler:completion useFly:NO];
+    _mbglMap->cancelTransitions();
+    mbgl::CameraOptions options = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    if (duration > 0)
+    {
+        options.duration = MGLDurationInSeconds(duration);
+        options.easing = MGLUnitBezierForMediaTimingFunction(function);
+    }
+    if (completion)
+    {
+        options.transitionFinishFn = [completion]() {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                completion();
+            });
+        };
+    }
+    
+    [self willChangeValueForKey:@"camera"];
+    _mbglMap->easeTo(options);
+    [self didChangeValueForKey:@"camera"];
+}
+
+- (void)flyToCamera:(MGLMapCamera *)camera completionHandler:(nullable void (^)(void))completion
+{
+    [self flyToCamera:camera withDuration:0 completionHandler:completion];
 }
 
 - (void)flyToCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration completionHandler:(nullable void (^)(void))completion
 {
-    [self _setCamera:camera withDuration:duration animationTimingFunction:nil completionHandler:completion useFly:YES];
+    _mbglMap->cancelTransitions();
+    mbgl::CameraOptions options = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    if (duration > 0)
+    {
+        options.duration = MGLDurationInSeconds(duration);
+    }
+    if (completion)
+    {
+        options.transitionFinishFn = [completion]() {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                completion();
+            });
+        };
+    }
+    
+    [self willChangeValueForKey:@"camera"];
+    _mbglMap->flyTo(options);
+    [self didChangeValueForKey:@"camera"];
 }
 
-- (void)_setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion useFly:(BOOL)fly
-{
-    _mbglMap->cancelTransitions();
-    
+/// Returns a CameraOptions object that specifies parameters for animating to
+/// the given camera.
+- (mbgl::CameraOptions)cameraOptionsObjectForAnimatingToCamera:(MGLMapCamera *)camera {
     // The opposite side is the distance between the center and one edge.
     mbgl::LatLng centerLatLng = MGLLatLngFromLocationCoordinate2D(camera.centerCoordinate);
     mbgl::ProjectedMeters centerMeters = _mbglMap->projectedMetersForLatLng(centerLatLng);
@@ -1857,24 +1895,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     {
         options.pitch = pitch;
     }
-    if (duration > 0)
-    {
-        options.duration = MGLDurationInSeconds(duration);
-        options.easing = MGLUnitBezierForMediaTimingFunction(function);
-    }
-    if (completion)
-    {
-        options.transitionFinishFn = [completion]() {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                completion();
-            });
-        };
-    }
-    if (fly) {
-        _mbglMap->flyTo(options);
-    } else {
-        _mbglMap->easeTo(options);
-    }
+    return options;
 }
 
 - (CLLocationCoordinate2D)convertPoint:(CGPoint)point toCoordinateFromView:(nullable UIView *)view
@@ -2535,7 +2556,14 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         [self.delegate mapView:self annotationCanShowCallout:annotation])
     {
         // build the callout
-        self.calloutViewForSelectedAnnotation = [self calloutViewForAnnotation:annotation];
+        if ([self.delegate respondsToSelector:@selector(mapView:customCalloutViewForAnnotation:)])
+        {
+            self.calloutViewForSelectedAnnotation = [self.delegate mapView:self customCalloutViewForAnnotation:annotation];
+        }
+        if (!self.calloutViewForSelectedAnnotation)
+        {
+            self.calloutViewForSelectedAnnotation = [self calloutViewForAnnotation:annotation];
+        }
 
         if (_userLocationAnnotationIsSelected)
         {
@@ -2590,17 +2618,9 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     }
 }
 
-- (SMCalloutView *)calloutViewForAnnotation:(id <MGLAnnotation>)annotation
+- (MGLCalloutView *)calloutViewForAnnotation:(id <MGLAnnotation>)annotation
 {
-    SMCalloutView *calloutView = [SMCalloutView platformCalloutView];
-
-    UIView *customCalloutView = nil;
-    if ([self.delegate respondsToSelector: @selector(mapView:calloutViewForAnnotation:)]
-        && (customCalloutView = [self.delegate mapView: self calloutViewForAnnotation: annotation]))
-    {
-        calloutView.contentView = customCalloutView;
-        calloutView.contentViewInset = UIEdgeInsetsZero;
-    }
+    MGLCalloutView *calloutView = (MGLCalloutView *)[MGLCalloutView platformCalloutView];
 
     if ([annotation respondsToSelector:@selector(title)]) calloutView.title = annotation.title;
     if ([annotation respondsToSelector:@selector(subtitle)]) calloutView.subtitle = annotation.subtitle;
