@@ -23,7 +23,7 @@ typedef NS_ENUM(NSInteger, settingIndex) {
     settingIndexShowWorldTour,
     settingIndexAddOneCustomPoint,
     settingIndexRemoveAnnotations,
-    settingIndexToggleCustomStyleLayer
+    settingIndexToggleCustomStyleLayer,
     settingsNbr                         // keep last
 };
 
