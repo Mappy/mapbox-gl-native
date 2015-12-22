@@ -240,6 +240,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
         default:
             NSLog(@"Error, unknown setting action");
             break;
+    }
 }
 
 - (void)parseFeaturesAddingCount:(NSUInteger)featuresCount
