@@ -6,7 +6,7 @@ endif
 export HOST ?= $(BUILD)
 
 # Defines host defaults
-include scripts/$(HOST)/defaults.mk
+include platform/$(HOST)/scripts/defaults.mk
 
 export HOST_VERSION ?= $(BUILD_VERSION)
 
@@ -16,14 +16,14 @@ export HOST_VERSION ?= $(BUILD_VERSION)
 export MASON_PLATFORM=$(HOST)
 export MASON_PLATFORM_VERSION=$(HOST_VERSION)
 
-ifneq (,$(wildcard scripts/$(HOST)/$(HOST_VERSION)/configure.sh))
+ifneq (,$(wildcard platform/$(HOST)/scripts/$(HOST_VERSION)/configure.sh))
 	CONFIGURE_FILES += scripts/$(HOST)/$(HOST_VERSION)/configure.sh
 endif
 
 export HOST_SLUG = $(HOST)-$(HOST_VERSION)
-CONFIGURE_FILES = scripts/$(HOST)/configure.sh
-ifneq (,$(wildcard scripts/$(HOST)/$(HOST_VERSION)/configure.sh))
-	CONFIGURE_FILES += scripts/$(HOST)/$(HOST_VERSION)/configure.sh
+CONFIGURE_FILES = platform/$(HOST)/scripts/configure.sh
+ifneq (,$(wildcard platform/$(HOST)/scripts/$(HOST_VERSION)/configure.sh))
+	CONFIGURE_FILES += platform/$(HOST)/scripts/$(HOST_VERSION)/configure.sh
 endif
 
 ifneq (,$(findstring clang,$(CXX)))
@@ -112,8 +112,8 @@ node/configure:
 node/xproj: Xcode/__project__ node/configure
 	$(QUIET)$(ENV) $(NODE_PRE_GYP) configure --clang -- \
 	$(GYP_FLAGS) -f xcode -Dlibuv_cflags= -Dlibuv_ldflags= -Dlibuv_static_libs=
-	$(QUIET)$(ENV) ./scripts/node/create_node_scheme.sh "node test" "`npm bin tape`/tape platform/node/test/js/**/*.test.js"
-	$(QUIET)$(ENV) ./scripts/node/create_node_scheme.sh "npm run test-suite" "platform/node/test/render.test.js"
+	$(QUIET)$(ENV) ./platform/node/scripts/create_node_scheme.sh "node test" "`npm bin tape`/tape platform/node/test/js/**/*.test.js"
+	$(QUIET)$(ENV) ./platform/node/scripts/create_node_scheme.sh "npm run test-suite" "platform/node/test/render.test.js"
 
 Makefile/node: Makefile/__project__ node/configure
 	@printf "$(TEXT_BOLD)$(COLOR_GREEN)* Building target node...$(FORMAT_END)\n"
@@ -131,8 +131,7 @@ Xcode/node: Xcode/__project__ node/xproj
 		-project ./build/binding.xcodeproj \
 		-configuration $(BUILDTYPE) \
 		-target mapbox-gl-native \
-		-jobs $(JOBS) \
-		$(XCPRETTY)
+		-jobs $(JOBS)
 
 Xcode/%: Xcode/__project__
 	@printf "$(TEXT_BOLD)$(COLOR_GREEN)* Building target $*...$(FORMAT_END)\n"
@@ -141,8 +140,7 @@ Xcode/%: Xcode/__project__
 		-project ./build/$(HOST_SLUG)/gyp/$(HOST).xcodeproj \
 		-configuration $(BUILDTYPE) \
 		-target $* \
-		-jobs $(JOBS) \
-		$(XCPRETTY)
+		-jobs $(JOBS)
 
 Ninja/%: Ninja/__project__
 	@printf "$(TEXT_BOLD)$(COLOR_GREEN)* Building target $*...$(FORMAT_END)\n"

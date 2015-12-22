@@ -6,7 +6,6 @@ export BUILD_RENDER ?= 1
 ifeq ($(shell uname -s), Darwin)
 export BUILD = osx
 export JOBS ?= $(shell sysctl -n hw.ncpu)
-export XCPRETTY := $(shell ./scripts/xcpretty.sh)
 else ifeq ($(shell uname -s), Linux)
 export BUILD = linux
 export JOBS ?= $(shell grep --count processor /proc/cpuinfo)
@@ -23,11 +22,11 @@ default: ; @printf "You must specify a valid target\n"
 
 ifeq ($(BUILD),osx)
 .PHONY: osx xosx nosx run-osx run-xosx
-osx: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Makefile/osxapp
-xosx: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Xcode/osxapp
-nosx: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Ninja/osxapp
+osx: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Xcode/osxapp
+xosx: osx
+nosx: osx
 run-osx: osx ; @"build/osx-x86_64/$(BUILDTYPE)/Mapbox GL.app/Contents/MacOS/Mapbox GL"
-run-xosx: xosx ; @"gyp/build/$(BUILDTYPE)/Mapbox GL.app/Contents/MacOS/Mapbox GL"
+run-xosx: run-xosx
 
 .PHONY: Xcode/osx Xcode/ios
 Xcode/ios: ; $(RUN) HOST=ios Xcode/__project__
@@ -50,16 +49,16 @@ ibench: export XCODEBUILD_ARGS += -sdk iphoneos ARCHS="arm64"
 ibench: ; $(RUN) HOST=ios Xcode/ios-bench
 
 .PHONY: ipackage ipackage-strip ipackage-sim ipackage-no-bitcode itest
-ipackage: Xcode/ios ; @JOBS=$(JOBS) ./scripts/ios/package.sh
-ipackage-strip: Xcode/ios ; @JOBS=$(JOBS) ./scripts/ios/package.sh strip
-ipackage-sim: Xcode/ios ; @JOBS=$(JOBS) ./scripts/ios/package.sh sim
-ipackage-no-bitcode: Xcode/ios ; @JOBS=$(JOBS) ./scripts/ios/package.sh no-bitcode
-iframework: ipackage-strip ; ./scripts/ios/framework.sh
-itest: ipackage-sim ; ./scripts/ios/test.sh
+ipackage: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh
+ipackage-strip: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh strip
+ipackage-sim: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh sim
+ipackage-no-bitcode: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh no-bitcode
+iframework: ipackage-strip ; ./platform/ios/scripts/framework.sh
+itest: ipackage-sim ; ./platform/ios/scripts/test.sh
 
 .PHONY: xpackage xpackage-strip
-xpackage: Xcode/osx ; @JOBS=$(JOBS) ./scripts/osx/package.sh
-xpackage-strip: Xcode/osx ; @JOBS=$(JOBS) ./scripts/osx/package.sh strip
+xpackage: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/package.sh
+xpackage-strip: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/package.sh strip
 endif
 
 #### All platforms targets #####################################################
@@ -87,13 +86,13 @@ android-lib: ; $(RUN) HOST=android Makefile/androidapp
 
 # Builds the selected/default Android library
 android: android-lib
-	cd android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
+	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
 
 # Builds all android architectures for distribution.
 apackage: android-lib-arm-v5 android-lib-arm-v7
 apackage: android-lib-x86
 apackage: android-lib-mips
-	cd android && ./gradlew --parallel-threads=$(JOBS) assemble$(BUILDTYPE)
+	cd platform/android && ./gradlew --parallel-threads=$(JOBS) assemble$(BUILDTYPE)
 
 # Builds the Node.js library
 .PHONY: node
@@ -158,8 +157,12 @@ clean: clear_sqlite_cache clear_xcode_cache
 	-rm -rf ./ios/build
 	-rm -rf ./test/build
 	-rm -rf ./config/*.gypi
-	-rm -rf ./android/build ./android/MapboxGLAndroidSDK/build ./android/MapboxGLAndroidSDKTestApp/build
-	-rm -rf ./android/MapboxGLAndroidSDK/src/main/jniLibs ./android/MapboxGLAndroidSDK/src/main/obj.target ./android/MapboxGLAndroidSDK/src/main/assets
+	-rm -rf ./platform/android/build \
+	        ./platform/android/MapboxGLAndroidSDK/build \
+	        ./platform/android/MapboxGLAndroidSDKTestApp/build \
+	        ./platform/android/MapboxGLAndroidSDK/src/main/jniLibs \
+	        ./platform/android/MapboxGLAndroidSDK/src/main/obj.target \
+	        ./platform/android/MapboxGLAndroidSDK/src/main/assets
 
 distclean: clean
 	-rm -rf ./mason_packages

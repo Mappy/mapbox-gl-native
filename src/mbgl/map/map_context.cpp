@@ -285,6 +285,14 @@ double MapContext::getTopOffsetPixelsForAnnotationIcon(const std::string& name) 
 
 void MapContext::addLayer(std::unique_ptr<StyleLayer> layer, mapbox::util::optional<std::string> after) {
     style->addLayer(std::move(layer), after);
+    updateFlags |= Update::Classes;
+    asyncUpdate.send();
+}
+
+void MapContext::removeLayer(const std::string& id) {
+    style->removeLayer(id);
+    updateFlags |= Update::Classes;
+    asyncUpdate.send();
 }
 
 void MapContext::setSourceTileCacheSize(size_t size) {

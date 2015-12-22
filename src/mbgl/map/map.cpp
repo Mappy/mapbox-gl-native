@@ -334,7 +334,7 @@ void Map::resetNorth(const Duration& duration) {
 #pragma mark - Pitch
 
 void Map::setPitch(double pitch, const Duration& duration) {
-    transform->setPitch(util::clamp(pitch, 0., 60.) * M_PI / 180, duration);
+    transform->setPitch(pitch * M_PI / 180, duration);
     update(Update::Repaint);
 }
 
@@ -392,7 +392,7 @@ void Map::addAnnotationIcon(const std::string& name, std::shared_ptr<const Sprit
 }
 
 void Map::removeAnnotationIcon(const std::string& name) {
-    removeAnnotationIcon(name);
+    context->invoke(&MapContext::removeAnnotationIcon, name);
 }
 
 double Map::getTopOffsetPixelsForAnnotationIcon(const std::string& symbol) {
@@ -447,6 +447,10 @@ void Map::addCustomLayer(const std::string& id,
     context->invoke(&MapContext::addLayer,
         std::make_unique<CustomLayer>(id, initialize, render, deinitialize, context_),
         before ? std::string(before) : mapbox::util::optional<std::string>());
+}
+
+void Map::removeCustomLayer(const std::string& id) {
+    context->invoke(&MapContext::removeLayer, id);
 }
 
 #pragma mark - Toggles
