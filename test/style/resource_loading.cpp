@@ -2,6 +2,7 @@
 #include "../fixtures/util.hpp"
 #include "../fixtures/mock_file_source.hpp"
 #include "../fixtures/mock_view.hpp"
+#include "../fixtures/stub_style_observer.hpp"
 
 #include <mbgl/map/map_data.hpp>
 #include <mbgl/map/transform.hpp>
@@ -11,164 +12,272 @@
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/texture_pool.hpp>
 #include <mbgl/util/thread.hpp>
-
-#include <regex>
+#include <mbgl/util/string.hpp>
 
 using namespace mbgl;
 
-namespace {
-
-class MockMapContext : public Style::Observer {
+class ResourceLoadingTest {
 public:
-    MockMapContext(View& view,
-                   FileSource& fileSource,
-                   const std::function<void(std::exception_ptr error)>& callback)
-        : data_(MapMode::Still, GLContextMode::Unique, view.getPixelRatio()),
-          transform_(view, ConstrainMode::HeightOnly),
-          callback_(callback) {
+    ResourceLoadingTest(MockFileSource::Type type, const std::string& resource)
+        : fileSource(type, resource) {}
+
+    util::ThreadContext context { "Map", util::ThreadType::Map, util::ThreadPriority::Regular };
+    util::RunLoop loop;
+    MockFileSource fileSource;
+    StubStyleObserver observer;
+    std::function<void ()> onFullyLoaded;
+
+    MapData data { MapMode::Still, GLContextMode::Unique, 1.0 };
+    MockView view;
+    Transform transform { view, ConstrainMode::HeightOnly };
+    TexturePool texturePool;
+    Style style { data };
+
+    void run(const std::string& stylePath) {
+        // Squelch logging.
+        Log::setObserver(std::make_unique<Log::NullObserver>());
+
+        util::ThreadContext::Set(&context);
         util::ThreadContext::setFileSource(&fileSource);
 
-        transform_.resize({{ 1000, 1000 }});
-        transform_.setLatLngZoom({0, 0}, 16);
-
-        const std::string style = util::read_file("test/fixtures/resources/style.json");
-        style_ = std::make_unique<Style>(data_);
-        style_->setJSON(style, "");
-        style_->setObserver(this);
-    }
-
-    ~MockMapContext() {
-        cleanup();
-    }
-
-    void cleanup() {
-        style_.reset();
-    }
-
-    void update() {
-        const auto now = Clock::now();
-
-        data_.setAnimationTime(now);
-        transform_.updateTransitions(now);
-
-        style_->cascade();
-        style_->recalculate(16);
-        style_->update(transform_.getState(), texturePool_);
-    }
-
-    // Style::Observer implementation.
-    void onTileDataChanged() override {
-        update();
-
-        if (style_->isLoaded()) {
-            callback_(nullptr);
-        }
-    };
-
-    void onResourceLoadingFailed(std::exception_ptr error) override {
-        callback_(error);
-    }
-
-private:
-    MapData data_;
-    Transform transform_;
-    TexturePool texturePool_;
-
-    std::unique_ptr<Style> style_;
-
-    std::function<void(std::exception_ptr error)> callback_;
-};
-
-void runTestCase(MockFileSource::Type type,
-                 const std::string& param,
-                 const std::string& message) {
-    util::RunLoop loop;
-
-    MockView view;
-    MockFileSource fileSource(type, param);
-
-    FixtureLogObserver* log = new FixtureLogObserver();
-    Log::setObserver(std::unique_ptr<Log::Observer>(log));
-
-    auto callback = [type, &loop, &param](std::exception_ptr error) {
-        if (type == MockFileSource::Success) {
-            EXPECT_TRUE(error == nullptr);
-        } else {
-            EXPECT_TRUE(error != nullptr);
-        }
-
-        try {
-            if (error) {
-                std::rethrow_exception(error);
+        observer.resourceLoaded = [&] () {
+            style.update(transform.getState(), texturePool);
+            if (style.isLoaded() && onFullyLoaded) {
+                onFullyLoaded();
             }
-        } catch (const util::GlyphRangeLoadingException&) {
-            EXPECT_EQ(param, "glyphs.pbf");
-        } catch (const util::SourceLoadingException&) {
-            EXPECT_TRUE(param == "source_raster.json" || param == "source_vector.json");
-        } catch (const util::SpriteLoadingException&) {
-            EXPECT_TRUE(param == "sprite.png" || param == "sprite.json");
-        } catch (const util::TileLoadingException&) {
-            EXPECT_TRUE(param == "raster.png" || param == "vector.pbf");
-        } catch (const std::exception&) {
-            EXPECT_TRUE(false) << "Unhandled exception.";
-        }
+        };
 
+        transform.resize({{ 512, 512 }});
+        transform.setLatLngZoom({0, 0}, 0);
+
+        style.setObserver(&observer);
+        style.setJSON(util::read_file(stylePath), "");
+        style.cascade();
+        style.recalculate(0);
+
+        loop.run();
+    }
+
+    void end() {
         loop.stop();
-    };
-
-    std::unique_ptr<util::Thread<MockMapContext>> context(
-        std::make_unique<util::Thread<MockMapContext>>(
-            util::ThreadContext{"Map", util::ThreadType::Map, util::ThreadPriority::Regular}, view, fileSource, callback));
-
-    loop.run();
-
-    // Needed because it will make the Map thread
-    // join and cease logging after this point.
-    context->invoke(&MockMapContext::cleanup);
-    context.reset();
-
-    uint32_t match = 0;
-    std::vector<FixtureLogObserver::LogMessage> logMessages = log->unchecked();
-
-    for (auto& logMessage : logMessages) {
-        if (std::regex_match(logMessage.msg, std::regex(message))) {
-            match++;
-        }
     }
-
-    if (type == MockFileSource::Success) {
-        EXPECT_EQ(match, 0u);
-    } else {
-        EXPECT_GT(match, 0u);
-    }
-}
-
-} // namespace
-
-class ResourceLoading : public ::testing::TestWithParam<std::pair<std::string, std::string>> {
 };
 
-TEST_P(ResourceLoading, Success) {
-    runTestCase(MockFileSource::Success, GetParam().first, std::string());
+TEST(ResourceLoading, Success) {
+    ResourceLoadingTest test(MockFileSource::Success, "");
+
+    test.observer.resourceError = [&] (std::exception_ptr error) {
+        FAIL() << util::toString(error);
+    };
+
+    test.onFullyLoaded = [&] () {
+        SUCCEED();
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
 }
 
-TEST_P(ResourceLoading, RequestFail) {
-    std::stringstream message;
-    message << "Failed to load \\[test\\/fixtures\\/resources\\/" << GetParam().first << "\\]\\: Failed by the test case";
+TEST(ResourceLoading, RasterSourceFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "source_raster.json");
 
-    runTestCase(MockFileSource::RequestFail, GetParam().first, message.str());
+    test.observer.sourceError = [&] (Source& source, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "rastersource");
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
 }
 
-TEST_P(ResourceLoading, RequestWithCorruptedData) {
-    runTestCase(MockFileSource::RequestWithCorruptedData, GetParam().first, GetParam().second);
+TEST(ResourceLoading, VectorSourceFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "source_vector.json");
+
+    test.observer.sourceError = [&] (Source& source, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "vectorsource");
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
 }
 
-INSTANTIATE_TEST_CASE_P(Style, ResourceLoading,
-    ::testing::Values(
-        std::make_pair("source_raster.json", "Failed to parse \\[test\\/fixtures\\/resources\\/source_raster.json\\]: 0 - Invalid value."),
-        std::make_pair("source_vector.json", "Failed to parse \\[test\\/fixtures\\/resources\\/source_vector.json\\]: 0 - Invalid value."),
-        std::make_pair("sprite.json", "Failed to parse JSON: Invalid value. at offset 0"),
-        std::make_pair("sprite.png", "Could not parse sprite image"),
-        std::make_pair("raster.png", "Failed to parse \\[17\\/6553(4|5|6|7)\\/6553(4|5|6|7)\\]\\: error parsing raster image"),
-        std::make_pair("vector.pbf", "Failed to parse \\[1(5|6)\\/1638(3|4)\\/1638(3|4)\\]\\: pbf unknown field type exception"),
-        std::make_pair("glyphs.pbf", "Failed to parse \\[test\\/fixtures\\/resources\\/glyphs.pbf\\]: pbf unknown field type exception")));
+TEST(ResourceLoading, SpriteJSONFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "sprite.json");
+
+    test.observer.spriteError = [&] (std::exception_ptr error) {
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, SpriteImageFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "sprite.png");
+
+    test.observer.spriteError = [&] (std::exception_ptr error) {
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, RasterTileFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "raster.png");
+
+    test.observer.tileError = [&] (Source& source, const TileID& tileID, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "rastersource");
+        EXPECT_EQ(std::string(tileID), "0/0/0");
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, VectorTileFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "vector.pbf");
+
+    test.observer.tileError = [&] (Source& source, const TileID& tileID, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "vectorsource");
+        EXPECT_EQ(std::string(tileID), "0/0/0");
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, GlyphsFail) {
+    ResourceLoadingTest test(MockFileSource::RequestFail, "glyphs.pbf");
+
+    test.observer.glyphsError = [&] (const std::string& fontStack, const GlyphRange&, std::exception_ptr error) {
+        EXPECT_EQ(fontStack, "Open Sans Regular,Arial Unicode MS Regular");
+        EXPECT_EQ(util::toString(error), "Failed by the test case");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, RasterSourceCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "source_raster.json");
+
+    test.observer.sourceError = [&] (Source& source, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "rastersource");
+        EXPECT_EQ(util::toString(error), "0 - Invalid value.");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, VectorSourceCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "source_vector.json");
+
+    test.observer.sourceError = [&] (Source& source, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "vectorsource");
+        EXPECT_EQ(util::toString(error), "0 - Invalid value.");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, SpriteJSONCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "sprite.json");
+
+    test.observer.spriteError = [&] (std::exception_ptr error) {
+        EXPECT_EQ(util::toString(error), "Failed to parse JSON: Invalid value. at offset 0");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, SpriteImageCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "sprite.png");
+
+    test.observer.spriteError = [&] (std::exception_ptr error) {
+        EXPECT_TRUE(bool(error));
+        // Not asserting on platform-specific error text.
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, RasterTileCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "raster.png");
+
+    test.observer.tileError = [&] (Source& source, const TileID& tileID, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "rastersource");
+        EXPECT_EQ(std::string(tileID), "0/0/0");
+        EXPECT_TRUE(bool(error));
+        // Not asserting on platform-specific error text.
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, VectorTileCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "vector.pbf");
+
+    test.observer.tileError = [&] (Source& source, const TileID& tileID, std::exception_ptr error) {
+        EXPECT_EQ(source.info.source_id, "vectorsource");
+        EXPECT_EQ(std::string(tileID), "0/0/0");
+        EXPECT_EQ(util::toString(error), "pbf unknown field type exception");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, GlyphsCorrupt) {
+    ResourceLoadingTest test(MockFileSource::RequestWithCorruptedData, "glyphs.pbf");
+
+    test.observer.glyphsError = [&] (const std::string& fontStack, const GlyphRange&, std::exception_ptr error) {
+        EXPECT_EQ(fontStack, "Open Sans Regular,Arial Unicode MS Regular");
+        EXPECT_EQ(util::toString(error), "pbf unknown field type exception");
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style.json");
+}
+
+TEST(ResourceLoading, UnusedSource) {
+    ResourceLoadingTest test(MockFileSource::Success, "");
+
+    test.onFullyLoaded = [&] () {
+        Source *usedSource = test.style.getSource("usedsource");
+        EXPECT_TRUE(usedSource);
+        EXPECT_TRUE(usedSource->isLoaded());
+
+        Source *unusedSource = test.style.getSource("unusedsource");
+        EXPECT_TRUE(unusedSource);
+        EXPECT_FALSE(unusedSource->isLoaded());
+
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style-unused-sources.json");
+}
+
+TEST(ResourceLoading, UnusedSourceActiveViaClassUpdate) {
+    ResourceLoadingTest test(MockFileSource::Success, "");
+
+    test.data.addClass("visible");
+
+    test.onFullyLoaded = [&] () {
+        Source *unusedSource = test.style.getSource("unusedsource");
+        EXPECT_TRUE(unusedSource);
+        EXPECT_TRUE(unusedSource->isLoaded());
+
+        test.end();
+    };
+
+    test.run("test/fixtures/resources/style-unused-sources.json");
+}

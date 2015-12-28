@@ -25,8 +25,8 @@ ifeq ($(BUILD),osx)
 osx: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Xcode/osxapp
 xosx: osx
 nosx: osx
-run-osx: osx ; @"build/osx-x86_64/$(BUILDTYPE)/Mapbox GL.app/Contents/MacOS/Mapbox GL"
-run-xosx: run-xosx
+run-osx: osx ; @"gyp/build/$(BUILDTYPE)/Mapbox GL.app/Contents/MacOS/Mapbox GL"
+run-xosx: run-osx
 
 .PHONY: Xcode/osx Xcode/ios
 Xcode/ios: ; $(RUN) HOST=ios Xcode/__project__
@@ -56,9 +56,10 @@ ipackage-no-bitcode: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh
 iframework: ipackage-strip ; ./platform/ios/scripts/framework.sh
 itest: ipackage-sim ; ./platform/ios/scripts/test.sh
 
-.PHONY: xpackage xpackage-strip
+.PHONY: xpackage xpackage-strip xctest
 xpackage: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/package.sh
 xpackage-strip: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/package.sh strip
+xctest: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/test.sh
 endif
 
 #### All platforms targets #####################################################
@@ -96,16 +97,16 @@ apackage: android-lib-mips
 
 # Builds the Node.js library
 .PHONY: node
-node: ; $(RUN) HTTP=none ASSET=none CACHE=none Makefile/node
+node: ; $(RUN) HTTP=none ASSET=none Makefile/node
 
 
 .PHONY: Xcode/node
-Xcode/node: ; $(RUN) HTTP=none ASSET=none CACHE=none Xcode/node
+Xcode/node: ; $(RUN) HTTP=none ASSET=none Xcode/node
 
 .PHONY: xnode
 xnode: Xcode/node ; @open ./build/binding.xcodeproj
 nproj:
-	$(RUN) HTTP=none ASSET=none CACHE=none node/xproj
+	$(RUN) HTTP=none ASSET=none node/xproj
 	@open ./build/binding.xcodeproj
 
 .PHONY: test

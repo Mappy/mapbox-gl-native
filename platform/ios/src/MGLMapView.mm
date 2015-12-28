@@ -1914,9 +1914,14 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     return bounds;
 }
 
-- (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude
+- (CLLocationDistance)metersPerPointAtLatitude:(CLLocationDegrees)latitude
 {
     return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
+}
+
+- (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude
+{
+    return [self metersPerPointAtLatitude:latitude];
 }
 
 #pragma mark - Styling -
@@ -2656,8 +2661,12 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         }
     }
 
+    CGFloat defaultPadding = 100;
+    CGFloat yPadding = (self.frame.size.height / 2 <= defaultPadding) ? (self.frame.size.height / 5) : defaultPadding;
+    CGFloat xPadding = (self.frame.size.width / 2 <= defaultPadding) ? (self.frame.size.width / 5) : defaultPadding;
+
     [self setVisibleCoordinateBounds:MGLCoordinateBoundsFromLatLngBounds(bounds)
-                         edgePadding:UIEdgeInsetsMake(100, 100, 100, 100)
+                         edgePadding:UIEdgeInsetsMake(yPadding, xPadding, yPadding, xPadding)
                             animated:animated];
 }
 
@@ -3026,6 +3035,8 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 //
 - (void)unrotateIfNeededAnimated:(BOOL)animated
 {
+    double snapTolerance = 7;
+
     // don't worry about it in the midst of pinch or rotate gestures
     //
     if (self.pinch.state  == UIGestureRecognizerStateChanged || self.rotate.state == UIGestureRecognizerStateChanged) return;
@@ -3055,6 +3066,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         {
             [self resetNorthAnimated:NO];
         }
+    }
+    else if (self.direction < snapTolerance || self.direction > 360 - snapTolerance)
+    {
+        [self resetNorthAnimated:animated];
     }
 }
 

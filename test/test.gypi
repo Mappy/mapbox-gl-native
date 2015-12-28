@@ -24,7 +24,6 @@
         'mbgl.gyp:platform-<(platform_lib)',
         'mbgl.gyp:http-<(http_lib)',
         'mbgl.gyp:asset-<(asset_lib)',
-        'mbgl.gyp:cache-<(cache_lib)',
         'mbgl.gyp:headless-<(headless_lib)',
       ],
       'sources': [
@@ -91,7 +90,6 @@
         'style/pending_resources.cpp',
         'style/resource_loading.cpp',
         'style/style_layer.cpp',
-        'style/unused_sources.cpp',
 
         'sprite/sprite_atlas.cpp',
         'sprite/sprite_image.cpp',

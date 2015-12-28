@@ -5,9 +5,16 @@
 #include <mbgl/map/source_info.hpp>
 
 #include <mbgl/util/mat4.hpp>
+#include <mbgl/util/rapidjson.hpp>
 
 #include <forward_list>
 #include <map>
+
+namespace mapbox {
+namespace geojsonvt {
+class GeoJSONVT;
+} // namespace geojsonvt
+} // namespace mapbox
 
 namespace mbgl {
 
@@ -25,15 +32,18 @@ public:
     public:
         virtual ~Observer() = default;
 
-        virtual void onSourceLoaded() = 0;
-        virtual void onSourceLoadingFailed(std::exception_ptr error) = 0;
+        virtual void onSourceLoaded(Source&) {};
+        virtual void onSourceError(Source&, std::exception_ptr) {};
 
-        virtual void onTileLoaded(bool isNewTile) = 0;
-        virtual void onTileLoadingFailed(std::exception_ptr error) = 0;
+        virtual void onTileLoaded(Source&, const TileID&, bool /* isNewTile */) {};
+        virtual void onTileError(Source&, const TileID&, std::exception_ptr) {};
     };
 
     Source();
     ~Source();
+
+    void parseTileJSON(const JSValue&);
+    void parseGeoJSON(const JSValue&);
 
     bool loaded = false;
     void load();
@@ -64,12 +74,6 @@ public:
 
 private:
     void tileLoadingCompleteCallback(const TileID&, const TransformState&, bool collisionDebug);
-
-    void emitSourceLoaded();
-    void emitSourceLoadingFailed(const std::string& message);
-    void emitTileLoaded(bool isNewTile);
-    void emitTileLoadingFailed(const std::string& message);
-
     bool handlePartialTile(const TileID &id, Worker &worker);
     bool findLoadedChildren(const TileID& id, int32_t maxCoveringZoom, std::forward_list<TileID>& retain);
     void findLoadedParent(const TileID& id, int32_t minCoveringZoom, std::forward_list<TileID>& retain);
@@ -82,6 +86,7 @@ private:
 
     double getZoom(const TransformState &state) const;
 
+    std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> geojsonvt;
 
     // Stores the time when this source was most recently updated.
     TimePoint updated = TimePoint::min();
@@ -92,7 +97,9 @@ private:
     TileCache cache;
 
     std::unique_ptr<FileRequest> req;
-    Observer* observer_ = nullptr;
+
+    Observer nullObserver;
+    Observer* observer = &nullObserver;
 };
 
 } // namespace mbgl

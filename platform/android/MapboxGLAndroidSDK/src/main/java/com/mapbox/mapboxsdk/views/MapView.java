@@ -67,6 +67,7 @@ import com.mapbox.mapboxsdk.annotations.PolylineOptions;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdate;
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.MathConstants;
 import com.mapbox.mapboxsdk.constants.MyBearingTracking;
 import com.mapbox.mapboxsdk.constants.MyLocationTracking;
@@ -1084,9 +1085,16 @@ public final class MapView extends FrameLayout {
             Log.w(TAG, "centerCoordinate was null, so just returning");
             return;
         }
-        long duration = animated ? ANIMATION_DURATION : 0;
-        mNativeMapView.cancelTransitions();
-        mNativeMapView.setLatLng(centerCoordinate, duration);
+
+        if (animated) {
+            CameraPosition cameraPosition = new CameraPosition.Builder(getCameraPosition())
+                    .target(centerCoordinate)
+                    .build();
+            animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    (int) ANIMATION_DURATION, null);
+        } else {
+            jumpTo(mNativeMapView.getBearing(), centerCoordinate, mNativeMapView.getPitch(), mNativeMapView.getZoom());
+        }
     }
 
 
@@ -1494,7 +1502,7 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     public final void animateCamera (CameraUpdate update) {
-        animateCamera(update, 0, null);
+        animateCamera(update, 1, null);
     }
 
 
@@ -1507,7 +1515,7 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     public final void animateCamera (CameraUpdate update, MapView.CancelableCallback callback) {
-        animateCamera(update, 0, callback);
+        animateCamera(update, 1, callback);
     }
 
     /**
@@ -1533,7 +1541,7 @@ public final class MapView extends FrameLayout {
             addOnMapChangedListener(new OnMapChangedListener() {
                 @Override
                 public void onMapChanged(@MapChange int change) {
-                    if (change == REGION_DID_CHANGE_ANIMATED || change == REGION_DID_CHANGE) {
+                    if (change == REGION_DID_CHANGE_ANIMATED) {
                         callback.onFinish();
 
                         // Clean up after self
@@ -1588,7 +1596,7 @@ public final class MapView extends FrameLayout {
             addOnMapChangedListener(new OnMapChangedListener() {
                 @Override
                 public void onMapChanged(@MapChange int change) {
-                    if (change == REGION_DID_CHANGE_ANIMATED || change == REGION_DID_CHANGE) {
+                    if (change == REGION_DID_CHANGE_ANIMATED) {
                         callback.onFinish();
 
                         // Clean up after self
