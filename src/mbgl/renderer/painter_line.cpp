@@ -137,6 +137,32 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
         bucket.drawLinePatterns(*linepatternShader);
 
     } else {
+        // Mappy specific drawing on paths
+        if (properties.isMappyPath == true && pass == RenderPass::Translucent) {
+            Color stroke_color = {{1, 1, 1, 0.58}};
+            stroke_color[0] *= properties.opacity;
+            stroke_color[1] *= properties.opacity;
+            stroke_color[2] *= properties.opacity;
+            stroke_color[3] *= properties.opacity;
+            
+            config.program = lineShader->program;
+            
+            lineShader->u_matrix = vtxMatrix;
+            lineShader->u_exmatrix = extrudeMatrix;
+            float external_outset = outset + 1.6;
+            lineShader->u_linewidth = {{ external_outset, inset }};
+            lineShader->u_ratio = ratio;
+            lineShader->u_blur = blur;
+            lineShader->u_extra = extra;
+            lineShader->u_offset = -properties.offset;
+            lineShader->u_antialiasingmatrix = antialiasingMatrix;
+            
+            lineShader->u_color = stroke_color;
+            
+            setDepthSublayer(0);
+            bucket.drawLines(*lineShader);
+        }
+
         config.program = lineShader->program;
 
         lineShader->u_matrix = vtxMatrix;
