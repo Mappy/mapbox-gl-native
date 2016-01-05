@@ -19,6 +19,7 @@
     lineProperties.opacity = [delegate alphaForShapeAnnotation:self];
     lineProperties.color = [delegate strokeColorForShapeAnnotation:self];
     lineProperties.width = [delegate lineWidthForPolylineAnnotation:self];
+    lineProperties.isMappyPath = true;
     
     shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
     
