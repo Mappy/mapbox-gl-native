@@ -646,13 +646,13 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }];
 }
 
-- (UIView<MGLCalloutViewProtocol> *)mapView:(__unused MGLMapView *)mapView customCalloutViewForAnnotation:(id<MGLAnnotation>)annotation
+- (UIView<MGLCalloutView> *)mapView:(__unused MGLMapView *)mapView calloutViewForAnnotation:(id<MGLAnnotation>)annotation
 {
     if ([annotation respondsToSelector:@selector(title)]
         && [annotation.title isEqualToString:kCustomCalloutTitle])
     {
         MBXCustomCalloutView *calloutView = [[MBXCustomCalloutView alloc] init];
-        calloutView.title = annotation.title;
+        calloutView.representedObject = annotation;
         return calloutView;
     }
     return nil;

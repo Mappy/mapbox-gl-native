@@ -14,20 +14,12 @@
 #include <mbgl/util/async_task.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/timer.hpp>
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunknown-pragmas"
-#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
-#include <boost/algorithm/string.hpp>
-#pragma GCC diagnostic pop
+#include <mbgl/util/url.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <set>
 #include <unordered_map>
-
-namespace algo = boost::algorithm;
 
 namespace mbgl {
 
@@ -58,7 +50,7 @@ public:
     const Resource resource;
     std::unique_ptr<WorkRequest> cacheRequest;
     RequestBase* realRequest = nullptr;
-    std::unique_ptr<util::Timer> timerRequest;
+    util::Timer realRequestTimer;
 
     inline OnlineFileRequestImpl(const Resource& resource_)
         : resource(resource_) {}
@@ -70,8 +62,10 @@ public:
     void removeObserver(FileRequest*);
     bool hasObservers() const;
 
-    // Updates/gets the response of this request object.
+    // Set the response of this request object and notify all observers.
     void setResponse(const std::shared_ptr<const Response>&);
+
+    // Get the response of this request object.
     const std::shared_ptr<const Response>& getResponse() const;
 
     // Returns the seconds we have to wait until we need to redo this request. A value of 0
@@ -82,10 +76,6 @@ public:
     // Checks the currently stored response and replaces it with an idential one, except with the
     // stale flag set, if the response is expired.
     void checkResponseFreshness();
-
-    // Notifies all observers.
-    void notify();
-
 
 private:
     // Stores a set of all observing Request objects.
@@ -187,7 +177,6 @@ OnlineFileSource::Impl::Impl(FileCache* cache_, const std::string& root)
     // loop alive; otherwise our app wouldn't terminate. After all, we only need status change
     // notifications when our app is still running.
     NetworkStatus::Subscribe(&reachability);
-    reachability.unref();
 }
 
 OnlineFileSource::Impl::~Impl() {
@@ -240,7 +229,7 @@ void OnlineFileSource::Impl::update(OnlineFileRequestImpl& request) {
     } else if (!request.cacheRequest && !request.realRequest) {
         // There is no request in progress, and we don't have a response yet. This means we'll have
         // to start the request ourselves.
-        if (cache) {
+        if (cache && !util::isAssetURL(request.resource.url)) {
             startCacheRequest(request);
         } else {
             startRealRequest(request);
@@ -266,9 +255,6 @@ void OnlineFileSource::Impl::startCacheRequest(OnlineFileRequestImpl& request) {
                 startRealRequest(request);
             }
 
-            // Notify in all cases; requestors can decide whether they want to use stale responses.
-            request.notify();
-
             reschedule(request);
         });
 }
@@ -276,15 +262,18 @@ void OnlineFileSource::Impl::startCacheRequest(OnlineFileRequestImpl& request) {
 void OnlineFileSource::Impl::startRealRequest(OnlineFileRequestImpl& request) {
     assert(!request.realRequest);
 
-    // Cancel the timer if we have one.
-    if (request.timerRequest) {
-        request.timerRequest->stop();
-    }
+    // Ensure the timer is stopped.
+    request.realRequestTimer.stop();
 
     auto callback = [this, &request](std::shared_ptr<const Response> response) {
         request.realRequest = nullptr;
 
-        if (cache) {
+        // Only update the cache for successful or 404 responses.
+        // In particular, we don't want to write a Canceled request, or one that failed due to
+        // connection errors to the cache. Server errors are hopefully also temporary, so we're not
+        // caching them either.
+        if (cache && !util::isAssetURL(request.resource.url) &&
+            (!response->error || (response->error->reason == Response::Error::Reason::NotFound))) {
             // Store response in database. Make sure we only refresh the expires column if the data
             // didn't change.
             FileCache::Hint hint = FileCache::Hint::Full;
@@ -295,11 +284,10 @@ void OnlineFileSource::Impl::startRealRequest(OnlineFileRequestImpl& request) {
         }
 
         request.setResponse(response);
-        request.notify();
         reschedule(request);
     };
 
-    if (algo::starts_with(request.resource.url, "asset://")) {
+    if (util::isAssetURL(request.resource.url)) {
         request.realRequest =
             assetContext->createRequest(request.resource.url, callback, assetRoot);
     } else {
@@ -335,11 +323,7 @@ void OnlineFileSource::Impl::reschedule(OnlineFileRequestImpl& request) {
     if (timeout == Seconds::zero()) {
         update(request);
     } else if (timeout > Seconds::zero()) {
-        if (!request.timerRequest) {
-            request.timerRequest = std::make_unique<util::Timer>();
-        }
-
-        request.timerRequest->start(timeout, Duration::zero(), [this, &request] {
+        request.realRequestTimer.start(timeout, Duration::zero(), [this, &request] {
             assert(!request.realRequest);
             startRealRequest(request);
         });
@@ -353,7 +337,7 @@ OnlineFileRequestImpl::~OnlineFileRequestImpl() {
         realRequest->cancel();
         realRequest = nullptr;
     }
-    // timerRequest and cacheRequest are automatically canceld upon destruction.
+    // realRequestTimer and cacheRequest are automatically canceled upon destruction.
 }
 
 void OnlineFileRequestImpl::addObserver(FileRequest* req, Callback callback) {
@@ -373,14 +357,6 @@ bool OnlineFileRequestImpl::hasObservers() const {
     return !observers.empty();
 }
 
-void OnlineFileRequestImpl::notify() {
-    if (response) {
-        for (auto& req : observers) {
-            req.second(*response);
-        }
-    }
-}
-
 void OnlineFileRequestImpl::setResponse(const std::shared_ptr<const Response>& response_) {
     response = response_;
 
@@ -389,6 +365,11 @@ void OnlineFileRequestImpl::setResponse(const std::shared_ptr<const Response>& r
     } else {
         // Reset the number of subsequent failed requests after we got a successful one.
         failedRequests = 0;
+    }
+
+    // Notify in all cases; requestors can decide whether they want to use stale responses.
+    for (auto& req : observers) {
+        req.second(*response);
     }
 }
 

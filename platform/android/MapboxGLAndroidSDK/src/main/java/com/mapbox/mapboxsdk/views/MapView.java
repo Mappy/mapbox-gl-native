@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.views;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Dialog;
@@ -28,6 +29,7 @@ import android.support.annotation.IntDef;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresPermission;
 import android.support.annotation.UiThread;
 import android.support.v4.view.GestureDetectorCompat;
 import android.support.v4.view.ScaleGestureDetectorCompat;
@@ -51,6 +53,7 @@ import android.widget.ArrayAdapter;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ZoomButtonsController;
+
 import com.almeros.android.multitouch.gesturedetectors.RotateGestureDetector;
 import com.almeros.android.multitouch.gesturedetectors.ShoveGestureDetector;
 import com.almeros.android.multitouch.gesturedetectors.TwoFingerGestureDetector;
@@ -81,6 +84,7 @@ import com.mapbox.mapboxsdk.geometry.LatLngZoom;
 import com.mapbox.mapboxsdk.layers.CustomLayer;
 import com.mapbox.mapboxsdk.utils.ApiAccess;
 import com.mapbox.mapboxsdk.utils.MathUtils;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
@@ -119,9 +123,9 @@ public final class MapView extends FrameLayout {
     private static final long ANIMATION_DURATION = 300;
 
     // Used for saving instance state
-    private static final String STATE_CENTER_COORDINATE = "centerCoordinate";
+    private static final String STATE_CENTER_LATLNG = "centerLatLng";
     private static final String STATE_CENTER_DIRECTION = "centerDirection";
-    private static final String STATE_ZOOM_LEVEL = "zoomLevel";
+    private static final String STATE_ZOOM = "zoomLevel";
     private static final String STATE_TILT = "tilt";
     private static final String STATE_ZOOM_ENABLED = "zoomEnabled";
     private static final String STATE_SCROLL_ENABLED = "scrollEnabled";
@@ -168,13 +172,21 @@ public final class MapView extends FrameLayout {
      * The currently supported maximum zoom level.
      *
      * @see MapView#setZoomLevel(double)
+     * @deprecated use #MAXIMUM_ZOOM instead.
      */
     public static final double MAXIMUM_ZOOM_LEVEL = 18.0;
 
     /**
+     * The currently supported maximum zoom level.
+     *
+     * @see MapView#setZoom(double)
+     */
+    public static final double MAXIMUM_ZOOM = 18.0;
+
+    /**
      * The currently supported maximum and minimum tilt values.
      *
-     * @see MapView#setTilt(double)
+     * @see MapView#setTilt(Double, Long)
      */
     private static final double MINIMUM_TILT = 0;
     private static final double MAXIMUM_TILT = 60;
@@ -250,6 +262,10 @@ public final class MapView extends FrameLayout {
     // Used to manage FPS change event listeners
     private OnFpsChangedListener mOnFpsChangedListener;
 
+    // Used to manage tracking mode changes
+    private OnMyLocationTrackingModeChangeListener mOnMyLocationTrackingModeChangeListener;
+    private OnMyBearingTrackingModeChangeListener mOnMyBearingTrackingModeChangeListener;
+
     //
     // Properties
     //
@@ -303,6 +319,7 @@ public final class MapView extends FrameLayout {
      * This event is followed by a series of {@link MapView#REGION_IS_CHANGING} and ends
      * with {@link MapView#REGION_DID_CHANGE}.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int REGION_WILL_CHANGE = 0;
@@ -316,6 +333,7 @@ public final class MapView extends FrameLayout {
      * This event is followed by a series of {@link MapView#REGION_IS_CHANGING} and ends
      * with {@link MapView#REGION_DID_CHANGE_ANIMATED}.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int REGION_WILL_CHANGE_ANIMATED = 1;
@@ -324,6 +342,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is triggered whenever the currently displayed map region is changing.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int REGION_IS_CHANGING = 2;
@@ -333,6 +352,7 @@ public final class MapView extends FrameLayout {
      * This {@link MapChange} is triggered whenever the currently displayed map region finished changing
      * without an animation.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int REGION_DID_CHANGE = 3;
@@ -342,6 +362,7 @@ public final class MapView extends FrameLayout {
      * This {@link MapChange} is triggered whenever the currently displayed map region finished changing
      * with an animation.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int REGION_DID_CHANGE_ANIMATED = 4;
@@ -354,6 +375,7 @@ public final class MapView extends FrameLayout {
      * This event is followed by {@link MapView#DID_FINISH_LOADING_MAP} or
      * {@link MapView#DID_FAIL_LOADING_MAP}.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int WILL_START_LOADING_MAP = 5;
@@ -362,6 +384,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is triggered when the map has successfully loaded a new map style.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FINISH_LOADING_MAP = 6;
@@ -373,6 +396,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This event is triggered when the map has failed to load a new map style.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FAIL_LOADING_MAP = 7;
@@ -381,6 +405,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int WILL_START_RENDERING_FRAME = 8;
@@ -389,6 +414,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FINISH_RENDERING_FRAME = 9;
@@ -397,6 +423,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FINISH_RENDERING_FRAME_FULLY_RENDERED = 10;
@@ -405,6 +432,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int WILL_START_RENDERING_MAP = 11;
@@ -413,6 +441,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FINISH_RENDERING_MAP = 12;
@@ -421,6 +450,7 @@ public final class MapView extends FrameLayout {
      * <p>
      * This {@link MapChange} is currently not implemented.
      * </p>
+     *
      * @see com.mapbox.mapboxsdk.views.MapView.OnMapChangedListener
      */
     public static final int DID_FINISH_RENDERING_MAP_FULLY_RENDERED = 13;
@@ -587,18 +617,48 @@ public final class MapView extends FrameLayout {
     }
 
     /**
+     * Interface definition for a callback to be invoked when the the My Location tracking mode changes.
+     *
+     * @see MapView#setMyLocationTrackingMode(int)
+     */
+    public interface OnMyLocationTrackingModeChangeListener {
+
+        /**
+         * Called when the tracking mode of My Location tracking has changed
+         *
+         * @param myLocationTrackingMode the current active location tracking mode
+         */
+        void onMyLocationTrackingModeChange(@MyLocationTracking.Mode int myLocationTrackingMode);
+    }
+
+    /**
+     * Interface definition for a callback to be invoked when the the My Location tracking mode changes.
+     *
+     * @see MapView#setMyLocationTrackingMode(int)
+     */
+    public interface OnMyBearingTrackingModeChangeListener {
+
+        /**
+         * Called when the tracking mode of My Bearing tracking has changed
+         *
+         * @param myBearingTrackingMode the current active bearing tracking mode
+         */
+        void onMyBearingTrackingModeChange(@MyBearingTracking.Mode int myBearingTrackingMode);
+    }
+
+    /**
      * A callback interface for reporting when a task is complete or cancelled.
      */
-    public static interface CancelableCallback {
+    public interface CancelableCallback {
         /**
          * Invoked when a task is cancelled.
          */
-        public abstract void onCancel();
+        void onCancel();
 
         /**
          * Invoked when a task is complete.
          */
-        public abstract void onFinish();
+        void onFinish();
     }
 
     //
@@ -770,10 +830,16 @@ public final class MapView extends FrameLayout {
         try {
             double centerLatitude = typedArray.getFloat(R.styleable.MapView_center_latitude, 0.0f);
             double centerLongitude = typedArray.getFloat(R.styleable.MapView_center_longitude, 0.0f);
-            LatLng centerCoordinate = new LatLng(centerLatitude, centerLongitude);
-            setCenterCoordinate(centerCoordinate);
+            setLatLng(new LatLng(centerLatitude, centerLongitude));
+
             // need to set zoom level first because of limitation on rotating when zoomed out
-            setZoomLevel(typedArray.getFloat(R.styleable.MapView_zoom_level, 0.0f));
+            float zoom = typedArray.getFloat(R.styleable.MapView_zoom, 0.0f);
+            if(zoom != 0.0f){
+                setZoom(zoom);
+            }else{
+                setZoomLevel(typedArray.getFloat(R.styleable.MapView_zoom_level, 0.0f));
+            }
+
             setDirection(typedArray.getFloat(R.styleable.MapView_direction, 0.0f));
             setZoomEnabled(typedArray.getBoolean(R.styleable.MapView_zoom_enabled, true));
             setScrollEnabled(typedArray.getBoolean(R.styleable.MapView_scroll_enabled, true));
@@ -823,7 +889,13 @@ public final class MapView extends FrameLayout {
                     , typedArray.getDimension(R.styleable.MapView_attribution_margin_bottom, DIMENSION_SEVEN_DP));
 
             // User location
-            setMyLocationEnabled(typedArray.getBoolean(R.styleable.MapView_my_location_enabled, false));
+            try {
+                //noinspection ResourceType
+                setMyLocationEnabled(typedArray.getBoolean(R.styleable.MapView_my_location_enabled, false));
+            }catch (SecurityException ignore){
+                // User did not accept location permissions
+            }
+
         } finally {
             typedArray.recycle();
         }
@@ -847,9 +919,9 @@ public final class MapView extends FrameLayout {
     @UiThread
     public void onCreate(@Nullable Bundle savedInstanceState) {
         if (savedInstanceState != null) {
-            setCenterCoordinate((LatLng) savedInstanceState.getParcelable(STATE_CENTER_COORDINATE));
+            setLatLng((LatLng) savedInstanceState.getParcelable(STATE_CENTER_LATLNG));
             // need to set zoom level first because of limitation on rotating when zoomed out
-            setZoomLevel(savedInstanceState.getDouble(STATE_ZOOM_LEVEL));
+            setZoom(savedInstanceState.getDouble(STATE_ZOOM));
             setDirection(savedInstanceState.getDouble(STATE_CENTER_DIRECTION));
             setTilt(savedInstanceState.getDouble(STATE_TILT), null);
             setZoomEnabled(savedInstanceState.getBoolean(STATE_ZOOM_ENABLED));
@@ -866,7 +938,14 @@ public final class MapView extends FrameLayout {
             }
             mNativeMapView.setDefaultTransitionDuration(
                     savedInstanceState.getLong(STATE_DEFAULT_TRANSITION_DURATION));
-            setMyLocationEnabled(savedInstanceState.getBoolean(STATE_MY_LOCATION_ENABLED));
+
+            // User location
+            try {
+                //noinspection ResourceType
+                setMyLocationEnabled(savedInstanceState.getBoolean(STATE_MY_LOCATION_ENABLED));
+            }catch (SecurityException ignore){
+                // User did not accept location permissions
+            }
 
             // Compass
             setCompassEnabled(savedInstanceState.getBoolean(STATE_COMPASS_ENABLED));
@@ -929,9 +1008,9 @@ public final class MapView extends FrameLayout {
             return;
         }
 
-        outState.putParcelable(STATE_CENTER_COORDINATE, getCenterCoordinate());
+        outState.putParcelable(STATE_CENTER_LATLNG, getLatLng());
         // need to set zoom level first because of limitation on rotating when zoomed out
-        outState.putDouble(STATE_ZOOM_LEVEL, getZoomLevel());
+        outState.putDouble(STATE_ZOOM, getZoom());
         outState.putDouble(STATE_CENTER_DIRECTION, getDirection());
         outState.putDouble(STATE_TILT, getTilt());
         outState.putBoolean(STATE_ZOOM_ENABLED, isZoomEnabled());
@@ -1025,9 +1104,9 @@ public final class MapView extends FrameLayout {
         mConnectivityReceiver = new ConnectivityReceiver();
         getContext().registerReceiver(mConnectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
 
-        mUserLocationView.resume();
         mNativeMapView.resume();
         mNativeMapView.update();
+        mUserLocationView.resume();
     }
 
     /**
@@ -1043,12 +1122,108 @@ public final class MapView extends FrameLayout {
     //
 
     /**
-     * Returns the current coordinate at the center of the map view.
+     * Returns the current {@link LatLng} at the center of the map view.
      *
-     * @return The current coordinate.
+     * @return The current center.
      */
     @UiThread
     @NonNull
+    public LatLng getLatLng() {
+        return mNativeMapView.getLatLng();
+    }
+
+    /**
+     * <p>
+     * Centers the map on a new {@link LatLng} immediately without changing the zoom level.
+     * </p>
+     * <p>
+     * The initial {@link LatLng} is (0, 0).
+     * </p>
+     * If you want to animate the change, use {@link MapView#setLatLng(LatLng, boolean)}.
+     *
+     * @param latLng The new center.
+     * @see MapView#setLatLng(LatLng, boolean)
+     */
+    @UiThread
+    public void setLatLng(@NonNull LatLng latLng) {
+        setLatLng(latLng, false);
+    }
+
+    /**
+     * <p>
+     * Centers the map on a new {@link LatLng} without changing the zoom level and optionally animates the change.
+     * </p>
+     * The initial {@link LatLng} is (0, 0).
+     *
+     * @param latLng    The new center.
+     * @param animated  If true, animates the change. If false, immediately changes the map.
+     */
+    @UiThread
+    public void setLatLng(@NonNull LatLng latLng, boolean animated) {
+        if (latLng == null) {
+            Log.w(TAG, "latLng was null, so just returning");
+            return;
+        }
+
+        if (animated) {
+            CameraPosition cameraPosition = new CameraPosition.Builder(getCameraPosition())
+                    .target(latLng)
+                    .build();
+            animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition),
+                    (int) ANIMATION_DURATION, null);
+        } else {
+            jumpTo(mNativeMapView.getBearing(), latLng, mNativeMapView.getPitch(), mNativeMapView.getZoom());
+        }
+    }
+
+
+    /**
+     * <p>
+     * Centers the map on a new {@link LatLng} immediately while changing the current zoom level.
+     * </p>
+     * <p>
+     * The initial value is a center {@link LatLng} of (0, 0) and a zoom level of 0.
+     * </p>
+     * If you want to animate the change, use {@link MapView#setLatLng(LatLng, boolean)}.
+     *
+     * @param latLngZoom The new center and zoom level.
+     * @see MapView#setLatLng(LatLngZoom, boolean)
+     */
+    @UiThread
+    public void setLatLng(@NonNull LatLngZoom latLngZoom) {
+        setLatLng(latLngZoom, false);
+    }
+
+    /**
+     * <p>
+     * Centers the map on a new {@link LatLng} while changing the zoom level and optionally animates the change.
+     * </p>
+     * The initial value is a center {@link LatLng} of (0, 0) and a zoom level of 0.
+     *
+     * @param latLngZoom  The new center and zoom level.
+     * @param animated    If true, animates the change. If false, immediately changes the map.
+     */
+    @UiThread
+    public void setLatLng(@NonNull LatLngZoom latLngZoom, boolean animated) {
+        if (latLngZoom == null) {
+            Log.w(TAG, "latLngZoom was null, so just returning");
+            return;
+        }
+        long duration = animated ? ANIMATION_DURATION : 0;
+        mNativeMapView.cancelTransitions();
+        mNativeMapView.setLatLngZoom(latLngZoom, duration);
+    }
+
+
+    /**
+     * Returns the current coordinate at the center of the map view.
+     *
+     * @return The current coordinate.
+     * @deprecated use {@link #getLatLng()} instead.
+     */
+    @UiThread
+    @NonNull
+    @Deprecated
     public LatLng getCenterCoordinate() {
         return mNativeMapView.getLatLng();
     }
@@ -1064,8 +1239,10 @@ public final class MapView extends FrameLayout {
      *
      * @param centerCoordinate The new coordinate.
      * @see MapView#setCenterCoordinate(LatLng, boolean)
+     * @deprecated use {@link #setLatLng(LatLng)}} instead.
      */
     @UiThread
+    @Deprecated
     public void setCenterCoordinate(@NonNull LatLng centerCoordinate) {
         setCenterCoordinate(centerCoordinate, false);
     }
@@ -1078,8 +1255,10 @@ public final class MapView extends FrameLayout {
      *
      * @param centerCoordinate The new coordinate.
      * @param animated         If true, animates the change. If false, immediately changes the map.
+     * @deprecated use {@link #setLatLng(LatLng, boolean)}} instead.
      */
     @UiThread
+    @Deprecated
     public void setCenterCoordinate(@NonNull LatLng centerCoordinate, boolean animated) {
         if (centerCoordinate == null) {
             Log.w(TAG, "centerCoordinate was null, so just returning");
@@ -1109,20 +1288,12 @@ public final class MapView extends FrameLayout {
      *
      * @param centerCoordinate The new coordinate and zoom level.
      * @see MapView#setCenterCoordinate(LatLngZoom, boolean)
+     * @deprecated use {@link #setLatLng(LatLngZoom)} instead.
      */
     @UiThread
+    @Deprecated
     public void setCenterCoordinate(@NonNull LatLngZoom centerCoordinate) {
         setCenterCoordinate(centerCoordinate, false);
-    }
-
-    /**
-     * Resets the map to the minimum zoom level, a center coordinate of (0, 0), a true north heading,
-     * and animates the change.
-     */
-    @UiThread
-    public void resetPosition() {
-        mNativeMapView.cancelTransitions();
-        mNativeMapView.resetPosition();
     }
 
     /**
@@ -1133,8 +1304,10 @@ public final class MapView extends FrameLayout {
      *
      * @param centerCoordinate The new coordinate and zoom level.
      * @param animated         If true, animates the change. If false, immediately changes the map.
+     * @deprecated use {@link #setLatLng(LatLngZoom, boolean)}} instead.
      */
     @UiThread
+    @Deprecated
     public void setCenterCoordinate(@NonNull LatLngZoom centerCoordinate,
                                     boolean animated) {
         if (centerCoordinate == null) {
@@ -1144,6 +1317,16 @@ public final class MapView extends FrameLayout {
         long duration = animated ? ANIMATION_DURATION : 0;
         mNativeMapView.cancelTransitions();
         mNativeMapView.setLatLngZoom(centerCoordinate, duration);
+    }
+
+    /**
+     * Resets the map to the minimum zoom level, a center coordinate of (0, 0), a true north heading,
+     * and animates the change.
+     */
+    @UiThread
+    public void resetPosition() {
+        mNativeMapView.cancelTransitions();
+        mNativeMapView.resetPosition();
     }
 
     /**
@@ -1179,6 +1362,7 @@ public final class MapView extends FrameLayout {
 
     /**
      * Gets the current Tilt in degrees of the MapView
+     *
      * @return tilt in degrees
      */
     public double getTilt() {
@@ -1187,7 +1371,8 @@ public final class MapView extends FrameLayout {
 
     /**
      * Sets the Tilt in degrees of the MapView.
-     * @param pitch New tilt in degrees
+     *
+     * @param pitch    New tilt in degrees
      * @param duration Animation time in milliseconds.  If null then 0 is used, making the animation immediate.
      */
     @FloatRange(from = MINIMUM_TILT, to = MAXIMUM_TILT)
@@ -1312,10 +1497,72 @@ public final class MapView extends FrameLayout {
     /**
      * Returns the current zoom level of the map view.
      *
+     * @return The current zoom.
+     */
+    @UiThread
+    @FloatRange(from = 0.0, to = MAXIMUM_ZOOM)
+    public double getZoom() {
+        return mNativeMapView.getZoom();
+    }
+
+    /**
+     * <p>
+     * Zooms the map to a new zoom level immediately without changing the center coordinate.
+     * </p>
+     * <p>
+     * At zoom level 0, tiles cover the entire world map;
+     * at zoom level 1, tiles cover 1/14 of the world;
+     * at zoom level 2, tiles cover 1/16 of the world, and so on.
+     * </p>
+     * <p>
+     * The initial zoom level is 0. The maximum zoom level is {@link MapView#MAXIMUM_ZOOM}.
+     * </p>
+     * If you want to animate the change, use {@link MapView#setZoom(double, boolean)}.
+     *
+     * @param zoomLevel The new zoom.
+     * @see MapView#setZoom(double, boolean)
+     * @see MapView#MAXIMUM_ZOOM
+     */
+    @UiThread
+    public void setZoom(@FloatRange(from = 0.0, to = MAXIMUM_ZOOM) double zoomLevel) {
+        setZoom(zoomLevel, false);
+        setZoom(zoomLevel, false);
+    }
+
+    /**
+     * <p>
+     * Zooms the map to a new zoom level and optionally animates the change without changing the center coordinate.
+     * </p>
+     * <p>
+     * At zoom level 0, tiles cover the entire world map;
+     * at zoom level 1, tiles cover 1/14 of the world;
+     * at zoom level 2, tiles cover 1/16 of the world, and so on.
+     * </p>
+     * The initial zoom level is 0. The maximum zoom level is {@link MapView#MAXIMUM_ZOOM}.
+     *
+     * @param zoomLevel The new zoom level.
+     * @param animated  If true, animates the change. If false, immediately changes the map.
+     * @see MapView#MAXIMUM_ZOOM
+     */
+    @UiThread
+    public void setZoom(@FloatRange(from = 0.0, to = MAXIMUM_ZOOM_LEVEL) double zoomLevel, boolean animated) {
+        if ((zoomLevel < 0.0) || (zoomLevel > MAXIMUM_ZOOM_LEVEL)) {
+            throw new IllegalArgumentException("zoomLevel is < 0 or > MapView.MAXIMUM_ZOOM_LEVEL");
+        }
+        long duration = animated ? ANIMATION_DURATION : 0;
+        mNativeMapView.cancelTransitions();
+        mNativeMapView.setZoom(zoomLevel, duration);
+    }
+
+    /**
+     * Returns the current zoom level of the map view.
+     *
      * @return The current zoom level.
+     * @deprecated use {@link #getZoom()} instead.
      */
     @UiThread
     @FloatRange(from = 0.0, to = MAXIMUM_ZOOM_LEVEL)
+    @Deprecated
     public double getZoomLevel() {
         return mNativeMapView.getZoom();
     }
@@ -1337,8 +1584,10 @@ public final class MapView extends FrameLayout {
      * @param zoomLevel The new coordinate.
      * @see MapView#setZoomLevel(double, boolean)
      * @see MapView#MAXIMUM_ZOOM_LEVEL
+     * @deprecated use {@link #setZoom(double)} instead.
      */
     @UiThread
+    @Deprecated
     public void setZoomLevel(@FloatRange(from = 0.0, to = MAXIMUM_ZOOM_LEVEL) double zoomLevel) {
         setZoomLevel(zoomLevel, false);
     }
@@ -1357,8 +1606,10 @@ public final class MapView extends FrameLayout {
      * @param zoomLevel The new coordinate.
      * @param animated  If true, animates the change. If false, immediately changes the map.
      * @see MapView#MAXIMUM_ZOOM_LEVEL
+     * @deprecated use {@link #setZoom(double, boolean)} instead.
      */
     @UiThread
+    @Deprecated
     public void setZoomLevel(@FloatRange(from = 0.0, to = MAXIMUM_ZOOM_LEVEL) double zoomLevel, boolean animated) {
         if ((zoomLevel < 0.0) || (zoomLevel > MAXIMUM_ZOOM_LEVEL)) {
             throw new IllegalArgumentException("zoomLevel is < 0 or > MapView.MAXIMUM_ZOOM_LEVEL");
@@ -1487,21 +1738,23 @@ public final class MapView extends FrameLayout {
     /**
      * Gets the current position of the camera.
      * The CameraPosition returned is a snapshot of the current position, and will not automatically update when the camera moves.
+     *
      * @return The current position of the Camera.
      */
-    public final CameraPosition getCameraPosition () {
-        return new CameraPosition(getCenterCoordinate(), (float)getZoomLevel(), (float)getTilt(), (float)getBearing());
+    public final CameraPosition getCameraPosition() {
+        return new CameraPosition(getLatLng(), (float) getZoom(), (float) getTilt(), (float) getBearing());
     }
 
     /**
      * Animates the movement of the camera from the current position to the position defined in the update.
      * During the animation, a call to getCameraPosition() returns an intermediate location of the camera.
-
+     * <p/>
      * See CameraUpdateFactory for a set of updates.
+     *
      * @param update The change that should be applied to the camera.
      */
     @UiThread
-    public final void animateCamera (CameraUpdate update) {
+    public final void animateCamera(CameraUpdate update) {
         animateCamera(update, 1, null);
     }
 
@@ -1510,23 +1763,25 @@ public final class MapView extends FrameLayout {
      * Animates the movement of the camera from the current position to the position defined in the update and calls an optional callback on completion.
      * See CameraUpdateFactory for a set of updates.
      * During the animation, a call to getCameraPosition() returns an intermediate location of the camera.
-     * @param update The change that should be applied to the camera.
+     *
+     * @param update   The change that should be applied to the camera.
      * @param callback The callback to invoke from the main thread when the animation stops. If the animation completes normally, onFinish() is called; otherwise, onCancel() is called. Do not update or animate the camera from within onCancel().
      */
     @UiThread
-    public final void animateCamera (CameraUpdate update, MapView.CancelableCallback callback) {
+    public final void animateCamera(CameraUpdate update, MapView.CancelableCallback callback) {
         animateCamera(update, 1, callback);
     }
 
     /**
      * Moves the map according to the update with an animation over a specified duration, and calls an optional callback on completion. See CameraUpdateFactory for a set of updates.
      * If getCameraPosition() is called during the animation, it will return the current location of the camera in flight.
-     * @param update The change that should be applied to the camera.
+     *
+     * @param update     The change that should be applied to the camera.
      * @param durationMs The duration of the animation in milliseconds. This must be strictly positive, otherwise an IllegalArgumentException will be thrown.
-     * @param callback An optional callback to be notified from the main thread when the animation stops. If the animation stops due to its natural completion, the callback will be notified with onFinish(). If the animation stops due to interruption by a later camera movement or a user gesture, onCancel() will be called. The callback should not attempt to move or animate the camera in its cancellation method. If a callback isn't required, leave it as null.
+     * @param callback   An optional callback to be notified from the main thread when the animation stops. If the animation stops due to its natural completion, the callback will be notified with onFinish(). If the animation stops due to interruption by a later camera movement or a user gesture, onCancel() will be called. The callback should not attempt to move or animate the camera in its cancellation method. If a callback isn't required, leave it as null.
      */
     @UiThread
-    public final void animateCamera (CameraUpdate update, int durationMs, final MapView.CancelableCallback callback) {
+    public final void animateCamera(CameraUpdate update, int durationMs, final MapView.CancelableCallback callback) {
 
         if (update.getTarget() == null) {
             Log.w(TAG, "animateCamera with null target coordinate passed in.  Will immediately return without animating camera.");
@@ -1577,9 +1832,10 @@ public final class MapView extends FrameLayout {
     /**
      * Ease the map according to the update with an animation over a specified duration, and calls an optional callback on completion. See CameraUpdateFactory for a set of updates.
      * If getCameraPosition() is called during the animation, it will return the current location of the camera in flight.
-     * @param update The change that should be applied to the camera.
+     *
+     * @param update     The change that should be applied to the camera.
      * @param durationMs The duration of the animation in milliseconds. This must be strictly positive, otherwise an IllegalArgumentException will be thrown.
-     * @param callback An optional callback to be notified from the main thread when the animation stops. If the animation stops due to its natural completion, the callback will be notified with onFinish(). If the animation stops due to interruption by a later camera movement or a user gesture, onCancel() will be called. The callback should not attempt to move or animate the camera in its cancellation method. If a callback isn't required, leave it as null.
+     * @param callback   An optional callback to be notified from the main thread when the animation stops. If the animation stops due to its natural completion, the callback will be notified with onFinish(). If the animation stops due to interruption by a later camera movement or a user gesture, onCancel() will be called. The callback should not attempt to move or animate the camera in its cancellation method. If a callback isn't required, leave it as null.
      */
     @UiThread
     public final void easeCamera(CameraUpdate update, int durationMs, final MapView.CancelableCallback callback) {
@@ -1633,10 +1889,11 @@ public final class MapView extends FrameLayout {
      * Repositions the camera according to the instructions defined in the update.
      * The move is instantaneous, and a subsequent getCameraPosition() will reflect the new position.
      * See CameraUpdateFactory for a set of updates.
+     *
      * @param update The change that should be applied to the camera.
      */
     @UiThread
-    public final void moveCamera (CameraUpdate update) {
+    public final void moveCamera(CameraUpdate update) {
         if (update.getTarget() == null) {
             Log.w(TAG, "moveCamera with null target coordinate passed in.  Will immediately return without moving camera.");
             return;
@@ -2407,7 +2664,7 @@ public final class MapView extends FrameLayout {
      */
     @UiThread
     public double getMetersPerPixelAtLatitude(@FloatRange(from = -180, to = 180) double latitude) {
-        return mNativeMapView.getMetersPerPixelAtLatitude(latitude, getZoomLevel()) / mScreenDensity;
+        return mNativeMapView.getMetersPerPixelAtLatitude(latitude, getZoom()) / mScreenDensity;
     }
 
     /**
@@ -2493,10 +2750,11 @@ public final class MapView extends FrameLayout {
      * Change any combination of center, zoom, bearing, and pitch, without
      * a transition. The map will retain the current values for any options
      * not included in `options`.
+     *
      * @param bearing Bearing in Radians
-     * @param center Center Coordinate
-     * @param pitch Pitch in Radians
-     * @param zoom Zoom Level
+     * @param center  Center Coordinate
+     * @param pitch   Pitch in Radians
+     * @param zoom    Zoom Level
      */
     @UiThread
     private void jumpTo(double bearing, LatLng center, double pitch, double zoom) {
@@ -2507,24 +2765,26 @@ public final class MapView extends FrameLayout {
      * Change any combination of center, zoom, bearing, and pitch, with a smooth animation
      * between old and new values. The map will retain the current values for any options
      * not included in `options`.
-     * @param bearing Bearing in Radians
-     * @param center Center Coordinate
+     *
+     * @param bearing  Bearing in Radians
+     * @param center   Center Coordinate
      * @param duration Animation time in Nanoseconds
-     * @param pitch Pitch in Radians
-     * @param zoom Zoom Level
+     * @param pitch    Pitch in Radians
+     * @param zoom     Zoom Level
      */
     @UiThread
-    private void easeTo(double bearing, LatLng center, long duration,  double pitch, double zoom) {
+    private void easeTo(double bearing, LatLng center, long duration, double pitch, double zoom) {
         mNativeMapView.easeTo(bearing, center, duration, pitch, zoom);
     }
 
     /**
      * Flying animation to a specified location/zoom/bearing with automatic curve.
-     * @param bearing Bearing in Radians
-     * @param center Center Coordinate
+     *
+     * @param bearing  Bearing in Radians
+     * @param center   Center Coordinate
      * @param duration Animation time in Nanoseconds
-     * @param pitch Pitch in Radians
-     * @param zoom Zoom Level
+     * @param pitch    Pitch in Radians
+     * @param zoom     Zoom Level
      */
     @UiThread
     private void flyTo(double bearing, LatLng center, long duration, double pitch, double zoom) {
@@ -2718,6 +2978,7 @@ public final class MapView extends FrameLayout {
 
     /**
      * Get Bearing in degrees
+     *
      * @return Bearing in degrees
      */
     public double getBearing() {
@@ -2726,6 +2987,7 @@ public final class MapView extends FrameLayout {
 
     /**
      * Set Bearing in degrees
+     *
      * @param bearing Bearing in degrees
      */
     public void setBearing(float bearing) {
@@ -2734,10 +2996,10 @@ public final class MapView extends FrameLayout {
 
     /**
      * Sets Bearing in degrees
-     *
+     * <p/>
      * NOTE: Used by UserLocationView
      *
-     * @param bearing Bearing in degrees
+     * @param bearing  Bearing in degrees
      * @param duration Length of time to rotate
      */
     public void setBearing(float bearing, long duration) {
@@ -2864,10 +3126,20 @@ public final class MapView extends FrameLayout {
 
         // Must always return true otherwise all events are ignored
         @Override
-        public boolean onDown(MotionEvent e) {
+        public boolean onDown(MotionEvent event) {
             // Show the zoom controls
             if (mZoomControlsEnabled && mZoomEnabled) {
                 mZoomButtonsController.setVisible(true);
+            }
+
+            // Disable tracking mode if a gesture occurs
+            try {
+                //noinspection ResourceType
+                setMyLocationTrackingMode(MyLocationTracking.TRACKING_NONE);
+                //noinspection ResourceType
+                setMyBearingTrackingMode(MyBearingTracking.NONE);
+            } catch (SecurityException ignore) {
+                // User did not accept location permissions
             }
 
             return true;
@@ -2960,8 +3232,8 @@ public final class MapView extends FrameLayout {
 //                        long result = mMarkersNearLastTap.indexOf(mSelectedMarker);
 //                        newSelectedMarkerId = mMarkersNearLastTap.get((int) result + 1).getId();
 //                    } else {
-                        // no current selection; select the first one
-                        newSelectedMarkerId = mMarkersNearLastTap.get(0).getId();
+                    // no current selection; select the first one
+                    newSelectedMarkerId = mMarkersNearLastTap.get(0).getId();
 //                    }
                 } else {
                     // start tracking a new set of nearby markers
@@ -3796,8 +4068,12 @@ public final class MapView extends FrameLayout {
      * or @link android.Manifest.permission#ACCESS_FINE_LOCATION.
      *
      * @param enabled True to enable; false to disable.
+     * @throws SecurityException if no suitable permission is present
      */
     @UiThread
+    @RequiresPermission(anyOf = {
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION})
     public void setMyLocationEnabled(boolean enabled) {
         mUserLocationView.setEnabled(enabled);
     }
@@ -3828,33 +4104,32 @@ public final class MapView extends FrameLayout {
     /**
      * <p>
      * Set the current my location tracking mode.
-     * Tracking my location disables gestures and pans the viewport
+     * </p>
+     * <p>
+     * Will enable my location if not active.
      * </p>
      * See {@link MyLocationTracking} for different values.
      *
      * @param myLocationTrackingMode The location tracking mode to be used.
+     * @throws SecurityException if no suitable permission is present
      * @see MyLocationTracking
      */
     @UiThread
+    @RequiresPermission(anyOf = {
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION})
     public void setMyLocationTrackingMode(@MyLocationTracking.Mode int myLocationTrackingMode) {
+        if (myLocationTrackingMode != MyLocationTracking.TRACKING_NONE && !isMyLocationEnabled()) {
+            //noinspection ResourceType
+            setMyLocationEnabled(true);
+        }
+
         mUserLocationView.setMyLocationTrackingMode(myLocationTrackingMode);
-        validateGesturesForTrackingModes();
-    }
 
-    private void validateGesturesForTrackingModes() {
-        int myLocationTrackingMode = mUserLocationView.getMyLocationTrackingMode();
-        int myBearingTrackingMode = mUserLocationView.getMyBearingTrackingMode();
-
-        // Enable/disable gestures based on tracking mode
-        if (myLocationTrackingMode == MyLocationTracking.TRACKING_NONE) {
-            mScrollEnabled = true;
-            mRotateEnabled = true;
-        } else {
-            mScrollEnabled = false;
-            mRotateEnabled = (myBearingTrackingMode == MyBearingTracking.NONE);
+        if (mOnMyLocationTrackingModeChangeListener != null) {
+            mOnMyLocationTrackingModeChangeListener.onMyLocationTrackingModeChange(myLocationTrackingMode);
         }
     }
-
 
     /**
      * Returns the current user location tracking mode.
@@ -3870,12 +4145,21 @@ public final class MapView extends FrameLayout {
     }
 
     /**
+     * Sets a callback that's invoked when the location tracking mode changes.
+     *
+     * @param listener The callback that's invoked when the location tracking mode changes.
+     *                 To unset the callback, use null.
+     */
+    @UiThread
+    public void setOnMyLocationTrackingModeChangeListener(@Nullable OnMyLocationTrackingModeChangeListener listener) {
+        mOnMyLocationTrackingModeChangeListener = listener;
+    }
+
+    /**
      * <p>
      * Set the current my bearing tracking mode.
      * </p>
-     * <p>
-     * Tracking the users bearing will disable gestures and shows the direction the user is heading.
-     * </p>
+     * Shows the direction the user is heading.
      * <p>
      * When location tracking is disabled the direction of {@link UserLocationView}  is rotated
      * When location tracking is enabled the {@link MapView} is rotated based on bearing value.
@@ -3883,12 +4167,24 @@ public final class MapView extends FrameLayout {
      * See {@link MyBearingTracking} for different values.
      *
      * @param myBearingTrackingMode The bearing tracking mode to be used.
+     * @throws SecurityException if no suitable permission is present
      * @see MyBearingTracking
      */
     @UiThread
+    @RequiresPermission(anyOf = {
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION})
     public void setMyBearingTrackingMode(@MyBearingTracking.Mode int myBearingTrackingMode) {
+        if (myBearingTrackingMode != MyBearingTracking.NONE && !isMyLocationEnabled()) {
+            //noinspection ResourceType
+            setMyLocationEnabled(true);
+        }
+
         mUserLocationView.setMyBearingTrackingMode(myBearingTrackingMode);
-        validateGesturesForTrackingModes();
+
+        if (mOnMyBearingTrackingModeChangeListener != null) {
+            mOnMyBearingTrackingModeChangeListener.onMyBearingTrackingModeChange(myBearingTrackingMode);
+        }
     }
 
     /**
@@ -3903,6 +4199,17 @@ public final class MapView extends FrameLayout {
     public int getMyBearingTrackingMode() {
         //noinspection ResourceType
         return mUserLocationView.getMyBearingTrackingMode();
+    }
+
+    /**
+     * Sets a callback that's invoked when the bearing tracking mode changes.
+     *
+     * @param listener The callback that's invoked when the bearing tracking mode changes.
+     *                 To unset the callback, use null.
+     */
+    @UiThread
+    public void setOnMyBearingTrackingModeChangeListener(@Nullable OnMyBearingTrackingModeChangeListener listener) {
+        mOnMyBearingTrackingModeChangeListener = listener;
     }
 
     //
@@ -4116,8 +4423,8 @@ public final class MapView extends FrameLayout {
             Context context = ((Dialog) dialog).getContext();
             String url = context.getResources().getStringArray(R.array.attribution_links)[which];
             if (which == ATTRIBUTION_INDEX_IMPROVE_THIS_MAP) {
-                LatLng latLng = mMapView.getCenterCoordinate();
-                url = String.format(url, latLng.getLongitude(), latLng.getLatitude(), (int) mMapView.getZoomLevel());
+                LatLng latLng = mMapView.getLatLng();
+                url = String.format(url, latLng.getLongitude(), latLng.getLatitude(), (int) mMapView.getZoom());
             }
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setData(Uri.parse(url));

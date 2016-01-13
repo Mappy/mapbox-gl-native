@@ -22,7 +22,6 @@
 #import <mbgl/sprite/sprite_image.hpp>
 #import <mbgl/storage/default_file_source.hpp>
 #import <mbgl/storage/network_status.hpp>
-#import <mbgl/storage/sqlite_cache.hpp>
 #import <mbgl/util/constants.hpp>
 #import <mbgl/util/math.hpp>
 #import <mbgl/util/std.hpp>
@@ -152,7 +151,6 @@ public:
     /// Cross-platform map view controller.
     mbgl::Map *_mbglMap;
     MGLMapViewImpl *_mbglView;
-    std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
     
     NSPanGestureRecognizer *_panGestureRecognizer;
@@ -202,7 +200,7 @@ public:
     return self;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame styleURL:(nullable NSURL *)styleURL {
+- (instancetype)initWithFrame:(NSRect)frame styleURL:(nullable NSURL *)styleURL {
     if (self = [super initWithFrame:frame]) {
         [self commonInit];
         self.styleURL = styleURL;
@@ -248,8 +246,7 @@ public:
                                                    error:nil];
     NSURL *cacheURL = [cacheDirectoryURL URLByAppendingPathComponent:@"cache.db"];
     NSString *cachePath = cacheURL ? cacheURL.path : @"";
-    _mbglFileCache = mbgl::SharedSQLiteCache::get(cachePath.UTF8String);
-    _mbglFileSource = new mbgl::DefaultFileSource(_mbglFileCache.get());
+    _mbglFileSource = new mbgl::DefaultFileSource(cachePath.UTF8String);
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
     
@@ -872,10 +869,12 @@ public:
 }
 
 - (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
+    [self willChangeValueForKey:@"centerCoordinate"];
     [self willChangeValueForKey:@"zoomLevel"];
     mbgl::PrecisionPoint center(point.x, point.y);
     _mbglMap->scaleBy(scaleFactor, center, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
     [self didChangeValueForKey:@"zoomLevel"];
+    [self didChangeValueForKey:@"centerCoordinate"];
 }
 
 - (double)maximumZoomLevel {
@@ -1214,6 +1213,17 @@ public:
     [self scaleBy:2 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
 }
 
+- (void)smartMagnifyWithEvent:(NSEvent *)event {
+    if (!self.zoomEnabled) {
+        return;
+    }
+    
+    _mbglMap->cancelTransitions();
+    
+    NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
+    [self scaleBy:0.5 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
+}
+
 /// Rotate fingers to rotate.
 - (void)handleRotationGesture:(NSRotationGestureRecognizer *)gestureRecognizer {
     if (!self.rotateEnabled) {
@@ -1242,18 +1252,15 @@ public:
 
 - (void)scrollWheel:(NSEvent *)event {
     // https://developer.apple.com/library/mac/releasenotes/AppKit/RN-AppKitOlderNotes/#10_7Dragging
-    if (event.phase == NSEventPhaseNone && event.momentumPhase == NSEventPhaseNone) {
+    if (event.phase == NSEventPhaseNone && event.momentumPhase == NSEventPhaseNone && !event.hasPreciseScrollingDeltas) {
         // A traditional, vertical scroll wheel zooms instead of panning.
         if (self.zoomEnabled && std::abs(event.scrollingDeltaX) < std::abs(event.scrollingDeltaY)) {
             _mbglMap->cancelTransitions();
             
-            [self willChangeValueForKey:@"zoomLevel"];
-            [self willChangeValueForKey:@"centerCoordinate"];
             NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
-            mbgl::PrecisionPoint center(gesturePoint.x, self.bounds.size.height - gesturePoint.y);
-            _mbglMap->scaleBy(exp2(event.scrollingDeltaY / 20), center);
-            [self didChangeValueForKey:@"centerCoordinate"];
-            [self didChangeValueForKey:@"zoomLevel"];
+            gesturePoint.y = self.bounds.size.height - gesturePoint.y;
+            double zoomDelta = event.scrollingDeltaY / 4;
+            [self scaleBy:exp2(zoomDelta) atPoint:gesturePoint animated:YES];
         }
     } else if (self.scrollEnabled
                && _magnificationGestureRecognizer.state == NSGestureRecognizerStatePossible

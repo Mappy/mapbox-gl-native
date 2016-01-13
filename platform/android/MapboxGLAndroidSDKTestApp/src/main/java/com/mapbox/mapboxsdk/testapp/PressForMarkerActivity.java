@@ -44,8 +44,8 @@ public class PressForMarkerActivity extends AppCompatActivity implements MapView
         mMapView = new MapView(this, ApiAccess.getToken(this));
         mMapView.setStyleUrl(Style.EMERALD);
         mMapView.onCreate(savedInstanceState);
-        mMapView.setCenterCoordinate(new LatLng(45.1855569, 5.7215506));
-        mMapView.setZoomLevel(11);
+        mMapView.setLatLng(new LatLng(45.1855569, 5.7215506));
+        mMapView.setZoom(11);
         mMapView.setOnMapLongClickListener(this);
         ((ViewGroup) findViewById(R.id.activity_container)).addView(mMapView);
 

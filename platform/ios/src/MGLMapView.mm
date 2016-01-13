@@ -16,7 +16,6 @@
 #include <mbgl/map/mode.hpp>
 #include <mbgl/platform/platform.hpp>
 #include <mbgl/platform/darwin/reachability.h>
-#include <mbgl/storage/sqlite_cache.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/network_status.hpp>
 #include <mbgl/util/geo.hpp>
@@ -39,7 +38,7 @@
 #import "MGLAccountManager_Private.h"
 #import "MGLAnnotationImage_Private.h"
 #import "MGLMapboxEvents.h"
-#import "MGLCalloutView.h"
+#import "MGLCompactCalloutView.h"
 
 #import <algorithm>
 #import <cstdlib>
@@ -118,6 +117,7 @@ public:
                           CLLocationManagerDelegate,
                           UIActionSheetDelegate,
                           MGLCalloutViewDelegate,
+                          UIAlertViewDelegate,
                           MGLMultiPointDelegate,
                           MGLAnnotationImageDelegate>
 
@@ -138,7 +138,7 @@ public:
 /// Mapping from reusable identifiers to annotation images.
 @property (nonatomic) NS_MUTABLE_DICTIONARY_OF(NSString *, MGLAnnotationImage *) *annotationImagesByIdentifier;
 /// Currently shown popover representing the selected annotation.
-@property (nonatomic) UIView<MGLCalloutViewProtocol> *calloutViewForSelectedAnnotation;
+@property (nonatomic) UIView<MGLCalloutView> *calloutViewForSelectedAnnotation;
 @property (nonatomic) MGLUserLocationAnnotationView *userLocationAnnotationView;
 @property (nonatomic) CLLocationManager *locationManager;
 @property (nonatomic) CGPoint centerPoint;
@@ -154,8 +154,9 @@ public:
 {
     mbgl::Map *_mbglMap;
     MBGLView *_mbglView;
-    std::shared_ptr<mbgl::SQLiteCache> _mbglFileCache;
     mbgl::DefaultFileSource *_mbglFileSource;
+    
+    BOOL _opaque;
 
     NS_MUTABLE_ARRAY_OF(NSURL *) *_bundledStyleURLs;
     
@@ -256,6 +257,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 - (void)commonInit
 {
     _isTargetingInterfaceBuilder = NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent;
+    _opaque = YES;
 
     BOOL background = [UIApplication sharedApplication].applicationState == UIApplicationStateBackground;
     if (!background)
@@ -278,17 +280,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         NSString *libraryDirectory = [paths objectAtIndex:0];
         fileCachePath = [libraryDirectory stringByAppendingPathComponent:@"cache.db"];
     }
-    _mbglFileCache = mbgl::SharedSQLiteCache::get([fileCachePath UTF8String]);
-    _mbglFileSource = new mbgl::DefaultFileSource(_mbglFileCache.get());
+    _mbglFileSource = new mbgl::DefaultFileSource([fileCachePath UTF8String]);
 
     // setup mbgl map
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
-
-    // setup refresh driver
-    _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
-    _displayLink.frameInterval = MGLTargetFrameInterval;
-    [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-    _needsDisplayRefresh = YES;
 
     // start paused if in IB
     if (_isTargetingInterfaceBuilder || background) {
@@ -339,6 +334,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     _attributionButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_attributionButton];
     _attributionButtonConstraints = [NSMutableArray array];
+    [_attributionButton addObserver:self forKeyPath:@"hidden" options:NSKeyValueObservingOptionNew context:NULL];
 
     // setup compass
     //
@@ -449,6 +445,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     _glView.drawableStencilFormat = GLKViewDrawableStencilFormat8;
     _glView.drawableDepthFormat = GLKViewDrawableDepthFormat16;
     _glView.contentScaleFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ? [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
+    _glView.layer.opaque = _opaque;
     _glView.delegate = self;
     [_glView bindDrawable];
     [self insertSubview:_glView atIndex:0];
@@ -485,6 +482,9 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [[MGLAccountManager sharedManager] removeObserver:self forKeyPath:@"accessToken"];
+    [_attributionButton removeObserver:self forKeyPath:@"hidden"];
+    
+    [self validateDisplayLink];
 
     if (_mbglMap)
     {
@@ -713,6 +713,16 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     [super updateConstraints];
 }
 
+- (BOOL)isOpaque
+{
+    return _opaque;
+}
+
+- (void)setOpaque:(BOOL)opaque
+{
+    _glView.layer.opaque = _opaque = opaque;
+}
+
 // This is the delegate of the GLKView object's display call.
 - (void)glkView:(__unused GLKView *)view drawInRect:(__unused CGRect)rect
 {
@@ -771,7 +781,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     }
 }
 
-- (void)invalidate
+- (void)setNeedsGLDisplay
 {
     MGLAssertIsMainThread();
 
@@ -784,21 +794,53 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 
     if ( ! self.isDormant)
     {
+        [self validateDisplayLink];
         self.dormant = YES;
         _mbglMap->pause();
         [self.glView deleteDrawable];
     }
 }
 
+- (void)validateDisplayLink
+{
+    BOOL isVisible = self.superview && self.window;
+    if (isVisible && ! _displayLink)
+    {
+        _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
+        _displayLink.frameInterval = MGLTargetFrameInterval;
+        [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        _needsDisplayRefresh = YES;
+    }
+    else if ( ! isVisible && _displayLink)
+    {
+        [_displayLink invalidate];
+        _displayLink = nil;
+    }
+}
+
+- (void)didMoveToWindow
+{
+    [self validateDisplayLink];
+    [super didMoveToWindow];
+}
+
+- (void)didMoveToSuperview
+{
+    [self validateDisplayLink];
+    [super didMoveToSuperview];
+}
+
 - (void)sleepGL:(__unused NSNotification *)notification
 {
     MGLAssertIsMainThread();
 
-    if ( ! self.isDormant)
+    if ( ! self.dormant)
     {
         self.dormant = YES;
 
         [MGLMapboxEvents flush];
+        
+        _displayLink.paused = YES;
 
         if ( ! self.glSnapshotView)
         {
@@ -829,7 +871,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 {
     MGLAssertIsMainThread();
 
-    if (self.isDormant && [UIApplication sharedApplication].applicationState != UIApplicationStateBackground)
+    if (self.dormant && [UIApplication sharedApplication].applicationState != UIApplicationStateBackground)
     {
         self.dormant = NO;
 
@@ -843,7 +885,15 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         [self.glView bindDrawable];
 
         _mbglMap->resume();
+        
+        _displayLink.paused = NO;
     }
+}
+
+- (void)setHidden:(BOOL)hidden
+{
+    super.hidden = hidden;
+    _displayLink.paused = hidden;
 }
 
 - (void)tintColorDidChange
@@ -1327,12 +1377,12 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     }
 }
 
-- (BOOL)calloutViewShouldHighlight:(__unused MGLCalloutView *)calloutView
+- (BOOL)calloutViewShouldHighlight:(__unused MGLCompactCalloutView *)calloutView
 {
     return [self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)];
 }
 
-- (void)calloutViewClicked:(__unused MGLCalloutView *)calloutView
+- (void)calloutViewTapped:(__unused MGLCompactCalloutView *)calloutView
 {
     if ([self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)])
     {
@@ -1375,13 +1425,9 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
                                  @"© Mapbox",
                                  @"© OpenStreetMap",
                                  @"Improve This Map",
+                                 @"Mapbox Telemetry",
                                  nil];
 
-        // iOS 8+: add action that opens app's Settings.app panel, if applicable
-        if (&UIApplicationOpenSettingsURLString != NULL && ! [MGLAccountManager mapboxMetricsEnabledSettingShownInApp])
-        {
-            [self.attributionSheet addButtonWithTitle:@"Adjust Privacy Settings"];
-        }
     }
     
     [self.attributionSheet showFromRect:self.attributionButton.frame inView:self animated:YES];
@@ -1406,10 +1452,48 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         [[UIApplication sharedApplication] openURL:
          [NSURL URLWithString:feedbackURL]];
     }
-    // skips to 4 because button is conditionally added after cancel (index 3)
-    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 4)
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 3)
     {
-        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+        NSString *message;
+        NSString *participate;
+        NSString *optOut;
+
+        if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsEnabled"])
+        {
+            message = @"You are helping to make OpenStreetMap and Mapbox maps better by contributing anonymous usage data.";
+            participate = @"Keep Participating";
+            optOut = @"Stop Participating";
+        }
+        else
+        {
+            message = @"You can help make OpenStreetMap and Mapbox maps better by contributing anonymous usage data.";
+            participate = @"Participate";
+            optOut = @"Don’t Participate";
+        }
+
+        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Make Mapbox Maps Better"
+                                                        message:message
+                                                       delegate:self
+                                              cancelButtonTitle:participate
+                                              otherButtonTitles:@"Tell Me More", optOut, nil];
+        [alert show];
+    }
+}
+
+- (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
+{
+    if (buttonIndex == alertView.cancelButtonIndex)
+    {
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MGLMapboxMetricsEnabled"];
+    }
+    else if (buttonIndex == alertView.firstOtherButtonIndex)
+    {
+        [[UIApplication sharedApplication] openURL:
+         [NSURL URLWithString:@"https://mapbox.com/telemetry/"]];
+    }
+    else if (buttonIndex == alertView.firstOtherButtonIndex + 1)
+    {
+        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"MGLMapboxMetricsEnabled"];
     }
 }
 
@@ -1423,6 +1507,15 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         NSString *accessToken = change[NSKeyValueChangeNewKey];
         if (![accessToken isKindOfClass:[NSNull class]]) {
             _mbglFileSource->setAccessToken((std::string)[accessToken UTF8String]);
+        }
+    }
+    else if ([keyPath isEqualToString:@"hidden"] && object == _attributionButton)
+    {
+        NSNumber *hiddenNumber = change[NSKeyValueChangeNewKey];
+        BOOL attributionButtonWasHidden = [hiddenNumber boolValue];
+        if (attributionButtonWasHidden)
+        {
+            [MGLMapboxEvents ensureMetricsOptoutExists];
         }
     }
 }
@@ -1874,6 +1967,19 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
 - (MGLCoordinateBounds)convertRect:(CGRect)rect toCoordinateBoundsFromView:(nullable UIView *)view
 {
     return MGLCoordinateBoundsFromLatLngBounds([self convertRect:rect toLatLngBoundsFromView:view]);
+}
+
+- (CGRect)convertCoordinateBounds:(MGLCoordinateBounds)bounds toRectToView:(nullable UIView *)view
+{
+    return [self convertLatLngBounds:MGLLatLngBoundsFromCoordinateBounds(bounds) toRectToView:view];
+}
+
+/// Converts a geographic bounding box to a rectangle in the view’s coordinate
+/// system.
+- (CGRect)convertLatLngBounds:(mbgl::LatLngBounds)bounds toRectToView:(nullable UIView *)view {
+    CGRect rect = { [self convertLatLng:bounds.sw toPointToView:view], CGSizeZero };
+    rect = MGLExtendRect(rect, [self convertLatLng:bounds.ne toPointToView:view]);
+    return rect;
 }
 
 /// Converts a rectangle in the given view’s coordinate system to a geographic
@@ -2502,9 +2608,9 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
         [self.delegate mapView:self annotationCanShowCallout:annotation])
     {
         // build the callout
-        if ([self.delegate respondsToSelector:@selector(mapView:customCalloutViewForAnnotation:)])
+        if ([self.delegate respondsToSelector:@selector(mapView:calloutViewForAnnotation:)])
         {
-            self.calloutViewForSelectedAnnotation = [self.delegate mapView:self customCalloutViewForAnnotation:annotation];
+            self.calloutViewForSelectedAnnotation = [self.delegate mapView:self calloutViewForAnnotation:annotation];
         }
         if (!self.calloutViewForSelectedAnnotation)
         {
@@ -2564,13 +2670,10 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     }
 }
 
-- (MGLCalloutView *)calloutViewForAnnotation:(id <MGLAnnotation>)annotation
+- (MGLCompactCalloutView *)calloutViewForAnnotation:(id <MGLAnnotation>)annotation
 {
-    MGLCalloutView *calloutView = (MGLCalloutView *)[MGLCalloutView platformCalloutView];
-
-    if ([annotation respondsToSelector:@selector(title)]) calloutView.title = annotation.title;
-    if ([annotation respondsToSelector:@selector(subtitle)]) calloutView.subtitle = annotation.subtitle;
-
+    MGLCompactCalloutView *calloutView = [MGLCompactCalloutView platformCalloutView];
+    calloutView.representedObject = annotation;
     calloutView.tintColor = self.tintColor;
 
     return calloutView;
@@ -3414,7 +3517,7 @@ class MBGLView : public mbgl::View
 
     void invalidate() override
     {
-        [nativeView performSelectorOnMainThread:@selector(invalidate)
+        [nativeView performSelectorOnMainThread:@selector(setNeedsGLDisplay)
                                      withObject:nil
                                   waitUntilDone:NO];
     }
