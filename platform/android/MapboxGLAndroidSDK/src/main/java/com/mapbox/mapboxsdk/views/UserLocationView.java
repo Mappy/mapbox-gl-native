@@ -19,6 +19,8 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.Build;
 import android.os.SystemClock;
+import android.support.annotation.DrawableRes;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
@@ -40,6 +42,9 @@ import com.mapbox.mapboxsdk.location.LocationServices;
  */
 final class UserLocationView extends View implements LocationListener {
 
+    private static final int DEFAULT_ACCURACY_CIRCLE_ALPHA_FILL = (int) (255 * 0.25f);
+    private static final int DEFAULT_ACCURACY_CIRCLE_ALPHA_STROKE = (int) (255 * 0.5f);
+
     private MapView mMapView;
 
     private float mDensity;
@@ -59,15 +64,12 @@ final class UserLocationView extends View implements LocationListener {
 
     private Drawable mUserLocationDrawable;
     private RectF mUserLocationDrawableBoundsF;
-    private Rect mUserLocationDrawableBounds;
 
     private Drawable mUserLocationBearingDrawable;
     private RectF mUserLocationBearingDrawableBoundsF;
-    private Rect mUserLocationBearingDrawableBounds;
 
     private Drawable mUserLocationStaleDrawable;
     private RectF mUserLocationStaleDrawableBoundsF;
-    private Rect mUserLocationStaleDrawableBounds;
 
     private Rect mDirtyRect;
     private RectF mDirtyRectF;
@@ -129,7 +131,7 @@ final class UserLocationView extends View implements LocationListener {
 
         // Setup the custom paint
         Resources resources = context.getResources();
-        int accuracyColor = resources.getColor(R.color.my_location_ring);
+        int accuracyColor = ContextCompat.getColor(context, R.color.my_location_ring);
 
         mDensity = resources.getDisplayMetrics().density;
         mMarkerCoordinate = new LatLng(0.0, 0.0);
@@ -139,61 +141,142 @@ final class UserLocationView extends View implements LocationListener {
         mAccuracyPaintFill = new Paint();
         mAccuracyPaintFill.setAntiAlias(true);
         mAccuracyPaintFill.setStyle(Paint.Style.FILL);
-        mAccuracyPaintFill.setColor(accuracyColor);
-        mAccuracyPaintFill.setAlpha((int) (255 * 0.25f));
 
         mAccuracyPaintStroke = new Paint();
         mAccuracyPaintStroke.setAntiAlias(true);
         mAccuracyPaintStroke.setStyle(Paint.Style.STROKE);
         mAccuracyPaintStroke.setStrokeWidth(0.5f * mDensity);
-        mAccuracyPaintStroke.setColor(accuracyColor);
-        mAccuracyPaintStroke.setAlpha((int) (255 * 0.5f));
+
+        setAccuracyColors(accuracyColor, accuracyColor);
 
         mAccuracyPath = new Path();
         mAccuracyBounds = new RectF();
 
-        mUserLocationDrawable = ContextCompat.getDrawable(getContext(), R.drawable.my_location);
-        mUserLocationDrawableBounds = new Rect(
-                -mUserLocationDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationDrawable.getIntrinsicHeight() / 2,
-                mUserLocationDrawable.getIntrinsicWidth() / 2,
-                mUserLocationDrawable.getIntrinsicHeight() / 2);
-        mUserLocationDrawableBoundsF = new RectF(
-                -mUserLocationDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationDrawable.getIntrinsicHeight() / 2,
-                mUserLocationDrawable.getIntrinsicWidth() / 2,
-                mUserLocationDrawable.getIntrinsicHeight() / 2);
-        mUserLocationDrawable.setBounds(mUserLocationDrawableBounds);
-
-        mUserLocationBearingDrawable = ContextCompat.getDrawable(getContext(), R.drawable.my_location_bearing);
-        mUserLocationBearingDrawableBounds = new Rect(
-                -mUserLocationBearingDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationBearingDrawable.getIntrinsicHeight() / 2,
-                mUserLocationBearingDrawable.getIntrinsicWidth() / 2,
-                mUserLocationBearingDrawable.getIntrinsicHeight() / 2);
-        mUserLocationBearingDrawableBoundsF = new RectF(
-                -mUserLocationBearingDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationBearingDrawable.getIntrinsicHeight() / 2,
-                mUserLocationBearingDrawable.getIntrinsicWidth() / 2,
-                mUserLocationBearingDrawable.getIntrinsicHeight() / 2);
-        mUserLocationBearingDrawable.setBounds(mUserLocationBearingDrawableBounds);
-
-        mUserLocationStaleDrawable = ContextCompat.getDrawable(getContext(), R.drawable.my_location_stale);
-        mUserLocationStaleDrawableBounds = new Rect(
-                -mUserLocationStaleDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationStaleDrawable.getIntrinsicHeight() / 2,
-                mUserLocationStaleDrawable.getIntrinsicWidth() / 2,
-                mUserLocationStaleDrawable.getIntrinsicHeight() / 2);
-        mUserLocationStaleDrawableBoundsF = new RectF(
-                -mUserLocationStaleDrawable.getIntrinsicWidth() / 2,
-                -mUserLocationStaleDrawable.getIntrinsicHeight() / 2,
-                mUserLocationStaleDrawable.getIntrinsicWidth() / 2,
-                mUserLocationStaleDrawable.getIntrinsicHeight() / 2);
-        mUserLocationStaleDrawable.setBounds(mUserLocationStaleDrawableBounds);
+        setUserLocationDrawable(R.drawable.my_location);
+        setUserLocationBearingDrawable(R.drawable.my_location_bearing);
+        setUserLocationStaleDrawable(R.drawable.my_location_stale);
     }
 
     public void setMapView(MapView mapView) {
         mMapView = mapView;
+    }
+
+    /**
+     * Set the user location drawable
+     * @param drawable Drawable
+     */
+    public void setUserLocationDrawable(@NonNull Drawable drawable) {
+        mUserLocationDrawable = drawable;
+        final int halfIntrinsicWidth = drawable.getIntrinsicWidth() >> 1;
+        final int halfIntrinsicHeight = drawable.getIntrinsicHeight() >> 1;
+        mUserLocationDrawable.setBounds(new Rect(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight));
+        mUserLocationDrawableBoundsF = new RectF(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight);
+        invalidate();
+    }
+
+    /**
+     * Set the user location drawable
+     * @param drawableId int
+     */
+    public void setUserLocationDrawable(@DrawableRes int drawableId) {
+        setUserLocationDrawable(ContextCompat.getDrawable(getContext(), drawableId));
+    }
+
+    /**
+     * Set the user location bearing drawable
+     * @param drawable Drawable
+     */
+    public void setUserLocationBearingDrawable(@NonNull Drawable drawable) {
+        mUserLocationBearingDrawable = drawable;
+        final int halfIntrinsicWidth = drawable.getIntrinsicWidth() >> 1;
+        final int halfIntrinsicHeight = drawable.getIntrinsicHeight() >> 1;
+        mUserLocationBearingDrawableBoundsF = new RectF(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight);
+        mUserLocationBearingDrawable.setBounds(new Rect(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight));
+        invalidate();
+    }
+
+    /**
+     * <p>Change the accuracy circle colors.</p>
+     *
+     * @param fillColor   int color.
+     * @param strokeColor int color.
+     * @see #setAccuracyColors(int fillColor, int fillAlpha, int strokeColor, int strokeAlpha)
+     */
+    public void setAccuracyColors(int fillColor, int strokeColor) {
+        setAccuracyColors(fillColor, DEFAULT_ACCURACY_CIRCLE_ALPHA_FILL,
+                strokeColor, DEFAULT_ACCURACY_CIRCLE_ALPHA_STROKE);
+    }
+
+    /**
+     * Change the accuracy circle colors and alpha.
+     *
+     * @param fillColor   int color.
+     * @param strokeColor int color.
+     * @see #setAccuracyColors(int fillColor, int strokeColor)
+     */
+    public void setAccuracyColors(int fillColor, int fillAlpha, int strokeColor, int strokeAlpha) {
+        mAccuracyPaintFill.setColor(fillColor);
+        mAccuracyPaintFill.setAlpha(fillAlpha);
+        mAccuracyPaintStroke.setColor(strokeColor);
+        mAccuracyPaintStroke.setAlpha(strokeAlpha);
+        invalidate();
+    }
+
+
+
+    /**
+     * Set the user location bearing drawable
+     * @param drawableId int
+     */
+    public void setUserLocationBearingDrawable(@DrawableRes int drawableId) {
+        setUserLocationBearingDrawable(ContextCompat.getDrawable(getContext(), drawableId));
+    }
+
+
+    /**
+     * Set the user location stale drawable
+     * @param drawable Drawable
+     */
+    public void setUserLocationStaleDrawable(@NonNull Drawable drawable) {
+        mUserLocationStaleDrawable = drawable;
+        final int halfIntrinsicWidth = drawable.getIntrinsicWidth() >> 1;
+        final int halfIntrinsicHeight = drawable.getIntrinsicHeight() >> 1;
+        mUserLocationStaleDrawableBoundsF = new RectF(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight);
+        mUserLocationStaleDrawable.setBounds(new Rect(
+                -halfIntrinsicWidth,
+                -halfIntrinsicHeight,
+                halfIntrinsicWidth,
+                halfIntrinsicHeight));
+        invalidate();
+    }
+
+
+    /**
+     * Set the user location stale drawable
+     * @param drawableId int
+     */
+    public void setUserLocationStaleDrawable(@DrawableRes int drawableId) {
+        setUserLocationStaleDrawable(ContextCompat.getDrawable(getContext(), drawableId));
     }
 
     public void onStart() {

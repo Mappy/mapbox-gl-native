@@ -17,6 +17,7 @@ import android.graphics.Canvas;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -24,6 +25,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.CallSuper;
+import android.support.annotation.DrawableRes;
 import android.support.annotation.FloatRange;
 import android.support.annotation.IntDef;
 import android.support.annotation.IntRange;
@@ -4195,7 +4197,7 @@ public final class MapView extends FrameLayout {
      * @see MyBearingTracking
      */
     @UiThread
-    @MyLocationTracking.Mode
+    @MyBearingTracking.Mode
     public int getMyBearingTrackingMode() {
         //noinspection ResourceType
         return mUserLocationView.getMyBearingTrackingMode();
@@ -4210,6 +4212,87 @@ public final class MapView extends FrameLayout {
     @UiThread
     public void setOnMyBearingTrackingModeChangeListener(@Nullable OnMyBearingTrackingModeChangeListener listener) {
         mOnMyBearingTrackingModeChangeListener = listener;
+    }
+
+
+    /**
+     * Set the user location drawable
+     *
+     * @param drawable Drawable
+     */
+    public void setUserLocationDrawable(@NonNull Drawable drawable) {
+        mUserLocationView.setUserLocationDrawable(drawable);
+    }
+
+    /**
+     * Set the user location drawable
+     *
+     * @param drawableId int
+     */
+    public void setUserLocationDrawable(@DrawableRes int drawableId) {
+        mUserLocationView.setUserLocationDrawable(drawableId);
+    }
+
+    /**
+     * Set the user location bearing drawable
+     *
+     * @param drawable Drawable
+     */
+    public void setUserLocationBearingDrawable(@NonNull Drawable drawable) {
+        mUserLocationView.setUserLocationBearingDrawable(drawable);
+    }
+
+
+    /**
+     * Set the user location bearing drawable
+     *
+     * @param drawableId int
+     */
+    public void setUserLocationBearingDrawable(@DrawableRes int drawableId) {
+        mUserLocationView.setUserLocationBearingDrawable(drawableId);
+    }
+
+
+    /**
+     * Set the user location stale drawable
+     *
+     * @param drawable Drawable
+     */
+    public void setUserLocationStaleDrawable(@NonNull Drawable drawable) {
+        mUserLocationView.setUserLocationStaleDrawable(drawable);
+    }
+
+
+    /**
+     * Set the user location stale drawable
+     *
+     * @param drawableId int
+     */
+    public void setUserLocationStaleDrawable(@DrawableRes int drawableId) {
+        mUserLocationView.setUserLocationStaleDrawable(drawableId);
+    }
+
+    /**
+     * <p>Change the accuracy circle colors.</p>
+     * <p>Use RGB colors to keep default alpha.</p>
+     *
+     * @param fillColor   int color.
+     * @param strokeColor int color.
+     * @see #setUserLocationAccuracyColor(int fillColor, int fillAlpha, int strokeColor, int strokeAlpha)
+     */
+    public void setUserLocationAccuracyColor(int fillColor, int strokeColor) {
+        mUserLocationView.setAccuracyColors(fillColor, strokeColor);
+    }
+
+    /**
+     * Change the accuracy circle colors and alpha.
+     *
+     * @param fillColor   int color.
+     * @param strokeColor int color.
+     * @see #setUserLocationAccuracyColor(int fillColor, int strokeColor)
+     */
+    public void setUserLocationAccuracyColor(int fillColor, int fillAlpha, int strokeColor, int strokeAlpha) {
+        mUserLocationView.setAccuracyColors(fillColor, fillAlpha, strokeColor, strokeAlpha);
     }
 
     //

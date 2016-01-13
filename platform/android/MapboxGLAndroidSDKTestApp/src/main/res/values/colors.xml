@@ -4,4 +4,6 @@
     <color name="primaryDark">#166B83</color>
     <color name="accent">#E55E5E</color>
     <color name="white">#FFFFFF</color>
+
+    <color name="custom_location_color">#68D419</color>
 </resources>
