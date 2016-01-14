@@ -1624,6 +1624,7 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     mbgl::CameraOptions cameraOptions;
     cameraOptions.center = MGLLatLngFromLocationCoordinate2D(centerCoordinate);
     cameraOptions.zoom = fmaxf(zoomLevel, self.currentMinimumZoom);
+    cameraOptions.insets = {self.mapViewInsets.top, self.mapViewInsets.left, self.mapViewInsets.bottom, self.mapViewInsets.right};
     if (direction >= 0)
     {
         cameraOptions.angle = MGLRadiansFromDegrees(-direction);

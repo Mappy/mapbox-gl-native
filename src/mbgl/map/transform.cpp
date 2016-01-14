@@ -85,6 +85,7 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     double zoom = camera.zoom ? *camera.zoom : getZoom();
     double angle = camera.angle ? *camera.angle : getAngle();
     double pitch = camera.pitch ? *camera.pitch : getPitch();
+    EdgeInsets insets = camera.insets ? *camera.insets : EdgeInsets({});
     
     if (!latLng || std::isnan(zoom)) {
         return;
@@ -97,7 +98,7 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
         state.latY(startLatLng.latitude),
     };
     unwrapLatLng(latLng);
-    const PrecisionPoint endPoint = {
+    PrecisionPoint endPoint = {
         state.lngX(latLng.longitude),
         state.latY(latLng.latitude),
     };
@@ -125,6 +126,13 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     state.panning = latLng != startLatLng;
     state.scaling = scale != startScale;
     state.rotating = angle != startAngle;
+    
+    if (!isGestureInProgress()) {
+        double insetX = (insets.left - insets.right) / 2;
+        double insetY = (insets.top - insets.bottom) / 2;
+        endPoint.x -= insetX * std::cos( angle) + insetY * std::cos(state.pitch) * std::sin(angle);
+        endPoint.y -= insetX * std::sin(-angle) + insetY * std::cos(angle) * std::cos(state.pitch);
+    }
 
     startTransition(camera, animation, [=](double t) {
         PrecisionPoint framePoint = util::interpolate(startPoint, endPoint, t);

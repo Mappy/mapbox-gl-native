@@ -6,7 +6,7 @@
 #include <mbgl/util/geo.hpp>
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/unitbezier.hpp>
-
+#include <mbgl/map/map.hpp>
 #include <functional>
 
 namespace mbgl {
@@ -32,6 +32,9 @@ struct CameraOptions {
     /** Pitch toward the horizon measured in radians, with 0 rad resulting in a
         two-dimensional map. */
     mapbox::util::optional<double> pitch;
+    
+    /** Insets to apply to the bounds of the map. They impact the map's center.*/
+    mapbox::util::optional<EdgeInsets> insets;
 };
 
 /** Various options for describing a transition between viewpoints with

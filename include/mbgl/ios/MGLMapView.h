@@ -376,6 +376,11 @@ IB_DESIGNABLE
 - (void)setZoomLevel:(double)zoomLevel animated:(BOOL)animated;
 
 /**
+ */
+
+@property (nonatomic) UIEdgeInsets mapViewInsets;
+
+/**
  The heading of the map, measured in degrees clockwise from true north.
  
  The value `0` means that the top edge of the map view corresponds to true
