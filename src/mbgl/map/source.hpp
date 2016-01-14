@@ -39,11 +39,12 @@ public:
         virtual void onTileError(Source&, const TileID&, std::exception_ptr) {};
     };
 
-    Source();
+    Source(SourceType,
+           const std::string& id,
+           const std::string& url,
+           std::unique_ptr<SourceInfo>&&,
+           std::unique_ptr<mapbox::geojsonvt::GeoJSONVT>&&);
     ~Source();
-
-    void parseTileJSON(const JSValue&);
-    void parseGeoJSON(const JSValue&);
 
     bool loaded = false;
     void load();
@@ -69,14 +70,16 @@ public:
     void setObserver(Observer* observer);
     void dumpDebugLogs() const;
 
-    SourceInfo info;
+    const SourceType type;
+    const std::string id;
+    const std::string url;
     bool enabled = false;
 
 private:
     void tileLoadingCompleteCallback(const TileID&, const TransformState&, bool collisionDebug);
-    bool handlePartialTile(const TileID &id, Worker &worker);
-    bool findLoadedChildren(const TileID& id, int32_t maxCoveringZoom, std::forward_list<TileID>& retain);
-    void findLoadedParent(const TileID& id, int32_t minCoveringZoom, std::forward_list<TileID>& retain);
+    bool handlePartialTile(const TileID&, Worker& worker);
+    bool findLoadedChildren(const TileID&, int32_t maxCoveringZoom, std::forward_list<TileID>& retain);
+    void findLoadedParent(const TileID&, int32_t minCoveringZoom, std::forward_list<TileID>& retain);
     int32_t coveringZoomLevel(const TransformState&) const;
     std::forward_list<TileID> coveringTiles(const TransformState&) const;
 
@@ -85,6 +88,9 @@ private:
     void updateTilePtrs();
 
     double getZoom(const TransformState &state) const;
+
+private:
+    std::unique_ptr<const SourceInfo> info;
 
     std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> geojsonvt;
 

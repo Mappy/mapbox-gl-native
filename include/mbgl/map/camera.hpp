@@ -11,15 +11,15 @@
 
 namespace mbgl {
 
-/** Various options for describing the viewpoint of a map, along with parameters
-    for transitioning to the viewpoint with animation. All fields are optional;
-    the default values of transition options depend on how this struct is used.
- */
+/** Various options for describing the viewpoint of a map. All fields are
+    optional. */
 struct CameraOptions {
-    // Viewpoint options
-    
     /** Coordinate at the center of the map. */
     mapbox::util::optional<LatLng> center;
+    
+    /** Point of reference for `zoom` and `angle`, assuming an origin at the
+        top-left corner of the view. */
+    mapbox::util::optional<PrecisionPoint> anchor;
     
     /** Zero-based zoom level. Constrained to the minimum and maximum zoom
         levels. */
@@ -32,9 +32,12 @@ struct CameraOptions {
     /** Pitch toward the horizon measured in radians, with 0 rad resulting in a
         two-dimensional map. */
     mapbox::util::optional<double> pitch;
-    
-    // Transition options
-    
+};
+
+/** Various options for describing a transition between viewpoints with
+    animation. All fields are optional; the default values depend on how this
+    struct is used. */
+struct AnimationOptions {
     /** Time to animate to the viewpoint defined herein. */
     mapbox::util::optional<Duration> duration;
     
@@ -60,6 +63,13 @@ struct CameraOptions {
     /** A function that is called once on the last frame of the transition, just
         before the corresponding screen update. */
     std::function<void()> transitionFinishFn;
+    
+    /** Creates an animation with no options specified. */
+    inline AnimationOptions() {}
+    
+    /** Creates an animation with the specified duration. */
+    inline AnimationOptions(Duration d)
+        : duration(d) {}
 };
 
 } // namespace mbgl

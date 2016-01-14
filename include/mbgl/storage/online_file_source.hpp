@@ -12,7 +12,7 @@ template <typename T> class Thread;
 
 class OnlineFileSource : public FileSource {
 public:
-    OnlineFileSource(FileCache *cache, const std::string &root = "");
+    OnlineFileSource(FileCache*);
     ~OnlineFileSource() override;
 
     void setAccessToken(const std::string& t) { accessToken = t; }
@@ -22,7 +22,9 @@ public:
 
 private:
     friend class OnlineFileRequest;
-    void cancel(const Resource&, FileRequest*);
+    friend class OnlineFileRequestImpl;
+
+    void cancel(FileRequest*);
 
     class Impl;
     const std::unique_ptr<util::Thread<Impl>> thread;

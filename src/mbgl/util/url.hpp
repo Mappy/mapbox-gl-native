@@ -4,12 +4,15 @@
 #include <string>
 
 namespace mbgl {
+
+class TileID;
+
 namespace util {
 
 std::string percentEncode(const std::string&);
 std::string percentDecode(const std::string&);
 
-bool isAssetURL(const std::string&);
+std::string templateTileURL(const std::string& url, const TileID& id, float pixelRatio = 1);
 
 } // namespace util
 } // namespace mbgl

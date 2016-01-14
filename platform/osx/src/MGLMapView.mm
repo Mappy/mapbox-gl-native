@@ -159,6 +159,7 @@ public:
     double _scaleAtBeginningOfGesture;
     CLLocationDirection _directionAtBeginningOfGesture;
     CGFloat _pitchAtBeginningOfGesture;
+    BOOL _didHideCursorDuringGesture;
     
     MGLAnnotationContextMap _annotationContextsByAnnotationTag;
     MGLAnnotationTag _selectedAnnotationTag;
@@ -246,7 +247,7 @@ public:
                                                    error:nil];
     NSURL *cacheURL = [cacheDirectoryURL URLByAppendingPathComponent:@"cache.db"];
     NSString *cachePath = cacheURL ? cacheURL.path : @"";
-    _mbglFileSource = new mbgl::DefaultFileSource(cachePath.UTF8String);
+    _mbglFileSource = new mbgl::DefaultFileSource(cachePath.UTF8String, [[[[NSBundle mainBundle] resourceURL] path] UTF8String]);
     
     _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
     
@@ -524,8 +525,7 @@ public:
     }
     
     if (![styleURL scheme]) {
-        // Assume a relative path into the application’s resource folder,
-        // defined in mbgl::platform::assetRoot().
+        // Assume a relative path into the application’s resource folder.
         styleURL = [NSURL URLWithString:[@"asset://" stringByAppendingString:styleURL.absoluteString]];
     }
     
@@ -871,7 +871,7 @@ public:
 - (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
     [self willChangeValueForKey:@"centerCoordinate"];
     [self willChangeValueForKey:@"zoomLevel"];
-    mbgl::PrecisionPoint center(point.x, point.y);
+    mbgl::PrecisionPoint center(point.x, self.bounds.size.height - point.y);
     _mbglMap->scaleBy(scaleFactor, center, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
     [self didChangeValueForKey:@"zoomLevel"];
     [self didChangeValueForKey:@"centerCoordinate"];
@@ -955,24 +955,25 @@ public:
         return;
     }
     
-    mbgl::CameraOptions options = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    mbgl::CameraOptions cameraOptions = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    mbgl::AnimationOptions animationOptions;
     if (duration > 0) {
-        options.duration = MGLDurationInSeconds(duration);
-        options.easing = MGLUnitBezierForMediaTimingFunction(function);
+        animationOptions.duration = MGLDurationInSeconds(duration);
+        animationOptions.easing = MGLUnitBezierForMediaTimingFunction(function);
     }
     if (completion) {
-        options.transitionFinishFn = [completion]() {
+        animationOptions.transitionFinishFn = [completion]() {
             // Must run asynchronously after the transition is completely over.
             // Otherwise, a call to -setCamera: within the completion handler
             // would reenter the completion handler’s caller.
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            dispatch_async(dispatch_get_main_queue(), ^{
                 completion();
             });
         };
     }
     
     [self willChangeValueForKey:@"camera"];
-    _mbglMap->easeTo(options);
+    _mbglMap->easeTo(cameraOptions, animationOptions);
     [self didChangeValueForKey:@"camera"];
 }
 
@@ -990,29 +991,30 @@ public:
         return;
     }
     
-    mbgl::CameraOptions options = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    mbgl::CameraOptions cameraOptions = [self cameraOptionsObjectForAnimatingToCamera:camera];
+    mbgl::AnimationOptions animationOptions;
     if (duration >= 0) {
-        options.duration = MGLDurationInSeconds(duration);
+        animationOptions.duration = MGLDurationInSeconds(duration);
     }
     if (peakAltitude >= 0) {
         CLLocationDegrees peakLatitude = (self.centerCoordinate.latitude + camera.centerCoordinate.latitude) / 2;
         CLLocationDegrees peakPitch = (self.camera.pitch + camera.pitch) / 2;
-        options.minZoom = MGLZoomLevelForAltitude(peakAltitude, peakPitch,
-                                                  peakLatitude, self.frame.size);
+        animationOptions.minZoom = MGLZoomLevelForAltitude(peakAltitude, peakPitch,
+                                                           peakLatitude, self.frame.size);
     }
     if (completion) {
-        options.transitionFinishFn = [completion]() {
+        animationOptions.transitionFinishFn = [completion]() {
             // Must run asynchronously after the transition is completely over.
             // Otherwise, a call to -setCamera: within the completion handler
             // would reenter the completion handler’s caller.
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            dispatch_async(dispatch_get_main_queue(), ^{
                 completion();
             });
         };
     }
     
     [self willChangeValueForKey:@"camera"];
-    _mbglMap->flyTo(options);
+    _mbglMap->flyTo(cameraOptions, animationOptions);
     [self didChangeValueForKey:@"camera"];
 }
 
@@ -1053,16 +1055,17 @@ public:
     _mbglMap->cancelTransitions();
     
     mbgl::EdgeInsets mbglInsets = MGLEdgeInsetsFromNSEdgeInsets(insets);
-    mbgl::CameraOptions options = _mbglMap->cameraForLatLngBounds(MGLLatLngBoundsFromCoordinateBounds(bounds), mbglInsets);
+    mbgl::CameraOptions cameraOptions = _mbglMap->cameraForLatLngBounds(MGLLatLngBoundsFromCoordinateBounds(bounds), mbglInsets);
+    mbgl::AnimationOptions animationOptions;
     if (animated) {
-        options.duration = MGLDurationInSeconds(MGLAnimationDuration);
+        animationOptions.duration = MGLDurationInSeconds(MGLAnimationDuration);
     }
     
     [self willChangeValueForKey:@"visibleCoordinateBounds"];
-    options.transitionFinishFn = ^() {
+    animationOptions.transitionFinishFn = ^() {
         [self didChangeValueForKey:@"visibleCoordinateBounds"];
     };
-    _mbglMap->easeTo(options);
+    _mbglMap->easeTo(cameraOptions, animationOptions);
 }
 
 #pragma mark Mouse events and gestures
@@ -1076,9 +1079,35 @@ public:
 - (void)handlePanGesture:(NSPanGestureRecognizer *)gestureRecognizer {
     NSPoint delta = [gestureRecognizer translationInView:self];
     NSPoint endPoint = [gestureRecognizer locationInView:self];
-    NSPoint startPoint = NSMakePoint(endPoint.x - delta.x, self.bounds.size.height - (endPoint.y - delta.y));
+    NSPoint startPoint = NSMakePoint(endPoint.x - delta.x, endPoint.y - delta.y);
     
     NSEventModifierFlags flags = [NSApp currentEvent].modifierFlags;
+    if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
+        [self.window invalidateCursorRectsForView:self];
+        _mbglMap->setGestureInProgress(true);
+        
+        if (![self isPanningWithGesture]) {
+            // Hide the cursor except when panning.
+            CGDisplayHideCursor(kCGDirectMainDisplay);
+            _didHideCursorDuringGesture = YES;
+        }
+    } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
+               || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
+        _mbglMap->setGestureInProgress(false);
+        [self.window invalidateCursorRectsForView:self];
+        
+        if (_didHideCursorDuringGesture) {
+            _didHideCursorDuringGesture = NO;
+            // Move the cursor back to the start point and show it again, creating
+            // the illusion that it has stayed in place during the entire gesture.
+            CGPoint cursorPoint = [self convertPoint:startPoint toView:nil];
+            cursorPoint = [self.window convertRectToScreen:{ startPoint, NSZeroSize }].origin;
+            cursorPoint.y = [NSScreen mainScreen].frame.size.height - cursorPoint.y;
+            CGDisplayMoveCursorToPoint(kCGDirectMainDisplay, cursorPoint);
+            CGDisplayShowCursor(kCGDirectMainDisplay);
+        }
+    }
+    
     if (flags & NSShiftKeyMask) {
         // Shift-drag to zoom.
         if (!self.zoomEnabled) {
@@ -1088,25 +1117,16 @@ public:
         _mbglMap->cancelTransitions();
         
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
-            _mbglMap->setGestureInProgress(true);
             _scaleAtBeginningOfGesture = _mbglMap->getScale();
         } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
             CGFloat newZoomLevel = log2f(_scaleAtBeginningOfGesture) - delta.y / 75;
             [self scaleBy:powf(2, newZoomLevel) / _mbglMap->getScale() atPoint:startPoint animated:NO];
-        } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
-                   || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
-            _mbglMap->setGestureInProgress(false);
-            // Maps.app locks the cursor to the start point, but that would
-            // interfere with the pan gesture recognizer. Just move the cursor
-            // back at the end of the gesture.
-            CGDisplayMoveCursorToPoint(kCGDirectMainDisplay, startPoint);
         }
     } else if (flags & NSAlternateKeyMask) {
         // Option-drag to rotate and/or tilt.
         _mbglMap->cancelTransitions();
         
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
-            _mbglMap->setGestureInProgress(true);
             _directionAtBeginningOfGesture = self.direction;
             _pitchAtBeginningOfGesture = _mbglMap->getPitch();
         } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
@@ -1120,27 +1140,25 @@ public:
             if (self.pitchEnabled) {
                 _mbglMap->setPitch(_pitchAtBeginningOfGesture + delta.y / 5);
             }
-        } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
-                   || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
-            _mbglMap->setGestureInProgress(false);
         }
     } else if (self.scrollEnabled) {
         // Otherwise, drag to pan.
         _mbglMap->cancelTransitions();
         
-        if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
-            [self.window invalidateCursorRectsForView:self];
-            _mbglMap->setGestureInProgress(true);
-        } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
+        if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
             delta.y *= -1;
             [self offsetCenterCoordinateBy:delta animated:NO];
             [gestureRecognizer setTranslation:NSZeroPoint inView:self];
-        } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
-                   || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
-            _mbglMap->setGestureInProgress(false);
-            [self.window invalidateCursorRectsForView:self];
         }
     }
+}
+
+/// Returns whether the user is panning using a gesture.
+- (BOOL)isPanningWithGesture {
+    NSGestureRecognizerState state = _panGestureRecognizer.state;
+    NSEventModifierFlags flags = [NSApp currentEvent].modifierFlags;
+    return ((state == NSGestureRecognizerStateBegan || state == NSGestureRecognizerStateChanged)
+            && !(flags & NSShiftKeyMask || flags & NSAlternateKeyMask));
 }
 
 /// Pinch to zoom.
@@ -1198,7 +1216,7 @@ public:
     _mbglMap->cancelTransitions();
     
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    [self scaleBy:0.5 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
+    [self scaleBy:0.5 atPoint:gesturePoint animated:YES];
 }
 
 /// Double-click or double-tap to zoom in.
@@ -1210,7 +1228,7 @@ public:
     _mbglMap->cancelTransitions();
     
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    [self scaleBy:2 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
+    [self scaleBy:2 atPoint:gesturePoint animated:YES];
 }
 
 - (void)smartMagnifyWithEvent:(NSEvent *)event {
@@ -1221,7 +1239,7 @@ public:
     _mbglMap->cancelTransitions();
     
     NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
-    [self scaleBy:0.5 atPoint:NSMakePoint(gesturePoint.x, self.bounds.size.height - gesturePoint.y) animated:YES];
+    [self scaleBy:0.5 atPoint:gesturePoint animated:YES];
 }
 
 /// Rotate fingers to rotate.
@@ -1237,7 +1255,7 @@ public:
         _directionAtBeginningOfGesture = self.direction;
     } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
         NSPoint rotationPoint = [gestureRecognizer locationInView:self];
-        mbgl::PrecisionPoint center(rotationPoint.x, rotationPoint.y);
+        mbgl::PrecisionPoint center(rotationPoint.x, self.bounds.size.height - rotationPoint.y);
         _mbglMap->setBearing(_directionAtBeginningOfGesture + gestureRecognizer.rotationInDegrees, center);
     } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
                || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
@@ -1258,7 +1276,6 @@ public:
             _mbglMap->cancelTransitions();
             
             NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
-            gesturePoint.y = self.bounds.size.height - gesturePoint.y;
             double zoomDelta = event.scrollingDeltaY / 4;
             [self scaleBy:exp2(zoomDelta) atPoint:gesturePoint animated:YES];
         }
@@ -1999,8 +2016,7 @@ public:
 
 - (void)resetCursorRects {
     // Drag to pan has a grabbing hand cursor.
-    if (_panGestureRecognizer.state == NSGestureRecognizerStateBegan
-        || _panGestureRecognizer.state == NSGestureRecognizerStateChanged) {
+    if ([self isPanningWithGesture]) {
         [self addCursorRect:self.bounds cursor:[NSCursor closedHandCursor]];
         return;
     }
