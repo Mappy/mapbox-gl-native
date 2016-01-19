@@ -139,7 +139,7 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
     } else {
         // Mappy specific drawing on paths
         if (properties.isMappyPath == true && pass == RenderPass::Translucent) {
-            Color stroke_color = {{1, 1, 1, 0.58}};
+            Color stroke_color = {{0.58, 0.58, 0.58, 0.58}};
             stroke_color[0] *= properties.opacity;
             stroke_color[1] *= properties.opacity;
             stroke_color[2] *= properties.opacity;
