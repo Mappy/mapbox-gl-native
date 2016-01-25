@@ -1,8 +1,8 @@
 #import "MBXViewController.h"
 #import "MBXCustomCalloutView.h"
 
-#import <mbgl/ios/Mapbox.h>
-#import <mbgl/util/default_styles.hpp>
+#import <Mapbox/Mapbox.h>
+#import "../../include/mbgl/util/default_styles.hpp"
 
 #import <CoreLocation/CoreLocation.h>
 #import <OpenGLES/ES2/gl.h>
@@ -24,6 +24,8 @@ typedef NS_ENUM(NSInteger, settingIndex) {
     settingIndexAddOneCustomPoint,
     settingIndexRemoveAnnotations,
     settingIndexToggleCustomStyleLayer,
+    settingIndexPrintTelemetryLogfile,
+    settingIndexDeleteTelemetryLogfile,
     settingsNbr                         // keep last
 };
 
@@ -126,7 +128,9 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                                 @(settingIndexShowWorldTour): @"Start World Tour",
                                 @(settingIndexAddOneCustomPoint): @"Add 1 custom Point",
                                 @(settingIndexRemoveAnnotations): @"Remove Annotations",
-                                @(settingIndexToggleCustomStyleLayer): @"Toggle Custom Style Layer"
+                                @(settingIndexToggleCustomStyleLayer): @"Toggle Custom Style Layer",
+                                @(settingIndexPrintTelemetryLogfile): @"Print Telemetry Logfile",
+                                @(settingIndexDeleteTelemetryLogfile): @"Delete Telemetry Logfile"
                                 };
 }
 
@@ -236,6 +240,26 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             {
                 [self insertCustomStyleLayer];
             }
+            break;
+        case settingIndexPrintTelemetryLogfile:
+        {
+            NSString *fileContents = [NSString stringWithContentsOfFile:[self telemetryDebugLogfilePath] encoding:NSUTF8StringEncoding error:nil];
+            NSLog(@"%@", fileContents);
+        }
+            break;
+        case settingIndexDeleteTelemetryLogfile:
+        {
+            NSString *filePath = [self telemetryDebugLogfilePath];
+            if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath]) {
+                NSError *error;
+                BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
+                if (success) {
+                    NSLog(@"Deleted telemetry log.");
+                } else {
+                    NSLog(@"Error deleting telemetry log: %@", error.localizedDescription);
+                }
+            }
+        }
             break;
         default:
             NSLog(@"Error, unknown setting action");
@@ -518,6 +542,16 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                          withObject:annotations
                          afterDelay:2];
     }];
+}
+
+- (NSString *)telemetryDebugLogfilePath
+{
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    [dateFormatter setDateFormat:@"yyyy'-'MM'-'dd"];
+    [dateFormatter setTimeZone:[NSTimeZone systemTimeZone]];
+    NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:[NSString stringWithFormat:@"telemetry_log-%@.json", [dateFormatter stringFromDate:[NSDate date]]]];
+
+    return filePath;
 }
 
 #pragma mark - Destruction

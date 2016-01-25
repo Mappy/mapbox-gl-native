@@ -47,7 +47,7 @@ public:
     ~HTTPCURLContext();
 
     HTTPRequestBase* createRequest(const std::string& url,
-                               RequestBase::Callback,
+                               HTTPRequestBase::Callback,
                                std::shared_ptr<const Response>) final;
 
     static int handleSocket(CURL *handle, curl_socket_t s, int action, void *userp, void *socketp);
@@ -139,7 +139,7 @@ HTTPCURLContext::~HTTPCURLContext() {
 }
 
 HTTPRequestBase* HTTPCURLContext::createRequest(const std::string& url,
-                                            RequestBase::Callback callback,
+                                            HTTPRequestBase::Callback callback,
                                             std::shared_ptr<const Response> response) {
     return new HTTPCURLRequest(this, url, callback, response);
 }
@@ -363,12 +363,12 @@ HTTPCURLRequest::HTTPCURLRequest(HTTPCURLContext* context_, const std::string& u
     // If there's already a response, set the correct etags/modified headers to make sure we are
     // getting a 304 response if possible. This avoids redownloading unchanged data.
     if (existingResponse) {
-        if (!existingResponse->etag.empty()) {
-            const std::string header = std::string("If-None-Match: ") + existingResponse->etag;
+        if (existingResponse->etag) {
+            const std::string header = std::string("If-None-Match: ") + *existingResponse->etag;
             headers = curl_slist_append(headers, header.c_str());
-        } else if (existingResponse->modified != Seconds::zero()) {
+        } else if (existingResponse->modified) {
             const std::string time =
-                std::string("If-Modified-Since: ") + util::rfc1123(existingResponse->modified.count());
+                std::string("If-Modified-Since: ") + util::rfc1123(SystemClock::to_time_t(*existingResponse->modified));
             headers = curl_slist_append(headers, time.c_str());
         }
     }
@@ -466,15 +466,15 @@ size_t HTTPCURLRequest::headerCallback(char *const buffer, const size_t size, co
         // Always overwrite the modification date; We might already have a value here from the
         // Date header, but this one is more accurate.
         const std::string value { buffer + begin, length - begin - 2 }; // remove \r\n
-        baton->response->modified = Seconds(curl_getdate(value.c_str(), nullptr));
+        baton->response->modified = SystemClock::from_time_t(curl_getdate(value.c_str(), nullptr));
     } else if ((begin = headerMatches("etag: ", buffer, length)) != std::string::npos) {
-        baton->response->etag = { buffer + begin, length - begin - 2 }; // remove \r\n
+        baton->response->etag = std::string(buffer + begin, length - begin - 2); // remove \r\n
     } else if ((begin = headerMatches("cache-control: ", buffer, length)) != std::string::npos) {
         const std::string value { buffer + begin, length - begin - 2 }; // remove \r\n
         baton->response->expires = parseCacheControl(value.c_str());
     } else if ((begin = headerMatches("expires: ", buffer, length)) != std::string::npos) {
         const std::string value { buffer + begin, length - begin - 2 }; // remove \r\n
-        baton->response->expires = Seconds(curl_getdate(value.c_str(), nullptr));
+        baton->response->expires = SystemClock::from_time_t(curl_getdate(value.c_str(), nullptr));
     }
 
     return length;
@@ -529,18 +529,22 @@ void HTTPCURLRequest::handleResult(CURLcode code) {
         if (responseCode == 200) {
             // Nothing to do; this is what we want.
         } else if (responseCode == 304) {
+            response->notModified = true;
+
             if (existingResponse) {
-                // We're going to copy over the existing response's data.
-                if (existingResponse->error) {
-                    response->error = std::make_unique<Error>(*existingResponse->error);
-                }
                 response->data = existingResponse->data;
-                response->modified = existingResponse->modified;
-                // We're not updating `expired`, it was probably set during the request.
-                response->etag = existingResponse->etag;
-            } else {
-                // This is an unsolicited 304 response and should only happen on malfunctioning
-                // HTTP servers. It likely doesn't include any data, but we don't have much options.
+
+                if (!response->expires) {
+                    response->expires = existingResponse->expires;
+                }
+
+                if (!response->modified) {
+                    response->modified = existingResponse->modified;
+                }
+
+                if (!response->etag) {
+                    response->etag = existingResponse->etag;
+                }
             }
         } else if (responseCode == 404) {
             response->error =

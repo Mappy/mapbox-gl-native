@@ -19,12 +19,11 @@ TEST_F(Storage, HTTPExpiresParsing) {
                [&](Response res) {
         req1.reset();
         EXPECT_EQ(nullptr, res.error);
-        EXPECT_EQ(false, res.stale);
         ASSERT_TRUE(res.data.get());
         EXPECT_EQ("Hello World!", *res.data);
-        EXPECT_EQ(1420797926, res.expires.count());
-        EXPECT_EQ(1420794326, res.modified.count());
-        EXPECT_EQ("foo", res.etag);
+        EXPECT_EQ(SystemClock::from_time_t(1420797926), res.expires);
+        EXPECT_EQ(SystemClock::from_time_t(1420794326), res.modified);
+        EXPECT_EQ("foo", *res.etag);
         loop.stop();
         HTTPExpiresTest.finish();
     });
@@ -46,12 +45,11 @@ TEST_F(Storage, HTTPCacheControlParsing) {
                [&](Response res) {
         req2.reset();
         EXPECT_EQ(nullptr, res.error);
-        EXPECT_EQ(false, res.stale);
         ASSERT_TRUE(res.data.get());
         EXPECT_EQ("Hello World!", *res.data);
-        EXPECT_GT(2, std::abs(res.expires.count() - now.count() - 120)) << "Expiration date isn't about 120 seconds in the future";
-        EXPECT_EQ(Seconds::zero(), res.modified);
-        EXPECT_EQ("", res.etag);
+        EXPECT_GT(2, std::abs(toSeconds(*res.expires).count() - now.count() - 120)) << "Expiration date isn't about 120 seconds in the future";
+        EXPECT_FALSE(bool(res.modified));
+        EXPECT_FALSE(bool(res.etag));
         loop.stop();
         HTTPCacheControlTest.finish();
     });

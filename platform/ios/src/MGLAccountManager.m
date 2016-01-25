@@ -1,6 +1,6 @@
 #import "MGLAccountManager_Private.h"
 #import "MGLMapboxEvents.h"
-#import "MGLCategoryLoader.h"
+#import "NSBundle+MGLAdditions.h"
 #import "NSProcessInfo+MGLAdditions.h"
 
 #import "FABKitProtocol.h"
@@ -17,9 +17,6 @@
 #pragma mark - Internal
 
 + (void)load {
-    // Load all referenced categories due to absence of -ObjC linker flag
-    [MGLCategoryLoader loadCategories];
-
     // Read the initial configuration from Info.plist.
     NSString *accessToken = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxAccessToken"];
     if (accessToken.length) {
@@ -74,11 +71,11 @@
 #pragma mark - Fabric
 
 + (NSString *)bundleIdentifier {
-    return @"com.mapbox.sdk.ios";
+    return [NSBundle mgl_frameworkBundle].bundleIdentifier;
 }
 
 + (NSString *)kitDisplayVersion {
-    return @"3.0.1";
+    return [NSBundle mgl_frameworkBundle].infoDictionary[@"CFBundleShortVersionString"];
 }
 
 + (void)initializeIfNeeded {

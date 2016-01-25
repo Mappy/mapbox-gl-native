@@ -31,13 +31,20 @@ if [[ ${PUBLISH_PLATFORM} = 'ios' ]]; then
 
     mapbox_time "deploy_ios_stripped"
     ./platform/ios/scripts/publish.sh "${PUBLISH_VERSION}"
+    
+    # dynamic, with debug symbols
+    mapbox_time "package_ios_dynamic" \
+    make iframework
 
-    # debug symbols but no Bitcode
-    mapbox_time "package_ios_no_bitcode" \
-    make ipackage-no-bitcode
+    mapbox_time "deploy_ios_dynamic"
+    ./platform/ios/scripts/publish.sh "${PUBLISH_VERSION}" symbols-dynamic
 
-    mapbox_time "deploy_ios_no_bitcode"
-    ./platform/ios/scripts/publish.sh "${PUBLISH_VERSION}" no-bitcode
+    # dynamic, without debug symbols
+    mapbox_time "package_ios_dynamic_stripped" \
+    make iframework SYMBOLS=NO
+
+    mapbox_time "deploy_ios_dynamic_stripped"
+    ./platform/ios/scripts/publish.sh "${PUBLISH_VERSION}" dynamic
 else
     # build & test iOS
     mapbox_time "run_ios_tests" \

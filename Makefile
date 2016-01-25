@@ -48,13 +48,13 @@ isim: ; $(RUN) HOST=ios Xcode/iosapp
 ibench: export XCODEBUILD_ARGS += -sdk iphoneos ARCHS="arm64"
 ibench: ; $(RUN) HOST=ios Xcode/ios-bench
 
-.PHONY: ipackage ipackage-strip ipackage-sim ipackage-no-bitcode itest
-ipackage: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh
-ipackage-strip: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh strip
-ipackage-sim: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh sim
-ipackage-no-bitcode: Xcode/ios ; @JOBS=$(JOBS) ./platform/ios/scripts/package.sh no-bitcode
-iframework: ipackage-strip ; ./platform/ios/scripts/framework.sh
+.PHONY: ipackage ipackage-strip ipackage-sim itest
+ipackage: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) ./platform/ios/scripts/package.sh
+ipackage-strip: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO ./platform/ios/scripts/package.sh
+ipackage-sim: Xcode/ios ; @JOBS=$(JOBS) BUILDTYPE=Debug BITCODE=$(BITCODE) FORMAT=dynamic BUILD_DEVICE=false SYMBOLS=$(SYMBOLS) ./platform/ios/scripts/package.sh
+iframework: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=dynamic BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) ./platform/ios/scripts/package.sh
 itest: ipackage-sim ; ./platform/ios/scripts/test.sh
+idocument: ; OUTPUT=$(OUTPUT) ./platform/ios/scripts/document.sh
 
 .PHONY: xpackage xpackage-strip xctest
 xpackage: Xcode/osx ; @JOBS=$(JOBS) ./platform/osx/scripts/package.sh

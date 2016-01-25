@@ -26,12 +26,11 @@ TEST_F(Storage, HTTPNetworkStatusChange) {
     std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
          req.reset();
          EXPECT_EQ(nullptr, res.error);
-         EXPECT_EQ(false, res.stale);
          ASSERT_TRUE(res.data.get());
          EXPECT_EQ("Response", *res.data);
-         EXPECT_EQ(Seconds::zero(), res.expires);
-         EXPECT_EQ(Seconds::zero(), res.modified);
-         EXPECT_EQ("", res.etag);
+         EXPECT_FALSE(bool(res.expires));
+         EXPECT_FALSE(bool(res.modified));
+         EXPECT_FALSE(bool(res.etag));
          loop.stop();
          HTTPNetworkStatusChange.finish();
     });
@@ -87,11 +86,10 @@ TEST_F(Storage, HTTPNetworkStatusChangePreempt) {
 #else
         FAIL();
 #endif
-        EXPECT_EQ(false, res.stale);
         ASSERT_FALSE(res.data.get());
-        EXPECT_EQ(Seconds::zero(), res.expires);
-        EXPECT_EQ(Seconds::zero(), res.modified);
-        EXPECT_EQ("", res.etag);
+        EXPECT_FALSE(bool(res.expires));
+        EXPECT_FALSE(bool(res.modified));
+        EXPECT_FALSE(bool(res.etag));
 
         if (counter++ == 1) {
             req.reset();

@@ -25,12 +25,11 @@ TEST_F(Storage, HTTPLoad) {
                    [&, i, current](Response res) {
             reqs[i].reset();
             EXPECT_EQ(nullptr, res.error);
-            EXPECT_EQ(false, res.stale);
             ASSERT_TRUE(res.data.get());
             EXPECT_EQ(std::string("Request ") +  std::to_string(current), *res.data);
-            EXPECT_EQ(Seconds::zero(), res.expires);
-            EXPECT_EQ(Seconds::zero(), res.modified);
-            EXPECT_EQ("", res.etag);
+            EXPECT_FALSE(bool(res.expires));
+            EXPECT_FALSE(bool(res.modified));
+            EXPECT_FALSE(bool(res.etag));
 
             if (number <= max) {
                 req(i);

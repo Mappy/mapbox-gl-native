@@ -5,6 +5,7 @@
 #include <mbgl/util/async_task.hpp>
 #include <mbgl/util/time.hpp>
 #include <mbgl/util/parsedate.h>
+#include <mbgl/util/run_loop.hpp>
 
 #import <Foundation/Foundation.h>
 
@@ -45,7 +46,7 @@ public:
     ~HTTPNSURLContext();
 
     HTTPRequestBase* createRequest(const std::string& url,
-                               RequestBase::Callback,
+                               HTTPRequestBase::Callback,
                                std::shared_ptr<const Response>) final;
 
     NSURLSession *session = nil;
@@ -81,7 +82,7 @@ HTTPNSURLContext::~HTTPNSURLContext() {
 }
 
 HTTPRequestBase* HTTPNSURLContext::createRequest(const std::string& url,
-                                             RequestBase::Callback callback,
+                                             HTTPRequestBase::Callback callback,
                                              std::shared_ptr<const Response> response) {
     return new HTTPNSURLRequest(this, url, callback, response);
 }
@@ -96,6 +97,11 @@ HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
       context(context_),
       existingResponse(existingResponse_),
       async([this] { handleResponse(); }) {
+    // Hold the main loop alive until the request returns. This
+    // is needed because completion handler runs in another
+    // thread and will notify this thread using AsyncTask.
+    util::RunLoop::Get()->ref();
+
     @autoreleasepool {
         NSURL* url = [NSURL URLWithString:@(url_.c_str())];
         if (context->accountType == 0 &&
@@ -107,12 +113,12 @@ HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
 
         NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:url];
         if (existingResponse) {
-            if (!existingResponse->etag.empty()) {
-                [req addValue:@(existingResponse->etag.c_str())
-                    forHTTPHeaderField:@"If-None-Match"];
-            } else if (existingResponse->modified != Seconds::zero()) {
-                const std::string time = util::rfc1123(existingResponse->modified.count());
-                [req addValue:@(time.c_str()) forHTTPHeaderField:@"If-Modified-Since"];
+            if (existingResponse->etag) {
+                [req addValue:@((*existingResponse->etag).c_str())
+                     forHTTPHeaderField:@"If-None-Match"];
+            } else if (existingResponse->modified) {
+                [req addValue:@(util::rfc1123(SystemClock::to_time_t(*existingResponse->modified)).c_str())
+                     forHTTPHeaderField:@"If-Modified-Since"];
             }
         }
 
@@ -129,6 +135,7 @@ HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
 }
 
 HTTPNSURLRequest::~HTTPNSURLRequest() {
+    util::RunLoop::Get()->unref();
     assert(!task);
 }
 
@@ -210,34 +217,38 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
 
         NSString *expires = [headers objectForKey:@"Expires"];
         if (expires) {
-            response->expires = Seconds(parse_date([expires UTF8String]));
+            response->expires = SystemClock::from_time_t(parse_date([expires UTF8String]));
         }
 
         NSString *last_modified = [headers objectForKey:@"Last-Modified"];
         if (last_modified) {
-            response->modified = Seconds(parse_date([last_modified UTF8String]));
+            response->modified = SystemClock::from_time_t(parse_date([last_modified UTF8String]));
         }
 
         NSString *etag = [headers objectForKey:@"ETag"];
         if (etag) {
-            response->etag = [etag UTF8String];
+            response->etag = std::string([etag UTF8String]);
         }
 
         if (responseCode == 200) {
             // Nothing to do; this is what we want.
         } else if (responseCode == 304) {
+            response->notModified = true;
+
             if (existingResponse) {
-                // We're going to copy over the existing response's data.
-                if (existingResponse->error) {
-                    response->error = std::make_unique<Error>(*existingResponse->error);
-                }
                 response->data = existingResponse->data;
-                response->modified = existingResponse->modified;
-                // We're not updating `expired`, it was probably set during the request.
-                response->etag = existingResponse->etag;
-            } else {
-                // This is an unsolicited 304 response and should only happen on malfunctioning
-                // HTTP servers. It likely doesn't include any data, but we don't have much options.
+
+                if (!response->expires) {
+                    response->expires = existingResponse->expires;
+                }
+
+                if (!response->modified) {
+                    response->modified = existingResponse->modified;
+                }
+
+                if (!response->etag) {
+                    response->etag = existingResponse->etag;
+                }
             }
         } else if (responseCode == 404) {
             response->error =

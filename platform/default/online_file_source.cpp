@@ -1,6 +1,7 @@
 #include <mbgl/storage/online_file_source.hpp>
 #include <mbgl/storage/http_context_base.hpp>
 #include <mbgl/storage/network_status.hpp>
+#include <mbgl/storage/sqlite_cache.hpp>
 
 #include <mbgl/storage/response.hpp>
 #include <mbgl/platform/log.hpp>
@@ -19,8 +20,6 @@
 #include <unordered_map>
 
 namespace mbgl {
-
-class RequestBase;
 
 class OnlineFileRequest : public FileRequest {
 public:
@@ -51,7 +50,7 @@ private:
 
     const Resource resource;
     std::unique_ptr<WorkRequest> cacheRequest;
-    RequestBase* realRequest = nullptr;
+    HTTPRequestBase* realRequest = nullptr;
     util::Timer realRequestTimer;
     Callback callback;
 
@@ -68,7 +67,7 @@ class OnlineFileSource::Impl {
 public:
     using Callback = std::function<void (Response)>;
 
-    Impl(FileCache*);
+    Impl(SQLiteCache*);
     ~Impl();
 
     void networkIsReachableAgain();
@@ -80,12 +79,12 @@ private:
     friend OnlineFileRequestImpl;
 
     std::unordered_map<FileRequest*, std::unique_ptr<OnlineFileRequestImpl>> pending;
-    FileCache* const cache;
+    SQLiteCache* const cache;
     const std::unique_ptr<HTTPContextBase> httpContext;
     util::AsyncTask reachability;
 };
 
-OnlineFileSource::OnlineFileSource(FileCache* cache)
+OnlineFileSource::OnlineFileSource(SQLiteCache* cache)
     : thread(std::make_unique<util::Thread<Impl>>(
           util::ThreadContext{ "OnlineFileSource", util::ThreadType::Unknown, util::ThreadPriority::Low },
           cache)) {
@@ -134,7 +133,7 @@ void OnlineFileSource::cancel(FileRequest* req) {
 
 // ----- Impl -----
 
-OnlineFileSource::Impl::Impl(FileCache* cache_)
+OnlineFileSource::Impl::Impl(SQLiteCache* cache_)
     : cache(cache_),
       httpContext(HTTPContextBase::createContext()),
       reachability(std::bind(&Impl::networkIsReachableAgain, this)) {
@@ -189,16 +188,17 @@ void OnlineFileRequestImpl::scheduleCacheRequest(OnlineFileSource::Impl& impl) {
         cacheRequest = nullptr;
 
         if (response_) {
-            response_->stale = response_->isExpired();
             response = response_;
             callback(*response);
         }
 
-        scheduleRealRequest(impl);
+        // Force immediate revalidation if the cached response didn't indicate an expiration. If
+        // it did indicate an expiration, revalidation will happen in the normal scheduling flow.
+        scheduleRealRequest(impl, response && !response->expires);
     });
 }
 
-static Seconds errorRetryTimeout(const Response& response, uint32_t failedRequests) {
+static Duration errorRetryTimeout(const Response& response, uint32_t failedRequests) {
     if (response.error && response.error->reason == Response::Error::Reason::Server) {
         // Retry after one second three times, then start exponential backoff.
         return Seconds(failedRequests <= 3 ? 1 : 1 << std::min(failedRequests - 3, 31u));
@@ -208,16 +208,15 @@ static Seconds errorRetryTimeout(const Response& response, uint32_t failedReques
         return Seconds(1 << std::min(failedRequests - 1, 31u));
     } else {
         // No error, or not an error that triggers retries.
-        return Seconds::max();
+        return Duration::max();
     }
 }
 
-static Seconds expirationTimeout(const Response& response) {
-    // Seconds::zero() is a special value meaning "no expiration".
-    if (response.expires > Seconds::zero()) {
-        return std::max(Seconds::zero(), response.expires - toSeconds(SystemClock::now()));
+static Duration expirationTimeout(const Response& response) {
+    if (response.expires) {
+        return std::max(SystemDuration::zero(), *response.expires - SystemClock::now());
     } else {
-        return Seconds::max();
+        return Duration::max();
     }
 }
 
@@ -227,15 +226,17 @@ void OnlineFileRequestImpl::scheduleRealRequest(OnlineFileSource::Impl& impl, bo
         return;
     }
 
-    // If we don't have a fresh response, retry immediately. Otherwise, calculate a timeout
-    // that depends on how many consecutive errors we've encountered, and on the expiration time.
-    Seconds timeout = (!response || response->stale || forceImmediate)
-        ? Seconds::zero()
-        : std::min(errorRetryTimeout(*response, failedRequests),
-                   expirationTimeout(*response));
+    Duration timeout = Duration::zero();
 
-    if (timeout == Seconds::max()) {
-        return;
+    // If there was a prior response and we're not being asked for a forced refresh, calculate a timeout
+    // that depends on how many consecutive errors we've encountered, and on the expiration time.
+    if (response && !forceImmediate) {
+        timeout = std::min(errorRetryTimeout(*response, failedRequests),
+                           expirationTimeout(*response));
+
+        if (timeout == Duration::max()) {
+            return;
+        }
     }
 
     realRequestTimer.start(timeout, Duration::zero(), [this, &impl] {
@@ -243,19 +244,8 @@ void OnlineFileRequestImpl::scheduleRealRequest(OnlineFileSource::Impl& impl, bo
         realRequest = impl.httpContext->createRequest(resource.url, [this, &impl](std::shared_ptr<const Response> response_) {
             realRequest = nullptr;
 
-            // Only update the cache for successful or 404 responses.
-            // In particular, we don't want to write a Canceled request, or one that failed due to
-            // connection errors to the cache. Server errors are hopefully also temporary, so we're not
-            // caching them either.
-            if (impl.cache &&
-                (!response_->error || (response_->error->reason == Response::Error::Reason::NotFound))) {
-                // Store response in database. Make sure we only refresh the expires column if the data
-                // didn't change.
-                FileCache::Hint hint = FileCache::Hint::Full;
-                if (response && response_->data == response->data) {
-                    hint = FileCache::Hint::Refresh;
-                }
-                impl.cache->put(resource, response_, hint);
+            if (impl.cache) {
+                impl.cache->put(resource, *response_);
             }
 
             response = response_;

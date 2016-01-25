@@ -2,6 +2,7 @@
 #define MBGL_STORAGE_RESPONSE
 
 #include <mbgl/util/chrono.hpp>
+#include <mbgl/util/optional.hpp>
 
 #include <string>
 #include <memory>
@@ -14,22 +15,20 @@ public:
     Response(const Response&);
     Response& operator=(const Response&);
 
-    bool isExpired() const;
-
 public:
     class Error;
     // When this object is empty, the response was successful.
     std::unique_ptr<const Error> error;
 
-    // Stale responses are fetched from cache and are expired.
-    bool stale = false;
+    // This is set to true for 304 Not Modified responses.
+    bool notModified = false;
 
     // The actual data of the response. This is guaranteed to never be empty.
     std::shared_ptr<const std::string> data;
 
-    Seconds modified = Seconds::zero();
-    Seconds expires = Seconds::zero();
-    std::string etag;
+    optional<SystemTimePoint> modified;
+    optional<SystemTimePoint> expires;
+    optional<std::string> etag;
 };
 
 class Response::Error {

@@ -43,6 +43,9 @@ Style::Style(MapData& data_)
 }
 
 void Style::setJSON(const std::string& json, const std::string&) {
+    sources.clear();
+    layers.clear();
+
     rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> doc;
     doc.Parse<0>((const char *const)json.c_str());
     if (doc.HasParseError()) {
@@ -101,7 +104,7 @@ StyleLayer* Style::getLayer(const std::string& id) const {
     return it != layers.end() ? it->get() : nullptr;
 }
 
-void Style::addLayer(std::unique_ptr<StyleLayer> layer, mapbox::util::optional<std::string> before) {
+void Style::addLayer(std::unique_ptr<StyleLayer> layer, optional<std::string> before) {
     if (SymbolLayer* symbolLayer = layer->as<SymbolLayer>()) {
         if (!symbolLayer->spriteAtlas) {
             symbolLayer->spriteAtlas = spriteAtlas.get();
@@ -351,6 +354,10 @@ void Style::onTileError(Source& source, const TileID& tileID, std::exception_ptr
                std::string(tileID).c_str(), source.id.c_str(), util::toString(error).c_str());
     observer->onTileError(source, tileID, error);
     observer->onResourceError(error);
+}
+
+void Style::onPlacementRedone() {
+    observer->onResourceLoaded();
 }
 
 void Style::onSpriteLoaded() {

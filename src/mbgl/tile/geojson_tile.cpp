@@ -14,12 +14,12 @@ FeatureType GeoJSONTileFeature::getType() const {
     return type;
 }
 
-mapbox::util::optional<Value> GeoJSONTileFeature::getValue(const std::string& key) const {
+optional<Value> GeoJSONTileFeature::getValue(const std::string& key) const {
     auto it = tags.find(key);
     if (it != tags.end()) {
-        return mapbox::util::optional<Value>(it->second);
+        return optional<Value>(it->second);
     }
-    return mapbox::util::optional<Value>();
+    return optional<Value>();
 }
 
 GeometryCollection GeoJSONTileFeature::getGeometries() const {
@@ -120,7 +120,7 @@ void GeoJSONTileMonitor::setGeoJSONVT(mapbox::geojsonvt::GeoJSONVT* vt) {
 void GeoJSONTileMonitor::update() {
     if (geojsonvt) {
         auto tile = convertTile(geojsonvt->getTile(tileID.z, tileID.x, tileID.y));
-        callback(nullptr, std::move(tile), Seconds::zero(), Seconds::zero());
+        callback(nullptr, std::move(tile), {}, {});
     }
 }
 

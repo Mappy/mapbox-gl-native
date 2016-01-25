@@ -23,12 +23,11 @@ TEST_F(Storage, CacheResponse) {
     req1 = fs.request(resource, [&](Response res) {
         req1.reset();
         EXPECT_EQ(nullptr, res.error);
-        EXPECT_EQ(false, res.stale);
         ASSERT_TRUE(res.data.get());
         EXPECT_EQ("Response 1", *res.data);
-        EXPECT_LT(Seconds::zero(), res.expires);
-        EXPECT_EQ(Seconds::zero(), res.modified);
-        EXPECT_EQ("", res.etag);
+        EXPECT_TRUE(bool(res.expires));
+        EXPECT_FALSE(bool(res.modified));
+        EXPECT_FALSE(bool(res.etag));
         response = res;
 
         // Now test that we get the same values as in the previous request. If we'd go to the server
@@ -36,7 +35,6 @@ TEST_F(Storage, CacheResponse) {
         req2 = fs.request(resource, [&](Response res2) {
             req2.reset();
             EXPECT_EQ(response.error, res2.error);
-            EXPECT_EQ(response.stale, res2.stale);
             ASSERT_TRUE(res2.data.get());
             EXPECT_EQ(*response.data, *res2.data);
             EXPECT_EQ(response.expires, res2.expires);
@@ -64,9 +62,9 @@ TEST_F(Storage, CacheNotFound) {
     const Resource resource{ Resource::Unknown, "http://127.0.0.1:3000/not-found" };
 
     // Insert existing data into the cache that will be marked as stale.
-    auto response = std::make_shared<Response>();
-    response->data = std::make_shared<const std::string>("existing data");
-    cache.put(resource, response, FileCache::Hint::Full);
+    Response response;
+    response.data = std::make_shared<const std::string>("existing data");
+    cache.put(resource, response);
 
     std::unique_ptr<FileRequest> req1;
     std::unique_ptr<WorkRequest> req2;
@@ -78,12 +76,11 @@ TEST_F(Storage, CacheNotFound) {
     req1 = fs.request(resource, [&](Response res) {
         if (counter == 0) {
             EXPECT_EQ(nullptr, res.error);
-            EXPECT_EQ(true, res.stale);
             ASSERT_TRUE(res.data.get());
             EXPECT_EQ("existing data", *res.data);
-            EXPECT_EQ(Seconds::zero(), res.expires);
-            EXPECT_EQ(Seconds::zero(), res.modified);
-            EXPECT_EQ("", res.etag);
+            EXPECT_FALSE(bool(res.expires));
+            EXPECT_FALSE(bool(res.modified));
+            EXPECT_FALSE(bool(res.etag));
         } else if (counter == 1) {
             EXPECT_NE(nullptr, res.error);
             EXPECT_EQ(Response::Error::Reason::NotFound, res.error->reason);
@@ -122,9 +119,9 @@ TEST_F(Storage, DontCacheConnectionErrors) {
     const Resource resource{ Resource::Unknown, "http://127.0.0.1:3001" };
 
     // Insert existing data into the cache that will be marked as stale.
-    auto response = std::make_shared<Response>();
-    response->data = std::make_shared<const std::string>("existing data");
-    cache.put(resource, response, FileCache::Hint::Full);
+    Response response;
+    response.data = std::make_shared<const std::string>("existing data");
+    cache.put(resource, response);
 
     std::unique_ptr<FileRequest> req1;
     std::unique_ptr<WorkRequest> req2;
@@ -136,12 +133,11 @@ TEST_F(Storage, DontCacheConnectionErrors) {
     req1 = fs.request(resource, [&](Response res) {
         if (counter == 0) {
             EXPECT_EQ(nullptr, res.error);
-            EXPECT_EQ(true, res.stale);
             ASSERT_TRUE(res.data.get());
             EXPECT_EQ("existing data", *res.data);
-            EXPECT_EQ(Seconds::zero(), res.expires);
-            EXPECT_EQ(Seconds::zero(), res.modified);
-            EXPECT_EQ("", res.etag);
+            EXPECT_FALSE(bool(res.expires));
+            EXPECT_FALSE(bool(res.modified));
+            EXPECT_FALSE(bool(res.etag));
         } else if (counter == 1) {
             EXPECT_NE(nullptr, res.error);
             EXPECT_EQ(Response::Error::Reason::Connection, res.error->reason);
@@ -178,9 +174,9 @@ TEST_F(Storage, DontCacheServerErrors) {
     const Resource resource{ Resource::Unknown, "http://127.0.0.1:3000/permanent-error" };
 
     // Insert existing data into the cache that will be marked as stale.
-    auto response = std::make_shared<Response>();
-    response->data = std::make_shared<const std::string>("existing data");
-    cache.put(resource, response, FileCache::Hint::Full);
+    Response response;
+    response.data = std::make_shared<const std::string>("existing data");
+    cache.put(resource, response);
 
     std::unique_ptr<FileRequest> req1;
     std::unique_ptr<WorkRequest> req2;
@@ -192,12 +188,11 @@ TEST_F(Storage, DontCacheServerErrors) {
     req1 = fs.request(resource, [&](Response res) {
         if (counter == 0) {
             EXPECT_EQ(nullptr, res.error);
-            EXPECT_EQ(true, res.stale);
             ASSERT_TRUE(res.data.get());
             EXPECT_EQ("existing data", *res.data);
-            EXPECT_EQ(Seconds::zero(), res.expires);
-            EXPECT_EQ(Seconds::zero(), res.modified);
-            EXPECT_EQ("", res.etag);
+            EXPECT_FALSE(bool(res.expires));
+            EXPECT_FALSE(bool(res.modified));
+            EXPECT_FALSE(bool(res.etag));
         } else if (counter == 1) {
             EXPECT_NE(nullptr, res.error);
             EXPECT_EQ(Response::Error::Reason::Server, res.error->reason);

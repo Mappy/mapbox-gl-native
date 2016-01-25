@@ -3,6 +3,7 @@
 
 #include <mbgl/storage/sqlite_cache.hpp>
 #include <mbgl/util/chrono.hpp>
+#include <mbgl/util/optional.hpp>
 
 namespace mapbox {
 namespace sqlite {
@@ -22,8 +23,8 @@ public:
     void setMaximumCacheEntrySize(uint64_t size);
 
     void get(const Resource&, Callback);
-    void put(const Resource& resource, std::shared_ptr<const Response> response);
-    void refresh(const Resource& resource, Seconds expires);
+    void put(const Resource&, const Response&);
+    void refresh(const Resource&, optional<SystemTimePoint> expires);
 
 private:
     void initializeDatabase();
