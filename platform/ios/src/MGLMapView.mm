@@ -3541,6 +3541,12 @@ std::chrono::steady_clock::duration MGLDurationInSeconds(float duration)
     NSBundle *bundle = [NSBundle mgl_frameworkBundle];
     NSString *path = [bundle pathForResource:imageName.stringByDeletingPathExtension
                                       ofType:extension];
+    if (!path)
+    {
+        bundle = [NSBundle mainBundle];
+        path = [bundle pathForResource:imageName.stringByDeletingPathExtension
+                                ofType:extension];
+    }
     if ( ! path)
     {
         [NSException raise:@"Resource not found" format:
