@@ -2,8 +2,11 @@ package com.mapbox.mapboxsdk.testapp;
 
 import android.location.Location;
 import android.os.Bundle;
+import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -24,7 +27,10 @@ public class MyLocationTrackingModeActivity extends AppCompatActivity implements
 
     private MapView mMapView;
     private Spinner mLocationSpinner, mBearingSpinner;
+    private FloatingActionButton mMarkerDisplayFAB;
     private Location mLocation;
+
+    private boolean mMarkerDefaultDisplay = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +59,8 @@ public class MyLocationTrackingModeActivity extends AppCompatActivity implements
         mBearingSpinner.setAdapter(bearingTrackingAdapter);
         mBearingSpinner.setOnItemSelectedListener(this);
 
+        mMarkerDisplayFAB = (FloatingActionButton) findViewById(R.id.my_location_tracking_marker_display);
+
         mMapView = (MapView) findViewById(R.id.mapView);
         mMapView.setAccessToken(ApiAccess.getToken(this));
         mMapView.onCreate(savedInstanceState);
@@ -74,9 +82,10 @@ public class MyLocationTrackingModeActivity extends AppCompatActivity implements
                     mLocationSpinner.setSelection(0);
                     mLocationSpinner.setOnItemSelectedListener(MyLocationTrackingModeActivity.this);
                 }
+                changeMarkerDisplay();
             }
         });
-        
+
         mMapView.setOnMyBearingTrackingModeChangeListener(new MapView.OnMyBearingTrackingModeChangeListener() {
             @Override
             public void onMyBearingTrackingModeChange(@MyBearingTracking.Mode int myBearingTrackingMode) {
@@ -85,8 +94,56 @@ public class MyLocationTrackingModeActivity extends AppCompatActivity implements
                     mBearingSpinner.setSelection(0);
                     mBearingSpinner.setOnItemSelectedListener(MyLocationTrackingModeActivity.this);
                 }
+                changeMarkerDisplay();
             }
         });
+
+
+        mMarkerDisplayFAB.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleMarkerDisplay();
+            }
+        });
+    }
+
+    private void changeMarkerDisplay() {
+        @DrawableRes int defaultId;
+        @DrawableRes int bearingId;
+        @DrawableRes int displayMarkerButtonId;
+        int accuracyColorId;
+        if (mMarkerDefaultDisplay) {
+            defaultId = R.drawable.my_location;
+            bearingId = R.drawable.my_location_bearing;
+            accuracyColorId = R.color.my_location_ring;
+            if (mMapView.getMyBearingTrackingMode() == MyBearingTracking.COMPASS) {
+                displayMarkerButtonId = R.drawable.custom_location_bearing_marker;
+            } else {
+                displayMarkerButtonId = R.drawable.custom_location_marker;
+            }
+        } else {
+            defaultId = R.drawable.custom_location_marker;
+            bearingId = R.drawable.custom_location_bearing_marker;
+            accuracyColorId = R.color.custom_location_color;
+            if (mMapView.getMyBearingTrackingMode() == MyBearingTracking.COMPASS) {
+                displayMarkerButtonId = R.drawable.my_location_bearing;
+            } else {
+                displayMarkerButtonId = R.drawable.my_location;
+
+            }
+        }
+
+        int accuracyColor = ContextCompat.getColor(mMapView.getContext(), accuracyColorId);
+
+        mMapView.setUserLocationDrawable(defaultId);
+        mMapView.setUserLocationBearingDrawable(bearingId);
+        mMapView.setUserLocationAccuracyColor(accuracyColor, accuracyColor);
+        mMarkerDisplayFAB.setImageResource(displayMarkerButtonId);
+    }
+
+    private void toggleMarkerDisplay() {
+        mMarkerDefaultDisplay = !mMarkerDefaultDisplay;
+        changeMarkerDisplay();
     }
 
     @Override

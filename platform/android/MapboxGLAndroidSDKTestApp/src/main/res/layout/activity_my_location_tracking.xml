@@ -1,48 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical">
 
     <android.support.v7.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/primary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:weightSum="2">
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:weightSum="2">
 
             <Spinner
-                android:id="@+id/spinner_location"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_marginRight="8dp"
-                android:layout_weight="1" />
+                    android:id="@+id/spinner_location"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginRight="8dp"
+                    android:layout_weight="1"/>
 
             <Spinner
-                android:id="@+id/spinner_bearing"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="8dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1" />
-
+                    android:id="@+id/spinner_bearing"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"/>
         </LinearLayout>
-
 
     </android.support.v7.widget.Toolbar>
 
-    <com.mapbox.mapboxsdk.views.MapView
-        android:id="@+id/mapView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:style_url="@string/style_mapbox_streets"
-        app:zoom="15" />
+    <android.support.design.widget.CoordinatorLayout
+            android:id="@+id/coordinator_layout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+        <com.mapbox.mapboxsdk.views.MapView
+                android:id="@+id/mapView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:style_url="@string/style_mapbox_streets"
+                app:zoom="15"/>
+
+        <android.support.design.widget.FloatingActionButton
+                android:id="@+id/my_location_tracking_marker_display"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|bottom"
+                android:layout_margin="@dimen/fab_margin"
+                android:src="@drawable/custom_location_marker"
+                app:backgroundTint="@android:color/white"/>
+
+    </android.support.design.widget.CoordinatorLayout>
 
 </LinearLayout>
