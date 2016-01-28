@@ -5,8 +5,8 @@
 #include <mbgl/storage/sqlite_cache.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/string.hpp>
-#include <mbgl/util/time.hpp>
 #include <mbgl/util/timer.hpp>
+#include <mbgl/util/chrono.hpp>
 
 #include <memory>
 #include <random>
@@ -187,7 +187,7 @@ TEST_F(Storage, CacheSizePruneLeastAccessed) {
             bool done = false;
 
             util::Timer timer;
-            timer.start(std::chrono::milliseconds(1300),
+            timer.start(Milliseconds(1300),
                         Duration::zero(),
                         [&done] { done = true; });
 

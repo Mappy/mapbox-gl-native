@@ -1,10 +1,9 @@
 #include <mbgl/storage/http_context_base.hpp>
 #include <mbgl/storage/http_request_base.hpp>
+#include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
 
 #include <mbgl/util/async_task.hpp>
-#include <mbgl/util/time.hpp>
-#include <mbgl/util/parsedate.h>
 #include <mbgl/util/run_loop.hpp>
 
 #import <Foundation/Foundation.h>
@@ -18,10 +17,7 @@ class HTTPNSURLContext;
 
 class HTTPNSURLRequest : public HTTPRequestBase {
 public:
-    HTTPNSURLRequest(HTTPNSURLContext*,
-                const std::string& url,
-                Callback,
-                std::shared_ptr<const Response>);
+    HTTPNSURLRequest(HTTPNSURLContext*, const Resource&, Callback);
     ~HTTPNSURLRequest();
 
     void cancel() final;
@@ -34,7 +30,6 @@ private:
     bool cancelled = false;
     NSURLSessionDataTask *task = nullptr;
     std::unique_ptr<Response> response;
-    const std::shared_ptr<const Response> existingResponse;
     util::AsyncTask async;
 };
 
@@ -45,9 +40,7 @@ public:
     HTTPNSURLContext();
     ~HTTPNSURLContext();
 
-    HTTPRequestBase* createRequest(const std::string& url,
-                               HTTPRequestBase::Callback,
-                               std::shared_ptr<const Response>) final;
+    HTTPRequestBase* createRequest(const Resource&, HTTPRequestBase::Callback) final;
 
     NSURLSession *session = nil;
     NSString *userAgent = nil;
@@ -81,21 +74,17 @@ HTTPNSURLContext::~HTTPNSURLContext() {
     userAgent = nullptr;
 }
 
-HTTPRequestBase* HTTPNSURLContext::createRequest(const std::string& url,
-                                             HTTPRequestBase::Callback callback,
-                                             std::shared_ptr<const Response> response) {
-    return new HTTPNSURLRequest(this, url, callback, response);
+HTTPRequestBase* HTTPNSURLContext::createRequest(const Resource& resource, HTTPRequestBase::Callback callback) {
+    return new HTTPNSURLRequest(this, resource, callback);
 }
 
 // -------------------------------------------------------------------------------------------------
 
 HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
-                                   const std::string& url_,
-                                   Callback callback_,
-                                   std::shared_ptr<const Response> existingResponse_)
-    : HTTPRequestBase(url_, callback_),
+                                   const Resource& resource_,
+                                   Callback callback_)
+    : HTTPRequestBase(resource_, callback_),
       context(context_),
-      existingResponse(existingResponse_),
       async([this] { handleResponse(); }) {
     // Hold the main loop alive until the request returns. This
     // is needed because completion handler runs in another
@@ -103,7 +92,7 @@ HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
     util::RunLoop::Get()->ref();
 
     @autoreleasepool {
-        NSURL* url = [NSURL URLWithString:@(url_.c_str())];
+        NSURL* url = [NSURL URLWithString:@(resource.url.c_str())];
         if (context->accountType == 0 &&
             ([url.host isEqualToString:@"mapbox.com"] || [url.host hasSuffix:@".mapbox.com"])) {
             NSString* absoluteString = [url.absoluteString
@@ -112,14 +101,12 @@ HTTPNSURLRequest::HTTPNSURLRequest(HTTPNSURLContext* context_,
         }
 
         NSMutableURLRequest* req = [NSMutableURLRequest requestWithURL:url];
-        if (existingResponse) {
-            if (existingResponse->etag) {
-                [req addValue:@((*existingResponse->etag).c_str())
-                     forHTTPHeaderField:@"If-None-Match"];
-            } else if (existingResponse->modified) {
-                [req addValue:@(util::rfc1123(SystemClock::to_time_t(*existingResponse->modified)).c_str())
-                     forHTTPHeaderField:@"If-Modified-Since"];
-            }
+        if (resource.priorEtag) {
+            [req addValue:@(resource.priorEtag->c_str())
+                 forHTTPHeaderField:@"If-None-Match"];
+        } else if (resource.priorModified) {
+            [req addValue:@(util::rfc1123(*resource.priorModified).c_str())
+                 forHTTPHeaderField:@"If-Modified-Since"];
         }
 
         [req addValue:context->userAgent forHTTPHeaderField:@"User-Agent"];
@@ -147,7 +134,7 @@ void HTTPNSURLRequest::handleResponse() {
 
     if (!cancelled) {
         // Actually return the response.
-        notify(std::move(response));
+        notify(*response);
     }
 
     delete this;
@@ -217,12 +204,12 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
 
         NSString *expires = [headers objectForKey:@"Expires"];
         if (expires) {
-            response->expires = SystemClock::from_time_t(parse_date([expires UTF8String]));
+            response->expires = util::parseTimePoint([expires UTF8String]);
         }
 
         NSString *last_modified = [headers objectForKey:@"Last-Modified"];
         if (last_modified) {
-            response->modified = SystemClock::from_time_t(parse_date([last_modified UTF8String]));
+            response->modified = util::parseTimePoint([last_modified UTF8String]);
         }
 
         NSString *etag = [headers objectForKey:@"ETag"];
@@ -234,22 +221,7 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
             // Nothing to do; this is what we want.
         } else if (responseCode == 304) {
             response->notModified = true;
-
-            if (existingResponse) {
-                response->data = existingResponse->data;
-
-                if (!response->expires) {
-                    response->expires = existingResponse->expires;
-                }
-
-                if (!response->modified) {
-                    response->modified = existingResponse->modified;
-                }
-
-                if (!response->etag) {
-                    response->etag = existingResponse->etag;
-                }
-            }
+            response->data.reset();
         } else if (responseCode == 404) {
             response->error =
                 std::make_unique<Error>(Error::Reason::NotFound, "HTTP status code 404");

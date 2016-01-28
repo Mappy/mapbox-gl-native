@@ -224,7 +224,12 @@ IB_DESIGNABLE
 @property (nonatomic, readonly, nullable) MGLUserLocation *userLocation;
 
 /** 
- The mode used to track the user location.
+ The mode used to track the user location. The default value is
+ `MGLUserTrackingModeNone`.
+ 
+ Changing the value of this property updates the map view with an animated
+ transition. If you don’t want to animate the change, use the
+ `-setUserTrackingMode:animated:` method instead.
  */
 @property (nonatomic, assign) MGLUserTrackingMode userTrackingMode;
 
@@ -243,14 +248,69 @@ IB_DESIGNABLE
 /**
  The vertical alignment of the user location annotation within the receiver. The
  default value is `MGLAnnotationVerticalAlignmentCenter`.
+ 
+ Changing the value of this property updates the map view with an animated
+ transition. If you don’t want to animate the change, use the
+ `-setUserLocationVerticalAlignment:animated:` method instead.
  */
 @property (nonatomic, assign) MGLAnnotationVerticalAlignment userLocationVerticalAlignment;
+
+/**
+ Sets the vertical alignment of the user location annotation within the
+ receiver, with an optional transition.
+ 
+ @param alignment The vertical alignment of the user location annotation.
+ @param animated If `YES`, the user location annotation animates to its new
+    position within the map view. If `NO`, the user location annotation
+    instantaneously moves to its new position.
+ */
+- (void)setUserLocationVerticalAlignment:(MGLAnnotationVerticalAlignment)alignment animated:(BOOL)animated;
 
 /**
  Whether the map view should display a heading calibration alert when necessary.
  The default value is `YES`.
  */
 @property (nonatomic, assign) BOOL displayHeadingCalibration;
+
+/**
+ The geographic coordinate that is the subject of observation as the user
+ location is being tracked.
+ 
+ By default, this property is set to an invalid coordinate, indicating that
+ there is no target. In course tracking mode, the target forms one of two foci
+ in the viewport, the other being the user location annotation. Typically, this
+ property is set to a destination or waypoint in a real-time navigation scene.
+ As the user annotation moves toward the target, the map automatically zooms in
+ to fit both foci optimally within the viewport.
+ 
+ This property has no effect if the `userTrackingMode` property is set to a
+ value other than `MGLUserTrackingModeFollowWithCourse`.
+ 
+ Changing the value of this property updates the map view with an animated
+ transition. If you don’t want to animate the change, use the
+ `-setTargetCoordinate:animated:` method instead.
+ */
+@property (nonatomic, assign) CLLocationCoordinate2D targetCoordinate;
+
+/**
+ Sets the geographic coordinate that is the subject of observation as the user
+ location is being tracked, with an optional transition animation.
+ 
+ By default, the target coordinate is set to an invalid coordinate, indicating
+ that there is no target. In course tracking mode, the target forms one of two
+ foci in the viewport, the other being the user location annotation. Typically,
+ the target is set to a destination or waypoint in a real-time navigation scene.
+ As the user annotation moves toward the target, the map automatically zooms in
+ to fit both foci optimally within the viewport.
+ 
+ This method has no effect if the `userTrackingMode` property is set to a value
+ other than `MGLUserTrackingModeFollowWithCourse`.
+ 
+ @param targetCoordinate The target coordinate to fit within the viewport.
+ @param animated If `YES`, the map animates to fit the target within the map
+    view. If `NO`, the map fits the target instantaneously.
+ */
+- (void)setTargetCoordinate:(CLLocationCoordinate2D)targetCoordinate animated:(BOOL)animated;
 
 #pragma mark Configuring How the User Interacts with the Map
 

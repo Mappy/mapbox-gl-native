@@ -1,14 +1,13 @@
 #include <mbgl/storage/http_context_base.hpp>
 #include <mbgl/storage/http_request_base.hpp>
+#include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
 #include <mbgl/platform/log.hpp>
 #include "jni.hpp"
 
 #include <mbgl/util/async_task.hpp>
-#include <mbgl/util/time.hpp>
 #include <mbgl/util/util.hpp>
 #include <mbgl/util/string.hpp>
-#include <mbgl/util/parsedate.h>
 
 #include <jni.h>
 
@@ -24,9 +23,7 @@ public:
     explicit HTTPAndroidContext();
     ~HTTPAndroidContext();
 
-    HTTPRequestBase* createRequest(const std::string& url,
-                               HTTPRequestBase::Callback,
-                               std::shared_ptr<const Response>) final;
+    HTTPRequestBase* createRequest(const Resource&, HTTPRequestBase::Callback) final;
 
     JavaVM *vm = nullptr;
     jobject obj = nullptr;
@@ -34,10 +31,7 @@ public:
 
 class HTTPAndroidRequest : public HTTPRequestBase {
 public:
-    HTTPAndroidRequest(HTTPAndroidContext*,
-                const std::string& url,
-                Callback,
-                std::shared_ptr<const Response>);
+    HTTPAndroidRequest(HTTPAndroidContext*, const Resource&, Callback);
     ~HTTPAndroidRequest();
 
     void cancel() final;
@@ -109,32 +103,28 @@ HTTPAndroidContext::~HTTPAndroidContext() {
     vm = nullptr;
 }
 
-HTTPRequestBase* HTTPAndroidContext::createRequest(const std::string& url,
-                                            HTTPRequestBase::Callback callback,
-                                            std::shared_ptr<const Response> response) {
-    return new HTTPAndroidRequest(this, url, callback, response);
+HTTPRequestBase* HTTPAndroidContext::createRequest(const Resource& resource, HTTPRequestBase::Callback callback) {
+    return new HTTPAndroidRequest(this, resource, callback);
 }
 
-HTTPAndroidRequest::HTTPAndroidRequest(HTTPAndroidContext* context_, const std::string& url_, Callback callback_, std::shared_ptr<const Response> response_)
-    : HTTPRequestBase(url_, callback_),
+HTTPAndroidRequest::HTTPAndroidRequest(HTTPAndroidContext* context_, const Resource& resource_, Callback callback_)
+    : HTTPRequestBase(resource_, callback_),
       context(context_),
-      existingResponse(response_),
       async([this] { finish(); }) {
 
     std::string etagStr;
     std::string modifiedStr;
-    if (existingResponse) {
-        if (existingResponse->etag) {
-            etagStr = *existingResponse->etag;
-        } else if (existingResponse->modified) {
-            modifiedStr = util::rfc1123(SystemClock::to_time_t(*existingResponse->modified));
-        }
+
+    if (resource.priorEtag) {
+        etagStr = *resource.priorEtag;
+    } else if (resource.priorModified) {
+        modifiedStr = util::rfc1123(*resource.priorModified);
     }
 
     JNIEnv *env = nullptr;
     bool detach = mbgl::android::attach_jni_thread(context->vm, &env, "HTTPAndroidContext::HTTPAndroidRequest()");
 
-    jstring resourceUrl = mbgl::android::std_string_to_jstring(env, url);
+    jstring resourceUrl = mbgl::android::std_string_to_jstring(env, resource.url);
     jstring userAgent = mbgl::android::std_string_to_jstring(env, "MapboxGL/1.0");
     jstring etag = mbgl::android::std_string_to_jstring(env, etagStr);
     jstring modified = mbgl::android::std_string_to_jstring(env, modifiedStr);
@@ -182,7 +172,7 @@ void HTTPAndroidRequest::cancel() {
 
 void HTTPAndroidRequest::finish() {
     if (!cancelled) {
-        notify(std::move(response));
+        notify(*response);
     }
 
     delete this;
@@ -197,7 +187,7 @@ void HTTPAndroidRequest::onResponse(JNIEnv* env, int code, jstring /* message */
     }
 
     if (modified != nullptr) {
-        response->modified = SystemClock::from_time_t(parse_date(mbgl::android::std_string_from_jstring(env, modified).c_str()));
+        response->modified = util::parseTimePoint(mbgl::android::std_string_from_jstring(env, modified).c_str());
     }
 
     if (cacheControl != nullptr) {
@@ -205,7 +195,7 @@ void HTTPAndroidRequest::onResponse(JNIEnv* env, int code, jstring /* message */
     }
 
     if (expires != nullptr) {
-        response->expires = SystemClock::from_time_t(parse_date(mbgl::android::std_string_from_jstring(env, expires).c_str()));
+        response->expires = util::parseTimePoint(mbgl::android::std_string_from_jstring(env, expires).c_str());
     }
 
     if (body != nullptr) {
@@ -218,22 +208,7 @@ void HTTPAndroidRequest::onResponse(JNIEnv* env, int code, jstring /* message */
         // Nothing to do; this is what we want
     } else if (code == 304) {
         response->notModified = true;
-
-        if (existingResponse) {
-            response->data = existingResponse->data;
-
-            if (!response->expires) {
-                response->expires = existingResponse->expires;
-            }
-
-            if (!response->modified) {
-                response->modified = existingResponse->modified;
-            }
-
-            if (!response->etag) {
-                response->etag = existingResponse->etag;
-            }
-        }
+        response->data.reset();
     } else if (code == 404) {
         response->error = std::make_unique<Error>(Error::Reason::NotFound, "HTTP status code 404");
     } else if (code >= 500 && code < 600) {

@@ -179,6 +179,10 @@ const CGFloat MGLUserLocationAnnotationArrowSize = MGLUserLocationAnnotationPuck
 
         [self.layer addSublayer:_puckArrow];
     }
+    if (self.annotation.location.course >= 0)
+    {
+        _puckArrow.affineTransform = CGAffineTransformRotate(CGAffineTransformIdentity, -MGLRadiansFromDegrees(self.mapView.direction - self.annotation.location.course));
+    }
 
     if ( ! _puckModeActivated)
     {
@@ -263,6 +267,10 @@ const CGFloat MGLUserLocationAnnotationArrowSize = MGLUserLocationAnnotationPuck
             _oldHeadingAccuracy = self.annotation.heading.headingAccuracy;
         }
         
+        if (self.annotation.heading.trueHeading >= 0)
+        {
+            _headingIndicatorLayer.affineTransform = CGAffineTransformRotate(CGAffineTransformIdentity, -MGLRadiansFromDegrees(self.mapView.direction - self.annotation.heading.trueHeading));
+        }
     }
     else
     {
