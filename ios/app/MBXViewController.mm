@@ -574,7 +574,10 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
     
     if ([annotation.title isEqualToString:kOffsetMarkerTitle]) {
-        UIImage *imagePng = [UIImage imageNamed:@"default_marker"];
+        NSBundle *mapboxBundle = [NSBundle bundleForClass:[MGLAnnotationImage class]];
+        UIImage *imagePng = [UIImage imageNamed:@"default_marker"
+                                       inBundle:mapboxBundle
+                  compatibleWithTraitCollection:[UITraitCollection traitCollectionWithDisplayScale:[UIScreen mainScreen].scale]];
         MGLAnnotationImage *image = [MGLAnnotationImage annotationImageWithImage:imagePng reuseIdentifier:kOffsetMarkerTitle];
         image.centerOffset = CGPointMake(0.0, -12.0);
         image.calloutOffset = CGPointMake(-8.0, 3.0);
