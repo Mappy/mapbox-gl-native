@@ -30,7 +30,7 @@ namespace mbgl {
 
     class SymbolLayoutProperties;
 
-    PositionedIcon shapeIcon(const SpriteAtlasElement& image, const SymbolLayoutProperties&);
+    PositionedIcon shapeIcon(const SpriteAtlasElement& image, const SymbolLayoutProperties&, vec2<float> offset);
 
 } // namespace mbgl
 
