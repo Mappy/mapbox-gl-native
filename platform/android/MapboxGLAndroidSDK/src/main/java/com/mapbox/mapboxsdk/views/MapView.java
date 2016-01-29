@@ -279,6 +279,13 @@ public final class MapView extends FrameLayout {
     private boolean mAllowConcurrentMultipleOpenInfoWindows = false;
     private String mStyleUrl;
 
+/*
+    private int mContentPaddingLeft;
+    private int mContentPaddingTop;
+    private int mContentPaddingRight;
+    private int mContentPaddingBottom;
+*/
+
     //
     // Inner classes
     //
@@ -1570,6 +1577,46 @@ public final class MapView extends FrameLayout {
     public double getZoomLevel() {
         return mNativeMapView.getZoom();
     }
+
+    /**
+     * Return The current content padding left of the map view viewport.
+     * @return The current content padding left
+     */
+/*
+    public int getContentPaddingLeft() {
+        return mContentPaddingLeft;
+    }
+*/
+
+    /**
+     * Return The current content padding left of the map view viewport.
+     * @return The current content padding left
+     */
+/*
+    public int getContentPaddingTop() {
+        return mContentPaddingTop;
+    }
+*/
+
+    /**
+     * Return The current content padding left of the map view viewport.
+     * @return The current content padding left
+     */
+/*
+    public int getContentPaddingRight() {
+        return mContentPaddingRight;
+    }
+*/
+
+    /**
+     * Return The current content padding left of the map view viewport.
+     * @return The current content padding left
+     */
+/*
+    public int getContentPaddingBottom() {
+        return mContentPaddingBottom;
+    }
+*/
 
     /**
      * <p>
@@ -4340,6 +4387,39 @@ public final class MapView extends FrameLayout {
     public void setAttributionMargins(int left, int top, int right, int bottom) {
         setWidgetMargins(mAttributionsView, left, top, right, bottom);
     }
+
+
+    /**
+     * Sets the distance from the edges of the map view’s frame to the edges of the map
+     * view’s logical viewport.
+     *
+     * When the value of this property is equal to {0,0,0,0}, viewport
+     * properties such as `getLatLng` assume a viewport that matches the map
+     * view’s frame. Otherwise, those properties are inset, excluding part of the
+     * frame from the viewport. For instance, if the only the top edge is inset, the
+     * map center is effectively shifted downward.
+     *
+     * @param left     The left margin in pixels.
+     * @param top      The top margin in pixels.
+     * @param right    The right margin in pixels.
+     * @param bottom   The bottom margin in pixels.
+     */
+/*
+    @UiThread
+    public void setContentPadding(int left, int top, int right, int bottom) {
+
+        if (left == mContentPaddingLeft && top == mContentPaddingTop && right == mContentPaddingRight && bottom == mContentPaddingBottom) {
+            return;
+        }
+
+        mContentPaddingLeft = left;
+        mContentPaddingTop = top;
+        mContentPaddingRight = right;
+        mContentPaddingBottom = bottom;
+
+        mNativeMapView.setContentPadding(top / mScreenDensity, left / mScreenDensity, bottom / mScreenDensity, right / mScreenDensity);
+    }
+*/
 
     /**
      * <p>
