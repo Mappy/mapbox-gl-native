@@ -2832,13 +2832,15 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     {
         return CGRectZero;
     }
-    UIImage *image = [self imageOfAnnotationWithTag:annotationTag].image;
-    if ( ! image)
+    MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithTag:annotationTag];
+    if (!annotationImage.image)
     {
         return CGRectZero;
     }
     
-    CGRect positioningRect = [self frameOfImage:image centeredAtCoordinate:annotation.coordinate];
+    CGRect positioningRect = [self frameOfImage:annotationImage.image centeredAtCoordinate:annotation.coordinate];
+    positioningRect.origin.x += annotationImage.centerOffset.x + annotationImage.calloutOffset.x;
+    positioningRect.origin.y += annotationImage.centerOffset.y + annotationImage.calloutOffset.y;
     positioningRect.origin.x -= 0.5;
     return CGRectInset(positioningRect, -MGLAnnotationImagePaddingForCallout,
                        -MGLAnnotationImagePaddingForCallout);
