@@ -1,16 +1,20 @@
-package com.mapbox.mapboxsdk.views;
+package com.mapbox.mapboxsdk.maps;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.os.Build;
 import android.view.Surface;
+
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.Polygon;
 import com.mapbox.mapboxsdk.annotations.Polyline;
 import com.mapbox.mapboxsdk.geometry.BoundingBox;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.geometry.LatLngZoom;
 import com.mapbox.mapboxsdk.geometry.ProjectedMeters;
 import com.mapbox.mapboxsdk.layers.CustomLayer;
+
 import java.lang.ref.WeakReference;
 import java.util.List;
 
@@ -31,7 +35,7 @@ final class NativeMapView {
     private long mNativeMapViewPtr = 0;
 
     // Used for callbacks
-    private WeakReference<MapView> mMapView;
+    private MapView mMapView;
 
     //
     // Static methods
@@ -45,7 +49,21 @@ final class NativeMapView {
     // Constructors
     //
 
-    public NativeMapView(MapView mapView, String cachePath, String dataPath, String apkPath, float pixelRatio, int availableProcessors, long totalMemory) {
+    public NativeMapView(MapView mapView) {
+        Context context = mapView.getContext();
+        String cachePath = context.getCacheDir().getAbsolutePath();
+        String dataPath = context.getFilesDir().getAbsolutePath();
+        float pixelRatio = context.getResources().getDisplayMetrics().density;
+        String apkPath = context.getPackageCodePath();
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        activityManager.getMemoryInfo(memoryInfo);
+        long totalMemory = memoryInfo.availMem;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            totalMemory = memoryInfo.totalMem;
+        }
+
         if (availableProcessors < 0) {
             throw new IllegalArgumentException("availableProcessors cannot be negative.");
         }
@@ -54,9 +72,7 @@ final class NativeMapView {
             throw new IllegalArgumentException("totalMemory cannot be negative.");
         }
 
-        mMapView = new WeakReference<>(mapView);
-
-        // Create the NativeMapView
+        mMapView = mapView;
         mNativeMapViewPtr = nativeCreate(cachePath, dataPath, apkPath, pixelRatio, availableProcessors, totalMemory);
     }
 
@@ -303,24 +319,20 @@ final class NativeMapView {
         return nativeGetZoom(mNativeMapViewPtr);
     }
 
-    public void setLatLngZoom(LatLngZoom latLngZoom) {
-        setLatLngZoom(latLngZoom, 0);
-    }
-
-    public void setLatLngZoom(LatLngZoom latLngZoom, long duration) {
-        nativeSetLatLngZoom(mNativeMapViewPtr, latLngZoom, duration);
-    }
-
-    public LatLngZoom getLatLngZoom() {
-        return nativeGetLatLngZoom(mNativeMapViewPtr);
-    }
-
     public void resetZoom() {
         nativeResetZoom(mNativeMapViewPtr);
     }
 
+    public void setMinZoom(double zoom) {
+        nativeSetMinZoom(mNativeMapViewPtr, zoom);
+    }
+
     public double getMinZoom() {
         return nativeGetMinZoom(mNativeMapViewPtr);
+    }
+
+    public void setMaxZoom(double zoom) {
+        nativeSetMaxZoom(mNativeMapViewPtr, zoom);
     }
 
     public double getMaxZoom() {
@@ -452,7 +464,7 @@ final class NativeMapView {
         return nativeGetTopOffsetPixelsForAnnotationSymbol(mNativeMapViewPtr, symbolName);
     }
 
-    public void jumpTo(double angle, LatLng center,  double pitch, double zoom) {
+    public void jumpTo(double angle, LatLng center, double pitch, double zoom) {
         nativeJumpTo(mNativeMapViewPtr, angle, center, pitch, zoom);
     }
 
@@ -477,15 +489,15 @@ final class NativeMapView {
     //
 
     protected void onInvalidate() {
-        mMapView.get().onInvalidate();
+        mMapView.onInvalidate();
     }
 
     protected void onMapChanged(int rawChange) {
-        mMapView.get().onMapChanged(rawChange);
+        mMapView.onMapChanged(rawChange);
     }
 
     protected void onFpsChanged(double fps) {
-        mMapView.get().onFpsChanged(fps);
+        mMapView.onFpsChanged(fps);
     }
 
     //
@@ -581,14 +593,13 @@ final class NativeMapView {
 
     private native double nativeGetZoom(long nativeMapViewPtr);
 
-    private native void nativeSetLatLngZoom(long nativeMapViewPtr,
-                                            LatLngZoom lonLatZoom, long duration);
-
-    private native LatLngZoom nativeGetLatLngZoom(long nativeMapViewPtr);
-
     private native void nativeResetZoom(long nativeMapViewPtr);
 
+    private native void nativeSetMinZoom(long nativeMapViewPtr, double zoom);
+
     private native double nativeGetMinZoom(long nativeMapViewPtr);
+
+    private native void nativeSetMaxZoom(long nativeMapViewPtr, double zoom);
 
     private native double nativeGetMaxZoom(long nativeMapViewPtr);
 
@@ -626,7 +637,7 @@ final class NativeMapView {
     private native long[] nativeGetAnnotationsInBounds(long mNativeMapViewPtr, BoundingBox bbox);
 
     private native void nativeAddAnnotationIcon(long nativeMapViewPtr, String symbol,
-                                        int width, int height, float scale, byte[] pixels);
+                                                int width, int height, float scale, byte[] pixels);
 
     private native void nativeSetVisibleCoordinateBounds(long mNativeMapViewPtr, LatLng[] coordinates,
                                                          RectF padding, double direction, long duration);

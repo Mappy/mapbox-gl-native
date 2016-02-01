@@ -219,7 +219,6 @@ public:
 
 #pragma mark - Setup & Teardown -
 
-@dynamic debugActive;
 mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 {
     return std::chrono::duration_cast<mbgl::Duration>(std::chrono::duration<NSTimeInterval>(duration));
@@ -967,7 +966,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         self.glSnapshotView.image = self.glView.snapshot;
         self.glSnapshotView.hidden = NO;
 
-        if (_mbglMap->getDebug() != mbgl::MapDebugOptions::NoDebug && [self.glSnapshotView.subviews count] == 0)
+        if (self.debugMask && [self.glSnapshotView.subviews count] == 0)
         {
             UIView *snapshotTint = [[UIView alloc] initWithFrame:self.glSnapshotView.bounds];
             snapshotTint.autoresizingMask = self.glSnapshotView.autoresizingMask;
@@ -1641,17 +1640,66 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     return [NSSet setWithObject:@"allowsTilting"];
 }
 
+- (MGLMapDebugMaskOptions)debugMask
+{
+    mbgl::MapDebugOptions options = _mbglMap->getDebug();
+    MGLMapDebugMaskOptions mask = 0;
+    if (options & mbgl::MapDebugOptions::TileBorders)
+    {
+        mask |= MGLMapDebugTileBoundariesMask;
+    }
+    if (options & mbgl::MapDebugOptions::ParseStatus)
+    {
+        mask |= MGLMapDebugTileInfoMask;
+    }
+    if (options & mbgl::MapDebugOptions::Timestamps)
+    {
+        mask |= MGLMapDebugTimestampsMask;
+    }
+    if (options & mbgl::MapDebugOptions::Collision)
+    {
+        mask |= MGLMapDebugCollisionBoxesMask;
+    }
+    return mask;
+}
+
+- (void)setDebugMask:(MGLMapDebugMaskOptions)debugMask
+{
+    mbgl::MapDebugOptions options = mbgl::MapDebugOptions::NoDebug;
+    if (debugMask & MGLMapDebugTileBoundariesMask)
+    {
+        options |= mbgl::MapDebugOptions::TileBorders;
+    }
+    if (debugMask & MGLMapDebugTileInfoMask)
+    {
+        options |= mbgl::MapDebugOptions::ParseStatus;
+    }
+    if (debugMask & MGLMapDebugTimestampsMask)
+    {
+        options |= mbgl::MapDebugOptions::Timestamps;
+    }
+    if (debugMask & MGLMapDebugCollisionBoxesMask)
+    {
+        options |= mbgl::MapDebugOptions::Collision;
+    }
+    _mbglMap->setDebug(options);
+}
+
 - (void)setDebugActive:(BOOL)debugActive
 {
-    _mbglMap->setDebug(debugActive ? mbgl::MapDebugOptions::TileBorders
-                                   | mbgl::MapDebugOptions::ParseStatus
-                                   | mbgl::MapDebugOptions::Collision
-                                   : mbgl::MapDebugOptions::NoDebug);
+    self.debugMask = debugActive ? (MGLMapDebugTileBoundariesMask |
+                                    MGLMapDebugTileInfoMask |
+                                    MGLMapDebugCollisionBoxesMask) : 0;
 }
 
 - (BOOL)isDebugActive
 {
-    return (_mbglMap->getDebug() != mbgl::MapDebugOptions::NoDebug);
+    return self.debugMask;
+}
+
+- (void)toggleDebug
+{
+    self.debugActive = !self.debugActive;
 }
 
 - (void)resetNorth
@@ -1669,11 +1717,6 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     MGLMapCamera *camera = [MGLMapCamera camera];
     camera.altitude = MGLAltitudeForZoomLevel(0, 0, 0, self.frame.size);
     self.camera = camera;
-}
-
-- (void)cycleDebugOptions
-{
-    _mbglMap->cycleDebugOptions();
 }
 
 - (void)emptyMemoryCache
@@ -1782,6 +1825,26 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     _mbglMap->setZoom(zoomLevel,
                       MGLEdgeInsetsFromNSEdgeInsets(self.contentInset),
                       MGLDurationInSeconds(duration));
+}
+
+- (void)setMinimumZoomLevel:(double)minimumZoomLevel
+{
+    _mbglMap->setMinZoom(minimumZoomLevel);
+}
+
+- (double)minimumZoomLevel
+{
+    return _mbglMap->getMinZoom();
+}
+
+- (void)setMaximumZoomLevel:(double)maximumZoomLevel
+{
+    _mbglMap->setMaxZoom(maximumZoomLevel);
+}
+
+- (double)maximumZoomLevel
+{
+    return _mbglMap->getMaxZoom();
 }
 
 - (MGLCoordinateBounds)visibleCoordinateBounds
@@ -3048,14 +3111,15 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         mode = MGLUserTrackingModeNone;
     }
 
+    MGLUserTrackingMode oldMode = _userTrackingMode;
     _userTrackingMode = mode;
-    
-    self.userTrackingState = animated ? MGLUserTrackingStatePossible : MGLUserTrackingStateChanged;
 
     switch (_userTrackingMode)
     {
         case MGLUserTrackingModeNone:
         {
+            self.userTrackingState = MGLUserTrackingStatePossible;
+            
             [self.locationManager stopUpdatingHeading];
 
             // Immediately update the annotation view; other cases update inside
@@ -3067,6 +3131,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         case MGLUserTrackingModeFollow:
         case MGLUserTrackingModeFollowWithCourse:
         {
+            self.userTrackingState = animated ? MGLUserTrackingStatePossible : MGLUserTrackingStateChanged;
             self.showsUserLocation = YES;
 
             [self.locationManager stopUpdatingHeading];
@@ -3080,6 +3145,11 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         }
         case MGLUserTrackingModeFollowWithHeading:
         {
+            if (oldMode == MGLUserTrackingModeNone)
+            {
+                self.userTrackingState = animated ? MGLUserTrackingStatePossible : MGLUserTrackingStateChanged;
+            }
+            
             self.showsUserLocation = YES;
 
             if (self.zoomLevel < self.currentMinimumZoom)

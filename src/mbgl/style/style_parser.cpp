@@ -11,6 +11,9 @@
 #include <mapbox/geojsonvt.hpp>
 #include <mapbox/geojsonvt/convert.hpp>
 
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
+
 #include <algorithm>
 
 namespace mbgl {
@@ -96,7 +99,15 @@ void parseTileJSONMember(const JSValue& value, std::array<float, N>& target, con
 
 StyleParser::~StyleParser() = default;
 
-void StyleParser::parse(const JSValue& document) {
+void StyleParser::parse(const std::string& json) {
+    rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> document;
+    document.Parse<0>((const char *const)json.c_str());
+
+    if (document.HasParseError()) {
+        Log::Error(Event::ParseStyle, "Error parsing style JSON at %i: %s", document.GetErrorOffset(), rapidjson::GetParseError_En(document.GetParseError()));
+        return;
+    }
+
     if (document.HasMember("version")) {
         int version = document["version"].GetInt();
         if (version != 8) {
@@ -244,8 +255,8 @@ std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> StyleParser::parseGeoJSON(const JS
 std::unique_ptr<SourceInfo> StyleParser::parseTileJSON(const JSValue& value) {
     auto info = std::make_unique<SourceInfo>();
     parseTileJSONMember(value, info->tiles, "tiles");
-    parseTileJSONMember(value, info->min_zoom, "minzoom");
-    parseTileJSONMember(value, info->max_zoom, "maxzoom");
+    parseTileJSONMember(value, info->minZoom, "minzoom");
+    parseTileJSONMember(value, info->maxZoom, "maxzoom");
     parseTileJSONMember(value, info->attribution, "attribution");
     parseTileJSONMember(value, info->center, "center");
     parseTileJSONMember(value, info->bounds, "bounds");

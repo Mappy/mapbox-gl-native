@@ -10,25 +10,6 @@
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
 static NSString * const kOffsetMarkerTitle = @"Offset Marker and Callout";
 
-typedef NS_ENUM(NSInteger, settingIndex) {
-    settingIndexResetNorth = 0,
-    settingIndexResetPosition,
-    settingIndexCycleDebugOptions,
-    settingIndexEmptyMemory,
-    settingIndexAdd100Points,
-    settingIndexAdd1000Points,
-    settingIndexAdd10000Points,
-    settingIndexAddTestShapes,
-    settingIndexAddOffsetAnnotations,
-    settingIndexShowWorldTour,
-    settingIndexAddOneCustomPoint,
-    settingIndexRemoveAnnotations,
-    settingIndexToggleCustomStyleLayer,
-    settingIndexPrintTelemetryLogfile,
-    settingIndexDeleteTelemetryLogfile,
-    settingsNbr                         // keep last
-};
-
 static NSString * const kCustomCalloutTitle = @"Custom Callout";
 
 static const CLLocationCoordinate2D WorldTourDestinations[] = {
@@ -115,23 +96,6 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     [self.mapView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)]];
 
     [self restoreState:nil];
-    
-    self.settingsDictionary = @{@(settingIndexResetNorth): @"Reset North",
-                                @(settingIndexResetPosition): @"Reset Position",
-                                @(settingIndexCycleDebugOptions): @"Cycle debug options",
-                                @(settingIndexEmptyMemory): @"Empty Memory",
-                                @(settingIndexAdd100Points): @"Add 100 Points",
-                                @(settingIndexAdd1000Points): @"Add 1,000 Points",
-                                @(settingIndexAdd10000Points): @"Add 10,000 Points",
-                                @(settingIndexAddTestShapes): @"Add Test Shapes",
-                                @(settingIndexAddOffsetAnnotations): @"Add offset annotations",
-                                @(settingIndexShowWorldTour): @"Start World Tour",
-                                @(settingIndexAddOneCustomPoint): @"Add 1 custom Point",
-                                @(settingIndexRemoveAnnotations): @"Remove Annotations",
-                                @(settingIndexToggleCustomStyleLayer): @"Toggle Custom Style Layer",
-                                @(settingIndexPrintTelemetryLogfile): @"Print Telemetry Logfile",
-                                @(settingIndexDeleteTelemetryLogfile): @"Delete Telemetry Logfile"
-                                };
 }
 
 - (void)saveState:(__unused NSNotification *)notification
@@ -143,7 +107,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
         [defaults setObject:archivedCamera forKey:@"MBXCamera"];
         [defaults setInteger:self.mapView.userTrackingMode forKey:@"MBXUserTrackingMode"];
         [defaults setBool:self.mapView.showsUserLocation forKey:@"MBXShowsUserLocation"];
-        [defaults setBool:self.mapView.debugActive forKey:@"MBXDebug"];
+        [defaults setInteger:self.mapView.debugMask forKey:@"MBXDebugMask"];
         [defaults synchronize];
     }
 }
@@ -166,7 +130,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             self.mapView.userTrackingMode = (MGLUserTrackingMode)uncheckedTrackingMode;
         }
         self.mapView.showsUserLocation = [defaults boolForKey:@"MBXShowsUserLocation"];
-        self.mapView.debugActive = [defaults boolForKey:@"MBXDebug"];
+        NSInteger uncheckedDebugMask = [defaults integerForKey:@"MBXDebugMask"];
+        if (uncheckedDebugMask >= 0)
+        {
+            self.mapView.debugMask = (MGLMapDebugMaskOptions)uncheckedDebugMask;
+        }
     }
 }
 
@@ -179,91 +147,187 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
 
 - (void)showSettings
 {
+    MGLMapDebugMaskOptions debugMask = self.mapView.debugMask;
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:@"Map Settings"
                                                        delegate:self
                                               cancelButtonTitle:@"Cancel"
                                          destructiveButtonTitle:nil
-                                              otherButtonTitles:nil];
-    for (NSInteger i = 0; i < settingsNbr; i++) {
-        [sheet addButtonWithTitle:[self.settingsDictionary objectForKey:@(i)]];
-    }
+                                              otherButtonTitles:@"Reset Position",
+                            ((debugMask & MGLMapDebugTileBoundariesMask)
+                             ? @"Hide Tile Boundaries"
+                             : @"Show Tile Boundaries"),
+                            ((debugMask & MGLMapDebugTileInfoMask)
+                             ? @"Hide Tile Info"
+                             : @"Show Tile Info"),
+                            ((debugMask & MGLMapDebugTimestampsMask)
+                             ? @"Hide Tile Timestamps"
+                             : @"Show Tile Timestamps"),
+                            ((debugMask & MGLMapDebugCollisionBoxesMask)
+                             ? @"Hide Collision Boxes"
+                             : @"Show Collision Boxes"),
+                            @"Empty Memory",
+                            @"Add 100 Points",
+                            @"Add 1,000 Points",
+                            @"Add 10,000 Points",
+                            @"Add Test Shapes",
+                            @"Start World Tour",
+                            @"Add Custom Callout Point",
+                            @"Remove Annotations",
+                            (_isShowingCustomStyleLayer
+                             ? @"Hide Custom Style Layer"
+                             : @"Show Custom Style Layer"),
+                            @"Print Telemetry Logfile",
+                            @"Delete Telemetry Logfile",
+                            nil];
 
     [sheet showFromBarButtonItem:self.navigationItem.leftBarButtonItem animated:YES];
 }
 
 - (void)actionSheet:(__unused UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex
 {
-    NSInteger settingChoice = buttonIndex - 1;      // cancel is index 0
-    switch (settingChoice) {
-        case settingIndexResetNorth:
-            [self.mapView resetNorth];
-            break;
-        case settingIndexResetPosition:
-            [self.mapView resetPosition];
-            break;
-        case settingIndexCycleDebugOptions:
-            [self.mapView cycleDebugOptions];
-            break;
-        case settingIndexEmptyMemory:
-            [self.mapView emptyMemoryCache];
-            break;
-        case settingIndexAdd100Points:
-            [self parseFeaturesAddingCount:100];
-            break;
-        case settingIndexAdd1000Points:
-            [self parseFeaturesAddingCount:1000];
-            break;
-        case settingIndexAdd10000Points:
-            [self parseFeaturesAddingCount:10000];
-            break;
-        case settingIndexAddTestShapes:
-            [self parseShapes];
-            break;
-        case settingIndexAddOffsetAnnotations:
-            [self addOffsetAnnotations];
-            break;
-        case settingIndexShowWorldTour:
-            [self startWorldTour:actionSheet];
-            break;
-        case settingIndexAddOneCustomPoint:
-            [self presentAnnotationWithCustomCallout];
-            break;
-        case settingIndexRemoveAnnotations:
-            [self.mapView removeAnnotations:self.mapView.annotations];
-            break;
-        case settingIndexToggleCustomStyleLayer:
-            if (_isShowingCustomStyleLayer)
-            {
-                [self removeCustomStyleLayer];
-            }
-            else
-            {
-                [self insertCustomStyleLayer];
-            }
-            break;
-        case settingIndexPrintTelemetryLogfile:
+    if (buttonIndex == actionSheet.firstOtherButtonIndex)
+    {
+        [self.mapView resetPosition];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 1)
+    {
+        self.mapView.debugMask ^= MGLMapDebugTileBoundariesMask;
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 2)
+    {
+        self.mapView.debugMask ^= MGLMapDebugTileInfoMask;
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 3)
+    {
+        self.mapView.debugMask ^= MGLMapDebugTimestampsMask;
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 4)
+    {
+        self.mapView.debugMask ^= MGLMapDebugCollisionBoxesMask;
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 5)
+    {
+        [self.mapView emptyMemoryCache];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 6)
+    {
+        [self parseFeaturesAddingCount:100];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 7)
+    {
+        [self parseFeaturesAddingCount:1000];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 8)
+    {
+        [self parseFeaturesAddingCount:10000];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 9)
+    {
+        // PNW triangle
+        //
+        CLLocationCoordinate2D triangleCoordinates[3] =
         {
-            NSString *fileContents = [NSString stringWithContentsOfFile:[self telemetryDebugLogfilePath] encoding:NSUTF8StringEncoding error:nil];
-            NSLog(@"%@", fileContents);
-        }
-            break;
-        case settingIndexDeleteTelemetryLogfile:
+            CLLocationCoordinate2DMake(44, -122),
+            CLLocationCoordinate2DMake(46, -122),
+            CLLocationCoordinate2DMake(46, -121)
+        };
+        
+        MGLPolygon *triangle = [MGLPolygon polygonWithCoordinates:triangleCoordinates count:3];
+        
+        [self.mapView addAnnotation:triangle];
+        
+        // Orcas Island hike
+        //
+        NSDictionary *hike = [NSJSONSerialization JSONObjectWithData:
+                              [NSData dataWithContentsOfFile:
+                               [[NSBundle mainBundle] pathForResource:@"polyline" ofType:@"geojson"]]
+                                                             options:0
+                                                               error:nil];
+        
+        NSArray *hikeCoordinatePairs = hike[@"features"][0][@"geometry"][@"coordinates"];
+        
+        CLLocationCoordinate2D *polylineCoordinates = (CLLocationCoordinate2D *)malloc([hikeCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
+        
+        for (NSUInteger i = 0; i < [hikeCoordinatePairs count]; i++)
         {
-            NSString *filePath = [self telemetryDebugLogfilePath];
-            if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath]) {
-                NSError *error;
-                BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
-                if (success) {
-                    NSLog(@"Deleted telemetry log.");
-                } else {
-                    NSLog(@"Error deleting telemetry log: %@", error.localizedDescription);
-                }
+            polylineCoordinates[i] = CLLocationCoordinate2DMake([hikeCoordinatePairs[i][1] doubleValue], [hikeCoordinatePairs[i][0] doubleValue]);
+        }
+        
+        MGLPolyline *polyline = [MGLPolyline polylineWithCoordinates:polylineCoordinates
+                                                               count:[hikeCoordinatePairs count]];
+        
+        [self.mapView addAnnotation:polyline];
+        
+        free(polylineCoordinates);
+        
+        // PA/NJ/DE polys
+        //
+        NSDictionary *threestates = [NSJSONSerialization JSONObjectWithData:
+                                     [NSData dataWithContentsOfFile:
+                                      [[NSBundle mainBundle] pathForResource:@"threestates" ofType:@"geojson"]]
+                                                                    options:0
+                                                                      error:nil];
+        
+        for (NSDictionary *feature in threestates[@"features"])
+        {
+            NSArray *stateCoordinatePairs = feature[@"geometry"][@"coordinates"];
+            
+            while ([stateCoordinatePairs count] == 1) stateCoordinatePairs = stateCoordinatePairs[0];
+            
+            CLLocationCoordinate2D *polygonCoordinates = (CLLocationCoordinate2D *)malloc([stateCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
+            
+            for (NSUInteger i = 0; i < [stateCoordinatePairs count]; i++)
+            {
+                polygonCoordinates[i] = CLLocationCoordinate2DMake([stateCoordinatePairs[i][1] doubleValue], [stateCoordinatePairs[i][0] doubleValue]);
+            }
+            
+            MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:polygonCoordinates count:[stateCoordinatePairs count]];
+            
+            [self.mapView addAnnotation:polygon];
+            
+            free(polygonCoordinates);
+        }
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 10)
+    {
+        [self startWorldTour:actionSheet];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 11)
+    {
+        [self presentAnnotationWithCustomCallout];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 12)
+    {
+        [self.mapView removeAnnotations:self.mapView.annotations];
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 13)
+    {
+        if (_isShowingCustomStyleLayer)
+        {
+            [self removeCustomStyleLayer];
+        }
+        else
+        {
+            [self insertCustomStyleLayer];
+        }
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 14)
+    {
+        NSString *fileContents = [NSString stringWithContentsOfFile:[self telemetryDebugLogfilePath] encoding:NSUTF8StringEncoding error:nil];
+        NSLog(@"%@", fileContents);
+    }
+    else if (buttonIndex == actionSheet.firstOtherButtonIndex + 15)
+    {
+        NSString *filePath = [self telemetryDebugLogfilePath];
+        if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath]) {
+            NSError *error;
+            BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
+            if (success) {
+                NSLog(@"Deleted telemetry log.");
+            } else {
+                NSLog(@"Error deleting telemetry log: %@", error.localizedDescription);
             }
         }
-            break;
-        default:
-            NSLog(@"Error, unknown setting action");
-            break;
     }
 }
 

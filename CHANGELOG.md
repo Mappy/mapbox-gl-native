@@ -7,6 +7,7 @@
 * Fixed crash caused by annotation image with non-integer width or height ([#3031](https://github.com/mapbox/mapbox-gl-native/issues/3031))
 * Tracking Mode Reverses Bearing Fix ([#3664](https://github.com/mapbox/mapbox-gl-native/issues/3664))
 * GPS Extra Rotation Fix ([#3661](https://github.com/mapbox/mapbox-gl-native/issues/3661))
+* Added new methods for getting and setting the min and max zoom levels: `getMinZoom`, `setMinZoom`, `getMaxZoom`, `setMaxZoom`. ([#509](https://github.com/mapbox/mapbox-gl-native/issues/509))
 
 ## 3.1.0
 
@@ -74,6 +75,8 @@ Known issues:
 - Fixed crash caused by MGLAnnotationImage with non-integer width or height ([#2198](https://github.com/mapbox/mapbox-gl-native/issues/2198))
 - Fixed “include of non-modular header” errors in Swift projects managed by CocoaPods. ([#3679](https://github.com/mapbox/mapbox-gl-native/pull/3679)) 
 - Avoids triggering the blue background location status bar when user has granted "when in use" permission. ([#3671](https://github.com/mapbox/mapbox-gl-native/issues/3671))
+- Added new methods to MGLMapView for getting and setting the minimum and maximum zoom levels: `minimumZoomLevel`, `setMinimumZoomLevel`, `maximumZoomLevel`, `setMaximumZoomLevel`. ([#509](https://github.com/mapbox/mapbox-gl-native/issues/509))
+- The default `maximumZoomLevel` changed from 18 to 20.
 
 ## iOS 3.0.1
 
