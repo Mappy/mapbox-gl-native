@@ -211,7 +211,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 6)
     {
-        [self parseFeaturesAddingCount:100];
+        [self parseFeaturesAddingCount:1];
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 7)
     {
@@ -366,6 +366,13 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             {
                 [self.mapView addAnnotations:annotations];
                 [self.mapView showAnnotations:annotations animated:YES];
+                
+                if (annotations.count == 1) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // animation test
+                        [self.mapView animateAnnotation:annotations.firstObject];
+                    });
+                }
             });
         }
     });

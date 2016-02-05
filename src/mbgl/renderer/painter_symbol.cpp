@@ -203,7 +203,13 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
                       *sdfIconShader,
                       &SymbolBucket::drawIcons);
         } else {
-            mat4 vtxMatrix = translatedMatrix(matrix, properties.icon.translate, id, properties.icon.translateAnchor);
+            PaintProperty<std::array<float, 2>> translate = properties.icon.translate;
+            if (layer.id.compare("com.mapbox.annotations.points") == 0) {
+                // Mappy annotation animation
+                translate.value[1] += layer.animationOffset;
+            }
+
+            mat4 vtxMatrix = translatedMatrix(matrix, translate, id, properties.icon.translateAnchor);
 
             bool skewed = layout.icon.rotationAlignment == RotationAlignmentType::Map;
             mat4 exMatrix;
@@ -220,7 +226,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
             matrix::scale(exMatrix, exMatrix, s, s, 1);
 
             matrix::scale(exMatrix, exMatrix, fontScale, fontScale, 1.0f);
-
+            
             // calculate how much longer the real world distance is at the top of the screen
             // than at the middle of the screen.
             float topedgelength = std::sqrt(std::pow(state.getHeight(), 2) / 4.0f * (1.0f + std::pow(state.getAltitude(), 2)));

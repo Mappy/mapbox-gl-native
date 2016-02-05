@@ -2456,6 +2456,14 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     [self didChangeValueForKey:@"annotations"];
 }
 
+- (void)animateAnnotation:(id <MGLAnnotation>)annotation {
+    MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+    if (annotationTag != MGLAnnotationTagNotFound)
+    {
+        _mbglMap->animateAnnotation(annotationTag);
+    }
+}
+
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation
 {
     if (_delegateHasAlphasForShapeAnnotations)

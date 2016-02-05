@@ -25,6 +25,8 @@
 
 #include <algorithm>
 
+#include <iostream>
+
 namespace mbgl {
 
 MapContext::MapContext(View& view_, FileSource& fileSource, MapMode mode_, GLContextMode contextMode_, const float pixelRatio_)
@@ -157,13 +159,17 @@ void MapContext::loadStyleJSON(const std::string& json, const std::string& base)
 
 void MapContext::update() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
-
     if (!style) {
         updateFlags = Update::Nothing;
     }
-
+    
     if (updateFlags == Update::Nothing || (data.mode == MapMode::Still && !callback)) {
         return;
+    }
+    
+    if (style->loaded && updateFlags & Update::AnimatedAnnotations) {
+//        std::cout << "MapContext::update() animation\n";
+        data.getAnnotationManager()->updateAnimatedLayer(*style);
     }
 
     data.setAnimationTime(Clock::now());
@@ -181,14 +187,26 @@ void MapContext::update() {
         style->recalculate(transformState.getNormalizedZoom());
     }
 
-    style->update(transformState, *texturePool);
+    if (updateFlags == Update::AnimatedAnnotations) {
+//        std::cout << "MapContext::update() render animation\n";
+        if (data.mode == MapMode::Continuous) {
+            asyncInvalidate.send();
+        } else if (callback && style->isLoaded()) {
+            renderSync(transformState, frameData);
+        }
+    }
+    else {
+//        std::cout << "MapContext::update() render\n";
+        style->update(transformState, *texturePool);
 
-    if (data.mode == MapMode::Continuous) {
-        asyncInvalidate.send();
-    } else if (callback && style->isLoaded()) {
-        renderSync(transformState, frameData);
+        if (data.mode == MapMode::Continuous) {
+            asyncInvalidate.send();
+        } else if (callback && style->isLoaded()) {
+            renderSync(transformState, frameData);
+        }
     }
 
+//    std::cout << "MapContext::update() end\n";
     updateFlags = Update::Nothing;
 }
 
@@ -252,10 +270,18 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
     view.afterRender();
 
     if (style->hasTransitions()) {
+//        std::cout << "MapContext::rendersync() resend classes\n";
         updateFlags |= Update::Classes;
         asyncUpdate.send();
     } else if (painter->needsAnimation()) {
+//        std::cout << "MapContext::rendersync() resend repaint\n";
         updateFlags |= Update::Repaint;
+        asyncUpdate.send();
+    }
+    
+    if (data.getAnnotationManager()->animationOngoing) {
+//        std::cout << "MapContext::rendersync() resend animated annotations\n";
+        updateFlags |= Update::AnimatedAnnotations;
         asyncUpdate.send();
     }
 

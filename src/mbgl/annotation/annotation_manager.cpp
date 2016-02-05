@@ -5,6 +5,8 @@
 
 #include <boost/function_output_iterator.hpp>
 
+#include <iostream>
+
 namespace mbgl {
 
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
@@ -58,6 +60,11 @@ void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
             shapeAnnotations.erase(id);
         }
     }
+}
+    
+void AnnotationManager::animateAnnotation(const AnnotationID& id) {
+    animationOngoing = true;
+    std::cout << id << "\n";
 }
 
 AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds& bounds) const {
@@ -123,6 +130,10 @@ void AnnotationManager::updateStyle(Style& style) {
         layer->layout.icon.image = std::string("{sprite}");
         layer->layout.icon.allowOverlap = true;
         layer->spriteAtlas = &spriteAtlas;
+        
+        layer->animationOffset = 0.0f;
+        layer->lastTimepoint = Clock::now();
+        layer->upDirection = true;
 
         style.addLayer(std::move(layer));
     }
@@ -141,6 +152,28 @@ void AnnotationManager::updateStyle(Style& style) {
 
     for (auto& monitor : monitors) {
         monitor->update(getTile(monitor->tileID));
+    }
+}
+
+void AnnotationManager::updateAnimatedLayer(Style& style) {
+    // update animation layer
+    SymbolLayer* animatedLayer = (SymbolLayer*)style.getLayer(PointLayerID);
+    if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(10)) ) {
+        if (animatedLayer->upDirection && animatedLayer->animationOffset < -20.0f) {
+            animatedLayer->upDirection = false;
+        }
+        else if (!animatedLayer->upDirection && animatedLayer->animationOffset > -0.5f) {
+            animatedLayer->upDirection = true;
+        }
+        
+        float yOffset = -1.0f;
+        if (!animatedLayer->upDirection) {
+            yOffset = 1.0f;
+        }
+        
+        animatedLayer->animationOffset += yOffset;
+        //        std::cout << "updating offset" << animatedLayer->animationOffset << "\n";
+        animatedLayer->lastTimepoint = Clock::now();
     }
 }
 

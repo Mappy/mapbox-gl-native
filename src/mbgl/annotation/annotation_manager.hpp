@@ -29,6 +29,7 @@ public:
     AnnotationIDs addPointAnnotations(const std::vector<PointAnnotation>&, const uint8_t maxZoom);
     AnnotationIDs addShapeAnnotations(const std::vector<ShapeAnnotation>&, const uint8_t maxZoom);
     void removeAnnotations(const AnnotationIDs&);
+    void animateAnnotation(const AnnotationID&);
 
     AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&) const;
     LatLngBounds getBoundsForAnnotations(const AnnotationIDs&) const;
@@ -45,6 +46,9 @@ public:
 
     static const std::string SourceID;
     static const std::string PointLayerID;
+    
+    bool animationOngoing;
+    void updateAnimatedLayer(Style&);
 
 private:
     std::unique_ptr<AnnotationTile> getTile(const TileID&);

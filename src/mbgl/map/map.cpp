@@ -431,7 +431,7 @@ LatLng Map::latLngForPixel(const PrecisionPoint& pixel) const {
 void Map::addAnnotationIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
     context->invoke(&MapContext::addAnnotationIcon, name, sprite);
 }
-
+    
 void Map::removeAnnotationIcon(const std::string& name) {
     context->invoke(&MapContext::removeAnnotationIcon, name);
 }
@@ -467,6 +467,11 @@ void Map::removeAnnotation(AnnotationID annotation) {
 void Map::removeAnnotations(const AnnotationIDs& annotations) {
     data->getAnnotationManager()->removeAnnotations(annotations);
     update(Update::Annotations);
+}
+    
+void Map::animateAnnotation(AnnotationID annotation) {
+    data->getAnnotationManager()->animateAnnotation(annotation);
+    update(Update::AnimatedAnnotations);
 }
 
 AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
