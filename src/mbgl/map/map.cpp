@@ -471,7 +471,7 @@ void Map::removeAnnotations(const AnnotationIDs& annotations) {
     
 void Map::animateAnnotation(AnnotationID annotation) {
     data->getAnnotationManager()->animateAnnotation(annotation);
-    update(Update::AnimatedAnnotations);
+    update(Update::Annotations | Update::AnimatedAnnotations);
 }
     
 void Map::stopAnnotationAnimation() {

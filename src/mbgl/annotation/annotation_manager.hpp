@@ -47,6 +47,7 @@ public:
 
     static const std::string SourceID;
     static const std::string PointLayerID;
+    static const std::string AnimationLayerID;
     
     bool animationOngoing;
     void updateAnimatedLayer(Style&);
@@ -56,6 +57,7 @@ private:
 
     AnnotationID nextID = 0;
     PointAnnotationImpl::Tree pointTree;
+    PointAnnotationImpl::Tree animationPointTree;
     PointAnnotationImpl::Map pointAnnotations;
     ShapeAnnotationImpl::Map shapeAnnotations;
     std::vector<std::string> obsoleteShapeAnnotationLayers;
@@ -64,6 +66,7 @@ private:
     SpriteStore spriteStore;
     SpriteAtlas spriteAtlas;
     bool animationStopAsked;
+    AnnotationID animatedID;
 };
 
 } // namespace mbgl

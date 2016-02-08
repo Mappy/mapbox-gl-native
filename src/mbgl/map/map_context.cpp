@@ -168,7 +168,6 @@ void MapContext::update() {
     }
     
     if (style->loaded && updateFlags & Update::AnimatedAnnotations) {
-//        std::cout << "MapContext::update() animation\n";
         data.getAnnotationManager()->updateAnimatedLayer(*style);
     }
 
@@ -188,7 +187,6 @@ void MapContext::update() {
     }
 
     if (updateFlags == Update::AnimatedAnnotations) {
-//        std::cout << "MapContext::update() render animation\n";
         if (data.mode == MapMode::Continuous) {
             asyncInvalidate.send();
         } else if (callback && style->isLoaded()) {
@@ -196,7 +194,6 @@ void MapContext::update() {
         }
     }
     else {
-//        std::cout << "MapContext::update() render\n";
         style->update(transformState, *texturePool);
 
         if (data.mode == MapMode::Continuous) {
@@ -206,7 +203,6 @@ void MapContext::update() {
         }
     }
 
-//    std::cout << "MapContext::update() end\n";
     updateFlags = Update::Nothing;
 }
 
