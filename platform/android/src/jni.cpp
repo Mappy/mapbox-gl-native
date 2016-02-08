@@ -948,6 +948,7 @@ jlong JNICALL nativeAddPolyline(JNIEnv *env, jobject obj, jlong nativeMapViewPtr
     lineProperties.opacity = alpha;
     lineProperties.color = {{ static_cast<float>(r) / 255.0f, static_cast<float>(g) / 255.0f, static_cast<float>(b) / 255.0f, static_cast<float>(a) / 255.0f }};
     lineProperties.width = width;
+    lineProperties.isMappyPath = true;
     shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
     jobject points = env->GetObjectField(polyline, polylinePointsId);
@@ -1023,6 +1024,7 @@ jlongArray JNICALL nativeAddPolylines(JNIEnv *env, jobject obj, jlong nativeMapV
         lineProperties.opacity = alpha;
         lineProperties.color = {{ static_cast<float>(r) / 255.0f, static_cast<float>(g) / 255.0f, static_cast<float>(b) / 255.0f, static_cast<float>(a) / 255.0f }};
         lineProperties.width = width;
+        lineProperties.isMappyPath = true;
         shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
         jobject points = env->GetObjectField(polyline, polylinePointsId);
