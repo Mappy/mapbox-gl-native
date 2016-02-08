@@ -66,6 +66,11 @@ void AnnotationManager::animateAnnotation(const AnnotationID& id) {
     animationOngoing = true;
     std::cout << id << "\n";
 }
+    
+void AnnotationManager::stopAnimatedAnnotation() {
+    animationStopAsked = true;
+    std::cout << "annotation manager stop animation\n";
+}
 
 AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds& bounds) const {
     AnnotationIDs result;
@@ -158,22 +163,30 @@ void AnnotationManager::updateStyle(Style& style) {
 void AnnotationManager::updateAnimatedLayer(Style& style) {
     // update animation layer
     SymbolLayer* animatedLayer = (SymbolLayer*)style.getLayer(PointLayerID);
-    if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(10)) ) {
-        if (animatedLayer->upDirection && animatedLayer->animationOffset < -20.0f) {
-            animatedLayer->upDirection = false;
+    if (animationStopAsked == false) {
+        if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(10)) ) {
+            if (animatedLayer->upDirection && animatedLayer->animationOffset < -20.0f) {
+                animatedLayer->upDirection = false;
+            }
+            else if (!animatedLayer->upDirection && animatedLayer->animationOffset > -0.5f) {
+                animatedLayer->upDirection = true;
+            }
+            
+            float yOffset = -1.0f;
+            if (!animatedLayer->upDirection) {
+                yOffset = 1.0f;
+            }
+            
+            animatedLayer->animationOffset += yOffset;
+            //        std::cout << "updating offset" << animatedLayer->animationOffset << "\n";
+            animatedLayer->lastTimepoint = Clock::now();
         }
-        else if (!animatedLayer->upDirection && animatedLayer->animationOffset > -0.5f) {
-            animatedLayer->upDirection = true;
-        }
-        
-        float yOffset = -1.0f;
-        if (!animatedLayer->upDirection) {
-            yOffset = 1.0f;
-        }
-        
-        animatedLayer->animationOffset += yOffset;
-        //        std::cout << "updating offset" << animatedLayer->animationOffset << "\n";
-        animatedLayer->lastTimepoint = Clock::now();
+    }
+    else {
+        animatedLayer->animationOffset = 0;
+        animatedLayer->upDirection = true;
+        animationOngoing = false;
+        animationStopAsked = false;
     }
 }
 

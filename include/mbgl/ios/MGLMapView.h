@@ -842,6 +842,11 @@ IB_DESIGNABLE
 - (void)animateAnnotation:(id <MGLAnnotation>)annotation;
 
 /**
+ Stop the annotation animation.
+ */
+- (void)stopAnnotationAnimation;
+
+/**
  Removes an annotation from the map view, deselecting it if it is selected.
  
  Removing an annotation object dissociates it from the map view entirely,

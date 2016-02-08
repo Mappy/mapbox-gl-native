@@ -473,6 +473,10 @@ void Map::animateAnnotation(AnnotationID annotation) {
     data->getAnnotationManager()->animateAnnotation(annotation);
     update(Update::AnimatedAnnotations);
 }
+    
+void Map::stopAnnotationAnimation() {
+    data->getAnnotationManager()->stopAnimatedAnnotation();
+}
 
 AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
     return data->getAnnotationManager()->getPointAnnotationsInBounds(bounds);

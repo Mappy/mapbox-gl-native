@@ -30,6 +30,7 @@ public:
     AnnotationIDs addShapeAnnotations(const std::vector<ShapeAnnotation>&, const uint8_t maxZoom);
     void removeAnnotations(const AnnotationIDs&);
     void animateAnnotation(const AnnotationID&);
+    void stopAnimatedAnnotation();
 
     AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&) const;
     LatLngBounds getBoundsForAnnotations(const AnnotationIDs&) const;
@@ -62,6 +63,7 @@ private:
 
     SpriteStore spriteStore;
     SpriteAtlas spriteAtlas;
+    bool animationStopAsked;
 };
 
 } // namespace mbgl

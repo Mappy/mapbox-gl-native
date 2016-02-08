@@ -2464,6 +2464,10 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     }
 }
 
+- (void)stopAnnotationAnimation {
+    _mbglMap->stopAnnotationAnimation();
+}
+
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation
 {
     if (_delegateHasAlphasForShapeAnnotations)

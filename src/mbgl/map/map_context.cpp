@@ -270,17 +270,12 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
     view.afterRender();
 
     if (style->hasTransitions()) {
-//        std::cout << "MapContext::rendersync() resend classes\n";
         updateFlags |= Update::Classes;
         asyncUpdate.send();
     } else if (painter->needsAnimation()) {
-//        std::cout << "MapContext::rendersync() resend repaint\n";
         updateFlags |= Update::Repaint;
         asyncUpdate.send();
-    }
-    
-    if (data.getAnnotationManager()->animationOngoing) {
-//        std::cout << "MapContext::rendersync() resend animated annotations\n";
+    } else if (data.getAnnotationManager()->animationOngoing) {
         updateFlags |= Update::AnimatedAnnotations;
         asyncUpdate.send();
     }

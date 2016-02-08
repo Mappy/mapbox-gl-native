@@ -372,6 +372,10 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                         // animation test
                         [self.mapView animateAnnotation:annotations.firstObject];
                     });
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // animation test
+                        [self.mapView stopAnnotationAnimation];
+                    });
                 }
             });
         }
