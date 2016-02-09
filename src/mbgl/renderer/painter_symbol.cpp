@@ -206,7 +206,9 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
             PaintProperty<std::array<float, 2>> translate = properties.icon.translate;
             if (layer.id.compare("com.mapbox.annotations.animation") == 0) {
                 // Mappy annotation animation
-                translate.value[1] += layer.animationOffset;
+				double angle = state.getAngle();
+                translate.value[0] += layer.animationOffset * sin(angle);
+				translate.value[1] += layer.animationOffset * cos(angle);
             }
 
             mat4 vtxMatrix = translatedMatrix(matrix, translate, id, properties.icon.translateAnchor);
