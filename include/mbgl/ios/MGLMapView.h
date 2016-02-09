@@ -834,6 +834,19 @@ IB_DESIGNABLE
 - (void)addAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
 
 /**
+ Animate an annotation to the map view.
+ 
+ @param annotation The annotation object to animate to the receiver. This object
+ must conform to the `MGLAnnotation` protocol. The map view retains the
+ annotation object. */
+- (void)animateAnnotation:(id <MGLAnnotation>)annotation;
+
+/**
+ Stop the annotation animation.
+ */
+- (void)stopAnnotationAnimation;
+
+/**
  Removes an annotation from the map view, deselecting it if it is selected.
  
  Removing an annotation object dissociates it from the map view entirely,

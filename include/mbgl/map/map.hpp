@@ -166,6 +166,9 @@ public:
 
     void removeAnnotation(AnnotationID);
     void removeAnnotations(const AnnotationIDs&);
+    
+    void animateAnnotation(AnnotationID);
+    void stopAnnotationAnimation();
 
     AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&);
     LatLngBounds getBoundsForAnnotations(const AnnotationIDs&);

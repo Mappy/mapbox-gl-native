@@ -98,6 +98,11 @@ public:
     SymbolPaintProperties paint;
 
     SpriteAtlas* spriteAtlas;
+    
+    float animationOffset;
+    TimePoint lastTimepoint;
+    bool upDirection;
+    
 };
 
 } // namespace mbgl

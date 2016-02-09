@@ -14,6 +14,7 @@ enum class Update : uint32_t {
     RenderStill               = 1 << 5,
     Repaint                   = 1 << 6,
     Annotations               = 1 << 7,
+    AnimatedAnnotations       = 1 << 8,
 };
 
 inline Update operator| (const Update& lhs, const Update& rhs) {
