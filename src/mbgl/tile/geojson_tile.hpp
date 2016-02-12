@@ -1,7 +1,7 @@
 #ifndef MBGL_ANNOTATION_GEOJSON_VT_TILE
 #define MBGL_ANNOTATION_GEOJSON_VT_TILE
 
-#include <mbgl/map/geometry_tile.hpp>
+#include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/map/tile_id.hpp>
 
 #include <unordered_map>
@@ -25,6 +25,7 @@ public:
     FeatureType getType() const override;
     optional<Value> getValue(const std::string&) const override;
     GeometryCollection getGeometries() const override;
+    uint32_t getExtent() const override { return 4096; }
 
 private:
     const FeatureType type;

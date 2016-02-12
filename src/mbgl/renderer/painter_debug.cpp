@@ -1,7 +1,7 @@
 #include <mbgl/renderer/painter.hpp>
 #include <mbgl/renderer/debug_bucket.hpp>
-#include <mbgl/map/tile.hpp>
-#include <mbgl/map/tile_data.hpp>
+#include <mbgl/tile/tile.hpp>
+#include <mbgl/tile/tile_data.hpp>
 #include <mbgl/map/map_data.hpp>
 #include <mbgl/shader/plain_shader.hpp>
 #include <mbgl/util/string.hpp>
@@ -15,7 +15,9 @@ void Painter::renderTileDebug(const Tile& tile) {
     if (data.getDebug() != MapDebugOptions::NoDebug) {
         prepareTile(tile);
         renderDebugText(*tile.data, tile.matrix);
-        renderDebugFrame(tile.matrix);
+        if (data.getDebug() & MapDebugOptions::TileBorders) {
+            renderDebugFrame(tile.matrix);
+        }
     }
 }
 

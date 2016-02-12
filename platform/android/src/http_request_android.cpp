@@ -172,6 +172,7 @@ void HTTPAndroidRequest::cancel() {
 
 void HTTPAndroidRequest::finish() {
     if (!cancelled) {
+        assert(response);
         notify(*response);
     }
 
@@ -198,17 +199,16 @@ void HTTPAndroidRequest::onResponse(JNIEnv* env, int code, jstring /* message */
         response->expires = util::parseTimePoint(mbgl::android::std_string_from_jstring(env, expires).c_str());
     }
 
-    if (body != nullptr) {
-        jbyte* bodyData = env->GetByteArrayElements(body, nullptr);
-        response->data = std::make_shared<std::string>(reinterpret_cast<char*>(bodyData), env->GetArrayLength(body));
-        env->ReleaseByteArrayElements(body, bodyData, JNI_ABORT);
-    }
-
     if (code == 200) {
-        // Nothing to do; this is what we want
+        if (body != nullptr) {
+            jbyte* bodyData = env->GetByteArrayElements(body, nullptr);
+            response->data = std::make_shared<std::string>(reinterpret_cast<char*>(bodyData), env->GetArrayLength(body));
+            env->ReleaseByteArrayElements(body, bodyData, JNI_ABORT);
+        }
+    } else if (code == 204 || (code == 404 && resource.kind == Resource::Kind::Tile)) {
+        response->noContent = true;
     } else if (code == 304) {
         response->notModified = true;
-        response->data.reset();
     } else if (code == 404) {
         response->error = std::make_unique<Error>(Error::Reason::NotFound, "HTTP status code 404");
     } else if (code >= 500 && code < 600) {
@@ -234,7 +234,7 @@ void HTTPAndroidRequest::onFailure(JNIEnv* env, int type, jstring message) {
             response->error = std::make_unique<Error>(Error::Reason::Server, messageStr);
             break;
         case canceledError:
-            response->error = std::make_unique<Error>(Error::Reason::Canceled, "Request was cancelled");
+            response.reset();
             break;
         default:
             response->error = std::make_unique<Error>(Error::Reason::Other, messageStr);
@@ -245,6 +245,10 @@ void HTTPAndroidRequest::onFailure(JNIEnv* env, int type, jstring message) {
 
 std::unique_ptr<HTTPContextBase> HTTPContextBase::createContext() {
     return std::make_unique<HTTPAndroidContext>();
+}
+
+uint32_t HTTPContextBase::maximumConcurrentRequests() {
+    return 20;
 }
 
 void JNICALL nativeOnFailure(JNIEnv* env, jobject, jlong nativePtr, jint type, jstring message) {

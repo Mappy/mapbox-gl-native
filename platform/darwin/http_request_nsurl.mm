@@ -133,7 +133,7 @@ void HTTPNSURLRequest::handleResponse() {
     }
 
     if (!cancelled) {
-        // Actually return the response.
+        assert(response);
         notify(*response);
     }
 
@@ -158,8 +158,8 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
 
     if (error) {
         if ([error code] == NSURLErrorCancelled) {
-            response->error =
-                std::make_unique<Error>(Error::Reason::Canceled, "Request was cancelled");
+            response.reset();
+
         } else {
             if (data) {
                 response->data =
@@ -194,8 +194,6 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
     } else if ([res isKindOfClass:[NSHTTPURLResponse class]]) {
         const long responseCode = [(NSHTTPURLResponse *)res statusCode];
 
-        response->data = std::make_shared<std::string>((const char *)[data bytes], [data length]);
-
         NSDictionary *headers = [(NSHTTPURLResponse *)res allHeaderFields];
         NSString *cache_control = [headers objectForKey:@"Cache-Control"];
         if (cache_control) {
@@ -218,10 +216,11 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
         }
 
         if (responseCode == 200) {
-            // Nothing to do; this is what we want.
+            response->data = std::make_shared<std::string>((const char *)[data bytes], [data length]);
+        } else if (responseCode == 204 || (responseCode == 404 && resource.kind == Resource::Kind::Tile)) {
+            response->noContent = true;
         } else if (responseCode == 304) {
             response->notModified = true;
-            response->data.reset();
         } else if (responseCode == 404) {
             response->error =
                 std::make_unique<Error>(Error::Reason::NotFound, "HTTP status code 404");
@@ -245,6 +244,10 @@ void HTTPNSURLRequest::handleResult(NSData *data, NSURLResponse *res, NSError *e
 
 std::unique_ptr<HTTPContextBase> HTTPContextBase::createContext() {
     return std::make_unique<HTTPNSURLContext>();
+}
+
+uint32_t HTTPContextBase::maximumConcurrentRequests() {
+    return 20;
 }
 
 }

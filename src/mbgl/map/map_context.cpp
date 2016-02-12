@@ -115,14 +115,11 @@ void MapContext::setStyleURL(const std::string& url) {
                 Log::Error(Event::Setup, "loading style failed: %s", res.error->message.c_str());
                 data.loading = false;
             }
+        } else if (res.notModified || res.noContent) {
             return;
+        } else {
+            loadStyleJSON(*res.data, base);
         }
-
-        if (res.notModified) {
-            return;
-        }
-
-        loadStyleJSON(*res.data, base);
     });
 }
 
@@ -183,7 +180,7 @@ void MapContext::update() {
     }
 
     if (updateFlags & Update::Classes || updateFlags & Update::Zoom) {
-        style->recalculate(transformState.getNormalizedZoom());
+        style->recalculate(transformState.getZoom());
     }
 
     if (updateFlags == Update::AnimatedAnnotations) {

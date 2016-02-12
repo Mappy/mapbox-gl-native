@@ -18,6 +18,16 @@ public class MapboxConstants {
     public static final String KEY_META_DATA_MANIFEST = "com.mapbox.AccessToken";
 
     /**
+     * Key used to store staging data server url in AndroidManifest.xml
+     */
+    public static final String KEY_META_DATA_STAGING_SERVER = "com.mapbox.TestEventsServer";
+
+    /**
+     * Key used to store staging data server access token in AndroidManifest.xml
+     */
+    public static final String KEY_META_DATA_STAGING_ACCESS_TOKEN = "com.mapbox.TestEventsAccessToken";
+
+    /**
      * Default animation time
      */
     public static final int ANIMATION_DURATION = 300;
@@ -25,12 +35,12 @@ public class MapboxConstants {
     /**
      * The currently supported minimum zoom level.
      */
-    public static final double MINIMUM_ZOOM = 0f;
+    public static final double MINIMUM_ZOOM = 0.0;
 
     /**
      * The currently supported maximum zoom level.
      */
-    public static final double MAXIMUM_ZOOM = 25.0;
+    public static final double MAXIMUM_ZOOM = 25.5;
 
     /**
      * The currently supported maximum tilt value.
@@ -51,6 +61,11 @@ public class MapboxConstants {
      * The currently supported minimum direction
      */
     public static final double MINIMUM_DIRECTION = 0;
+
+    /**
+     * Fragment Argument Key for MapboxMapOptions
+     */
+    public static final String FRAG_ARG_MAPBOXMAPOPTIONS = "MapboxMapOptions";
 
     // Save instance state keys
     public static final String STATE_CAMERA_POSITION = "cameraPosition";
@@ -77,13 +92,17 @@ public class MapboxConstants {
     public static final String STATE_LOGO_MARGIN_TOP = "logoMarginTop";
     public static final String STATE_LOGO_MARGIN_RIGHT = "logoMarginRight";
     public static final String STATE_LOGO_MARGIN_BOTTOM = "logoMarginBottom";
-    public static final String STATE_LOGO_VISIBILITY = "logoVisibility";
+    public static final String STATE_LOGO_ENABLED = "logoEnabled";
     public static final String STATE_ATTRIBUTION_GRAVITY = "attrGravity";
     public static final String STATE_ATTRIBUTION_MARGIN_LEFT = "attrMarginLeft";
     public static final String STATE_ATTRIBUTION_MARGIN_TOP = "attrMarginTop";
     public static final String STATE_ATTRIBUTION_MARGIN_RIGHT = "attrMarginRight";
     public static final String STATE_ATTRIBUTION_MARGIN_BOTTOM = "atrrMarginBottom";
-    public static final String STATE_ATTRIBUTION_VISIBILITY = "atrrVisibility";
+    public static final String STATE_ATTRIBUTION_ENABLED = "atrrEnabled";
 
     public static final String TAG = "MapboxMap";
+
+    public static final String MAPBOX_SHARED_PREFERENCES_FILE = "MapboxSharedPreferences";
+    public static final String MAPBOX_SHARED_PREFERENCE_KEY_VENDORID = "mapboxVendorId";
+    public static final String MAPBOX_SHARED_PREFERENCE_KEY_TELEMETRY_ENABLED = "mapboxTelemetryEnabled";
 }

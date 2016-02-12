@@ -11,10 +11,14 @@
 #include <mapbox/geojsonvt.hpp>
 #include <mapbox/geojsonvt/convert.hpp>
 
+#include <mbgl/util/mapbox.hpp>
+
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
 #include <algorithm>
+#include <sstream>
+#include <set>
 
 namespace mbgl {
 
@@ -101,7 +105,7 @@ StyleParser::~StyleParser() = default;
 
 void StyleParser::parse(const std::string& json) {
     rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> document;
-    document.Parse<0>((const char *const)json.c_str());
+    document.Parse<0>(json.c_str());
 
     if (document.HasParseError()) {
         Log::Error(Event::ParseStyle, "Error parsing style JSON at %i: %s", document.GetErrorOffset(), rapidjson::GetParseError_En(document.GetParseError()));
@@ -250,6 +254,28 @@ std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> StyleParser::parseGeoJSON(const JS
         // tiles to load.
         return std::make_unique<GeoJSONVT>(std::vector<ProjectedFeature>{});
     }
+}
+
+std::unique_ptr<SourceInfo> StyleParser::parseTileJSON(const std::string& json, const std::string& sourceURL, SourceType type, uint16_t tileSize) {
+    rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> document;
+    document.Parse<0>(json.c_str());
+
+    if (document.HasParseError()) {
+        std::stringstream message;
+        message << document.GetErrorOffset() << " - " << rapidjson::GetParseError_En(document.GetParseError());
+        throw std::runtime_error(message.str());
+    }
+
+    std::unique_ptr<SourceInfo> result = StyleParser::parseTileJSON(document);
+
+    // TODO: Remove this hack by delivering proper URLs in the TileJSON to begin with.
+    if (util::mapbox::isMapboxURL(sourceURL)) {
+        for (auto& url : result->tiles) {
+            url = util::mapbox::canonicalizeTileURL(url, type, tileSize);
+        }
+    }
+
+    return result;
 }
 
 std::unique_ptr<SourceInfo> StyleParser::parseTileJSON(const JSValue& value) {
@@ -456,6 +482,25 @@ void StyleParser::parseVisibility(StyleLayer& layer, const JSValue& value) {
         return;
     }
     layer.visibility = VisibilityTypeClass({ value["visibility"].GetString(), value["visibility"].GetStringLength() });
+}
+
+std::vector<std::string> StyleParser::fontStacks() const {
+    std::set<std::string> result;
+
+    for (const auto& layer : layers) {
+        if (layer->is<SymbolLayer>()) {
+            LayoutProperty<std::string> property = layer->as<SymbolLayer>()->layout.text.font;
+            if (property.parsedValue) {
+                for (const auto& stop : property.parsedValue->getStops()) {
+                    result.insert(stop.second);
+                }
+            } else {
+                result.insert(property.value);
+            }
+        }
+    }
+
+    return std::vector<std::string>(result.begin(), result.end());
 }
 
 } // namespace mbgl

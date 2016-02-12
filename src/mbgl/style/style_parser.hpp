@@ -2,7 +2,7 @@
 #define MBGL_STYLE_STYLE_PARSER
 
 #include <mbgl/style/style_layer.hpp>
-#include <mbgl/map/source.hpp>
+#include <mbgl/source/source.hpp>
 #include <mbgl/util/rapidjson.hpp>
 
 #include <vector>
@@ -28,8 +28,13 @@ public:
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<StyleLayer>> layers;
 
-    static std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> parseGeoJSON(const JSValue&);
+    // Statically evaluate layer properties to determine what font stacks are used.
+    std::vector<std::string> fontStacks() const;
+
+    static std::unique_ptr<SourceInfo> parseTileJSON(const std::string& json, const std::string& sourceURL, SourceType, uint16_t tileSize);
     static std::unique_ptr<SourceInfo> parseTileJSON(const JSValue&);
+
+    static std::unique_ptr<mapbox::geojsonvt::GeoJSONVT> parseGeoJSON(const JSValue&);
 
 private:
     void parseSources(const JSValue&);

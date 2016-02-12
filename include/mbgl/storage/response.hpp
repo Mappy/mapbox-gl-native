@@ -20,10 +20,14 @@ public:
     // When this object is empty, the response was successful.
     std::unique_ptr<const Error> error;
 
+    // This is set to true for 204 Not Modified responses, and, for backward compatibility,
+    // for 404 Not Found responses for tiles.
+    bool noContent = false;
+
     // This is set to true for 304 Not Modified responses.
     bool notModified = false;
 
-    // The actual data of the response. This is null if notModified is true.
+    // The actual data of the response. Present only for non-error, non-notModified responses.
     std::shared_ptr<const std::string> data;
 
     optional<SystemTimePoint> modified;
@@ -38,7 +42,6 @@ public:
         NotFound = 2,
         Server = 3,
         Connection = 4,
-        Canceled = 5,
         Other = 6,
     } reason = Reason::Other;
 
@@ -49,6 +52,8 @@ public:
 public:
     Error(Reason, const std::string& = "");
 };
+
+std::ostream& operator<<(std::ostream&, Response::Error::Reason);
 
 } // namespace mbgl
 

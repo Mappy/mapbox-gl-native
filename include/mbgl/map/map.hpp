@@ -144,9 +144,6 @@ public:
     uint16_t getHeight() const;
 
     // Projection
-    MetersBounds getWorldBoundsMeters() const;
-    LatLngBounds getWorldBoundsLatLng() const;
-
     double getMetersPerPixelAtLatitude(double lat, double zoom) const;
     ProjectedMeters projectedMetersForLatLng(const LatLng&) const;
     LatLng latLngForProjectedMeters(const ProjectedMeters&) const;
@@ -171,7 +168,6 @@ public:
     void stopAnnotationAnimation();
 
     AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&);
-    LatLngBounds getBoundsForAnnotations(const AnnotationIDs&);
 
     void addCustomLayer(const std::string& id,
                         CustomLayerInitializeFunction,

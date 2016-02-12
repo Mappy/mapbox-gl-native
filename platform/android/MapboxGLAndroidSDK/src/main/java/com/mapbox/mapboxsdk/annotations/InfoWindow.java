@@ -53,20 +53,33 @@ public class InfoWindow {
         mIsVisible = false;
         mView = new WeakReference<>(view);
 
-        // default behavior: close it when clicking on the tooltip:
-        view.setOnTouchListener(new View.OnTouchListener() {
+        view.setOnClickListener(new View.OnClickListener() {
             @Override
-            public boolean onTouch(View v, MotionEvent e) {
-                if (e.getAction() == MotionEvent.ACTION_UP) {
+            public void onClick(View v) {
+                MapboxMap mapboxMap = mMapboxMap.get();
+                if (mapboxMap != null) {
+                    MapboxMap.OnInfoWindowClickListener onInfoWindowClickListener = mapboxMap.getOnInfoWindowClickListener();
                     boolean handledDefaultClick = false;
-                    MapboxMap.OnInfoWindowClickListener onInfoWindowClickListener =
-                            mMapboxMap.get().getOnInfoWindowClickListener();
                     if (onInfoWindowClickListener != null) {
-                        handledDefaultClick = onInfoWindowClickListener.onMarkerClick(getBoundMarker());
+                        handledDefaultClick = onInfoWindowClickListener.onInfoWindowClick(getBoundMarker());
                     }
 
                     if (!handledDefaultClick) {
+                        // default behavior: close it when clicking on the tooltip:
                         close();
+                    }
+                }
+            }
+        });
+
+        view.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                MapboxMap mapboxMap = mMapboxMap.get();
+                if (mapboxMap != null) {
+                    MapboxMap.OnInfoWindowLongClickListener listener = mapboxMap.getOnInfoWindowLongClickListener();
+                    if (listener != null) {
+                        listener.onInfoWindowLongClick(getBoundMarker());
                     }
                 }
                 return true;
@@ -99,7 +112,7 @@ public class InfoWindow {
 
             // Calculate default Android x,y coordinate
 
-            mCoordinates = mapboxMap.toScreenLocation(position);
+            mCoordinates = mapboxMap.getProjection().toScreenLocation(position);
             float x = mCoordinates.x - (view.getMeasuredWidth() / 2) + offsetX;
             float y = mCoordinates.y - view.getMeasuredHeight() + offsetY;
 
@@ -181,7 +194,6 @@ public class InfoWindow {
             View view = mView.get();
             if (view != null) {
                 ((ViewGroup) view.getParent()).removeView(view);
-                setBoundMarker(null);
                 onClose();
             }
         }
@@ -210,7 +222,12 @@ public class InfoWindow {
     private void onClose() {
         MapboxMap mapboxMap = mMapboxMap.get();
         if (mapboxMap != null) {
+            MapboxMap.OnInfoWindowCloseListener listener = mapboxMap.getOnInfoWindowCloseListener();
+            if(listener!=null){
+                listener.onInfoWindowClose(getBoundMarker());
+            }
             mapboxMap.deselectMarker(getBoundMarker());
+            setBoundMarker(null);
         }
     }
 
@@ -231,7 +248,7 @@ public class InfoWindow {
         Marker marker = mBoundMarker.get();
         View view = mView.get();
         if (mapboxMap != null && marker != null && view != null) {
-            mCoordinates = mapboxMap.toScreenLocation(marker.getPosition());
+            mCoordinates = mapboxMap.getProjection().toScreenLocation(marker.getPosition());
             view.setX(mCoordinates.x + mViewWidthOffset);
             view.setY(mCoordinates.y + mMarkerHeightOffset);
         }

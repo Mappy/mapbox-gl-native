@@ -59,6 +59,15 @@ Database::operator bool() const {
     return db != nullptr;
 }
 
+void Database::setBusyTimeout(std::chrono::milliseconds timeout) {
+    assert(db);
+    const int err = sqlite3_busy_timeout(db,
+        int(std::min<std::chrono::milliseconds::rep>(timeout.count(), std::numeric_limits<int>::max())));
+    if (err != SQLITE_OK) {
+        throw Exception { err, sqlite3_errmsg(db) };
+    }
+}
+
 void Database::exec(const std::string &sql) {
     assert(db);
     char *msg = nullptr;
@@ -75,6 +84,16 @@ void Database::exec(const std::string &sql) {
 Statement Database::prepare(const char *query) {
     assert(db);
     return Statement(db, query);
+}
+
+int64_t Database::lastInsertRowid() const {
+    assert(db);
+    return sqlite3_last_insert_rowid(db);
+}
+
+uint64_t Database::changes() const {
+    assert(db);
+    return sqlite3_changes(db);
 }
 
 Statement::Statement(sqlite3 *db, const char *sql) {
@@ -115,14 +134,44 @@ template <> void Statement::bind(int offset, std::nullptr_t) {
     check(sqlite3_bind_null(stmt, offset));
 }
 
-template <> void Statement::bind(int offset, int value) {
+template <> void Statement::bind(int offset, int8_t value) {
     assert(stmt);
-    check(sqlite3_bind_int(stmt, offset, value));
+    check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, int16_t value) {
+    assert(stmt);
+    check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, int32_t value) {
+    assert(stmt);
+    check(sqlite3_bind_int64(stmt, offset, value));
 }
 
 template <> void Statement::bind(int offset, int64_t value) {
     assert(stmt);
     check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, uint8_t value) {
+    assert(stmt);
+    check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, uint16_t value) {
+    assert(stmt);
+    check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, uint32_t value) {
+    assert(stmt);
+    check(sqlite3_bind_int64(stmt, offset, value));
+}
+
+template <> void Statement::bind(int offset, float value) {
+    assert(stmt);
+    check(sqlite3_bind_double(stmt, offset, value));
 }
 
 template <> void Statement::bind(int offset, double value) {
@@ -140,10 +189,37 @@ template <> void Statement::bind(int offset, const char *value) {
     check(sqlite3_bind_text(stmt, offset, value, -1, SQLITE_STATIC));
 }
 
-void Statement::bind(int offset, const std::string& value, bool retain) {
+// We currently cannot use sqlite3_bind_blob64 / sqlite3_bind_text64 because they
+// was introduced in SQLite 3.8.7, and we need to support earlier versions:
+//    iOS 7.0: 3.7.13
+//    iOS 8.2: 3.8.5
+// According to http://stackoverflow.com/questions/14288128/what-version-of-sqlite-does-ios-provide,
+// the first iOS version with 3.8.7+ was 9.0, with 3.8.10.2.
+
+void Statement::bind(int offset, const char * value, std::size_t length, bool retain) {
     assert(stmt);
-    check(sqlite3_bind_blob(stmt, offset, value.data(), int(value.size()),
+    if (length > std::numeric_limits<int>::max()) {
+        throw std::range_error("value too long for sqlite3_bind_text");
+    }
+    check(sqlite3_bind_text(stmt, offset, value, int(length),
                             retain ? SQLITE_TRANSIENT : SQLITE_STATIC));
+}
+
+void Statement::bind(int offset, const std::string& value, bool retain) {
+    bind(offset, value.data(), value.size(), retain);
+}
+
+void Statement::bindBlob(int offset, const void * value, std::size_t length, bool retain) {
+    assert(stmt);
+    if (length > std::numeric_limits<int>::max()) {
+        throw std::range_error("value too long for sqlite3_bind_text");
+    }
+    check(sqlite3_bind_blob(stmt, offset, value, int(length),
+                            retain ? SQLITE_TRANSIENT : SQLITE_STATIC));
+}
+
+void Statement::bindBlob(int offset, const std::vector<uint8_t>& value, bool retain) {
+    bindBlob(offset, value.data(), value.size(), retain);
 }
 
 template <> void Statement::bind(int offset, std::chrono::system_clock::time_point value) {
@@ -204,6 +280,13 @@ template <> std::string Statement::get(int offset) {
     };
 }
 
+template <> std::vector<uint8_t> Statement::get(int offset) {
+    assert(stmt);
+    const uint8_t* begin = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(stmt, offset));
+    const uint8_t* end   = begin + sqlite3_column_bytes(stmt, offset);
+    return { begin, end };
+}
+
 template <> std::chrono::system_clock::time_point Statement::get(int offset) {
     assert(stmt);
     return std::chrono::system_clock::from_time_t(sqlite3_column_int64(stmt, offset));
@@ -230,6 +313,11 @@ template <> optional<std::chrono::system_clock::time_point> Statement::get(int o
 void Statement::reset() {
     assert(stmt);
     sqlite3_reset(stmt);
+}
+
+void Statement::clearBindings() {
+    assert(stmt);
+    sqlite3_clear_bindings(stmt);
 }
 
 } // namespace sqlite

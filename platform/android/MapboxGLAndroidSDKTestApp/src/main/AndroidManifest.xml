@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
 
     <application
         android:name=".MapboxApplication"
@@ -23,10 +25,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".MapboxMapActivity"
+        <activity
+            android:name=".MapboxMapActivity"
             android:label="@string/action_mapboxmap" />
         <activity
-            android:name=".VisibleCoordinateBoundsActivity"
+            android:name=".LatLngBoundsActivity"
             android:label="@string/activity_visible_coordinate_bounds" />
         <activity
             android:name=".InfoWindowAdapterActivity"
@@ -50,6 +53,9 @@
         <activity
             android:name=".MapFragmentActivity"
             android:label="@string/activity_map_fragment" />
+        <activity
+            android:name=".SupportMapFragmentActivity"
+            android:label="@string/activity_map_fragment_suport" />
         <activity
             android:name=".PressForMarkerActivity"
             android:label="@string/activity_press_for_marker" />
@@ -77,10 +83,21 @@
         <activity
             android:name=".DoubleMapActivity"
             android:label="@string/activity_double_map" />
+        <activity
+            android:name=".ScrollByActivity"
+            android:label="@string/activity_scroll_by" />
 
         <meta-data
             android:name="com.mapbox.AccessToken"
             android:value="" />
+
+        <meta-data android:name="com.mapbox.TestEventsServer"
+                   android:value="https://cloudfront-staging.tilestream.net"/>
+
+        <meta-data android:name="com.mapbox.TestEventsAccessToken"
+                   android:value="sk.eyJ1IjoiYmxlZWdlIiwiYSI6InNpcml1c2x5In0.KyT-boMyC_xZYTYojTc8zg"/>
+
+        <service android:name="com.mapbox.mapboxsdk.telemetry.TelemetryService"/>
     </application>
 
 </manifest>

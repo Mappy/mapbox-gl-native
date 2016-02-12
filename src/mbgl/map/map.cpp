@@ -242,10 +242,10 @@ void Map::setLatLngZoom(const LatLng& latLng, double zoom, const EdgeInsets& pad
 
 CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeInsets& padding) {
     AnnotationSegment segment = {
-        {bounds.ne.latitude, bounds.sw.longitude},
-        bounds.sw,
-        {bounds.sw.latitude, bounds.ne.longitude},
-        bounds.ne,
+        bounds.northwest(),
+        bounds.southwest(),
+        bounds.southeast(),
+        bounds.northeast(),
     };
     return cameraForLatLngs(segment, padding);
 }
@@ -398,14 +398,6 @@ NorthOrientation Map::getNorthOrientation() const {
 
 #pragma mark - Projection
 
-MetersBounds Map::getWorldBoundsMeters() const {
-    return Projection::getWorldBoundsMeters();
-}
-
-LatLngBounds Map::getWorldBoundsLatLng() const {
-    return Projection::getWorldBoundsLatLng();
-}
-
 double Map::getMetersPerPixelAtLatitude(double lat, double zoom) const {
     return Projection::getMetersPerPixelAtLatitude(lat, zoom);
 }
@@ -482,10 +474,6 @@ AnnotationIDs Map::getPointAnnotationsInBounds(const LatLngBounds& bounds) {
     return data->getAnnotationManager()->getPointAnnotationsInBounds(bounds);
 }
 
-LatLngBounds Map::getBoundsForAnnotations(const AnnotationIDs& annotations) {
-    return data->getAnnotationManager()->getBoundsForAnnotations(annotations);
-}
-    
 #pragma mark - Style API
 
 void Map::addCustomLayer(const std::string& id,

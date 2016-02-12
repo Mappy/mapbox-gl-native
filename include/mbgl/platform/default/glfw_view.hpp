@@ -6,6 +6,7 @@
 #ifdef MBGL_USE_GLES2
 #define GLFW_INCLUDE_ES2
 #endif
+#define GL_GLEXT_PROTOTYPES
 #include <GLFW/glfw3.h>
 
 #include <atomic>
@@ -51,6 +52,9 @@ private:
     makeSpriteImage(int width, int height, float pixelRatio);
 
     void nextOrientation();
+    void toggleClipMasks();
+
+    void renderClipMasks();
 
     void addRandomPointAnnotations(int count);
     void addRandomShapeAnnotations(int count);
@@ -79,6 +83,8 @@ private:
     int fbWidth;
     int fbHeight;
     float pixelRatio;
+
+    bool showClipMasks = false;
 
     double lastX = 0, lastY = 0;
 

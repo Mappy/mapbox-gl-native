@@ -5,15 +5,13 @@
 
 namespace mbgl {
 
-class SQLiteCache;
-
 namespace util {
 template <typename T> class Thread;
 } // namespace util
 
 class OnlineFileSource : public FileSource {
 public:
-    OnlineFileSource(SQLiteCache*);
+    OnlineFileSource();
     ~OnlineFileSource() override;
 
     void setAccessToken(const std::string& t) { accessToken = t; }
@@ -22,10 +20,7 @@ public:
     std::unique_ptr<FileRequest> request(const Resource&, Callback) override;
 
 private:
-    friend class OnlineFileRequest;
     friend class OnlineFileRequestImpl;
-
-    void cancel(FileRequest*);
 
     class Impl;
     const std::unique_ptr<util::Thread<Impl>> thread;

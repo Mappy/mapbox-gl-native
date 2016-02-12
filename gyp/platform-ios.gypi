@@ -16,7 +16,12 @@
         '../platform/default/timer.cpp',
         '../platform/default/default_file_source.cpp',
         '../platform/default/online_file_source.cpp',
-        '../platform/default/sqlite_cache.cpp',
+        '../platform/default/mbgl/storage/offline.hpp',
+        '../platform/default/mbgl/storage/offline.cpp',
+        '../platform/default/mbgl/storage/offline_database.hpp',
+        '../platform/default/mbgl/storage/offline_database.cpp',
+        '../platform/default/mbgl/storage/offline_download.hpp',
+        '../platform/default/mbgl/storage/offline_download.cpp',
         '../platform/default/sqlite3.hpp',
         '../platform/default/sqlite3.cpp',
         '../platform/darwin/log_nslog.mm',
@@ -69,9 +74,9 @@
         'cflags_cc': [
           '<@(libuv_cflags)',
           '<@(boost_cflags)',
-          '<@(variant_cflags)',
           '<@(sqlite_cflags)',
           '<@(zlib_cflags)',
+          '<@(rapidjson_cflags)',
         ],
         'ldflags': [
           '<@(sqlite_ldflags)',
@@ -99,6 +104,7 @@
         '../include/mbgl/darwin',
         '../include',
         '../src',
+        '../platform/default',
       ],
 
       'xcode_settings': {
@@ -122,6 +128,7 @@
         ],
         'mac_bundle_resources': [
           '<!@(find ../platform/ios/resources -type f \! -name "README" \! -name \'.*\')',
+          '<!@(find ../platform/default/resources -type f \! -name "README" \! -name \'.der\')',
         ],
       },
     },

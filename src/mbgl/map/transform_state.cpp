@@ -1,7 +1,6 @@
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/map/tile_id.hpp>
 #include <mbgl/util/constants.hpp>
-#include <mbgl/util/box.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
 #include <mbgl/util/interpolate.hpp>
 #include <mbgl/util/math.hpp>
@@ -21,7 +20,7 @@ void TransformState::matrixFor(mat4& matrix, const TileID& id, const int8_t z) c
 
     matrix::identity(matrix);
     matrix::translate(matrix, matrix, id.x * s, id.y * s, 0);
-    matrix::scale(matrix, matrix, s / 4096.0f, s / 4096.0f, 1);
+    matrix::scale(matrix, matrix, s / util::EXTENT, s / util::EXTENT, 1);
 }
 
 void TransformState::getProjMatrix(mat4& projMatrix) const {
@@ -54,23 +53,7 @@ void TransformState::getProjMatrix(mat4& projMatrix) const {
             pixel_y() - getHeight() / 2.0f, 0);
 }
 
-box TransformState::cornersToBox(uint32_t z) const {
-    double w = width;
-    double h = height;
-    box b(
-    pointToCoordinate({ 0, 0 }).zoomTo(z),
-    pointToCoordinate({ w, 0 }).zoomTo(z),
-    pointToCoordinate({ w, h }).zoomTo(z),
-    pointToCoordinate({ 0, h }).zoomTo(z));
-    return b;
-}
-
-
 #pragma mark - Dimensions
-
-bool TransformState::hasSize() const {
-    return width && height;
-}
 
 uint16_t TransformState::getWidth() const {
     return width;
@@ -148,10 +131,6 @@ double TransformState::pixel_y() const {
 
 #pragma mark - Zoom
 
-float TransformState::getNormalizedZoom() const {
-    return std::log(scale * util::tileSize / 512.0f) / M_LN2;
-}
-
 double TransformState::getZoom() const {
     return std::log(scale) / M_LN2;
 }
@@ -169,7 +148,9 @@ double TransformState::getScale() const {
 }
 
 void TransformState::setMinZoom(const double minZoom) {
-    min_scale = zoomScale(minZoom);
+    if (minZoom <= getMaxZoom()) {
+        min_scale = zoomScale(util::clamp(minZoom, util::MIN_ZOOM, util::MAX_ZOOM));
+    }
 }
 
 double TransformState::getMinZoom() const {
@@ -182,7 +163,9 @@ double TransformState::getMinZoom() const {
 }
 
 void TransformState::setMaxZoom(const double maxZoom) {
-    max_scale = zoomScale(maxZoom);
+    if (maxZoom >= getMinZoom()) {
+        max_scale = zoomScale(util::clamp(maxZoom, util::MIN_ZOOM, util::MAX_ZOOM));
+    }
 }
 
 double TransformState::getMaxZoom() const {
@@ -269,12 +252,10 @@ LatLng TransformState::pointToLatLng(const PrecisionPoint& point) const {
 }
 
 TileCoordinate TransformState::latLngToCoordinate(const LatLng& latLng) const {
-    const double tileZoom = getZoom();
-    const double k = zoomScale(tileZoom) / worldSize();
     return {
-        lngX(latLng.longitude) * k,
-        latY(latLng.latitude) * k,
-        tileZoom
+        lngX(latLng.longitude) / util::tileSize,
+        latY(latLng.latitude) / util::tileSize,
+        getZoom()
     };
 }
 

@@ -1,7 +1,7 @@
 #ifndef MBGL_ANNOTATION_TILE
 #define MBGL_ANNOTATION_TILE
 
-#include <mbgl/map/geometry_tile.hpp>
+#include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/map/tile_id.hpp>
 
 #include <map>
@@ -17,6 +17,7 @@ public:
     FeatureType getType() const override { return type; }
     optional<Value> getValue(const std::string&) const override;
     GeometryCollection getGeometries() const override { return geometries; }
+    uint32_t getExtent() const override { return 4096; }
 
     const FeatureType type;
     const std::unordered_map<std::string, std::string> properties;

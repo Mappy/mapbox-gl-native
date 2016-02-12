@@ -1,15 +1,15 @@
 package com.mapbox.mapboxsdk.testapp;
 
+import android.app.FragmentTransaction;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.MenuItem;
 
 import com.mapbox.mapboxsdk.camera.CameraPosition;
-import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.maps.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.maps.MapFragment;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -34,11 +34,11 @@ public class MapFragmentActivity extends AppCompatActivity {
 
         MapFragment mapFragment;
         if (savedInstanceState == null) {
-            FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-            transaction.add(R.id.fragment_container, mapFragment = new MapFragment(), "com.mapbox.map");
+            FragmentTransaction transaction = getFragmentManager().beginTransaction();
+            transaction.add(R.id.fragment_container, mapFragment =  MapFragment.newInstance(), "com.mapbox.map");
             transaction.commit();
         } else {
-            mapFragment = (MapFragment) getSupportFragmentManager().findFragmentByTag("com.mapbox.map");
+            mapFragment = (MapFragment) getFragmentManager().findFragmentByTag("com.mapbox.map");
         }
 
         mapFragment.getMapAsync(new OnMapReadyCallback() {

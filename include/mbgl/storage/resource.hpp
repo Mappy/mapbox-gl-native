@@ -31,7 +31,7 @@ public:
     Resource(Kind kind_, const std::string& url_, optional<TileData> tileData_ = {})
         : kind(kind_),
           url(url_),
-          tileData(tileData_) {
+          tileData(std::move(tileData_)) {
     }
 
     static Resource style(const std::string& url);
@@ -47,8 +47,8 @@ public:
     static Resource spriteImage(const std::string& base, float pixelRatio);
     static Resource spriteJSON(const std::string& base, float pixelRatio);
 
-    const Kind kind;
-    const std::string url;
+    Kind kind;
+    std::string url;
 
     // Includes auxiliary data if this is a tile request.
     optional<TileData> tileData;

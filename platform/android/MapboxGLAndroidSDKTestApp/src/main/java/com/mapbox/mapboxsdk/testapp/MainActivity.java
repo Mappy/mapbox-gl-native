@@ -38,6 +38,7 @@ import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.layers.CustomLayer;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.maps.UiSettings;
 import com.mapbox.mapboxsdk.testapp.layers.ExampleCustomLayer;
 import com.mapbox.mapboxsdk.testapp.utils.GeoParseUtil;
 import com.mapbox.mapboxsdk.utils.ApiAccess;
@@ -164,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
                 });
 
                 // Set default UI state
-                mNavigationView.getMenu().findItem(R.id.action_compass).setChecked(mapboxMap.isCompassEnabled());
+                mNavigationView.getMenu().findItem(R.id.action_compass).setChecked(mapboxMap.getUiSettings().isCompassEnabled());
                 mNavigationView.getMenu().findItem(R.id.action_debug).setChecked(mapboxMap.isDebugActive());
                 mNavigationView.getMenu().findItem(R.id.action_markers).setChecked(mIsAnnotationsOn);
                 toggleGps(mapboxMap.isMyLocationEnabled());
@@ -212,10 +213,18 @@ public class MainActivity extends AppCompatActivity {
 
                 mMapboxMap.setOnInfoWindowClickListener(new MapboxMap.OnInfoWindowClickListener() {
                     @Override
-                    public boolean onMarkerClick(@NonNull Marker marker) {
+                    public boolean onInfoWindowClick(@NonNull Marker marker) {
                         Snackbar.make(mCoordinatorLayout, "InfoWindow Click Listener for " + marker.getTitle(), Snackbar.LENGTH_SHORT).show();
                         marker.hideInfoWindow();
                         return true;
+                    }
+                });
+
+
+                mMapboxMap.setOnCameraChangeListener(new MapboxMap.OnCameraChangeListener() {
+                    @Override
+                    public void onCameraChange(CameraPosition position) {
+                        Log.v(TAG, "OnCameraChange : " + position);
                     }
                 });
 
@@ -224,10 +233,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Dispatch onStart() to all fragments.  Ensure any created loaders are
-     * now started.
-     */
     @Override
     protected void onStart() {
         super.onStart();
@@ -348,7 +353,8 @@ public class MainActivity extends AppCompatActivity {
 
                             case R.id.action_compass:
                                 // Toggle compass
-                                mMapboxMap.setCompassEnabled(!mMapboxMap.isCompassEnabled());
+                                UiSettings uiSettings = mMapboxMap.getUiSettings();
+                                uiSettings.setCompassEnabled(!uiSettings.isCompassEnabled());
                                 return true;
 
                             case R.id.action_mapboxmap:
@@ -369,6 +375,10 @@ public class MainActivity extends AppCompatActivity {
 
                             case R.id.action_map_fragment:
                                 startActivity(new Intent(getApplicationContext(), MapFragmentActivity.class));
+                                return true;
+
+                            case R.id.action_support_map_fragment:
+                                startActivity(new Intent(getApplicationContext(), SupportMapFragmentActivity.class));
                                 return true;
 
                             case R.id.action_press_for_marker:
@@ -400,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
                                 return true;
 
                             case R.id.action_visible_bounds:
-                                startActivity(new Intent(getApplicationContext(), VisibleCoordinateBoundsActivity.class));
+                                startActivity(new Intent(getApplicationContext(), LatLngBoundsActivity.class));
                                 return true;
 
                             case R.id.action_user_tracking_mode:
@@ -447,6 +457,10 @@ public class MainActivity extends AppCompatActivity {
 
                             case R.id.action_geocoder:
                                 startActivity(new Intent(getApplicationContext(), GeocoderActivity.class));
+                                return true;
+
+                            case R.id.action_scroll_by:
+                                startActivity(new Intent(getApplicationContext(), ScrollByActivity.class));
                                 return true;
 
                             default:
@@ -538,7 +552,12 @@ public class MainActivity extends AppCompatActivity {
                 mLocationFAB.setColorFilter(ContextCompat.getColor(this, R.color.primary));
             }
         } else {
-            mMapboxMap.setMyLocationEnabled(false);
+            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) ||
+                    (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                            == PackageManager.PERMISSION_GRANTED)){
+                mMapboxMap.setMyLocationEnabled(false);
+            }
             mLocationFAB.setColorFilter(Color.TRANSPARENT);
         }
     }
