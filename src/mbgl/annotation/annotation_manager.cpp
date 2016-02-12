@@ -5,8 +5,6 @@
 
 #include <boost/function_output_iterator.hpp>
 
-#include <iostream>
-
 namespace mbgl {
 
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
@@ -16,6 +14,7 @@ const std::string AnnotationManager::AnimationLayerID = "com.mapbox.annotations.
 AnnotationManager::AnnotationManager(float pixelRatio)
     : spriteStore(pixelRatio),
       spriteAtlas(1024, 1024, pixelRatio, spriteStore) {
+          animationOngoing = false;
 }
 
 AnnotationManager::~AnnotationManager() = default;
@@ -64,7 +63,17 @@ void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
 }
     
 void AnnotationManager::animateAnnotation(const AnnotationID& id) {
-    animationOngoing = true;
+    if (animationOngoing == true) {
+        if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
+            auto annotation = pointAnnotations.at(animatedID);
+            animationPointTree.remove(annotation);
+            pointTree.insert(annotation);
+        }
+    }
+    else {
+        animationOngoing = true;
+    }
+    
     if (pointAnnotations.find(id) != pointAnnotations.end()) {
         animatedID = id;
         auto annotation = pointAnnotations.at(id);
@@ -180,8 +189,8 @@ void AnnotationManager::updateAnimatedLayer(Style& style) {
     // update animation layer
     SymbolLayer* animatedLayer = (SymbolLayer*)style.getLayer(AnimationLayerID);
     if (animationStopAsked == false) {
-        if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(10)) ) {
-            if (animatedLayer->upDirection && animatedLayer->animationOffset < -20.0f) {
+        if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(14)) ) {
+            if (animatedLayer->upDirection && animatedLayer->animationOffset < -15.0f) {
                 animatedLayer->upDirection = false;
             }
             else if (!animatedLayer->upDirection && animatedLayer->animationOffset > -0.5f) {
