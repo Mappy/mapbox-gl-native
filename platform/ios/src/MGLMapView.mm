@@ -3153,7 +3153,13 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             self.userTrackingState = animated ? MGLUserTrackingStatePossible : MGLUserTrackingStateChanged;
             self.showsUserLocation = YES;
 
-            [self.locationManager stopUpdatingHeading];
+            if (_userTrackingMode == MGLUserTrackingModeFollow) {
+                [self updateHeadingForDeviceOrientation];
+                [self.locationManager startUpdatingHeading];
+            }
+            else {
+                [self.locationManager stopUpdatingHeading];
+            }
 
             if (self.userLocationAnnotationView)
             {
