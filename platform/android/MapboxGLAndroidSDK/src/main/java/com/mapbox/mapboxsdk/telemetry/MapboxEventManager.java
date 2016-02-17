@@ -158,7 +158,7 @@ public class MapboxEventManager {
      */
     public static MapboxEventManager getMapboxEventManager(@NonNull Context context) {
         if (mapboxEventManager == null) {
-            mapboxEventManager = new MapboxEventManager(context);
+            mapboxEventManager = new MapboxEventManager(context.getApplicationContext());
         }
         return mapboxEventManager;
     }
@@ -243,7 +243,16 @@ public class MapboxEventManager {
                 messageDigest.reset();
                 messageDigest.update(string.getBytes("UTF-8"));
                 byte[] bytes = messageDigest.digest();
-                return new String(bytes);
+
+                // Get the Hex version of the digest
+                StringBuilder sb = new StringBuilder();
+                for (byte b : bytes) {
+                    sb.append( String.format("%02X", b) );
+                }
+                String hex = sb.toString();
+                Log.d(TAG, "original = " + string + "; hex = " + hex);
+
+                return hex;
             }
         } catch (Exception e) {
             Log.w(TAG, "Error encoding string, will return in original form." + e);

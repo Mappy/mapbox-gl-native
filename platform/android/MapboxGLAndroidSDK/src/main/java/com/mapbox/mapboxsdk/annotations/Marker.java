@@ -15,7 +15,7 @@ import com.mapbox.mapboxsdk.maps.MapView;
  * An {@link InfoWindow} can be shown when a Marker is pressed
  * <p/>
  */
-public final class Marker extends Annotation {
+public class Marker extends Annotation {
 
     private LatLng position;
     private String snippet;
@@ -30,6 +30,13 @@ public final class Marker extends Annotation {
      */
     Marker() {
         super();
+    }
+
+    public Marker(BaseMarkerOptions baseMarkerOptions) {
+        position = baseMarkerOptions.position;
+        snippet = baseMarkerOptions.snippet;
+        icon = baseMarkerOptions.icon;
+        title = baseMarkerOptions.title;
     }
 
     public LatLng getPosition() {
@@ -61,8 +68,17 @@ public final class Marker extends Annotation {
         return infoWindowShown;
     }
 
-    void setPosition(LatLng position) {
+    /**
+     * Sets the position.
+     *
+     * @param position new position
+     */
+    public void setPosition(LatLng position) {
         this.position = position;
+        MapboxMap map = getMapboxMap();
+        if (map != null) {
+            map.updateMarker(this);
+        }
     }
 
     void setSnippet(String snippet) {
@@ -70,10 +86,16 @@ public final class Marker extends Annotation {
     }
 
     /**
-     * Do not use this method. Used internally by the SDK.
+     * Sets the icon.
+     *
+     * @param icon The icon to be used as Marker image
      */
     public void setIcon(@Nullable Icon icon) {
         this.icon = icon;
+        MapboxMap map = getMapboxMap();
+        if (map != null) {
+            map.updateMarker(this);
+        }
     }
 
     public Icon getIcon() {
