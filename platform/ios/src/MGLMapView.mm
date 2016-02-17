@@ -147,6 +147,7 @@ public:
                           GLKViewDelegate,
                           CLLocationManagerDelegate,
                           UIActionSheetDelegate,
+                          SMCalloutViewDelegate,
                           MGLCalloutViewDelegate,
                           UIAlertViewDelegate,
                           MGLMultiPointDelegate,
@@ -313,7 +314,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     _mbglFileSource = new mbgl::DefaultFileSource([fileCachePath UTF8String], [[[[NSBundle mainBundle] resourceURL] path] UTF8String]);
 
     // setup mbgl map
-    _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous);
+    _mbglMap = new mbgl::Map(*_mbglView, *_mbglFileSource, mbgl::MapMode::Continuous, mbgl::GLContextMode::Unique, mbgl::ConstrainMode::None);
 
     // start paused if in IB
     if (_isTargetingInterfaceBuilder || background) {
@@ -919,6 +920,11 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     BOOL isVisible = self.superview && self.window;
     if (isVisible && ! _displayLink)
     {
+        if (_mbglMap->getConstrainMode() == mbgl::ConstrainMode::None)
+        {
+            _mbglMap->setConstrainMode(mbgl::ConstrainMode::HeightOnly);
+        }
+        
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
         _displayLink.frameInterval = MGLTargetFrameInterval;
         [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
@@ -1480,6 +1486,14 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 - (BOOL)calloutViewShouldHighlight:(__unused MGLCompactCalloutView *)calloutView
 {
     return [self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)];
+}
+
+- (void)calloutViewClicked:(__unused SMCalloutView *)calloutView
+{
+    if ([self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)])
+    {
+        [self.delegate mapView:self tapOnCalloutForAnnotation:self.selectedAnnotation];
+    }
 }
 
 - (void)calloutViewTapped:(__unused MGLCompactCalloutView *)calloutView
@@ -2657,7 +2671,8 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         
         // Filter out any annotation whose image is unselectable or for which
         // hit testing fails.
-        std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(), [&](const MGLAnnotationTag annotationTag)
+        auto end = std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(),
+                                  [&](const MGLAnnotationTag annotationTag)
         {
             id <MGLAnnotation> annotation = [self annotationWithTag:annotationTag];
             NSAssert(annotation, @"Unknown annotation found nearby tap");
@@ -2674,6 +2689,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                                   centeredAtCoordinate:annotation.coordinate];
             return !!!CGRectIntersectsRect(annotationRect, hitRect);
         });
+        nearbyAnnotations.resize(std::distance(nearbyAnnotations.begin(), end));
     }
     
     MGLAnnotationTag hitAnnotationTag = MGLAnnotationTagNotFound;
@@ -2703,19 +2719,28 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             if (_selectedAnnotationTag == MGLAnnotationTagNotFound
                 || _selectedAnnotationTag == _annotationsNearbyLastTap.back())
             {
-                // Either an annotation from this set hasn’t been selected
-                // before or the last annotation in the set was selected. Wrap
-                // around to the first annotation in the set.
+                // Either no annotation is selected or the last annotation in
+                // the set was selected. Wrap around to the first annotation in
+                // the set.
                 hitAnnotationTag = _annotationsNearbyLastTap.front();
             }
             else
             {
-                // Step to the next annotation in the set.
                 auto result = std::find(_annotationsNearbyLastTap.begin(),
                                         _annotationsNearbyLastTap.end(),
                                         _selectedAnnotationTag);
-                auto distance = std::distance(_annotationsNearbyLastTap.begin(), result);
-                hitAnnotationTag = _annotationsNearbyLastTap[distance + 1];
+                if (result == _annotationsNearbyLastTap.end())
+                {
+                    // An annotation from this set hasn’t been selected before.
+                    // Select the first (nearest) one.
+                    hitAnnotationTag = _annotationsNearbyLastTap.front();
+                }
+                else
+                {
+                    // Step to the next annotation in the set.
+                    auto distance = std::distance(_annotationsNearbyLastTap.begin(), result);
+                    hitAnnotationTag = _annotationsNearbyLastTap[distance + 1];
+                }
             }
         }
         else
