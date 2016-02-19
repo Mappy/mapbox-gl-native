@@ -5,8 +5,6 @@
 
 #include <boost/function_output_iterator.hpp>
 
-#include <iostream>
-
 namespace mbgl {
 
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
@@ -117,6 +115,13 @@ AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds&
         boost::make_function_output_iterator([&](const auto& val){
             result.push_back(val->id);
         }));
+    
+    if (animationPointTree.empty() == false) {
+        animationPointTree.query(boost::geometry::index::intersects(bounds),
+                        boost::make_function_output_iterator([&](const auto& val){
+            result.push_back(val->id);
+        }));
+    }
 
     return result;
 }
