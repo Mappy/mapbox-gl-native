@@ -5,6 +5,8 @@
 
 #include <boost/function_output_iterator.hpp>
 
+#include <iostream>
+
 namespace mbgl {
 
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
@@ -61,8 +63,12 @@ void AnnotationManager::updatePointAnnotation(const AnnotationID& id, const Poin
 }
 
 void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
+    bool animatedAnnotation = (animationPointTree.empty() == false);
     for (const auto& id : ids) {
         if (pointAnnotations.find(id) != pointAnnotations.end()) {
+            if (animatedAnnotation == true && id == animatedID) {
+                stopAnimatedAnnotation();
+            }
             pointTree.remove(pointAnnotations.at(id));
             pointAnnotations.erase(id);
         } else if (shapeAnnotations.find(id) != shapeAnnotations.end()) {
@@ -73,15 +79,13 @@ void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
 }
     
 void AnnotationManager::animateAnnotation(const AnnotationID& id) {
-    if (animationOngoing == true) {
+    if (animationPointTree.empty() == false) {
         if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
             auto annotation = pointAnnotations.at(animatedID);
             animationPointTree.remove(annotation);
             pointTree.insert(annotation);
+            animatedID = 0;
         }
-    }
-    else {
-        animationOngoing = true;
     }
     
     if (pointAnnotations.find(id) != pointAnnotations.end()) {
@@ -89,19 +93,23 @@ void AnnotationManager::animateAnnotation(const AnnotationID& id) {
         auto annotation = pointAnnotations.at(id);
         pointTree.remove(annotation);
         animationPointTree.insert(annotation);
+        animationOngoing = true;
+        animationStopAsked = false;
     }
 }
     
 void AnnotationManager::stopAnimatedAnnotation() {
-    animationStopAsked = true;
-    if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
-        auto annotation = pointAnnotations.at(animatedID);
-        animationPointTree.remove(annotation);
-        pointTree.insert(annotation);
-        animatedID = 0;
+    if (animationPointTree.empty() == false) {
+        animationStopAsked = true;
+        if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
+            auto annotation = pointAnnotations.at(animatedID);
+            animationPointTree.remove(annotation);
+            pointTree.insert(annotation);
+            animatedID = 0;
+        }
     }
 }
-
+    
 AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds& bounds) const {
     AnnotationIDs result;
 
@@ -116,7 +124,6 @@ AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds&
 std::unique_ptr<AnnotationTile> AnnotationManager::getTile(const TileID& tileID) {
     if (pointAnnotations.empty() && shapeAnnotations.empty())
         return nullptr;
-
     auto tile = std::make_unique<AnnotationTile>();
 
     AnnotationTileLayer& pointLayer = *tile->layers.emplace(
@@ -130,7 +137,7 @@ std::unique_ptr<AnnotationTile> AnnotationManager::getTile(const TileID& tileID)
             val->updateLayer(tileID, pointLayer);
         }));
     
-    if (animationOngoing) {
+    if (animationPointTree.empty() == false) {
         AnnotationTileLayer& animationPointLayer = *tile->layers.emplace(
             AnimationLayerID,
             std::make_unique<AnnotationTileLayer>()).first->second;
