@@ -2589,6 +2589,10 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             [self deselectAnnotation:annotation animated:NO];
         }
         
+        MGLAnnotationContext annotationContext = _annotationContextsByAnnotationTag[annotationTag];
+        NSString *reuseIdentifier = [self identifierByRemovingSpritePrefixIfNeeded: annotationContext.symbolIdentifier];
+        [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+
         _annotationContextsByAnnotationTag.erase(annotationTag);
     }
 
@@ -2632,12 +2636,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier
 {
-    // This prefix is used to avoid collisions with style-defined sprites in
-    // mbgl, but reusable identifiers are never prefixed.
-    if ([identifier hasPrefix:MGLAnnotationSpritePrefix])
-    {
-        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
-    }
+    identifier = [self identifierByRemovingSpritePrefixIfNeeded: identifier];
     return self.annotationImagesByIdentifier[identifier];
 }
 
@@ -3974,6 +3973,17 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                                              options:0
                                              metrics:nil
                                                views:views]];
+}
+
+- (NSString *)identifierByRemovingSpritePrefixIfNeeded:(NSString *)identifier
+{
+    // This prefix is used to avoid collisions with style-defined sprites in
+    // mbgl, but reusable identifiers are never prefixed.
+    if ([identifier hasPrefix:MGLAnnotationSpritePrefix])
+    {
+        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
+    }
+    return identifier;
 }
 
 class MBGLView : public mbgl::View
