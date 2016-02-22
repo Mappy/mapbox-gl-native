@@ -387,7 +387,7 @@ void SymbolBucket::placeFeatures(CollisionTile& collisionTile) {
         const float cos = std::cos(collisionTile.config.angle);
 
         std::sort(symbolInstances.begin(), symbolInstances.end(), [sin, cos](SymbolInstance &a, SymbolInstance &b) {
-            if (a.zOrder && b.zOrder)
+            if (a.zOrder || b.zOrder)
             {
                 return a.zOrder < b.zOrder;
             }
