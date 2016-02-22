@@ -13,6 +13,9 @@ NS_ASSUME_NONNULL_BEGIN
 /** The coordinate point of the annotation, specified as a latitude and longitude. */
 @property (nonatomic, assign) CLLocationCoordinate2D coordinate;
 
+/** The value indicating the z-order of the annotation conforming to the MGLAnnotation protocol. */
+@property (nonatomic, assign) NSUInteger zOrder;
+
 @end
 
 NS_ASSUME_NONNULL_END

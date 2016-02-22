@@ -34,9 +34,10 @@ SymbolInstance::SymbolInstance(Anchor& anchor, const std::vector<Coordinate>& li
         const SymbolLayoutProperties& layout, const bool addToBuffers, const uint32_t index_,
         const float textBoxScale, const float textPadding, const float textAlongLine,
         const float iconBoxScale, const float iconPadding, const float iconAlongLine,
-        const GlyphPositions& face) :
+        const GlyphPositions& face, const uint32_t zOrder_ = 0) :
     x(anchor.x),
     y(anchor.y),
+    zOrder(zOrder_),
     index(index_),
     hasText(shapedText),
     hasIcon(shapedIcon),
@@ -246,11 +247,14 @@ void SymbolBucket::addFeatures(uintptr_t tileUID,
             }
         }
 
+        uint32_t zOrder = 0;
+
         // if feature has icon, get sprite atlas position
         if (feature.sprite.length()) {
             auto image = spriteAtlas.getImage(feature.sprite, false);
             if (image) {
                 shapedIcon = shapeIcon(*image, layout, image->spriteImage->offset);
+                zOrder = image->spriteImage->zOrder;
                 assert((*image).spriteImage);
                 if ((*image).spriteImage->sdf) {
                     sdfIcons = true;
@@ -263,7 +267,7 @@ void SymbolBucket::addFeatures(uintptr_t tileUID,
 
         // if either shapedText or icon position is present, add the feature
         if (shapedText || shapedIcon) {
-            addFeature(feature.geometry, shapedText, shapedIcon, face);
+            addFeature(feature.geometry, shapedText, shapedIcon, face, zOrder);
         }
     }
 
@@ -272,7 +276,7 @@ void SymbolBucket::addFeatures(uintptr_t tileUID,
 
 
 void SymbolBucket::addFeature(const std::vector<std::vector<Coordinate>> &lines,
-        const Shaping &shapedText, const PositionedIcon &shapedIcon, const GlyphPositions &face) {
+        const Shaping &shapedText, const PositionedIcon &shapedIcon, const GlyphPositions &face, const uint32_t zOrder) {
 
     const float minScale = 0.5f;
     const float glyphSize = 24.0f;
@@ -337,7 +341,7 @@ void SymbolBucket::addFeature(const std::vector<std::vector<Coordinate>> &lines,
             symbolInstances.emplace_back(anchor, line, shapedText, shapedIcon, layout, addToBuffers, symbolInstances.size(),
                     textBoxScale, textPadding, textAlongLine,
                     iconBoxScale, iconPadding, iconAlongLine,
-                    face);
+                    face, zOrder);
         }
     }
 }
@@ -383,6 +387,10 @@ void SymbolBucket::placeFeatures(CollisionTile& collisionTile) {
         const float cos = std::cos(collisionTile.config.angle);
 
         std::sort(symbolInstances.begin(), symbolInstances.end(), [sin, cos](SymbolInstance &a, SymbolInstance &b) {
+            if (a.zOrder && b.zOrder)
+            {
+                return a.zOrder < b.zOrder;
+            }
             const int32_t aRotated = sin * a.x + cos * a.y;
             const int32_t bRotated = sin * b.x + cos * b.y;
             return aRotated != bRotated ?

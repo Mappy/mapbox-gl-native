@@ -2432,13 +2432,14 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             if ( ! self.annotationImagesByIdentifier[annotationImage.reuseIdentifier])
             {
                 self.annotationImagesByIdentifier[annotationImage.reuseIdentifier] = annotationImage;
+                annotationImage.zOrder = annotation.zOrder;
                 [self installAnnotationImage:annotationImage];
                 annotationImage.delegate = self;
             }
 
             NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
 
-            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "");
+            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "", annotation.zOrder);
         }
     }
 
@@ -2538,6 +2539,8 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         float(annotationImage.image.scale),
         Boolean(false),
         mbgl::vec2<float>{static_cast<float>(annotationImage.centerOffset.x), static_cast<float>(annotationImage.centerOffset.y)});
+
+    cSpriteImage->zOrder = (uint32_t)annotationImage.zOrder;
 
     // sprite upload
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];

@@ -28,6 +28,8 @@ public:
 
     float getWidth() const { return image.width / pixelRatio; }
     float getHeight() const { return image.height / pixelRatio; }
+
+    uint32_t zOrder;
 };
 
 } // namespace mbgl

@@ -20,6 +20,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 @optional
 
+/** The value indicating the z-order of the annotation. (optional) (read-only)
+ Must be contained between 1 and UINT32_MAX.
+ A value of 0 is considered as not set ; it is the default value.
+ A value superior to UINT32_MAX will lead to an undefined behaviour.
+ The greater the value, the most forefront the annotation will stand ; i.e. an annitation with a zOrder of UINT32_MAX will be displayed above any other annotation.
+ If 2 annotations have the same zOrder, the default rule will apply (i.e. lower latitude above greater latitude).
+ */
+@property (nonatomic, readonly) NSUInteger zOrder;
+
 #pragma mark Title Attributes
 
 /**

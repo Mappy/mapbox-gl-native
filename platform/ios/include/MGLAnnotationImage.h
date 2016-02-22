@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
  * This property determines the additional distance by which to move the callout bubble. */
 @property(nonatomic) CGPoint calloutOffset;
 
+@property (nonatomic, assign) NSUInteger zOrder;
+
 @end
 
 NS_ASSUME_NONNULL_END
