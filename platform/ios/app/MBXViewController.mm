@@ -602,8 +602,8 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     } else {
         color = [UIColor redColor];
     }
-    
-    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:lastTwoCharacters];
+
+    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:title];
 
     if ( ! image)
     {
@@ -628,9 +628,9 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                                        stringSize.width,
                                        stringSize.height);
         [drawString drawInRect:stringRect];
-        
-        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:lastTwoCharacters];
-        
+
+        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:title];
+
         // don't allow touches on blue annotations
         if ([color isEqual:[UIColor blueColor]]) image.enabled = NO;
         
