@@ -904,6 +904,8 @@ IB_DESIGNABLE
  */
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
 
+- (void)updatePointAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier;
+
 #pragma mark Managing Annotation Selections
 
 /**

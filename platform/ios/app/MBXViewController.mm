@@ -346,9 +346,6 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
         {
             NSMutableArray *annotations = [NSMutableArray array];
 
-            NSUInteger maxZOrderIndex = arc4random() % featuresCount;
-            NSUInteger index = 0;
-
             for (NSDictionary *feature in features[@"features"])
             {
                 CLLocationCoordinate2D coordinate = CLLocationCoordinate2DMake([feature[@"geometry"][@"coordinates"][1] doubleValue],
@@ -358,7 +355,6 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                 MGLPointAnnotation *annotation = [MGLPointAnnotation new];
                 annotation.coordinate = coordinate;
                 annotation.title = title;
-                if (index++ == maxZOrderIndex) annotation.zOrder = 2;
 
                 [annotations addObject:annotation];
 
@@ -705,4 +701,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     return nil;
 }
 
+static NSUInteger z = 1;
+
+- (void)mapView:(__unused MGLMapView *)mapView didSelectAnnotation:(id<MGLAnnotation>)annotation
+{
+    annotation.zOrder = z++;
+    [self.mapView updatePointAnnotation:annotation forReuseIdentifier:[annotation title]];
+}
 @end

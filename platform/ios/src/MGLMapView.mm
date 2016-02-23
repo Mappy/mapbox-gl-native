@@ -2483,6 +2483,13 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     _mbglMap->stopAnnotationAnimation();
 }
 
+- (void)updatePointAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier
+{
+    [self removeAnnotation: annotation];
+    [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+    [self addAnnotation: annotation];
+}
+
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation
 {
     if (_delegateHasAlphasForShapeAnnotations)
