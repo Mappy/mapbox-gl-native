@@ -2485,9 +2485,25 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
 - (void)updatePointAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier
 {
+    MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+    UIView<MGLCalloutView> *calloutView = self.calloutViewForSelectedAnnotation;
+
     [self removeAnnotation: annotation];
     [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
     [self addAnnotation: annotation];
+
+    if (calloutView)
+    {
+        self.selectedAnnotation = annotation;
+        self.calloutViewForSelectedAnnotation = calloutView;
+        annotationTag = [self annotationTagForAnnotation:annotation];
+        CGRect positioningRect = [self positioningRectForCalloutForAnnotationWithTag:annotationTag];
+        [self.calloutViewForSelectedAnnotation presentCalloutFromRect:positioningRect
+                                                               inView:self.glView
+                                                    constrainedToView:self.glView
+                                                             animated:YES];
+    }
+    _mbglMap->update(mbgl::Update::Annotations);
 }
 
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation
