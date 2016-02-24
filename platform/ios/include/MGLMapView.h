@@ -904,7 +904,13 @@ IB_DESIGNABLE
  */
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
 
-- (void)updatePointAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier;
+/**
+ Allow the user to update any annotation property (coordinate, image, zOrder, etc.).
+ 
+ @param annotation The annotation to update.
+ @param reuseIdentifier The identifier used to identify the reusable image displayed by the annotaion.
+ */
+- (void)updateAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier;
 
 #pragma mark Managing Annotation Selections
 

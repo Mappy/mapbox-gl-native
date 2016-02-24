@@ -706,6 +706,6 @@ static NSUInteger z = 1;
 - (void)mapView:(__unused MGLMapView *)mapView didSelectAnnotation:(id<MGLAnnotation>)annotation
 {
     annotation.zOrder = z++;
-    [self.mapView updatePointAnnotation:annotation forReuseIdentifier:[annotation title]];
+    [self.mapView updateAnnotation:annotation forReuseIdentifier:[annotation title]];
 }
 @end

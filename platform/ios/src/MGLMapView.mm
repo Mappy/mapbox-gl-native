@@ -2483,20 +2483,20 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     _mbglMap->stopAnnotationAnimation();
 }
 
-- (void)updatePointAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier
+- (void)updateAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier
 {
-    MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+    id<MGLAnnotation>selectedAnnotation = self.selectedAnnotation;
     UIView<MGLCalloutView> *calloutView = self.calloutViewForSelectedAnnotation;
 
     [self removeAnnotation: annotation];
     [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
     [self addAnnotation: annotation];
 
-    if (calloutView)
+    if (selectedAnnotation == annotation)
     {
         self.selectedAnnotation = annotation;
         self.calloutViewForSelectedAnnotation = calloutView;
-        annotationTag = [self annotationTagForAnnotation:annotation];
+        MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
         CGRect positioningRect = [self positioningRectForCalloutForAnnotationWithTag:annotationTag];
         [self.calloutViewForSelectedAnnotation presentCalloutFromRect:positioningRect
                                                                inView:self.glView
