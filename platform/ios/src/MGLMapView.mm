@@ -2432,7 +2432,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             if ( ! self.annotationImagesByIdentifier[annotationImage.reuseIdentifier])
             {
                 self.annotationImagesByIdentifier[annotationImage.reuseIdentifier] = annotationImage;
-                annotationImage.zOrder = annotation.zOrder;
+                if ([annotation respondsToSelector: @selector(zOrder)]) annotationImage.zOrder = annotation.zOrder;
                 [self installAnnotationImage:annotationImage];
                 annotationImage.delegate = self;
             }
