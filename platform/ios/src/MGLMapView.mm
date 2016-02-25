@@ -2428,18 +2428,22 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                 annotationImage = [MGLAnnotationImage annotationImageWithImage:defaultAnnotationImage
                                                                reuseIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
-            
+
+            NSUInteger zOrder = 0;
+            if ([annotation respondsToSelector: @selector(zOrder)]) zOrder = annotation.zOrder;
+
             if ( ! self.annotationImagesByIdentifier[annotationImage.reuseIdentifier])
             {
                 self.annotationImagesByIdentifier[annotationImage.reuseIdentifier] = annotationImage;
-                if ([annotation respondsToSelector: @selector(zOrder)]) annotationImage.zOrder = annotation.zOrder;
+
+                annotationImage.zOrder = zOrder;
                 [self installAnnotationImage:annotationImage];
                 annotationImage.delegate = self;
             }
 
             NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
 
-            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "", annotation.zOrder);
+            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "", zOrder);
         }
     }
 
