@@ -117,6 +117,7 @@ public final class IconFactory {
     public Icon defaultMarker() {
         if (mDefaultMarker == null) {
             mDefaultMarker = fromResource(R.drawable.default_marker);
+            mDefaultMarker.setOffset(0, -12);
         }
         return mDefaultMarker;
     }

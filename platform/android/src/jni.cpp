@@ -857,6 +857,7 @@ jlong nativeAddPolyline(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, 
     lineProperties.opacity = alpha;
     lineProperties.color = {{ static_cast<float>(r) / 255.0f, static_cast<float>(g) / 255.0f, static_cast<float>(b) / 255.0f, static_cast<float>(a) / 255.0f }};
     lineProperties.width = width;
+    lineProperties.isMappyPath = true;
     shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
     jni::jobject* points = jni::GetField<jni::jobject*>(*env, polyline, *polylinePointsId);
@@ -904,6 +905,7 @@ jni::jarray<jlong>* nativeAddPolylines(JNIEnv *env, jni::jobject* obj, jlong nat
         lineProperties.opacity = alpha;
         lineProperties.color = {{ static_cast<float>(r) / 255.0f, static_cast<float>(g) / 255.0f, static_cast<float>(b) / 255.0f, static_cast<float>(a) / 255.0f }};
         lineProperties.width = width;
+        lineProperties.isMappyPath = true;
         shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
         jni::jobject* points = jni::GetField<jni::jobject*>(*env, polyline, *polylinePointsId);
@@ -1013,7 +1015,7 @@ jni::jarray<jlong>* nativeGetAnnotationsInBounds(JNIEnv *env, jni::jobject* obj,
 }
 
 void nativeAddAnnotationIcon(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
-        jni::jstring* symbol, jint width, jint height, jfloat scale, jni::jarray<jbyte>* jpixels) {
+        jni::jstring* symbol, jint width, jint height, jfloat scale, jfloat offsetX, jfloat offsetY, jni::jarray<jbyte>* jpixels) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddAnnotationIcon");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -1032,7 +1034,10 @@ void nativeAddAnnotationIcon(JNIEnv *env, jni::jobject* obj, jlong nativeMapView
 
     auto iconImage = std::make_shared<mbgl::SpriteImage>(
         std::move(premultipliedImage),
-        float(scale));
+        float(scale),
+        jboolean(false),
+        mbgl::vec2<float>{static_cast<float>(offsetX), static_cast<float>(offsetY)}
+    );
 
     nativeMapView->getMap().addAnnotationIcon(symbolName, iconImage);
 }
@@ -1876,7 +1881,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         MAKE_NATIVE_METHOD(nativeRemoveAnnotation, "(JJ)V"),
         MAKE_NATIVE_METHOD(nativeRemoveAnnotations, "(J[J)V"),
         MAKE_NATIVE_METHOD(nativeGetAnnotationsInBounds, "(JLcom/mapbox/mapboxsdk/geometry/LatLngBounds;)[J"),
-        MAKE_NATIVE_METHOD(nativeAddAnnotationIcon, "(JLjava/lang/String;IIF[B)V"),
+        MAKE_NATIVE_METHOD(nativeAddAnnotationIcon, "(JLjava/lang/String;IIFFF[B)V"),
         MAKE_NATIVE_METHOD(nativeSetVisibleCoordinateBounds, "(J[Lcom/mapbox/mapboxsdk/geometry/LatLng;Landroid/graphics/RectF;DJ)V"),
         MAKE_NATIVE_METHOD(nativeOnLowMemory, "(J)V"),
         MAKE_NATIVE_METHOD(nativeSetDebug, "(JZ)V"),

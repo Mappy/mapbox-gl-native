@@ -98,7 +98,7 @@
 
         <meta-data
             android:name="com.mapbox.AccessToken"
-            android:value="" />
+            android:value="sk.eyJ1IjoieGF2aWVyY291dGluIiwiYSI6IldfdlRPVlkifQ.Kdk-xoV7zPNAcD_FJtA-UQ" />
         <meta-data
             android:name="com.mapbox.TestEventsServer"
             android:value="https://cloudfront-staging.tilestream.net" />

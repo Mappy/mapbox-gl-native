@@ -44,7 +44,9 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
             // this means we have an icon
             String iconId = in.readString();
             Bitmap iconBitmap = in.readParcelable(Bitmap.class.getClassLoader());
-            Icon icon = new Icon(iconId, iconBitmap);
+            float offsetX = in.readFloat();
+            float offsetY = in.readParcelable(Bitmap.class.getClassLoader());
+            Icon icon = new Icon(iconId, iconBitmap, offsetX, offsetY);
             icon(icon);
         }
         title(in.readString());
@@ -67,8 +69,10 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
         Icon icon = getIcon();
         out.writeByte((byte) (icon != null ? 1 : 0));
         if (icon != null) {
-            out.writeString(getIcon().getId());
-            out.writeParcelable(getIcon().getBitmap(), flags);
+            out.writeString(icon.getId());
+            out.writeParcelable(icon.getBitmap(), flags);
+            out.writeFloat(icon.getOffsetX());
+            out.writeFloat(icon.getOffsetY());
         }
         out.writeString(getTitle());
     }

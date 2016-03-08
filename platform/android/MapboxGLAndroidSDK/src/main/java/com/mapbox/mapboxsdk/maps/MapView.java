@@ -999,7 +999,10 @@ public class MapView extends FrameLayout {
                 id,
                 bitmap.getWidth(),
                 bitmap.getHeight(),
-                scale, buffer.array());
+                scale,
+                icon.getOffsetX(),
+                icon.getOffsetY(),
+                buffer.array());
     }
 
     void reloadIcons() {
