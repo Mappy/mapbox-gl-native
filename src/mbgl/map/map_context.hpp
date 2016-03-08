@@ -54,7 +54,6 @@ public:
     void addAnnotationIcon(const std::string&, std::shared_ptr<const SpriteImage>);
     void removeAnnotationIcon(const std::string&);
     double getTopOffsetPixelsForAnnotationIcon(const std::string&);
-    void updateAnnotations();
     
     // Style API
     void addLayer(std::unique_ptr<StyleLayer>,

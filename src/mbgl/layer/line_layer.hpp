@@ -34,6 +34,8 @@ public:
     bool isVisible() const {
         return opacity > 0 && color.value[3] > 0 && width > 0;
     }
+    
+    bool isMappyPath = false;
 };
 
 class LineLayer : public StyleLayer {

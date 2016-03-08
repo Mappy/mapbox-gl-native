@@ -36,6 +36,7 @@ void ShapeAnnotationImpl::updateStyle(Style& style) {
         layer->paint.opacity = properties.opacity;
         layer->paint.width = properties.width;
         layer->paint.color = properties.color;
+        layer->paint.isMappyPath = properties.isMappyPath;
 
         layer->id = layerID;
         layer->source = AnnotationManager::SourceID;

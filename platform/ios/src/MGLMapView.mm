@@ -2419,17 +2419,22 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                 annotationImage = [MGLAnnotationImage annotationImageWithImage:defaultAnnotationImage
                                                                reuseIdentifier:MGLDefaultStyleMarkerSymbolName];
             }
-            
+
+            NSUInteger zOrder = 0;
+            if ([annotation respondsToSelector: @selector(zOrder)]) zOrder = annotation.zOrder;
+
             if ( ! self.annotationImagesByIdentifier[annotationImage.reuseIdentifier])
             {
                 self.annotationImagesByIdentifier[annotationImage.reuseIdentifier] = annotationImage;
+
+                annotationImage.zOrder = zOrder;
                 [self installAnnotationImage:annotationImage];
                 annotationImage.delegate = self;
             }
 
             NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
 
-            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "");
+            points.emplace_back(MGLLatLngFromLocationCoordinate2D(annotation.coordinate), symbolName ? [symbolName UTF8String] : "", zOrder);
         }
     }
 
@@ -2459,6 +2464,41 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     }
     
     [self didChangeValueForKey:@"annotations"];
+}
+
+- (void)animateAnnotation:(id <MGLAnnotation>)annotation {
+    MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+    if (annotationTag != MGLAnnotationTagNotFound)
+    {
+        _mbglMap->animateAnnotation(annotationTag);
+    }
+}
+
+- (void)stopAnnotationAnimation {
+    _mbglMap->stopAnnotationAnimation();
+}
+
+- (void)updateAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier
+{
+    id<MGLAnnotation>selectedAnnotation = self.selectedAnnotation;
+    UIView<MGLCalloutView> *calloutView = self.calloutViewForSelectedAnnotation;
+
+    [self removeAnnotation: annotation];
+    [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+    [self addAnnotation: annotation];
+
+    if (selectedAnnotation == annotation)
+    {
+        self.selectedAnnotation = annotation;
+        self.calloutViewForSelectedAnnotation = calloutView;
+        MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+        CGRect positioningRect = [self positioningRectForCalloutForAnnotationWithTag:annotationTag];
+        [self.calloutViewForSelectedAnnotation presentCalloutFromRect:positioningRect
+                                                               inView:self.glView
+                                                    constrainedToView:self.glView
+                                                             animated:YES];
+    }
+    _mbglMap->update(mbgl::Update::Annotations);
 }
 
 - (double)alphaForShapeAnnotation:(MGLShape *)annotation
@@ -2514,7 +2554,11 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     // add sprite
     auto cSpriteImage = std::make_shared<mbgl::SpriteImage>(
         std::move(cPremultipliedImage), 
-        float(annotationImage.image.scale));
+        float(annotationImage.image.scale),
+        Boolean(false),
+        mbgl::vec2<float>{static_cast<float>(annotationImage.centerOffset.x), static_cast<float>(annotationImage.centerOffset.y)});
+
+    cSpriteImage->zOrder = (uint32_t)annotationImage.zOrder;
 
     // sprite upload
     NSString *symbolName = [MGLAnnotationSpritePrefix stringByAppendingString:annotationImage.reuseIdentifier];
@@ -2563,6 +2607,10 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             [self deselectAnnotation:annotation animated:NO];
         }
         
+        MGLAnnotationContext annotationContext = _annotationContextsByAnnotationTag[annotationTag];
+        NSString *reuseIdentifier = [self identifierByRemovingSpritePrefixIfNeeded: annotationContext.symbolIdentifier];
+        [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+
         _annotationContextsByAnnotationTag.erase(annotationTag);
     }
 
@@ -2606,12 +2654,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier
 {
-    // This prefix is used to avoid collisions with style-defined sprites in
-    // mbgl, but reusable identifiers are never prefixed.
-    if ([identifier hasPrefix:MGLAnnotationSpritePrefix])
-    {
-        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
-    }
+    identifier = [self identifierByRemovingSpritePrefixIfNeeded: identifier];
     return self.annotationImagesByIdentifier[identifier];
 }
 
@@ -2909,13 +2952,15 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     {
         return CGRectZero;
     }
-    UIImage *image = [self imageOfAnnotationWithTag:annotationTag].image;
-    if ( ! image)
+    MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithTag:annotationTag];
+    if (!annotationImage.image)
     {
         return CGRectZero;
     }
     
-    CGRect positioningRect = [self frameOfImage:image centeredAtCoordinate:annotation.coordinate];
+    CGRect positioningRect = [self frameOfImage:annotationImage.image centeredAtCoordinate:annotation.coordinate];
+    positioningRect.origin.x += annotationImage.centerOffset.x + annotationImage.calloutOffset.x;
+    positioningRect.origin.y += annotationImage.centerOffset.y + annotationImage.calloutOffset.y;
     positioningRect.origin.x -= 0.5;
     return CGRectInset(positioningRect, -MGLAnnotationImagePaddingForCallout,
                        -MGLAnnotationImagePaddingForCallout);
@@ -3164,7 +3209,13 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             self.userTrackingState = animated ? MGLUserTrackingStatePossible : MGLUserTrackingStateChanged;
             self.showsUserLocation = YES;
 
-            [self.locationManager stopUpdatingHeading];
+            if (_userTrackingMode == MGLUserTrackingModeFollow) {
+                [self updateHeadingForDeviceOrientation];
+                [self.locationManager startUpdatingHeading];
+            }
+            else {
+                [self.locationManager stopUpdatingHeading];
+            }
 
             if (self.userLocationAnnotationView)
             {
@@ -3829,6 +3880,12 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     NSBundle *bundle = [NSBundle mgl_frameworkBundle];
     NSString *path = [bundle pathForResource:imageName.stringByDeletingPathExtension
                                       ofType:extension];
+    if (!path)
+    {
+        bundle = [NSBundle mainBundle];
+        path = [bundle pathForResource:imageName.stringByDeletingPathExtension
+                                ofType:extension];
+    }
     if ( ! path)
     {
         [NSException raise:@"Resource not found" format:
@@ -3945,6 +4002,17 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                                              options:0
                                              metrics:nil
                                                views:views]];
+}
+
+- (NSString *)identifierByRemovingSpritePrefixIfNeeded:(NSString *)identifier
+{
+    // This prefix is used to avoid collisions with style-defined sprites in
+    // mbgl, but reusable identifiers are never prefixed.
+    if ([identifier hasPrefix:MGLAnnotationSpritePrefix])
+    {
+        identifier = [identifier substringFromIndex:MGLAnnotationSpritePrefix.length];
+    }
+    return identifier;
 }
 
 class MBGLView : public mbgl::View

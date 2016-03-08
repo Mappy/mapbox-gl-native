@@ -26,6 +26,8 @@
 
 #include <algorithm>
 
+#include <iostream>
+
 namespace mbgl {
 
 MapContext::MapContext(View& view_, FileSource& fileSource_, MapMode mode_, GLContextMode contextMode_, const float pixelRatio_)
@@ -152,13 +154,16 @@ void MapContext::loadStyleJSON(const std::string& json, const std::string& base)
 
 void MapContext::update() {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
-
     if (!style) {
         updateFlags = Update::Nothing;
     }
-
+    
     if (updateFlags == Update::Nothing || (data.mode == MapMode::Still && !callback)) {
         return;
+    }
+    
+    if (style->loaded && updateFlags & Update::AnimatedAnnotations) {
+        data.getAnnotationManager()->updateAnimatedLayer(*style);
     }
 
     data.setAnimationTime(Clock::now());
@@ -176,12 +181,21 @@ void MapContext::update() {
         style->recalculate(transformState.getZoom());
     }
 
-    style->update(transformState, *texturePool);
+    if (updateFlags == Update::AnimatedAnnotations) {
+        if (data.mode == MapMode::Continuous) {
+            asyncInvalidate.send();
+        } else if (callback && style->isLoaded()) {
+            renderSync(transformState, frameData);
+        }
+    }
+    else {
+        style->update(transformState, *texturePool);
 
-    if (data.mode == MapMode::Continuous) {
-        asyncInvalidate.send();
-    } else if (callback && style->isLoaded()) {
-        renderSync(transformState, frameData);
+        if (data.mode == MapMode::Continuous) {
+            asyncInvalidate.send();
+        } else if (callback && style->isLoaded()) {
+            renderSync(transformState, frameData);
+        }
     }
 
     updateFlags = Update::Nothing;
@@ -251,6 +265,9 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
         asyncUpdate.send();
     } else if (painter->needsAnimation()) {
         updateFlags |= Update::Repaint;
+        asyncUpdate.send();
+    } else if (data.getAnnotationManager()->animationOngoing) {
+        updateFlags |= Update::AnimatedAnnotations;
         asyncUpdate.send();
     }
 

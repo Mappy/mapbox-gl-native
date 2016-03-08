@@ -49,9 +49,10 @@ class SymbolInstance {
                 const SymbolLayoutProperties& layout, const bool inside, const uint32_t index,
                 const float textBoxScale, const float textPadding, const float textAlongLine,
                 const float iconBoxScale, const float iconPadding, const float iconAlongLine,
-                const GlyphPositions& face);
+                const GlyphPositions& face, const uint32_t zOrder);
         float x;
         float y;
+        uint32_t zOrder;
         uint32_t index;
         bool hasText;
         bool hasIcon;
@@ -95,7 +96,7 @@ public:
 private:
     void addFeature(const GeometryCollection &lines,
             const Shaping &shapedText, const PositionedIcon &shapedIcon,
-            const GlyphPositions &face);
+            const GlyphPositions &face, const uint32_t zOrder);
     bool anchorIsTooClose(const std::u32string &text, const float repeatDistance, Anchor &anchor);
     std::map<std::u32string, std::vector<Anchor>> compareText;
     

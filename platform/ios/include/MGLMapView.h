@@ -851,6 +851,19 @@ IB_DESIGNABLE
 - (void)addAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
 
 /**
+ Animate an annotation to the map view.
+ 
+ @param annotation The annotation object to animate to the receiver. This object
+ must conform to the `MGLAnnotation` protocol. The map view retains the
+ annotation object. */
+- (void)animateAnnotation:(id <MGLAnnotation>)annotation;
+
+/**
+ Stop the annotation animation.
+ */
+- (void)stopAnnotationAnimation;
+
+/**
  Removes an annotation from the map view, deselecting it if it is selected.
  
  Removing an annotation object dissociates it from the map view entirely,
@@ -890,6 +903,14 @@ IB_DESIGNABLE
     such object exists in the reuse queue.
  */
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
+
+/**
+ Allow the user to update any annotation property (coordinate, image, zOrder, etc.).
+ 
+ @param annotation The annotation to update.
+ @param reuseIdentifier The identifier used to identify the reusable image displayed by the annotaion.
+ */
+- (void)updateAnnotation:(id<MGLAnnotation>)annotation forReuseIdentifier:(NSString *)reuseIdentifier;
 
 #pragma mark Managing Annotation Selections
 

@@ -8,6 +8,8 @@
 #import <OpenGLES/ES2/gl.h>
 
 static UIColor *const kTintColor = [UIColor colorWithRed:0.120 green:0.550 blue:0.670 alpha:1.000];
+static NSString * const kOffsetMarkerTitle = @"Offset Marker and Callout";
+
 static NSString * const kCustomCalloutTitle = @"Custom Callout";
 
 static const CLLocationCoordinate2D WorldTourDestinations[] = {
@@ -150,37 +152,37 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                                               cancelButtonTitle:@"Cancel"
                                          destructiveButtonTitle:nil
                                               otherButtonTitles:@"Reset Position",
-                                                                ((debugMask & MGLMapDebugTileBoundariesMask)
-                                                                 ? @"Hide Tile Boundaries"
-                                                                 : @"Show Tile Boundaries"),
-                                                                ((debugMask & MGLMapDebugTileInfoMask)
-                                                                 ? @"Hide Tile Info"
-                                                                 : @"Show Tile Info"),
-                                                                ((debugMask & MGLMapDebugTimestampsMask)
-                                                                 ? @"Hide Tile Timestamps"
-                                                                 : @"Show Tile Timestamps"),
-                                                                ((debugMask & MGLMapDebugCollisionBoxesMask)
-                                                                 ? @"Hide Collision Boxes"
-                                                                 : @"Show Collision Boxes"),
-                                                                @"Empty Memory",
-                                                                @"Add 100 Points",
-                                                                @"Add 1,000 Points",
-                                                                @"Add 10,000 Points",
-                                                                @"Add Test Shapes",
-                                                                @"Start World Tour",
-                                                                @"Add Custom Callout Point",
-                                                                @"Remove Annotations",
-                                                                (_isShowingCustomStyleLayer
-                                                                 ? @"Hide Custom Style Layer"
-                                                                 : @"Show Custom Style Layer"),
-                                                                @"Print Telemetry Logfile",
-                                                                @"Delete Telemetry Logfile",
-                                                                nil];
+                            ((debugMask & MGLMapDebugTileBoundariesMask)
+                             ? @"Hide Tile Boundaries"
+                             : @"Show Tile Boundaries"),
+                            ((debugMask & MGLMapDebugTileInfoMask)
+                             ? @"Hide Tile Info"
+                             : @"Show Tile Info"),
+                            ((debugMask & MGLMapDebugTimestampsMask)
+                             ? @"Hide Tile Timestamps"
+                             : @"Show Tile Timestamps"),
+                            ((debugMask & MGLMapDebugCollisionBoxesMask)
+                             ? @"Hide Collision Boxes"
+                             : @"Show Collision Boxes"),
+                            @"Empty Memory",
+                            @"Add 100 Points",
+                            @"Add 1,000 Points",
+                            @"Add 10,000 Points",
+                            @"Add Test Shapes",
+                            @"Start World Tour",
+                            @"Add Custom Callout Point",
+                            @"Remove Annotations",
+                            (_isShowingCustomStyleLayer
+                             ? @"Hide Custom Style Layer"
+                             : @"Show Custom Style Layer"),
+                            @"Print Telemetry Logfile",
+                            @"Delete Telemetry Logfile",
+                            nil];
 
     [sheet showFromBarButtonItem:self.navigationItem.leftBarButtonItem animated:YES];
 }
 
-- (void)actionSheet:(UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex
+- (void)actionSheet:(__unused UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex
 {
     if (buttonIndex == actionSheet.firstOtherButtonIndex)
     {
@@ -208,7 +210,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 6)
     {
-        [self parseFeaturesAddingCount:100];
+        [self parseFeaturesAddingCount:2];
     }
     else if (buttonIndex == actionSheet.firstOtherButtonIndex + 7)
     {
@@ -228,60 +230,60 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             CLLocationCoordinate2DMake(46, -122),
             CLLocationCoordinate2DMake(46, -121)
         };
-
+        
         MGLPolygon *triangle = [MGLPolygon polygonWithCoordinates:triangleCoordinates count:3];
-
+        
         [self.mapView addAnnotation:triangle];
-
+        
         // Orcas Island hike
         //
         NSDictionary *hike = [NSJSONSerialization JSONObjectWithData:
-                                 [NSData dataWithContentsOfFile:
-                                     [[NSBundle mainBundle] pathForResource:@"polyline" ofType:@"geojson"]]
+                              [NSData dataWithContentsOfFile:
+                               [[NSBundle mainBundle] pathForResource:@"polyline" ofType:@"geojson"]]
                                                              options:0
                                                                error:nil];
-
+        
         NSArray *hikeCoordinatePairs = hike[@"features"][0][@"geometry"][@"coordinates"];
-
+        
         CLLocationCoordinate2D *polylineCoordinates = (CLLocationCoordinate2D *)malloc([hikeCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
-
+        
         for (NSUInteger i = 0; i < [hikeCoordinatePairs count]; i++)
         {
             polylineCoordinates[i] = CLLocationCoordinate2DMake([hikeCoordinatePairs[i][1] doubleValue], [hikeCoordinatePairs[i][0] doubleValue]);
         }
-
+        
         MGLPolyline *polyline = [MGLPolyline polylineWithCoordinates:polylineCoordinates
                                                                count:[hikeCoordinatePairs count]];
-
+        
         [self.mapView addAnnotation:polyline];
-
+        
         free(polylineCoordinates);
-
+        
         // PA/NJ/DE polys
         //
         NSDictionary *threestates = [NSJSONSerialization JSONObjectWithData:
-                              [NSData dataWithContentsOfFile:
-                               [[NSBundle mainBundle] pathForResource:@"threestates" ofType:@"geojson"]]
-                                                             options:0
-                                                               error:nil];
-
+                                     [NSData dataWithContentsOfFile:
+                                      [[NSBundle mainBundle] pathForResource:@"threestates" ofType:@"geojson"]]
+                                                                    options:0
+                                                                      error:nil];
+        
         for (NSDictionary *feature in threestates[@"features"])
         {
             NSArray *stateCoordinatePairs = feature[@"geometry"][@"coordinates"];
-
+            
             while ([stateCoordinatePairs count] == 1) stateCoordinatePairs = stateCoordinatePairs[0];
-
+            
             CLLocationCoordinate2D *polygonCoordinates = (CLLocationCoordinate2D *)malloc([stateCoordinatePairs count] * sizeof(CLLocationCoordinate2D));
-
+            
             for (NSUInteger i = 0; i < [stateCoordinatePairs count]; i++)
             {
                 polygonCoordinates[i] = CLLocationCoordinate2DMake([stateCoordinatePairs[i][1] doubleValue], [stateCoordinatePairs[i][0] doubleValue]);
             }
-
+            
             MGLPolygon *polygon = [MGLPolygon polygonWithCoordinates:polygonCoordinates count:[stateCoordinatePairs count]];
-
+            
             [self.mapView addAnnotation:polygon];
-
+            
             free(polygonCoordinates);
         }
     }
@@ -331,7 +333,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
 - (void)parseFeaturesAddingCount:(NSUInteger)featuresCount
 {
     [self.mapView removeAnnotations:self.mapView.annotations];
-
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^
     {
         NSData *featuresData = [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"points" ofType:@"geojson"]];
@@ -363,6 +365,17 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
             {
                 [self.mapView addAnnotations:annotations];
                 [self.mapView showAnnotations:annotations animated:YES];
+                
+                if (annotations.count == 2) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // animation test
+                        [self.mapView animateAnnotation:annotations.firstObject];
+                    });
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        // animation test
+                        [self.mapView stopAnnotationAnimation];
+                    });
+                }
             });
         }
     });
@@ -486,6 +499,17 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     self.mapView.userTrackingMode = nextMode;
 }
 
+- (void)addOffsetAnnotations
+{
+    [self.mapView removeAnnotations:self.mapView.annotations];
+    
+    MGLPointAnnotation *annotation = [MGLPointAnnotation new];
+    annotation.coordinate = CLLocationCoordinate2DMake(48.8533940, 2.3775439);
+    annotation.title = kOffsetMarkerTitle;
+    [self.mapView addAnnotation:annotation];
+    [self.mapView showAnnotations:@[annotation] animated:YES];
+}
+
 - (IBAction)startWorldTour:(__unused id)sender
 {
     _isTouringWorld = YES;
@@ -554,13 +578,24 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     {
         return nil; // use default marker
     }
-
+    
+    if ([annotation.title isEqualToString:kOffsetMarkerTitle]) {
+        NSBundle *mapboxBundle = [NSBundle bundleForClass:[MGLAnnotationImage class]];
+        UIImage *imagePng = [UIImage imageNamed:@"default_marker"
+                                       inBundle:mapboxBundle
+                  compatibleWithTraitCollection:[UITraitCollection traitCollectionWithDisplayScale:[UIScreen mainScreen].scale]];
+        MGLAnnotationImage *image = [MGLAnnotationImage annotationImageWithImage:imagePng reuseIdentifier:kOffsetMarkerTitle];
+        image.centerOffset = CGPointMake(0.0, -12.0);
+        image.calloutOffset = CGPointMake(-8.0, 3.0);
+        return image;
+    }
+    
     NSString *title = [(MGLPointAnnotation *)annotation title];
     if (!title.length) return nil;
     NSString *lastTwoCharacters = [title substringFromIndex:title.length - 2];
-
+    
     UIColor *color;
-
+    
     // make every tenth annotation blue
     if ([lastTwoCharacters hasSuffix:@"0"]) {
         color = [UIColor blueColor];
@@ -568,25 +603,25 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
         color = [UIColor redColor];
     }
 
-    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:lastTwoCharacters];
+    MGLAnnotationImage *image = [mapView dequeueReusableAnnotationImageWithIdentifier:title];
 
     if ( ! image)
     {
         CGRect rect = CGRectMake(0, 0, 20, 15);
-
+        
         UIGraphicsBeginImageContextWithOptions(rect.size, NO, [[UIScreen mainScreen] scale]);
-
+        
         CGContextRef ctx = UIGraphicsGetCurrentContext();
-
+        
         CGContextSetFillColorWithColor(ctx, [[color colorWithAlphaComponent:0.75] CGColor]);
         CGContextFillRect(ctx, rect);
-
+        
         CGContextSetStrokeColorWithColor(ctx, [[UIColor blackColor] CGColor]);
         CGContextStrokeRectWithWidth(ctx, rect, 2);
-
+        
         NSAttributedString *drawString = [[NSAttributedString alloc] initWithString:lastTwoCharacters attributes:@{
-            NSFontAttributeName: [UIFont fontWithName:@"Arial-BoldMT" size:12],
-            NSForegroundColorAttributeName: [UIColor whiteColor] }];
+                                                                                                                   NSFontAttributeName: [UIFont fontWithName:@"Arial-BoldMT" size:12],
+                                                                                                                   NSForegroundColorAttributeName: [UIColor whiteColor] }];
         CGSize stringSize = drawString.size;
         CGRect stringRect = CGRectMake((rect.size.width - stringSize.width) / 2,
                                        (rect.size.height - stringSize.height) / 2,
@@ -594,11 +629,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
                                        stringSize.height);
         [drawString drawInRect:stringRect];
 
-        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:lastTwoCharacters];
+        image = [MGLAnnotationImage annotationImageWithImage:UIGraphicsGetImageFromCurrentImageContext() reuseIdentifier:title];
 
         // don't allow touches on blue annotations
         if ([color isEqual:[UIColor blueColor]]) image.enabled = NO;
-
+        
         UIGraphicsEndImageContext();
     }
 
@@ -666,4 +701,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     return nil;
 }
 
+static NSUInteger z = 1;
+
+- (void)mapView:(__unused MGLMapView *)mapView didSelectAnnotation:(id<MGLAnnotation>)annotation
+{
+    annotation.zOrder = z++;
+    [self.mapView updateAnnotation:annotation forReuseIdentifier:[annotation title]];
+}
 @end

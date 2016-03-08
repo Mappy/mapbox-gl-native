@@ -9,10 +9,12 @@ namespace mbgl {
 
 const std::string AnnotationManager::SourceID = "com.mapbox.annotations";
 const std::string AnnotationManager::PointLayerID = "com.mapbox.annotations.points";
+const std::string AnnotationManager::AnimationLayerID = "com.mapbox.annotations.animation";
 
 AnnotationManager::AnnotationManager(float pixelRatio)
     : spriteStore(pixelRatio),
       spriteAtlas(1024, 1024, pixelRatio, spriteStore) {
+          animationOngoing = false;
 }
 
 AnnotationManager::~AnnotationManager() = default;
@@ -59,8 +61,12 @@ void AnnotationManager::updatePointAnnotation(const AnnotationID& id, const Poin
 }
 
 void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
+    bool animatedAnnotation = (animationPointTree.empty() == false);
     for (const auto& id : ids) {
         if (pointAnnotations.find(id) != pointAnnotations.end()) {
+            if (animatedAnnotation == true && id == animatedID) {
+                stopAnimatedAnnotation();
+            }
             pointTree.remove(pointAnnotations.at(id));
             pointAnnotations.erase(id);
         } else if (shapeAnnotations.find(id) != shapeAnnotations.end()) {
@@ -69,7 +75,39 @@ void AnnotationManager::removeAnnotations(const AnnotationIDs& ids) {
         }
     }
 }
-
+    
+void AnnotationManager::animateAnnotation(const AnnotationID& id) {
+    if (animationPointTree.empty() == false) {
+        if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
+            auto annotation = pointAnnotations.at(animatedID);
+            animationPointTree.remove(annotation);
+            pointTree.insert(annotation);
+            animatedID = 0;
+        }
+    }
+    
+    if (pointAnnotations.find(id) != pointAnnotations.end()) {
+        animatedID = id;
+        auto annotation = pointAnnotations.at(id);
+        pointTree.remove(annotation);
+        animationPointTree.insert(annotation);
+        animationOngoing = true;
+        animationStopAsked = false;
+    }
+}
+    
+void AnnotationManager::stopAnimatedAnnotation() {
+    if (animationPointTree.empty() == false) {
+        animationStopAsked = true;
+        if (pointAnnotations.find(animatedID) != pointAnnotations.end()) {
+            auto annotation = pointAnnotations.at(animatedID);
+            animationPointTree.remove(annotation);
+            pointTree.insert(annotation);
+            animatedID = 0;
+        }
+    }
+}
+    
 AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds& bounds) const {
     AnnotationIDs result;
 
@@ -77,6 +115,13 @@ AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds&
         boost::make_function_output_iterator([&](const auto& val){
             result.push_back(val->id);
         }));
+    
+    if (animationPointTree.empty() == false) {
+        animationPointTree.query(boost::geometry::index::intersects(bounds),
+                        boost::make_function_output_iterator([&](const auto& val){
+            result.push_back(val->id);
+        }));
+    }
 
     return result;
 }
@@ -84,7 +129,6 @@ AnnotationIDs AnnotationManager::getPointAnnotationsInBounds(const LatLngBounds&
 std::unique_ptr<AnnotationTile> AnnotationManager::getTile(const TileID& tileID) {
     if (pointAnnotations.empty() && shapeAnnotations.empty())
         return nullptr;
-
     auto tile = std::make_unique<AnnotationTile>();
 
     AnnotationTileLayer& pointLayer = *tile->layers.emplace(
@@ -97,6 +141,17 @@ std::unique_ptr<AnnotationTile> AnnotationManager::getTile(const TileID& tileID)
         boost::make_function_output_iterator([&](const auto& val){
             val->updateLayer(tileID, pointLayer);
         }));
+    
+    if (animationPointTree.empty() == false) {
+        AnnotationTileLayer& animationPointLayer = *tile->layers.emplace(
+            AnimationLayerID,
+            std::make_unique<AnnotationTileLayer>()).first->second;
+        
+        animationPointTree.query(boost::geometry::index::intersects(tileBounds),
+                        boost::make_function_output_iterator([&](const auto& val){
+            val->updateLayer(tileID, animationPointLayer);
+        }));
+    }
 
     for (const auto& shape : shapeAnnotations) {
         shape.second->updateTile(tileID, *tile);
@@ -119,8 +174,20 @@ void AnnotationManager::updateStyle(Style& style) {
         layer->layout.icon.image = std::string("{sprite}");
         layer->layout.icon.allowOverlap = true;
         layer->spriteAtlas = &spriteAtlas;
+        
+        std::unique_ptr<SymbolLayer> animationLayer = std::make_unique<SymbolLayer>();
+        animationLayer->id = AnimationLayerID;
+        animationLayer->source = SourceID;
+        animationLayer->sourceLayer = AnimationLayerID;
+        animationLayer->layout.icon.image = std::string("{sprite}");
+        animationLayer->layout.icon.allowOverlap = true;
+        animationLayer->spriteAtlas = &spriteAtlas;
+        animationLayer->animationOffset = 0.0f;
+        animationLayer->lastTimepoint = Clock::now();
+        animationLayer->upDirection = true;
 
         style.addLayer(std::move(layer));
+        style.addLayer(std::move(animationLayer));
     }
 
     for (const auto& shape : shapeAnnotations) {
@@ -137,6 +204,35 @@ void AnnotationManager::updateStyle(Style& style) {
 
     for (auto& monitor : monitors) {
         monitor->update(getTile(monitor->tileID));
+    }
+}
+
+void AnnotationManager::updateAnimatedLayer(Style& style) {
+    // update animation layer
+    SymbolLayer* animatedLayer = (SymbolLayer*)style.getLayer(AnimationLayerID);
+    if (animationStopAsked == false) {
+        if( Clock::now() > (animatedLayer->lastTimepoint + Milliseconds(14)) ) {
+            if (animatedLayer->upDirection && animatedLayer->animationOffset < -15.0f) {
+                animatedLayer->upDirection = false;
+            }
+            else if (!animatedLayer->upDirection && animatedLayer->animationOffset > -0.5f) {
+                animatedLayer->upDirection = true;
+            }
+            
+            float yOffset = -1.0f;
+            if (!animatedLayer->upDirection) {
+                yOffset = 1.0f;
+            }
+            
+            animatedLayer->animationOffset += yOffset;
+            animatedLayer->lastTimepoint = Clock::now();
+        }
+    }
+    else {
+        animatedLayer->animationOffset = 0;
+        animatedLayer->upDirection = true;
+        animationOngoing = false;
+        animationStopAsked = false;
     }
 }
 
@@ -161,7 +257,7 @@ void AnnotationManager::removeIcon(const std::string& name) {
 
 double AnnotationManager::getTopOffsetPixelsForIcon(const std::string& name) {
     auto sprite = spriteStore.getSprite(name);
-    return sprite ? -(sprite->image.height / sprite->pixelRatio) / 2 : 0;
+    return sprite ? (sprite->offset.y - (sprite->image.height / sprite->pixelRatio)) / 2 : 0;
 }
 
 } // namespace mbgl

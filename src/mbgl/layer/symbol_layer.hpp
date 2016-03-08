@@ -98,7 +98,11 @@ public:
     SymbolLayoutProperties layout;
     SymbolPaintProperties paint;
 
-    SpriteAtlas* spriteAtlas = nullptr;
+    SpriteAtlas* spriteAtlas;
+    
+    float animationOffset;
+    TimePoint lastTimepoint;
+    bool upDirection;
 };
 
 template <>

@@ -23,6 +23,7 @@ struct LineAnnotationProperties {
     float opacity = 1;
     float width = 1;
     Color color = {{ 0, 0, 0, 1 }};
+    bool isMappyPath = false;
 };
 
 class ShapeAnnotation {

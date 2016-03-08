@@ -13,7 +13,7 @@ namespace mbgl {
 
 class SpriteImage : private util::noncopyable {
 public:
-    SpriteImage(PremultipliedImage&&, float pixelRatio, bool sdf = false);
+    SpriteImage(PremultipliedImage&&, float pixelRatio, bool sdf = false, vec2<float> offset = {0.0, 0.0});
 
     PremultipliedImage image;
 
@@ -22,9 +22,14 @@ public:
 
     // Whether this image should be interpreted as a signed distance field icon.
     const bool sdf;
+    
+    // position offset
+    const vec2<float> offset;
 
     float getWidth() const { return image.width / pixelRatio; }
     float getHeight() const { return image.height / pixelRatio; }
+
+    uint32_t zOrder;
 };
 
 } // namespace mbgl
