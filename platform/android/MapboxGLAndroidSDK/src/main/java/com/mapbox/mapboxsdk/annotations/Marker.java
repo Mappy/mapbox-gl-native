@@ -130,7 +130,10 @@ public class Marker extends Annotation {
     }
 
     private InfoWindow showInfoWindow(InfoWindow iw, MapView mapView) {
-        iw.open(mapView, this, getPosition(), 0, topOffsetPixels);
+        int offsetX = Math.round(icon.getOffsetX());
+        int offsetY = Math.round(icon.getOffsetY());
+
+        iw.open(mapView, this, getPosition(), offsetX, topOffsetPixels + offsetY);
         infoWindowShown = true;
         return iw;
     }
