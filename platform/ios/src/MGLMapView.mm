@@ -2693,11 +2693,6 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     
     if (nearbyAnnotations.size())
     {
-        // Assume that the user is fat-fingering an annotation.
-        CGRect hitRect = CGRectInset({ point, CGSizeZero },
-                                     -MGLAnnotationImagePaddingForHitTest,
-                                     -MGLAnnotationImagePaddingForHitTest);
-        
         // Filter out any annotation whose image is unselectable or for which
         // hit testing fails.
         auto end = std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(),
@@ -2716,7 +2711,9 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             // within the image’s alignment rect.
             CGRect annotationRect = [self frameOfImage:annotationImage.image
                                   centeredAtCoordinate:annotation.coordinate];
-            return !!!CGRectIntersectsRect(annotationRect, hitRect);
+            annotationRect.origin.x += annotationImage.centerOffset.x;
+            annotationRect.origin.y += annotationImage.centerOffset.y;
+            return !CGRectContainsPoint(annotationRect, point);
         });
         nearbyAnnotations.resize(std::distance(nearbyAnnotations.begin(), end));
     }
