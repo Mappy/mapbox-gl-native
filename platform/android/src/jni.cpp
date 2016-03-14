@@ -1,14 +1,9 @@
 #include <cstdint>
 #include <cinttypes>
 #include <cassert>
-
 #include <string>
-#include <locale>
-#include <codecvt>
 #include <array>
 #include <vector>
-
-#include <jni.h>
 
 #include <android/native_window_jni.h>
 #include <sys/system_properties.h>
@@ -25,11 +20,16 @@
 #include <mbgl/platform/log.hpp>
 #include <mbgl/storage/network_status.hpp>
 #include <mbgl/util/exception.hpp>
+#include <mbgl/util/string.hpp>
+
+#include <jni/jni.hpp>
 
 #pragma clang diagnostic ignored "-Wunused-parameter"
 
 namespace mbgl {
 namespace android {
+
+void RegisterNativeHTTPRequest(JNIEnv&);
 
 JavaVM* theJVM;
 
@@ -38,91 +38,122 @@ std::string dataPath;
 std::string apkPath;
 std::string androidRelease;
 
-jmethodID onInvalidateId = nullptr;
-jmethodID onMapChangedId = nullptr;
-jmethodID onFpsChangedId = nullptr;
+jni::jmethodID* onInvalidateId = nullptr;
+jni::jmethodID* onMapChangedId = nullptr;
+jni::jmethodID* onFpsChangedId = nullptr;
 
-jclass latLngClass = nullptr;
-jmethodID latLngConstructorId = nullptr;
-jfieldID latLngLatitudeId = nullptr;
-jfieldID latLngLongitudeId = nullptr;
+jni::jclass* latLngClass = nullptr;
+jni::jmethodID* latLngConstructorId = nullptr;
+jni::jfieldID* latLngLatitudeId = nullptr;
+jni::jfieldID* latLngLongitudeId = nullptr;
 
-jclass latLngBoundsClass = nullptr;
-jmethodID latLngBoundsConstructorId = nullptr;
-jfieldID latLngBoundsLatNorthId = nullptr;
-jfieldID latLngBoundsLatSouthId = nullptr;
-jfieldID latLngBoundsLonEastId = nullptr;
-jfieldID latLngBoundsLonWestId = nullptr;
+jni::jclass* latLngBoundsClass = nullptr;
+jni::jmethodID* latLngBoundsConstructorId = nullptr;
+jni::jfieldID* latLngBoundsLatNorthId = nullptr;
+jni::jfieldID* latLngBoundsLatSouthId = nullptr;
+jni::jfieldID* latLngBoundsLonEastId = nullptr;
+jni::jfieldID* latLngBoundsLonWestId = nullptr;
 
-jclass iconClass = nullptr;
-jfieldID iconIdId = nullptr;
+jni::jclass* iconClass = nullptr;
+jni::jfieldID* iconIdId = nullptr;
 
-jclass markerClass = nullptr;
-jfieldID markerPositionId = nullptr;
-jfieldID markerIconId = nullptr;
-jfieldID markerIdId = nullptr;
+jni::jclass* markerClass = nullptr;
+jni::jfieldID* markerPositionId = nullptr;
+jni::jfieldID* markerIconId = nullptr;
+jni::jfieldID* markerIdId = nullptr;
 
-jclass polylineClass = nullptr;
-jfieldID polylineAlphaId = nullptr;
-jfieldID polylineColorId = nullptr;
-jfieldID polylineWidthId = nullptr;
-jfieldID polylinePointsId = nullptr;
+jni::jclass* polylineClass = nullptr;
+jni::jfieldID* polylineAlphaId = nullptr;
+jni::jfieldID* polylineColorId = nullptr;
+jni::jfieldID* polylineWidthId = nullptr;
+jni::jfieldID* polylinePointsId = nullptr;
 
-jclass polygonClass = nullptr;
-jfieldID polygonAlphaId = nullptr;
-jfieldID polygonFillColorId = nullptr;
-jfieldID polygonStrokeColorId = nullptr;
-jfieldID polygonPointsId = nullptr;
+jni::jclass* polygonClass = nullptr;
+jni::jfieldID* polygonAlphaId = nullptr;
+jni::jfieldID* polygonFillColorId = nullptr;
+jni::jfieldID* polygonStrokeColorId = nullptr;
+jni::jfieldID* polygonPointsId = nullptr;
 
-jclass runtimeExceptionClass = nullptr;
-jclass nullPointerExceptionClass = nullptr;
+jni::jmethodID* listToArrayId = nullptr;
 
-jmethodID listToArrayId = nullptr;
+jni::jclass* arrayListClass = nullptr;
+jni::jmethodID* arrayListConstructorId = nullptr;
+jni::jmethodID* arrayListAddId = nullptr;
 
-jclass arrayListClass = nullptr;
-jmethodID arrayListConstructorId = nullptr;
-jmethodID arrayListAddId = nullptr;
+jni::jclass* projectedMetersClass = nullptr;
+jni::jmethodID* projectedMetersConstructorId = nullptr;
+jni::jfieldID* projectedMetersNorthingId = nullptr;
+jni::jfieldID* projectedMetersEastingId = nullptr;
 
-jclass projectedMetersClass = nullptr;
-jmethodID projectedMetersConstructorId = nullptr;
-jfieldID projectedMetersNorthingId = nullptr;
-jfieldID projectedMetersEastingId = nullptr;
+jni::jclass* pointFClass = nullptr;
+jni::jmethodID* pointFConstructorId = nullptr;
+jni::jfieldID* pointFXId = nullptr;
+jni::jfieldID* pointFYId = nullptr;
 
-jclass pointFClass = nullptr;
-jmethodID pointFConstructorId = nullptr;
-jfieldID pointFXId = nullptr;
-jfieldID pointFYId = nullptr;
+jni::jclass* rectFClass = nullptr;
+jni::jmethodID* rectFConstructorId = nullptr;
+jni::jfieldID* rectFLeftId = nullptr;
+jni::jfieldID* rectFTopId = nullptr;
+jni::jfieldID* rectFRightId = nullptr;
+jni::jfieldID* rectFBottomId = nullptr;
 
-jclass rectFClass = nullptr;
-jmethodID rectFConstructorId = nullptr;
-jfieldID rectFLeftId = nullptr;
-jfieldID rectFTopId = nullptr;
-jfieldID rectFRightId = nullptr;
-jfieldID rectFBottomId = nullptr;
+jni::jclass* customLayerClass = nullptr;
+jni::jfieldID* customLayerIdId = nullptr;
+jni::jfieldID* customLayerContextId = nullptr;
+jni::jfieldID* customLayerInitializeFunctionId = nullptr;
+jni::jfieldID* customLayerRenderFunctionId = nullptr;
+jni::jfieldID* customLayerDeinitializeFunctionId = nullptr;
 
-jclass httpContextClass = nullptr;
-jmethodID httpContextGetInstanceId = nullptr;
-jmethodID httpContextCreateRequestId = nullptr;
+// Offline declarations start
 
-jclass httpRequestClass = nullptr;
-jmethodID httpRequestStartId = nullptr;
-jmethodID httpRequestCancelId = nullptr;
+jni::jfieldID* offlineManagerClassPtrId = nullptr;
 
-jclass customLayerClass = nullptr;
-jfieldID customLayerIdId = nullptr;
-jfieldID customLayerContextId = nullptr;
-jfieldID customLayerInitializeFunctionId = nullptr;
-jfieldID customLayerRenderFunctionId = nullptr;
-jfieldID customLayerDeinitializeFunctionId = nullptr;
+jni::jmethodID* listOnListMethodId = nullptr;
+jni::jmethodID* listOnErrorMethodId = nullptr;
 
-bool throw_jni_error(JNIEnv *env, const char *msg) {
-    if (env->ThrowNew(runtimeExceptionClass, msg) < 0) {
-        env->ExceptionDescribe();
-        return false;
-    }
+jni::jclass* offlineRegionClass = nullptr;
+jni::jmethodID* offlineRegionConstructorId = nullptr;
+jni::jfieldID* offlineRegionOfflineManagerId = nullptr;
+jni::jfieldID* offlineRegionIdId = nullptr;
+jni::jfieldID* offlineRegionDefinitionId = nullptr;
+jni::jfieldID* offlineRegionMetadataId = nullptr;
+jni::jfieldID* offlineRegionPtrId = nullptr;
 
-    return true;
-}
+jni::jclass* offlineRegionDefinitionClass = nullptr;
+jni::jmethodID* offlineRegionDefinitionConstructorId = nullptr;
+jni::jfieldID* offlineRegionDefinitionStyleURLId = nullptr;
+jni::jfieldID* offlineRegionDefinitionBoundsId = nullptr;
+jni::jfieldID* offlineRegionDefinitionMinZoomId = nullptr;
+jni::jfieldID* offlineRegionDefinitionMaxZoomId = nullptr;
+jni::jfieldID* offlineRegionDefinitionPixelRatioId = nullptr;
+
+jni::jmethodID* createOnCreateMethodId = nullptr;
+jni::jmethodID* createOnErrorMethodId = nullptr;
+
+jni::jmethodID* offlineRegionObserveronStatusChangedId = nullptr;
+jni::jmethodID* offlineRegionObserveronErrorId = nullptr;
+jni::jmethodID* offlineRegionObserveronLimitId = nullptr;
+
+jni::jclass* offlineRegionStatusClass = nullptr;
+jni::jmethodID* offlineRegionStatusConstructorId = nullptr;
+jni::jfieldID* offlineRegionStatusDownloadStateId = nullptr;
+jni::jfieldID* offlineRegionStatusCompletedResourceCountId = nullptr;
+jni::jfieldID* offlineRegionStatusCompletedResourceSizeId = nullptr;
+jni::jfieldID* offlineRegionStatusRequiredResourceCountId = nullptr;
+jni::jfieldID* offlineRegionStatusRequiredResourceCountIsPreciseId = nullptr;
+
+jni::jclass* offlineRegionErrorClass = nullptr;
+jni::jmethodID* offlineRegionErrorConstructorId = nullptr;
+jni::jfieldID* offlineRegionErrorReasonId = nullptr;
+jni::jfieldID* offlineRegionErrorMessageId = nullptr;
+
+jni::jmethodID* offlineRegionStatusOnStatusId = nullptr;
+jni::jmethodID* offlineRegionStatusOnErrorId = nullptr;
+
+jni::jmethodID* offlineRegionDeleteOnDeleteId = nullptr;
+jni::jmethodID* offlineRegionDeleteOnErrorId = nullptr;
+
+// Offline declarations end
 
 bool attach_jni_thread(JavaVM* vm, JNIEnv** env, std::string threadName) {
     assert(vm != nullptr);
@@ -165,189 +196,88 @@ void detach_jni_thread(JavaVM* vm, JNIEnv** env, bool detach) {
     *env = nullptr;
 }
 
-std::string std_string_from_jstring(JNIEnv *env, jstring jstr) {
-    std::string str;
-
-    if (jstr == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "String cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return str;
-        }
-
-        return str;
-    }
-
-    jsize len = env->GetStringLength(jstr);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return str;
-    }
-
-    const jchar *chars = env->GetStringChars(jstr, nullptr);
-    if (chars == nullptr) {
-        env->ExceptionDescribe();
-        return str;
-    }
-
-    std::u16string ustr(reinterpret_cast<const char16_t *>(chars), len);
-    env->ReleaseStringChars(jstr, chars);
-    chars = nullptr;
-    str = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(ustr);
-    return str;
+std::string std_string_from_jstring(JNIEnv *env, jni::jstring* jstr) {
+    return jni::Make<std::string>(*env, jni::String(jstr));
 }
 
-jstring std_string_to_jstring(JNIEnv *env, std::string str) {
-    std::u16string ustr =
-        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().from_bytes(str);
-
-    jstring jstr = env->NewString(reinterpret_cast<const jchar *>(ustr.c_str()), ustr.size());
-    if (jstr == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return jstr;
+jni::jstring* std_string_to_jstring(JNIEnv *env, std::string str) {
+    return jni::Make<jni::String>(*env, str).Get();
 }
 
-std::vector<std::string> std_vector_string_from_jobject(JNIEnv *env, jobject jlist) {
+std::vector<std::string> std_vector_string_from_jobject(JNIEnv *env, jni::jobject* jlist) {
     std::vector<std::string> vector;
 
-    if (jlist == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "List cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return vector;
-        }
+    jni::NullCheck(*env, jlist);
+    jni::jarray<jni::jobject>* jarray =
+        reinterpret_cast<jni::jarray<jni::jobject>*>(jni::CallMethod<jni::jobject*>(*env, jlist, *listToArrayId));
 
-        return vector;
-    }
+    jni::NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
 
-    jobjectArray jarray =
-        reinterpret_cast<jobjectArray>(env->CallObjectMethod(jlist, listToArrayId));
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return vector;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return vector;
-    }
-
-    for (jsize i = 0; i < len; i++) {
-        jstring jstr = reinterpret_cast<jstring>(env->GetObjectArrayElement(jarray, i));
-        if (jstr == nullptr) {
-            env->ExceptionDescribe();
-            return vector;
-        }
-
+    for (std::size_t i = 0; i < len; i++) {
+        jni::jstring* jstr = reinterpret_cast<jni::jstring*>(jni::GetObjectArrayElement(*env, *jarray, i));
         vector.push_back(std_string_from_jstring(env, jstr));
     }
-
-    env->DeleteLocalRef(jarray);
-    jarray = nullptr;
 
     return vector;
 }
 
-jobject std_vector_string_to_jobject(JNIEnv *env, std::vector<std::string> vector) {
-    jobject jlist = env->NewObject(arrayListClass, arrayListConstructorId);
-    if (jlist == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+jni::jobject* std_vector_string_to_jobject(JNIEnv *env, std::vector<std::string> vector) {
+    jni::jobject* jlist = &jni::NewObject(*env, *arrayListClass, *arrayListConstructorId);
 
     for (const auto& str : vector) {
-        env->CallBooleanMethod(jlist, arrayListAddId, std_string_to_jstring(env, str));
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
+        jni::CallMethod<jboolean>(*env, jlist, *arrayListAddId, std_string_to_jstring(env, str));
     }
 
     return jlist;
 }
 
-jlongArray std_vector_uint_to_jobject(JNIEnv *env, std::vector<uint32_t> vector) {
-    jlongArray jarray = env->NewLongArray(vector.size());
-    if (jarray == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+jni::jarray<jlong>* std_vector_uint_to_jobject(JNIEnv *env, std::vector<uint32_t> vector) {
+    jni::jarray<jlong>& jarray = jni::NewArray<jlong>(*env, vector.size());
 
     std::vector<jlong> v;
     for (const uint32_t& id : vector) {
-        v.push_back((jlong)id);
+        v.push_back(id);
     }
 
-    env->SetLongArrayRegion(jarray, 0, v.size(), &(v[0]));
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    jni::SetArrayRegion(*env, jarray, 0, v);
 
-    return jarray;
+    return &jarray;
 }
 
-mbgl::AnnotationSegment annotation_segment_from_latlng_jlist(JNIEnv *env, jobject jlist) {
+mbgl::AnnotationSegment annotation_segment_from_latlng_jlist(JNIEnv *env, jni::jobject* jlist) {
     mbgl::AnnotationSegment segment;
 
-    if (jlist == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "List cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return segment;
-        }
-        return segment;
-    }
+    NullCheck(*env, jlist);
+    jni::jarray<jni::jobject>* jarray =
+        reinterpret_cast<jni::jarray<jni::jobject>*>(jni::CallMethod<jni::jobject*>(*env, jlist, *listToArrayId));
 
-    jobjectArray jarray =
-        reinterpret_cast<jobjectArray>(env->CallObjectMethod(jlist, listToArrayId));
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return segment;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return segment;
-    }
+    NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
 
     segment.reserve(len);
 
-    for (jsize i = 0; i < len; i++) {
-        jobject latLng = reinterpret_cast<jobject>(env->GetObjectArrayElement(jarray, i));
-        if (latLng == nullptr) {
-            env->ExceptionDescribe();
-            return segment;
-        }
+    for (std::size_t i = 0; i < len; i++) {
+        jni::jobject* latLng = reinterpret_cast<jni::jobject*>(jni::GetObjectArrayElement(*env, *jarray, i));
+        NullCheck(*env, latLng);
 
-        jdouble latitude = env->GetDoubleField(latLng, latLngLatitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return segment;
-        }
-
-        jdouble longitude = env->GetDoubleField(latLng, latLngLongitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return segment;
-        }
+        jdouble latitude = jni::GetField<jdouble>(*env, latLng, *latLngLatitudeId);
+        jdouble longitude = jni::GetField<jdouble>(*env, latLng, *latLngLongitudeId);
 
         segment.push_back(mbgl::LatLng(latitude, longitude));
-        env->DeleteLocalRef(latLng);
+        jni::DeleteLocalRef(*env, latLng);
     }
 
-    env->DeleteLocalRef(jarray);
+    jni::DeleteLocalRef(*env, jarray);
     jarray = nullptr;
 
     return segment;
 }
 
-std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> annotation_std_pair_from_polygon_jobject(JNIEnv *env, jobject polygon) {
-    jfloat alpha = env->GetFloatField(polygon, polygonAlphaId);
-    jint fillColor = env->GetIntField(polygon, polygonFillColorId);
-    jint strokeColor = env->GetIntField(polygon, polygonStrokeColorId);
+std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> annotation_std_pair_from_polygon_jobject(JNIEnv *env, jni::jobject* polygon) {
+    jfloat alpha = jni::GetField<jfloat>(*env, polygon, *polygonAlphaId);
+    jint fillColor = jni::GetField<jint>(*env, polygon, *polygonFillColorId);
+    jint strokeColor = jni::GetField<jint>(*env, polygon, *polygonStrokeColorId);
 
     int rF = (fillColor >> 16) & 0xFF;
     int gF = (fillColor >> 8) & 0xFF;
@@ -366,11 +296,48 @@ std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> annotation
     fillProperties.color = {{ static_cast<float>(rF) / 255.0f, static_cast<float>(gF) / 255.0f, static_cast<float>(bF) / 255.0f, static_cast<float>(aF) / 255.0f }};
     shapeProperties.set<mbgl::FillAnnotationProperties>(fillProperties);
 
-    jobject points = env->GetObjectField(polygon, polygonPointsId);
+    jni::jobject* points = jni::GetField<jni::jobject*>(*env, polygon, *polygonPointsId);
     mbgl::AnnotationSegment segment = annotation_segment_from_latlng_jlist(env, points);
-    env->DeleteLocalRef(points);
+    jni::DeleteLocalRef(*env, points);
 
     return std::make_pair(segment, shapeProperties);
+}
+
+static std::vector<uint8_t> metadata_from_java(JNIEnv* env, jni::jarray<jbyte>& j) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "metadata_from_java");
+    std::size_t length = jni::GetArrayLength(*env, j);
+    std::vector<uint8_t> c;
+    c.resize(length);
+    jni::GetArrayRegion(*env, j, 0, length, reinterpret_cast<jbyte*>(c.data()));
+    return c;
+}
+
+static jni::jarray<jbyte>* metadata_from_native(JNIEnv* env, const std::vector<uint8_t>& c) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "metadata_from_java");
+    std::size_t length = static_cast<std::size_t>(c.size());
+    jni::jarray<jbyte>& j = jni::NewArray<jbyte>(*env, length);
+    jni::SetArrayRegion(*env, j, 0, c.size(), reinterpret_cast<const jbyte*>(c.data()));
+    return &j;
+}
+
+static mbgl::LatLngBounds latlngbounds_from_java(JNIEnv *env, jni::jobject* latLngBounds) {
+    jdouble swLat = jni::GetField<jdouble>(*env, latLngBounds, *latLngBoundsLatSouthId);
+    jdouble swLon = jni::GetField<jdouble>(*env, latLngBounds, *latLngBoundsLonWestId);
+    jdouble neLat = jni::GetField<jdouble>(*env, latLngBounds, *latLngBoundsLatNorthId);
+    jdouble neLon = jni::GetField<jdouble>(*env, latLngBounds, *latLngBoundsLonEastId);
+    return mbgl::LatLngBounds::hull({ swLat, swLon }, { neLat, neLon });
+}
+
+static jni::jobject* latlngbounds_from_native(JNIEnv *env, mbgl::LatLngBounds bounds) {
+    double northLatitude = bounds.north();
+    double eastLongitude = bounds.east();
+    double southLatitude = bounds.south();
+    double westLongitude = bounds.west();
+
+    jni::jobject* jbounds = &jni::NewObject(*env, *latLngBoundsClass, *latLngBoundsConstructorId,
+        northLatitude, eastLongitude, southLatitude, westLongitude);
+
+    return jbounds;
 }
 
 }
@@ -381,118 +348,98 @@ namespace {
 using namespace mbgl::android;
 using DebugOptions = mbgl::MapDebugOptions;
 
-jlong JNICALL nativeCreate(JNIEnv *env, jobject obj, jstring cachePath_, jstring dataPath_, jstring apkPath_, jfloat pixelRatio, jint availableProcessors, jlong totalMemory) {
+jlong nativeCreate(JNIEnv *env, jni::jobject* obj, jni::jstring* cachePath_, jni::jstring* dataPath_, jni::jstring* apkPath_, jfloat pixelRatio, jint availableProcessors, jlong totalMemory) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeCreate");
     cachePath = std_string_from_jstring(env, cachePath_);
     dataPath = std_string_from_jstring(env, dataPath_);
     apkPath = std_string_from_jstring(env, apkPath_);
-    NativeMapView *nativeMapView = new NativeMapView(env, obj, pixelRatio, availableProcessors, totalMemory);
-    jlong mapViewPtr = reinterpret_cast<jlong>(nativeMapView);
-    return mapViewPtr;
+    return reinterpret_cast<jlong>(new NativeMapView(env, jni::Unwrap(obj), pixelRatio, availableProcessors, totalMemory));
 }
 
-void JNICALL nativeDestroy(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeDestroy(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeDestroy");
     assert(nativeMapViewPtr != 0);
-    NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    delete nativeMapView;
-    nativeMapView = nullptr;
+    delete reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 }
 
-void JNICALL nativeInitializeDisplay(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeInitializeDisplay(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeInitializeDisplay");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-
-    try
-    {
-        nativeMapView->initializeDisplay();
-    } catch(const std::exception& e) {
-        throw_jni_error(env, "Unable to initialize GL display.");
-    }
+    nativeMapView->initializeDisplay();
 }
 
-void JNICALL nativeTerminateDisplay(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeTerminateDisplay(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeTerminateDisplay");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->terminateDisplay();
 }
 
-void JNICALL nativeInitializeContext(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeInitializeContext(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeInitializeContext");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-
-    try {
-        nativeMapView->initializeContext();
-    } catch(const std::exception& e) {
-        throw_jni_error(env, "Unable to initialize GL context.");
-    }
+    nativeMapView->initializeContext();
 }
 
-void JNICALL nativeTerminateContext(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeTerminateContext(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeTerminateContext");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->terminateContext();
 }
 
-void JNICALL nativeCreateSurface(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject surface) {
+void nativeCreateSurface(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* surface) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeCreateSurface");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-
-    try {
-        nativeMapView->createSurface(ANativeWindow_fromSurface(env, surface));
-    } catch(const std::exception& e) {
-        throw_jni_error(env, "Unable to create GL surface.");
-    }
+    nativeMapView->createSurface(ANativeWindow_fromSurface(env, jni::Unwrap(surface)));
 }
 
-void JNICALL nativeDestroySurface(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeDestroySurface(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeDestroySurface");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->destroySurface();
 }
 
-void JNICALL nativePause(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativePause(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativePause");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->pause();
 }
 
-jboolean JNICALL nativeIsPaused(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jboolean nativeIsPaused(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeIsPaused");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().isPaused();
 }
 
-void JNICALL nativeResume(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeResume(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeResume");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->resume();
 }
 
-void JNICALL nativeUpdate(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeUpdate(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeUpdate");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().update(mbgl::Update::Repaint);
 }
 
-void JNICALL nativeRenderSync(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeRenderSync(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRenderSync");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().renderSync();
 }
 
-void JNICALL nativeViewResize(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jint width, jint height) {
+void nativeViewResize(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jint width, jint height) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeViewResize");
     assert(nativeMapViewPtr != 0);
     assert(width >= 0);
@@ -503,7 +450,7 @@ void JNICALL nativeViewResize(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, 
     nativeMapView->resizeView(width, height);
 }
 
-void JNICALL nativeFramebufferResize(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jint fbWidth, jint fbHeight) {
+void nativeFramebufferResize(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jint fbWidth, jint fbHeight) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeFramebufferResize");
     assert(nativeMapViewPtr != 0);
     assert(fbWidth >= 0);
@@ -514,42 +461,42 @@ void JNICALL nativeFramebufferResize(JNIEnv *env, jobject obj, jlong nativeMapVi
     nativeMapView->resizeFramebuffer(fbWidth, fbHeight);
 }
 
-void JNICALL nativeRemoveClass(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring clazz) {
+void nativeRemoveClass(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* clazz) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRemoveClass");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().removeClass(std_string_from_jstring(env, clazz));
 }
 
-jboolean JNICALL nativeHasClass(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring clazz) {
+jboolean nativeHasClass(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* clazz) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeHasClass");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().hasClass(std_string_from_jstring(env, clazz));
 }
 
-void JNICALL nativeAddClass(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring clazz) {
+void nativeAddClass(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* clazz) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddClass");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().addClass(std_string_from_jstring(env, clazz));
 }
 
-void JNICALL nativeSetClasses(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject classes) {
+void nativeSetClasses(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* classes) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetClasses");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setClasses(std_vector_string_from_jobject(env, classes));
 }
 
-jobject JNICALL nativeGetClasses(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jni::jobject* nativeGetClasses(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetClasses");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return std_vector_string_to_jobject(env, nativeMapView->getMap().getClasses());
 }
 
-void JNICALL nativeSetDefaultTransitionDuration(JNIEnv *env, jobject obj, jlong nativeMapViewPtr,
+void nativeSetDefaultTransitionDuration(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
                                                 jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetDefaultTransitionDuration");
     assert(nativeMapViewPtr != 0);
@@ -558,22 +505,22 @@ void JNICALL nativeSetDefaultTransitionDuration(JNIEnv *env, jobject obj, jlong 
     nativeMapView->getMap().setDefaultTransitionDuration(mbgl::Milliseconds(duration));
 }
 
-jlong JNICALL nativeGetDefaultTransitionDuration(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jlong nativeGetDefaultTransitionDuration(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetDefaultTransitionDuration");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return std::chrono::duration_cast<mbgl::Milliseconds>(nativeMapView->getMap().getDefaultTransitionDuration()).count();
 }
 
-void JNICALL nativeSetStyleURL(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring url) {
+void nativeSetStyleUrl(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* url) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetStyleURL");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setStyleURL(std_string_from_jstring(env, url));
 }
 
-void JNICALL nativeSetStyleJSON(JNIEnv *env, jobject obj, jlong nativeMapViewPtr,
-                                jstring newStyleJson, jstring base) {
+void nativeSetStyleJson(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
+                                jni::jstring* newStyleJson, jni::jstring* base) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetStyleJSON");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -581,101 +528,109 @@ void JNICALL nativeSetStyleJSON(JNIEnv *env, jobject obj, jlong nativeMapViewPtr
                                          std_string_from_jstring(env, base));
 }
 
-jstring JNICALL nativeGetStyleJSON(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jni::jstring* nativeGetStyleJson(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetStyleJSON");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return std_string_to_jstring(env, nativeMapView->getMap().getStyleJSON());
 }
 
-void JNICALL nativeSetAccessToken(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring accessToken) {
+void nativeSetAccessToken(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* accessToken) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetAccessToken");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getFileSource().setAccessToken(std_string_from_jstring(env, accessToken));
 }
 
-jstring JNICALL nativeGetAccessToken(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jni::jstring* nativeGetAccessToken(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetAccessToken");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return std_string_to_jstring(env, nativeMapView->getFileSource().getAccessToken());
 }
 
-void JNICALL nativeCancelTransitions(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeCancelTransitions(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeCancelTransitions");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().cancelTransitions();
 }
 
-void JNICALL nativeSetGestureInProgress(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jboolean inProgress) {
+void nativeSetGestureInProgress(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jboolean inProgress) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetGestureInProgress");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setGestureInProgress(inProgress);
 }
 
-void JNICALL nativeMoveBy(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble dx, jdouble dy,
+void nativeMoveBy(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble dx, jdouble dy,
                           jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeMoveBy");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    mbgl::PrecisionPoint center(dx, dy);
+    mbgl::ScreenCoordinate center(dx, dy);
     nativeMapView->getMap().moveBy(center, mbgl::Milliseconds(duration));
 }
 
-void JNICALL nativeSetLatLng(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject latLng,
+void nativeSetLatLng(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* latLng,
                              jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetLatLng");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(latLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jdouble longitude = env->GetDoubleField(latLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, latLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, latLng, *latLngLongitudeId);
 
     nativeMapView->getMap().setLatLng(mbgl::LatLng(latitude, longitude), nativeMapView->getInsets(), mbgl::Duration(duration));
 }
 
-jobject JNICALL nativeGetLatLng(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jni::jobject* nativeGetLatLng(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetLatLng");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     mbgl::LatLng latLng = nativeMapView->getMap().getLatLng(nativeMapView->getInsets());
-
-    jobject ret = env->NewObject(latLngClass, latLngConstructorId, latLng.latitude, latLng.longitude);
-    if (ret == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return ret;
+    return &jni::NewObject(*env, *latLngClass, *latLngConstructorId, latLng.latitude, latLng.longitude);
 }
 
-void JNICALL nativeResetPosition(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdoubleArray nativeGetCameraValues(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetCameraValues");
+    assert(nativeMapViewPtr != 0);
+    NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
+    mbgl::LatLng latLng = nativeMapView->getMap().getLatLng(nativeMapView->getInsets());
+    jdoubleArray  output = env->NewDoubleArray(5);
+    jsize start = 0;
+    jsize leng = 5;
+    jdouble buf[5];
+    buf[0] = latLng.latitude;
+    buf[1] = latLng.longitude;
+    buf[2] = nativeMapView->getMap().getBearing();
+    buf[3] = nativeMapView->getMap().getPitch();
+    buf[4] = nativeMapView->getMap().getZoom();
+    env->SetDoubleArrayRegion(output, start, leng, buf);
+
+    if (output == nullptr) {
+       env->ExceptionDescribe();
+       return nullptr;
+    }
+
+    return output;
+}
+
+void nativeResetPosition(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeResetPosition");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().resetPosition();
 }
 
-jdouble JNICALL nativeGetPitch(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetPitch(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetPitch");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getPitch();
 }
 
-void JNICALL nativeSetPitch(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble pitch, jlong milliseconds) {
+void nativeSetPitch(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble pitch, jlong milliseconds) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetPitch");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -683,91 +638,91 @@ void JNICALL nativeSetPitch(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jd
     nativeMapView->getMap().setPitch(pitch, duration);
 }
 
-void JNICALL nativeScaleBy(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble ds, jdouble cx,
+void nativeScaleBy(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble ds, jdouble cx,
                            jdouble cy, jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeScaleBy");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    mbgl::PrecisionPoint center(cx, cy);
+    mbgl::ScreenCoordinate center(cx, cy);
     nativeMapView->getMap().scaleBy(ds, center, mbgl::Milliseconds(duration));
 }
 
-void JNICALL nativeSetScale(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble scale,
+void nativeSetScale(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble scale,
                             jdouble cx, jdouble cy, jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetScale");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    mbgl::PrecisionPoint center(cx, cy);
+    mbgl::ScreenCoordinate center(cx, cy);
     nativeMapView->getMap().setScale(scale, center, mbgl::Milliseconds(duration));
 }
 
-jdouble JNICALL nativeGetScale(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetScale(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetScale");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getScale();
 }
 
-void JNICALL nativeSetZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble zoom, jlong duration) {
+void nativeSetZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble zoom, jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setZoom(zoom, mbgl::Milliseconds(duration));
 }
 
-jdouble JNICALL nativeGetZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getZoom();
 }
 
-void JNICALL nativeResetZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeResetZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeResetZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().resetZoom();
 }
 
-void JNICALL nativeSetMinZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble zoom) {
+void nativeSetMinZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetMinZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setMinZoom(zoom);
 }
 
-jdouble JNICALL nativeGetMinZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetMinZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetMinZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getMinZoom();
 }
 
-void JNICALL nativeSetMaxZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble zoom) {
+void nativeSetMaxZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetMaxZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().setMaxZoom(zoom);
 }
 
-jdouble JNICALL nativeGetMaxZoom(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetMaxZoom(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetMaxZoom");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getMaxZoom();
 }
 
-void JNICALL nativeRotateBy(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble sx,
+void nativeRotateBy(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble sx,
                             jdouble sy, jdouble ex, jdouble ey, jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRotateBy");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    mbgl::PrecisionPoint first(sx, sy);
-    mbgl::PrecisionPoint second(ex, ey);
+    mbgl::ScreenCoordinate first(sx, sy);
+    mbgl::ScreenCoordinate second(ex, ey);
     nativeMapView->getMap().rotateBy(first, second, mbgl::Milliseconds(duration));
 }
 
-void JNICALL nativeSetBearing(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble degrees,
+void nativeSetBearing(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble degrees,
                               jlong milliseconds) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetBearing");
     assert(nativeMapViewPtr != 0);
@@ -776,208 +731,126 @@ void JNICALL nativeSetBearing(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, 
     nativeMapView->getMap().setBearing(degrees, duration);
 }
 
-void JNICALL nativeSetBearing(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble degrees,
+void nativeSetBearingXY(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble degrees,
                               jdouble cx, jdouble cy) {
-    mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetBearing");
+    mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetBearingXY");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
-    mbgl::PrecisionPoint center(cx, cy);
+    mbgl::ScreenCoordinate center(cx, cy);
     nativeMapView->getMap().setBearing(degrees, center);
 }
 
-jdouble JNICALL nativeGetBearing(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jdouble nativeGetBearing(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetBearing");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getBearing();
 }
 
-void JNICALL nativeResetNorth(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeResetNorth(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeResetNorth");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().resetNorth();
 }
 
-jlong JNICALL nativeAddMarker(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject marker) {
+jlong nativeAddMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* marker) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddMarker");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jobject position = env->GetObjectField(marker, markerPositionId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
+    jni::jobject* position = jni::GetField<jni::jobject*>(*env, marker, *markerPositionId);
+    jni::jobject* icon = jni::GetField<jni::jobject*>(*env, marker, *markerIconId);
 
-    jobject icon = env->GetObjectField(marker, markerIconId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
-
-    jstring jid = reinterpret_cast<jstring>(env->GetObjectField(icon, iconIdId));
+    jni::jstring* jid = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, icon, *iconIdId));
     std::string id = std_string_from_jstring(env, jid);
 
-    jdouble latitude = env->GetDoubleField(position, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
-
-    jdouble longitude = env->GetDoubleField(position, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, position, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
 
     // Because Java only has int, not unsigned int, we need to bump the annotation id up to a long.
     return nativeMapView->getMap().addPointAnnotation(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id));
 }
 
-void JNICALL nativeUpdateMarker(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject marker) {
+void nativeUpdateMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* marker) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeUpdateMarker");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jlong markerId = env->GetLongField(marker, markerIdId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-    }
-
+    jlong markerId = jni::GetField<jlong>(*env, marker, *markerIdId);
     if (markerId == -1) {
         return;
     }
 
-    jobject position = env->GetObjectField(marker, markerPositionId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-    }
+    jni::jobject* position = jni::GetField<jni::jobject*>(*env, marker, *markerPositionId);
+    jni::jobject* icon = jni::GetField<jni::jobject*>(*env, marker, *markerIconId);
 
-    jobject icon = env->GetObjectField(marker, markerIconId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-    }
-
-    jstring jid = reinterpret_cast<jstring>(env->GetObjectField(icon, iconIdId));
+    jni::jstring* jid = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, icon, *iconIdId));
     std::string iconId = std_string_from_jstring(env, jid);
 
-    jdouble latitude = env->GetDoubleField(position, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-    }
-
-    jdouble longitude = env->GetDoubleField(position, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, position, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
 
     // Because Java only has int, not unsigned int, we need to bump the annotation id up to a long.
     nativeMapView->getMap().updatePointAnnotation(markerId, mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), iconId));
 }
 
-jlongArray JNICALL nativeAddMarkers(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject jlist) {
+jni::jarray<jlong>* nativeAddMarkers(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* jlist) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddMarkers");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
     std::vector<mbgl::PointAnnotation> markers;
 
-    if (jlist == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "List cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-        return nullptr;
-    }
+    NullCheck(*env, jlist);
+    jni::jarray<jni::jobject>* jarray =
+        reinterpret_cast<jni::jarray<jni::jobject>*>(jni::CallMethod<jni::jobject*>(*env, jlist, *listToArrayId));
 
-    jobjectArray jarray =
-        reinterpret_cast<jobjectArray>(env->CallObjectMethod(jlist, listToArrayId));
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
 
     markers.reserve(len);
 
-    for (jsize i = 0; i < len; i++) {
-        jobject marker = reinterpret_cast<jobject>(env->GetObjectArrayElement(jarray, i));
+    for (std::size_t i = 0; i < len; i++) {
+        jni::jobject* marker = jni::GetObjectArrayElement(*env, *jarray, i);
+        jni::jobject* position = jni::GetField<jni::jobject*>(*env, marker, *markerPositionId);
+        jni::jobject* icon = jni::GetField<jni::jobject*>(*env, marker, *markerIconId);
+        jni::DeleteLocalRef(*env, marker);
 
-        jobject position = env->GetObjectField(marker, markerPositionId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-
-        jobject icon = env->GetObjectField(marker, markerIconId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-        env->DeleteLocalRef(marker);
-
-        jstring jid = reinterpret_cast<jstring>(env->GetObjectField(icon, iconIdId));
-        env->DeleteLocalRef(icon);
+        jni::jstring* jid = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, icon, *iconIdId));
+        jni::DeleteLocalRef(*env, icon);
 
         std::string id = std_string_from_jstring(env, jid);
-        env->DeleteLocalRef(jid);
+        jni::DeleteLocalRef(*env, jid);
 
-        jdouble latitude = env->GetDoubleField(position, latLngLatitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-
-        jdouble longitude = env->GetDoubleField(position, latLngLongitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-        env->DeleteLocalRef(position);
+        jdouble latitude = jni::GetField<jdouble>(*env, position, *latLngLatitudeId);
+        jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
+        jni::DeleteLocalRef(*env, position);
 
         markers.emplace_back(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id));
      }
 
-    env->DeleteLocalRef(jarray);
+    jni::DeleteLocalRef(*env, jarray);
 
     std::vector<uint32_t> pointAnnotationIDs = nativeMapView->getMap().addPointAnnotations(markers);
     return std_vector_uint_to_jobject(env, pointAnnotationIDs);
 }
 
 
-jlong JNICALL nativeAddPolyline(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject polyline) {
+jlong nativeAddPolyline(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* polyline) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddPolyline");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jfloat alpha = env->GetFloatField(polyline, polylineAlphaId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
-
-    jint color = env->GetIntField(polyline, polylineColorId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
+    jfloat alpha = jni::GetField<jfloat>(*env, polyline, *polylineAlphaId);
+    jint color = jni::GetField<jint>(*env, polyline, *polylineColorId);
 
     int r = (color >> 16) & 0xFF;
     int g = (color >> 8) & 0xFF;
     int b = (color) & 0xFF;
     int a = (color >> 24) & 0xFF;
 
-    jfloat width = env->GetFloatField(polyline, polylineWidthId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
+    jfloat width = jni::GetField<jfloat>(*env, polyline, *polylineWidthId);
 
     mbgl::ShapeAnnotation::Properties shapeProperties;
     mbgl::LineAnnotationProperties lineProperties;
@@ -987,7 +860,7 @@ jlong JNICALL nativeAddPolyline(JNIEnv *env, jobject obj, jlong nativeMapViewPtr
     lineProperties.isMappyPath = true;
     shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
-    jobject points = env->GetObjectField(polyline, polylinePointsId);
+    jni::jobject* points = jni::GetField<jni::jobject*>(*env, polyline, *polylinePointsId);
     mbgl::AnnotationSegment segment = annotation_segment_from_latlng_jlist(env, points);
 
     std::vector<mbgl::ShapeAnnotation> shapes;
@@ -999,61 +872,33 @@ jlong JNICALL nativeAddPolyline(JNIEnv *env, jobject obj, jlong nativeMapViewPtr
     return id;
 }
 
-jlongArray JNICALL nativeAddPolylines(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject jlist) {
+jni::jarray<jlong>* nativeAddPolylines(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* jlist) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddPolylines");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
     std::vector<mbgl::ShapeAnnotation> shapes;
 
-    if (jlist == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "List cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-        return nullptr;
-    }
+    jni::jarray<jni::jobject>* jarray =
+        reinterpret_cast<jni::jarray<jni::jobject>*>(jni::CallMethod<jni::jobject*>(*env, jlist, *listToArrayId));
 
-    jobjectArray jarray =
-        reinterpret_cast<jobjectArray>(env->CallObjectMethod(jlist, listToArrayId));
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
 
     shapes.reserve(len);
 
-    for (jsize i = 0; i < len; i++) {
-        jobject polyline = reinterpret_cast<jobject>(env->GetObjectArrayElement(jarray, i));
+    for (std::size_t i = 0; i < len; i++) {
+        jni::jobject* polyline = jni::GetObjectArrayElement(*env, *jarray, i);
 
-        jfloat alpha = env->GetFloatField(polyline, polylineAlphaId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-
-        jint color = env->GetIntField(polyline, polylineColorId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
+        jfloat alpha = jni::GetField<jfloat>(*env, polyline, *polylineAlphaId);
+        jint color = jni::GetField<jint>(*env, polyline, *polylineColorId);
 
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
         int b = (color) & 0xFF;
         int a = (color >> 24) & 0xFF;
 
-        jfloat width = env->GetFloatField(polyline, polylineWidthId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
+        jfloat width = jni::GetField<jfloat>(*env, polyline, *polylineWidthId);
 
         mbgl::ShapeAnnotation::Properties shapeProperties;
         mbgl::LineAnnotationProperties lineProperties;
@@ -1063,32 +908,27 @@ jlongArray JNICALL nativeAddPolylines(JNIEnv *env, jobject obj, jlong nativeMapV
         lineProperties.isMappyPath = true;
         shapeProperties.set<mbgl::LineAnnotationProperties>(lineProperties);
 
-        jobject points = env->GetObjectField(polyline, polylinePointsId);
+        jni::jobject* points = jni::GetField<jni::jobject*>(*env, polyline, *polylinePointsId);
         mbgl::AnnotationSegment segment = annotation_segment_from_latlng_jlist(env, points);
 
         shapes.emplace_back(mbgl::AnnotationSegments { segment }, shapeProperties);
 
-        env->DeleteLocalRef(polyline);
+        jni::DeleteLocalRef(*env, polyline);
     }
 
-    env->DeleteLocalRef(jarray);
+    jni::DeleteLocalRef(*env, jarray);
 
     std::vector<uint32_t> shapeAnnotationIDs = nativeMapView->getMap().addShapeAnnotations(shapes);
     return std_vector_uint_to_jobject(env, shapeAnnotationIDs);
 }
 
-jlong JNICALL nativeAddPolygon(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject polygon) {
+jlong nativeAddPolygon(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* polygon) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddPolygon");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
     std::vector<mbgl::ShapeAnnotation> shapes;
     std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> segment = annotation_std_pair_from_polygon_jobject(env, polygon);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return -1;
-    }
 
     shapes.emplace_back(mbgl::AnnotationSegments { segment.first }, segment.second);
 
@@ -1097,152 +937,100 @@ jlong JNICALL nativeAddPolygon(JNIEnv *env, jobject obj, jlong nativeMapViewPtr,
     return id;
 }
 
-jlongArray JNICALL nativeAddPolygons(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject jlist) {
+jni::jarray<jlong>* nativeAddPolygons(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* jlist) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddPolygons");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
     std::vector<mbgl::ShapeAnnotation> shapes;
 
-    if (jlist == nullptr) {
-        if (env->ThrowNew(nullPointerExceptionClass, "List cannot be null.") < 0) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-        return nullptr;
-    }
+    jni::jarray<jni::jobject>* jarray =
+        reinterpret_cast<jni::jarray<jni::jobject>*>(jni::CallMethod<jni::jobject*>(*env, jlist, *listToArrayId));
 
-    jobjectArray jarray =
-        reinterpret_cast<jobjectArray>(env->CallObjectMethod(jlist, listToArrayId));
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
+    NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
     shapes.reserve(len);
 
-    for (jsize i = 0; i < len; i++) {
-        jobject polygon = reinterpret_cast<jobject>(env->GetObjectArrayElement(jarray, i));
+    for (std::size_t i = 0; i < len; i++) {
+        jni::jobject* polygon = jni::GetObjectArrayElement(*env, *jarray, i);
 
         std::pair<mbgl::AnnotationSegment, mbgl::ShapeAnnotation::Properties> segment = annotation_std_pair_from_polygon_jobject(env, polygon);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return nullptr;
-        }
-
         shapes.emplace_back(mbgl::AnnotationSegments { segment.first }, segment.second);
 
-        env->DeleteLocalRef(polygon);
+        jni::DeleteLocalRef(*env, polygon);
     }
 
-    env->DeleteLocalRef(jarray);
+    jni::DeleteLocalRef(*env, jarray);
 
     std::vector<uint32_t> shapeAnnotationIDs = nativeMapView->getMap().addShapeAnnotations(shapes);
     return std_vector_uint_to_jobject(env, shapeAnnotationIDs);
 }
 
-void JNICALL nativeRemoveAnnotation(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jlong annotationId) {
+void nativeRemoveAnnotation(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jlong annotationId) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRemoveAnnotation");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().removeAnnotation(static_cast<uint32_t>(annotationId));
 }
 
-void JNICALL nativeRemoveAnnotations(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jlongArray jarray) {
+void nativeRemoveAnnotations(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jarray<jlong>* jarray) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRemoveAnnotations");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
+    NullCheck(*env, jarray);
+    std::size_t len = jni::GetArrayLength(*env, *jarray);
+
     std::vector<uint32_t> ids;
-
-    if (env->ExceptionCheck() || (jarray == nullptr)) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jsize len = env->GetArrayLength(jarray);
-    if (len < 0) {
-        env->ExceptionDescribe();
-        return;
-    }
-
     ids.reserve(len);
-    jlong* jids = env->GetLongArrayElements(jarray, nullptr);
 
-    for (jsize i = 0; i < len; i++) {
+    auto elements = jni::GetArrayElements(*env, *jarray);
+    jlong* jids = std::get<0>(elements).get();
+
+    for (std::size_t i = 0; i < len; i++) {
         if(jids[i] == -1L)
             continue;
         ids.push_back(static_cast<uint32_t>(jids[i]));
     }
 
-    env->ReleaseLongArrayElements(jarray, jids, JNI_ABORT);
-
     nativeMapView->getMap().removeAnnotations(ids);
 }
 
-jlongArray JNICALL nativeGetAnnotationsInBounds(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject latLngBounds) {
+jni::jarray<jlong>* nativeGetAnnotationsInBounds(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* latLngBounds_) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetAnnotationsInBounds");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    if (env->ExceptionCheck() || (latLngBounds == nullptr)) {
-        env->ExceptionDescribe();
+    // Conversion
+    mbgl::LatLngBounds latLngBounds = latlngbounds_from_java(env, latLngBounds_);
+    if (latLngBounds.isEmpty()) {
         return nullptr;
     }
 
-    jdouble swLat = env->GetDoubleField(latLngBounds, latLngBoundsLatSouthId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jdouble swLon = env->GetDoubleField(latLngBounds, latLngBoundsLonWestId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jdouble neLat = env->GetDoubleField(latLngBounds, latLngBoundsLatNorthId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jdouble neLon = env->GetDoubleField(latLngBounds, latLngBoundsLonEastId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    // assume only points for now
+    // Assume only points for now
     std::vector<uint32_t> annotations = nativeMapView->getMap().getPointAnnotationsInBounds(
-        mbgl::LatLngBounds::hull({ swLat, swLon }, { neLat, neLon }));
+        latLngBounds);
 
     return std_vector_uint_to_jobject(env, annotations);
 }
 
-void JNICALL nativeAddAnnotationIcon(JNIEnv *env, jobject obj, jlong nativeMapViewPtr,
-        jstring symbol, jint width, jint height, jfloat scale, jbyteArray jpixels) {
+void nativeAddAnnotationIcon(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
+        jni::jstring* symbol, jint width, jint height, jfloat scale, jni::jarray<jbyte>* jpixels) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddAnnotationIcon");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
     const std::string symbolName = std_string_from_jstring(env, symbol);
 
-    jsize size = env->GetArrayLength(jpixels);
+    NullCheck(*env, jpixels);
+    std::size_t size = jni::GetArrayLength(*env, *jpixels);
     mbgl::PremultipliedImage premultipliedImage(width, height);
 
     if (premultipliedImage.size() != uint32_t(size)) {
         throw mbgl::util::SpriteImageException("Sprite image pixel count mismatch");
     }
 
-    env->GetByteArrayRegion(jpixels, 0, size, reinterpret_cast<jbyte*>(premultipliedImage.data.get()));
+    jni::GetArrayRegion(*env, *jpixels, 0, size, reinterpret_cast<jbyte*>(premultipliedImage.data.get()));
 
     auto iconImage = std::make_shared<mbgl::SpriteImage>(
         std::move(premultipliedImage),
@@ -1251,54 +1039,28 @@ void JNICALL nativeAddAnnotationIcon(JNIEnv *env, jobject obj, jlong nativeMapVi
     nativeMapView->getMap().addAnnotationIcon(symbolName, iconImage);
 }
 
-void JNICALL nativeSetVisibleCoordinateBounds(JNIEnv *env, jobject obj, jlong nativeMapViewPtr,
-        jobjectArray coordinates, jobject padding, jdouble direction, jlong duration) {
+void nativeSetVisibleCoordinateBounds(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
+        jni::jarray<jni::jobject>* coordinates, jni::jobject* padding, jdouble direction, jlong duration) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetVisibleCoordinateBounds");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jfloat left = env->GetFloatField(padding, rectFLeftId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
+    jfloat left = jni::GetField<jfloat>(*env, padding, *rectFLeftId);
+    jfloat right = jni::GetField<jfloat>(*env, padding, *rectFRightId);
+    jfloat top = jni::GetField<jfloat>(*env, padding, *rectFTopId);
+    jfloat bottom = jni::GetField<jfloat>(*env, padding, *rectFBottomId);
 
-    jfloat right = env->GetFloatField(padding, rectFRightId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jfloat top = env->GetFloatField(padding, rectFTopId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jfloat bottom = env->GetFloatField(padding, rectFBottomId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jsize count = env->GetArrayLength(coordinates);
+    NullCheck(*env, coordinates);
+    std::size_t count = jni::GetArrayLength(*env, *coordinates);
 
     mbgl::EdgeInsets mbglInsets = {top, left, bottom, right};
     mbgl::AnnotationSegment segment;
     segment.reserve(count);
 
-    for (int i = 0; i < count; i++) {
-        jobject latLng = reinterpret_cast<jobject>(env->GetObjectArrayElement(coordinates, i));
-        jdouble latitude = env->GetDoubleField(latLng, latLngLatitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return;
-        }
-        jdouble longitude = env->GetDoubleField(latLng, latLngLongitudeId);
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            return;
-        }
+    for (std::size_t i = 0; i < count; i++) {
+        jni::jobject* latLng = jni::GetObjectArrayElement(*env, *coordinates, i);
+        jdouble latitude = jni::GetField<jdouble>(*env, latLng, *latLngLatitudeId);
+        jdouble longitude = jni::GetField<jdouble>(*env, latLng, *latLngLongitudeId);
         segment.push_back(mbgl::LatLng(latitude, longitude));
     }
 
@@ -1317,14 +1079,14 @@ void JNICALL nativeSetVisibleCoordinateBounds(JNIEnv *env, jobject obj, jlong na
     nativeMapView->getMap().easeTo(cameraOptions, animationOptions);
 }
 
-void JNICALL nativeOnLowMemory(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeOnLowMemory(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeOnLowMemory");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().onLowMemory();
 }
 
-void JNICALL nativeSetDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jboolean debug) {
+void nativeSetDebug(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jboolean debug) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -1335,7 +1097,7 @@ void JNICALL nativeSetDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jb
     nativeMapView->enableFps(debug);
 }
 
-void JNICALL nativeToggleDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+void nativeToggleDebug(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeToggleDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -1343,21 +1105,21 @@ void JNICALL nativeToggleDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr)
     nativeMapView->enableFps(nativeMapView->getMap().getDebug() != DebugOptions::NoDebug);
 }
 
-jboolean JNICALL nativeGetDebug(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jboolean nativeGetDebug(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetDebug");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getDebug() != DebugOptions::NoDebug;
 }
 
-jboolean JNICALL nativeIsFullyLoaded(JNIEnv *env, jobject obj, jlong nativeMapViewPtr) {
+jboolean nativeIsFullyLoaded(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeIsFullyLoaded");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().isFullyLoaded();
 }
 
-void JNICALL nativeSetReachability(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jboolean status) {
+void nativeSetReachability(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jboolean status) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetReachability");
     assert(nativeMapViewPtr != 0);
     if (status) {
@@ -1365,148 +1127,75 @@ void JNICALL nativeSetReachability(JNIEnv *env, jobject obj, jlong nativeMapView
     }
 }
 
-jdouble JNICALL nativeGetMetersPerPixelAtLatitude(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble lat, jdouble zoom) {
+jdouble nativeGetMetersPerPixelAtLatitude(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble lat, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetMetersPerPixelAtLatitude");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getMetersPerPixelAtLatitude(lat, zoom);
 }
 
-jobject JNICALL nativeProjectedMetersForLatLng(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject latLng) {
+jni::jobject* nativeProjectedMetersForLatLng(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* latLng) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeProjectedMetersForLatLng");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(latLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jdouble longitude = env->GetDoubleField(latLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, latLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, latLng, *latLngLongitudeId);
 
     mbgl::ProjectedMeters projectedMeters = nativeMapView->getMap().projectedMetersForLatLng(mbgl::LatLng(latitude, longitude));
-
-    jobject ret = env->NewObject(projectedMetersClass, projectedMetersConstructorId, projectedMeters.northing, projectedMeters.easting);
-    if (ret == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return ret;
+    return &jni::NewObject(*env, *projectedMetersClass, *projectedMetersConstructorId, projectedMeters.northing, projectedMeters.easting);
 }
 
-jobject JNICALL nativeLatLngForProjectedMeters(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject projectedMeters) {
+jni::jobject* nativeLatLngForProjectedMeters(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* projectedMeters) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeLatLngForProjectedMeters");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble northing = env->GetDoubleField(projectedMeters, projectedMetersNorthingId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    jdouble easting = env->GetDoubleField(projectedMeters, projectedMetersEastingId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    jdouble northing = jni::GetField<jdouble>(*env, projectedMeters, *projectedMetersNorthingId);
+    jdouble easting = jni::GetField<jdouble>(*env, projectedMeters, *projectedMetersEastingId);
 
     mbgl::LatLng latLng = nativeMapView->getMap().latLngForProjectedMeters(mbgl::ProjectedMeters(northing, easting));
-
-    jobject ret = env->NewObject(latLngClass, latLngConstructorId, latLng.latitude, latLng.longitude);
-    if (ret == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return ret;
+    return &jni::NewObject(*env, *latLngClass, *latLngConstructorId, latLng.latitude, latLng.longitude);
 }
 
-jobject JNICALL nativePixelForLatLng(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject latLng) {
+jni::jobject* nativePixelForLatLng(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* latLng) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativePixelForLatLng");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(latLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, latLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, latLng, *latLngLongitudeId);
 
-    jdouble longitude = env->GetDoubleField(latLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    mbgl::vec2<double> pixel = nativeMapView->getMap().pixelForLatLng(mbgl::LatLng(latitude, longitude));
-
-    jobject ret = env->NewObject(pointFClass, pointFConstructorId, static_cast<jfloat>(pixel.x), static_cast<jfloat>(pixel.y));
-    if (ret == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return ret;
+    mbgl::ScreenCoordinate pixel = nativeMapView->getMap().pixelForLatLng(mbgl::LatLng(latitude, longitude));
+    return &jni::NewObject(*env, *pointFClass, *pointFConstructorId, static_cast<jfloat>(pixel.x), static_cast<jfloat>(pixel.y));
 }
 
-jobject JNICALL nativeLatLngForPixel(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject pixel) {
+jni::jobject* nativeLatLngForPixel(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* pixel) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeLatLngForPixel");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jfloat x = env->GetFloatField(pixel, pointFXId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
+    jfloat x = jni::GetField<jfloat>(*env, pixel, *pointFXId);
+    jfloat y = jni::GetField<jfloat>(*env, pixel, *pointFYId);
 
-    jfloat y = env->GetFloatField(pixel, pointFYId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    mbgl::LatLng latLng = nativeMapView->getMap().latLngForPixel(mbgl::PrecisionPoint(x, y));
-
-    jobject ret = env->NewObject(latLngClass, latLngConstructorId, latLng.latitude, latLng.longitude);
-    if (ret == nullptr) {
-        env->ExceptionDescribe();
-        return nullptr;
-    }
-
-    return ret;
+    mbgl::LatLng latLng = nativeMapView->getMap().latLngForPixel(mbgl::ScreenCoordinate(x, y));
+    return &jni::NewObject(*env, *latLngClass, *latLngConstructorId, latLng.latitude, latLng.longitude);
 }
 
-jdouble JNICALL nativeGetTopOffsetPixelsForAnnotationSymbol(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring symbolName) {
+jdouble nativeGetTopOffsetPixelsForAnnotationSymbol(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* symbolName) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeGetTopOffsetPixelsForAnnotationSymbol");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     return nativeMapView->getMap().getTopOffsetPixelsForAnnotationIcon(std_string_from_jstring(env, symbolName));
 }
 
-void JNICALL nativeJumpTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble angle, jobject centerLatLng, jdouble pitch, jdouble zoom) {
+void nativeJumpTo(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble angle, jni::jobject* centerLatLng, jdouble pitch, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeJumpTo");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(centerLatLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jdouble longitude = env->GetDoubleField(centerLatLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLongitudeId);
 
     mbgl::CameraOptions options;
     if (angle != -1) {
@@ -1524,22 +1213,13 @@ void JNICALL nativeJumpTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdou
     nativeMapView->getMap().jumpTo(options);
 }
 
-void JNICALL nativeEaseTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble angle, jobject centerLatLng, jlong duration, jdouble pitch, jdouble zoom) {
+void nativeEaseTo(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble angle, jni::jobject* centerLatLng, jlong duration, jdouble pitch, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeEaseTo");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(centerLatLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jdouble longitude = env->GetDoubleField(centerLatLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLongitudeId);
 
     mbgl::CameraOptions cameraOptions;
     if (angle != -1) {
@@ -1559,7 +1239,7 @@ void JNICALL nativeEaseTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdou
     nativeMapView->getMap().easeTo(cameraOptions, animationOptions);
 }
 
-void JNICALL nativeSetContentPadding(JNIEnv *env, jobject obj,long nativeMapViewPtr, double top, double left, double bottom, double right) {
+void nativeSetContentPadding(JNIEnv *env, jni::jobject* obj,long nativeMapViewPtr, double top, double left, double bottom, double right) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeSetContentPadding");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -1567,22 +1247,13 @@ void JNICALL nativeSetContentPadding(JNIEnv *env, jobject obj,long nativeMapView
 }
 
 
-void JNICALL nativeFlyTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdouble angle, jobject centerLatLng, jlong duration, jdouble pitch, jdouble zoom) {
+void nativeFlyTo(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jdouble angle, jni::jobject* centerLatLng, jlong duration, jdouble pitch, jdouble zoom) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeFlyTo");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
 
-    jdouble latitude = env->GetDoubleField(centerLatLng, latLngLatitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
-
-    jdouble longitude = env->GetDoubleField(centerLatLng, latLngLongitudeId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        return;
-    }
+    jdouble latitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLatitudeId);
+    jdouble longitude = jni::GetField<jdouble>(*env, centerLatLng, *latLngLongitudeId);
 
     mbgl::CameraOptions cameraOptions;
     if (angle != -1) {
@@ -1602,821 +1273,739 @@ void JNICALL nativeFlyTo(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jdoub
     nativeMapView->getMap().flyTo(cameraOptions, animationOptions);
 }
 
-void JNICALL nativeAddCustomLayer(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jobject customLayer, jstring before) {
+void nativeAddCustomLayer(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* customLayer, jni::jstring* before) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddCustomLayer");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().addCustomLayer(
-        std_string_from_jstring(env, reinterpret_cast<jstring>(env->GetObjectField(customLayer, customLayerIdId))),
-        reinterpret_cast<mbgl::CustomLayerInitializeFunction>(env->GetLongField(customLayer, customLayerInitializeFunctionId)),
-        reinterpret_cast<mbgl::CustomLayerRenderFunction>(env->GetLongField(customLayer, customLayerRenderFunctionId)),
-        reinterpret_cast<mbgl::CustomLayerDeinitializeFunction>(env->GetLongField(customLayer, customLayerDeinitializeFunctionId)),
-        reinterpret_cast<void*>(env->GetLongField(customLayer, customLayerContextId)),
+        std_string_from_jstring(env, reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, customLayer, *customLayerIdId))),
+        reinterpret_cast<mbgl::CustomLayerInitializeFunction>(jni::GetField<jlong>(*env, customLayer, *customLayerInitializeFunctionId)),
+        reinterpret_cast<mbgl::CustomLayerRenderFunction>(jni::GetField<jlong>(*env, customLayer, *customLayerRenderFunctionId)),
+        reinterpret_cast<mbgl::CustomLayerDeinitializeFunction>(jni::GetField<jlong>(*env, customLayer, *customLayerDeinitializeFunctionId)),
+        reinterpret_cast<void*>(jni::GetField<jlong>(*env, customLayer, *customLayerContextId)),
         before ? std_string_from_jstring(env, before).c_str() : nullptr);
 }
 
-void JNICALL nativeRemoveCustomLayer(JNIEnv *env, jobject obj, jlong nativeMapViewPtr, jstring id) {
+void nativeRemoveCustomLayer(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jstring* id) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeRemoveCustomLayer");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
     nativeMapView->getMap().removeCustomLayer(std_string_from_jstring(env, id));
 }
 
+// Offline calls begin
+
+jlong createDefaultFileSource(JNIEnv *env, jni::jobject* obj, jni::jstring* cachePath_, jni::jstring* assetRoot_, jlong maximumCacheSize) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "createDefaultFileSource");
+    std::string cachePath = std_string_from_jstring(env, cachePath_);
+    std::string assetRoot = std_string_from_jstring(env, assetRoot_);
+    mbgl::DefaultFileSource *defaultFileSource = new mbgl::DefaultFileSource(cachePath, assetRoot, maximumCacheSize);
+    jlong defaultFileSourcePtr = reinterpret_cast<jlong>(defaultFileSource);
+    return defaultFileSourcePtr;
 }
 
-extern "C" {
-
-extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
-    // This reads out values from objects
-    mbgl::Log::Debug(mbgl::Event::JNI, "JNI_OnLoad");
-
-    theJVM = vm;
-
-    JNIEnv *env = nullptr;
-    jint ret = vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
-    if (ret != JNI_OK) {
-        mbgl::Log::Error(mbgl::Event::JNI, "GetEnv() failed with %i", ret);
-        return JNI_ERR;
-    }
-
-    latLngClass = env->FindClass("com/mapbox/mapboxsdk/geometry/LatLng");
-    if (latLngClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngConstructorId = env->GetMethodID(latLngClass, "<init>", "(DD)V");
-    if (latLngConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngLatitudeId = env->GetFieldID(latLngClass, "latitude", "D");
-    if (latLngLatitudeId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngLongitudeId = env->GetFieldID(latLngClass, "longitude", "D");
-    if (latLngLongitudeId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsClass = env->FindClass("com/mapbox/mapboxsdk/geometry/LatLngBounds");
-    if (latLngBoundsClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsConstructorId = env->GetMethodID(latLngBoundsClass, "<init>", "(DDDD)V");
-    if (latLngBoundsConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsLatNorthId = env->GetFieldID(latLngBoundsClass, "mLatNorth", "D");
-    if (latLngBoundsLatNorthId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsLatSouthId = env->GetFieldID(latLngBoundsClass, "mLatSouth", "D");
-    if (latLngBoundsLatSouthId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsLonEastId = env->GetFieldID(latLngBoundsClass, "mLonEast", "D");
-    if (latLngBoundsLonEastId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    latLngBoundsLonWestId = env->GetFieldID(latLngBoundsClass, "mLonWest", "D");
-    if (latLngBoundsLonWestId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    iconClass = env->FindClass("com/mapbox/mapboxsdk/annotations/Icon");
-    if (iconClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    iconIdId = env->GetFieldID(iconClass, "mId", "Ljava/lang/String;");
-    if (iconIdId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    markerClass = env->FindClass("com/mapbox/mapboxsdk/annotations/Marker");
-    if (markerClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    markerPositionId = env->GetFieldID(markerClass, "position", "Lcom/mapbox/mapboxsdk/geometry/LatLng;");
-    if (markerPositionId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    markerIconId = env->GetFieldID(markerClass, "icon", "Lcom/mapbox/mapboxsdk/annotations/Icon;");
-    if (markerIconId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    markerIdId = env->GetFieldID(markerClass, "id", "J");
-    if (markerIdId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polylineClass = env->FindClass("com/mapbox/mapboxsdk/annotations/Polyline");
-    if (polylineClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polylineAlphaId = env->GetFieldID(polylineClass, "alpha", "F");
-    if (polylineAlphaId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polylineColorId = env->GetFieldID(polylineClass, "color", "I");
-    if (polylineColorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polylineWidthId = env->GetFieldID(polylineClass, "width", "F");
-    if (polylineWidthId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polylinePointsId = env->GetFieldID(polylineClass, "points", "Ljava/util/List;");
-    if (polylineWidthId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polygonClass = env->FindClass("com/mapbox/mapboxsdk/annotations/Polygon");
-    if (polygonClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polygonAlphaId = env->GetFieldID(polygonClass, "alpha", "F");
-    if (polygonAlphaId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polygonFillColorId = env->GetFieldID(polygonClass, "fillColor", "I");
-    if (polygonFillColorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polygonStrokeColorId = env->GetFieldID(polygonClass, "strokeColor", "I");
-    if (polygonStrokeColorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    polygonPointsId = env->GetFieldID(polygonClass, "points", "Ljava/util/List;");
-    if (polygonPointsId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    jclass nativeMapViewClass = env->FindClass("com/mapbox/mapboxsdk/maps/NativeMapView");
-    if (nativeMapViewClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    onInvalidateId = env->GetMethodID(nativeMapViewClass, "onInvalidate", "()V");
-    if (onInvalidateId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    onMapChangedId = env->GetMethodID(nativeMapViewClass, "onMapChanged", "(I)V");
-    if (onMapChangedId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    onFpsChangedId = env->GetMethodID(nativeMapViewClass, "onFpsChanged", "(D)V");
-    if (onFpsChangedId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    runtimeExceptionClass = env->FindClass("java/lang/RuntimeException");
-    if (runtimeExceptionClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    nullPointerExceptionClass = env->FindClass("java/lang/NullPointerException");
-    if (nullPointerExceptionClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    jclass listClass = env->FindClass("java/util/List");
-    if (listClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    listToArrayId = env->GetMethodID(listClass, "toArray", "()[Ljava/lang/Object;");
-    if (listToArrayId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    arrayListClass = env->FindClass("java/util/ArrayList");
-    if (arrayListClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    arrayListConstructorId = env->GetMethodID(arrayListClass, "<init>", "()V");
-    if (arrayListConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    arrayListAddId = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
-    if (arrayListAddId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    projectedMetersClass = env->FindClass("com/mapbox/mapboxsdk/geometry/ProjectedMeters");
-    if (projectedMetersClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    projectedMetersConstructorId = env->GetMethodID(projectedMetersClass, "<init>", "(DD)V");
-    if (projectedMetersConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    projectedMetersNorthingId = env->GetFieldID(projectedMetersClass, "northing", "D");
-    if (projectedMetersNorthingId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    projectedMetersEastingId = env->GetFieldID(projectedMetersClass, "easting", "D");
-    if (projectedMetersEastingId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    pointFClass = env->FindClass("android/graphics/PointF");
-    if (pointFClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    pointFConstructorId = env->GetMethodID(pointFClass, "<init>", "(FF)V");
-    if (pointFConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    pointFXId = env->GetFieldID(pointFClass, "x", "F");
-    if (pointFXId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    pointFYId = env->GetFieldID(pointFClass, "y", "F");
-    if (pointFYId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFClass = env->FindClass("android/graphics/RectF");
-    if (rectFClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFConstructorId = env->GetMethodID(rectFClass, "<init>", "()V");
-    if (rectFConstructorId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFLeftId = env->GetFieldID(rectFClass, "left", "F");
-    if (rectFLeftId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFRightId = env->GetFieldID(rectFClass, "right", "F");
-    if (rectFRightId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFTopId = env->GetFieldID(rectFClass, "top", "F");
-    if (rectFTopId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    rectFBottomId = env->GetFieldID(rectFClass, "bottom", "F");
-    if (rectFBottomId == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
-
-    httpContextClass = env->FindClass("com/mapbox/mapboxsdk/http/HTTPContext");
-    if (httpContextClass == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    httpContextGetInstanceId = env->GetStaticMethodID(httpContextClass, "getInstance", "()Lcom/mapbox/mapboxsdk/http/HTTPContext;");
-    if (httpContextGetInstanceId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    httpContextCreateRequestId = env->GetMethodID(httpContextClass, "createRequest", "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/mapbox/mapboxsdk/http/HTTPContext$HTTPRequest;");
-    if (httpContextCreateRequestId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    httpRequestClass = env->FindClass("com/mapbox/mapboxsdk/http/HTTPContext$HTTPRequest");
-    if (httpRequestClass == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    httpRequestStartId = env->GetMethodID(httpRequestClass, "start", "()V");
-    if (httpRequestStartId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    httpRequestCancelId = env->GetMethodID(httpRequestClass, "cancel", "()V");
-    if (httpRequestCancelId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerClass = env->FindClass("com/mapbox/mapboxsdk/layers/CustomLayer");
-    if (customLayerClass == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerIdId = env->GetFieldID(customLayerClass, "mID", "Ljava/lang/String;");
-    if (customLayerIdId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerContextId = env->GetFieldID(customLayerClass, "mContext", "J");
-    if (customLayerContextId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerInitializeFunctionId = env->GetFieldID(customLayerClass, "mInitializeFunction", "J");
-    if (customLayerInitializeFunctionId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerRenderFunctionId = env->GetFieldID(customLayerClass, "mRenderFunction", "J");
-    if (customLayerRenderFunctionId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    customLayerDeinitializeFunctionId = env->GetFieldID(customLayerClass, "mDeinitializeFunction", "J");
-    if (customLayerDeinitializeFunctionId == nullptr) {
-        env->ExceptionDescribe();
-    }
-
-    const std::vector<JNINativeMethod> methods = {
-        {"nativeCreate", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;FIJ)J",
-         reinterpret_cast<void *>(&nativeCreate)},
-        {"nativeDestroy", "(J)V", reinterpret_cast<void *>(&nativeDestroy)},
-        {"nativeInitializeDisplay", "(J)V", reinterpret_cast<void *>(&nativeInitializeDisplay)},
-        {"nativeTerminateDisplay", "(J)V", reinterpret_cast<void *>(&nativeTerminateDisplay)},
-        {"nativeInitializeContext", "(J)V", reinterpret_cast<void *>(&nativeInitializeContext)},
-        {"nativeTerminateContext", "(J)V", reinterpret_cast<void *>(&nativeTerminateContext)},
-        {"nativeCreateSurface", "(JLandroid/view/Surface;)V",
-         reinterpret_cast<void *>(&nativeCreateSurface)},
-        {"nativeDestroySurface", "(J)V", reinterpret_cast<void *>(&nativeDestroySurface)},
-        {"nativePause", "(J)V", reinterpret_cast<void *>(&nativePause)},
-        {"nativeIsPaused", "(J)Z", reinterpret_cast<void *>(&nativeIsPaused)},
-        {"nativeResume", "(J)V", reinterpret_cast<void *>(&nativeResume)},
-        {"nativeUpdate", "(J)V", reinterpret_cast<void *>(&nativeUpdate)},
-        {"nativeRenderSync", "(J)V", reinterpret_cast<void *>(&nativeRenderSync)},
-        {"nativeViewResize", "(JII)V",
-         reinterpret_cast<void *>(static_cast<void JNICALL (
-             *)(JNIEnv *, jobject, jlong, jint, jint)>(&nativeViewResize))},
-        {"nativeFramebufferResize", "(JII)V",
-         reinterpret_cast<void *>(static_cast<void JNICALL (
-             *)(JNIEnv *, jobject, jlong, jint, jint)>(&nativeFramebufferResize))},
-        {"nativeAddClass", "(JLjava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeAddClass)},
-        {"nativeRemoveClass", "(JLjava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeRemoveClass)},
-        {"nativeHasClass", "(JLjava/lang/String;)Z",
-         reinterpret_cast<void *>(&nativeHasClass)},
-        {"nativeSetClasses", "(JLjava/util/List;)V",
-         reinterpret_cast<void *>(&nativeSetClasses)},
-        {"nativeGetClasses", "(J)Ljava/util/List;",
-         reinterpret_cast<void *>(&nativeGetClasses)},
-        {"nativeSetDefaultTransitionDuration", "(JJ)V",
-         reinterpret_cast<void *>(&nativeSetDefaultTransitionDuration)},
-        {"nativeGetDefaultTransitionDuration", "(J)J",
-         reinterpret_cast<void *>(&nativeGetDefaultTransitionDuration)},
-        {"nativeSetStyleUrl", "(JLjava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeSetStyleURL)},
-        {"nativeSetStyleJson", "(JLjava/lang/String;Ljava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeSetStyleJSON)},
-        {"nativeGetStyleJson", "(J)Ljava/lang/String;",
-         reinterpret_cast<void *>(&nativeGetStyleJSON)},
-        {"nativeSetAccessToken", "(JLjava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeSetAccessToken)},
-        {"nativeGetAccessToken", "(J)Ljava/lang/String;",
-         reinterpret_cast<void *>(&nativeGetAccessToken)},
-        {"nativeCancelTransitions", "(J)V", reinterpret_cast<void *>(&nativeCancelTransitions)},
-        {"nativeSetGestureInProgress", "(JZ)V", reinterpret_cast<void *>(&nativeSetGestureInProgress)},
-        {"nativeMoveBy", "(JDDJ)V", reinterpret_cast<void *>(&nativeMoveBy)},
-        {"nativeSetLatLng", "(JLcom/mapbox/mapboxsdk/geometry/LatLng;J)V",
-         reinterpret_cast<void *>(&nativeSetLatLng)},
-        {"nativeGetLatLng", "(J)Lcom/mapbox/mapboxsdk/geometry/LatLng;",
-         reinterpret_cast<void *>(&nativeGetLatLng)},
-        {"nativeResetPosition", "(J)V", reinterpret_cast<void *>(&nativeResetPosition)},
-        {"nativeGetPitch", "(J)D", reinterpret_cast<void *>(&nativeGetPitch)},
-        {"nativeSetPitch", "(JDJ)V", reinterpret_cast<void *>(&nativeSetPitch)},
-        {"nativeScaleBy", "(JDDDJ)V", reinterpret_cast<void *>(&nativeScaleBy)},
-        {"nativeSetScale", "(JDDDJ)V", reinterpret_cast<void *>(&nativeSetScale)},
-        {"nativeGetScale", "(J)D", reinterpret_cast<void *>(&nativeGetScale)},
-        {"nativeSetZoom", "(JDJ)V", reinterpret_cast<void *>(&nativeSetZoom)},
-        {"nativeGetZoom", "(J)D", reinterpret_cast<void *>(&nativeGetZoom)},
-        {"nativeResetZoom", "(J)V", reinterpret_cast<void *>(&nativeResetZoom)},
-        {"nativeGetMinZoom", "(J)D", reinterpret_cast<void *>(&nativeGetMinZoom)},
-        {"nativeSetMinZoom", "(JD)V", reinterpret_cast<void *>(&nativeSetMinZoom)},
-        {"nativeGetMaxZoom", "(J)D", reinterpret_cast<void *>(&nativeGetMaxZoom)},
-        {"nativeSetMaxZoom", "(JD)V", reinterpret_cast<void *>(&nativeSetMaxZoom)},
-        {"nativeRotateBy", "(JDDDDJ)V", reinterpret_cast<void *>(&nativeRotateBy)},
-        {"nativeSetBearing", "(JDJ)V",
-         reinterpret_cast<void *>(
-             static_cast<void JNICALL (*)(JNIEnv *, jobject, jlong, jdouble, jlong)>(
-                 &nativeSetBearing))},
-        {"nativeSetBearing", "(JDDD)V",
-         reinterpret_cast<void *>(
-             static_cast<void JNICALL (*)(JNIEnv *, jobject, jlong, jdouble, jdouble, jdouble)>(
-                 &nativeSetBearing))},
-        {"nativeGetBearing", "(J)D", reinterpret_cast<void *>(&nativeGetBearing)},
-        {"nativeResetNorth", "(J)V", reinterpret_cast<void *>(&nativeResetNorth)},
-        {"nativeAddMarker", "(JLcom/mapbox/mapboxsdk/annotations/Marker;)J",
-         reinterpret_cast<void *>(&nativeAddMarker)},
-         {"nativeAddMarkers", "(JLjava/util/List;)[J",
-         reinterpret_cast<void *>(&nativeAddMarkers)},
-        {"nativeAddPolyline", "(JLcom/mapbox/mapboxsdk/annotations/Polyline;)J",
-         reinterpret_cast<void *>(&nativeAddPolyline)},
-         {"nativeAddPolylines", "(JLjava/util/List;)[J",
-         reinterpret_cast<void *>(&nativeAddPolylines)},
-        {"nativeAddPolygon", "(JLcom/mapbox/mapboxsdk/annotations/Polygon;)J",
-         reinterpret_cast<void *>(&nativeAddPolygon)},
-        {"nativeAddPolygons", "(JLjava/util/List;)[J",
-         reinterpret_cast<void *>(&nativeAddPolygons)},
-        {"nativeUpdateMarker", "(JLcom/mapbox/mapboxsdk/annotations/Marker;)V",
-        reinterpret_cast<void *>(&nativeUpdateMarker)} ,
-        {"nativeRemoveAnnotation", "(JJ)V", reinterpret_cast<void *>(&nativeRemoveAnnotation)},
-        {"nativeRemoveAnnotations", "(J[J)V", reinterpret_cast<void *>(&nativeRemoveAnnotations)},
-        {"nativeGetAnnotationsInBounds", "(JLcom/mapbox/mapboxsdk/geometry/LatLngBounds;)[J",
-         reinterpret_cast<void *>(&nativeGetAnnotationsInBounds)},
-        {"nativeAddAnnotationIcon", "(JLjava/lang/String;IIF[B)V", reinterpret_cast<void *>(&nativeAddAnnotationIcon)},
-        {"nativeSetVisibleCoordinateBounds", "(J[Lcom/mapbox/mapboxsdk/geometry/LatLng;Landroid/graphics/RectF;DJ)V",
-                reinterpret_cast<void *>(&nativeSetVisibleCoordinateBounds)},
-        {"nativeOnLowMemory", "(J)V", reinterpret_cast<void *>(&nativeOnLowMemory)},
-        {"nativeSetDebug", "(JZ)V", reinterpret_cast<void *>(&nativeSetDebug)},
-        {"nativeToggleDebug", "(J)V", reinterpret_cast<void *>(&nativeToggleDebug)},
-        {"nativeGetDebug", "(J)Z", reinterpret_cast<void *>(&nativeGetDebug)},
-        {"nativeIsFullyLoaded", "(J)Z", reinterpret_cast<void *>(&nativeIsFullyLoaded)},
-        {"nativeSetReachability", "(JZ)V", reinterpret_cast<void *>(&nativeSetReachability)},
-        {"nativeGetMetersPerPixelAtLatitude", "(JDD)D", reinterpret_cast<void *>(&nativeGetMetersPerPixelAtLatitude)},
-        {"nativeProjectedMetersForLatLng",
-         "(JLcom/mapbox/mapboxsdk/geometry/LatLng;)Lcom/mapbox/mapboxsdk/geometry/ProjectedMeters;",
-         reinterpret_cast<void *>(&nativeProjectedMetersForLatLng)},
-        {"nativeLatLngForProjectedMeters",
-         "(JLcom/mapbox/mapboxsdk/geometry/ProjectedMeters;)Lcom/mapbox/mapboxsdk/geometry/LatLng;",
-         reinterpret_cast<void *>(&nativeLatLngForProjectedMeters)},
-        {"nativePixelForLatLng", "(JLcom/mapbox/mapboxsdk/geometry/LatLng;)Landroid/graphics/PointF;",
-         reinterpret_cast<void *>(&nativePixelForLatLng)},
-        {"nativeLatLngForPixel", "(JLandroid/graphics/PointF;)Lcom/mapbox/mapboxsdk/geometry/LatLng;",
-         reinterpret_cast<void *>(&nativeLatLngForPixel)},
-        {"nativeGetTopOffsetPixelsForAnnotationSymbol", "(JLjava/lang/String;)D",
-         reinterpret_cast<void *>(&nativeGetTopOffsetPixelsForAnnotationSymbol)},
-        {"nativeJumpTo", "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;DD)V",
-         reinterpret_cast<void *>(&nativeJumpTo)},
-        {"nativeEaseTo", "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;JDD)V",
-         reinterpret_cast<void *>(&nativeEaseTo)},
-        {"nativeFlyTo", "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;JDD)V",
-         reinterpret_cast<void *>(&nativeFlyTo)},
-        {"nativeAddCustomLayer", "(JLcom/mapbox/mapboxsdk/layers/CustomLayer;Ljava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeAddCustomLayer)},
-        {"nativeRemoveCustomLayer", "(JLjava/lang/String;)V",
-         reinterpret_cast<void *>(&nativeRemoveCustomLayer)},
-        {"nativeSetContentPadding", "(JDDDD)V",
-         reinterpret_cast<void *>(&nativeSetContentPadding)}
+void setAccessToken(JNIEnv *env, jni::jobject* obj, jlong defaultFileSourcePtr, jni::jstring* accessToken_) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "setAccessToken");
+    assert(defaultFileSourcePtr != 0);
+    std::string accessToken = std_string_from_jstring(env, accessToken_);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+    defaultFileSource->setAccessToken(accessToken);
+}
+
+jni::jstring* getAccessToken(JNIEnv *env, jni::jobject* obj, jlong defaultFileSourcePtr) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "getAccessToken");
+    assert(defaultFileSourcePtr != 0);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+    std::string accessToken = defaultFileSource->getAccessToken();
+    return std_string_to_jstring(env, accessToken);
+}
+
+void listOfflineRegions(JNIEnv *env, jni::jobject* obj, jlong defaultFileSourcePtr, jni::jobject* listCallback) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "listOfflineRegions");
+
+    // Checks
+    assert(defaultFileSourcePtr != 0);
+    NullCheck(*env, listCallback);
+
+    // Makes sure the objects don't get GC'ed
+    obj = jni::NewGlobalRef(*env, obj).release();
+    listCallback = jni::NewGlobalRef(*env, listCallback).release();
+
+    // Launch listCallback
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+    defaultFileSource->listOfflineRegions([obj, defaultFileSourcePtr, listCallback](std::exception_ptr error, mbgl::optional<std::vector<mbgl::OfflineRegion>> regions) mutable {
+
+        // Reattach, the callback comes from a different thread
+        JNIEnv *env2;
+        jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+        if (renderDetach) {
+            mbgl::Log::Debug(mbgl::Event::JNI, "Attached.");
+        }
+
+        if (error) {
+            std::string message = mbgl::util::toString(error);
+            jni::CallMethod<void>(*env2, listCallback, *listOnErrorMethodId, std_string_to_jstring(env2, message));
+        } else if (regions) {
+            // Build jni::jarray<jni::jobject>*
+            std::size_t index = 0;
+            jni::jarray<jni::jobject>* jregions = &jni::NewObjectArray(*env2, regions->size(), *offlineRegionClass, NULL);
+            for (auto& region : *regions) {
+                // Build the Region object
+                jni::jobject* jregion = &jni::NewObject(*env2, *offlineRegionClass, *offlineRegionConstructorId);
+                jni::SetField<jni::jobject*>(*env2, jregion, *offlineRegionOfflineManagerId, obj);
+                jni::SetField<jlong>(*env2, jregion, *offlineRegionIdId, region.getID());
+
+                
+                // Definition object
+                mbgl::OfflineTilePyramidRegionDefinition definition = region.getDefinition();
+                jni::jobject* jdefinition = &jni::NewObject(*env2, *offlineRegionDefinitionClass, *offlineRegionDefinitionConstructorId);
+                jni::SetField<jni::jobject*>(*env2, jdefinition, *offlineRegionDefinitionStyleURLId, std_string_to_jstring(env2, definition.styleURL));
+                jni::SetField<jni::jobject*>(*env2, jdefinition, *offlineRegionDefinitionBoundsId, latlngbounds_from_native(env2, definition.bounds));
+                jni::SetField<jdouble>(*env2, jdefinition, *offlineRegionDefinitionMinZoomId, definition.minZoom);
+                jni::SetField<jdouble>(*env2, jdefinition, *offlineRegionDefinitionMaxZoomId, definition.maxZoom);
+                jni::SetField<jfloat>(*env2, jdefinition, *offlineRegionDefinitionPixelRatioId, definition.pixelRatio);
+                jni::SetField<jni::jobject*>(*env2, jregion, *offlineRegionDefinitionId, jdefinition);
+                
+                // Metadata object
+                jni::jarray<jbyte>* metadata = metadata_from_native(env2, region.getMetadata());
+                jni::SetField<jni::jobject*>(*env2, jregion, *offlineRegionMetadataId, metadata);
+
+                // Moves the region on the stack into a heap-allocated one
+                jni::SetField<jlong>(*env2, jregion, *offlineRegionPtrId,
+                    reinterpret_cast<jlong>(new mbgl::OfflineRegion(std::move(region))));
+
+                jni::SetObjectArrayElement(*env2, *jregions, index, jregion);
+                index++;
+            }
+
+            // Trigger callback
+            jni::CallMethod<void>(*env2, listCallback, *listOnListMethodId, jregions);
+        }
+
+        // Delete global refs and detach when we're done
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(obj));
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(listCallback));
+        detach_jni_thread(theJVM, &env2, renderDetach);
+    });
+}
+
+void createOfflineRegion(JNIEnv *env, jni::jobject* obj, jlong defaultFileSourcePtr, jni::jobject* definition_, jni::jarray<jbyte>* metadata_, jni::jobject* createCallback) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "createOfflineRegion");
+
+    // Checks
+    assert(defaultFileSourcePtr != 0);
+    NullCheck(*env, createCallback);
+
+    // Definition fields
+    jni::jstring* jStyleURL = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, definition_, *offlineRegionDefinitionStyleURLId));
+    std::string styleURL = std_string_from_jstring(env, jStyleURL);
+    jni::jobject* jBounds = jni::GetField<jni::jobject*>(*env, definition_, *offlineRegionDefinitionBoundsId);
+    jdouble jMinZoom = jni::GetField<jdouble>(*env, definition_, *offlineRegionDefinitionMinZoomId);
+    jdouble jMaxZoom = jni::GetField<jdouble>(*env, definition_, *offlineRegionDefinitionMaxZoomId);
+    jfloat jPixelRatio = jni::GetField<jfloat>(*env, definition_, *offlineRegionDefinitionPixelRatioId);
+
+    // Convert bounds fields to native
+    mbgl::LatLngBounds bounds = latlngbounds_from_java(env, jBounds);
+
+    // Definition
+    mbgl::OfflineTilePyramidRegionDefinition definition(styleURL, bounds, jMinZoom, jMaxZoom, jPixelRatio);
+
+    // Metadata
+    mbgl::OfflineRegionMetadata metadata;
+    if (metadata_ != nullptr) {
+        metadata = metadata_from_java(env, *metadata_);
+    }
+
+    // Makes sure the objects don't get GC'ed
+    obj = jni::NewGlobalRef(*env, obj).release();
+    createCallback = jni::NewGlobalRef(*env, createCallback).release();
+
+    // Launch createCallback
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+    defaultFileSource->createOfflineRegion(definition, metadata, [obj, defaultFileSourcePtr, createCallback] (std::exception_ptr error, mbgl::optional<mbgl::OfflineRegion> region) mutable {
+
+        // Reattach, the callback comes from a different thread
+        JNIEnv *env2;
+        jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+        if (renderDetach) {
+            mbgl::Log::Debug(mbgl::Event::JNI, "Attached.");
+        }
+
+        if (error) {
+            std::string message = mbgl::util::toString(error);
+            jni::CallMethod<void>(*env2, createCallback, *createOnErrorMethodId, std_string_to_jstring(env2, message));
+        } else if (region) {
+            // Build the Region object
+            jni::jobject* jregion = &jni::NewObject(*env2, *offlineRegionClass, *offlineRegionConstructorId);
+            jni::SetField<jni::jobject*>(*env2, jregion, *offlineRegionOfflineManagerId, obj);
+            jni::SetField<jlong>(*env2, jregion, *offlineRegionIdId, region->getID());
+
+            // Metadata object
+            jni::jarray<jbyte>* jmetadata = metadata_from_native(env2, region->getMetadata());
+            jni::SetField<jni::jobject*>(*env2, jregion, *offlineRegionMetadataId, jmetadata);
+
+            // Moves the region on the stack into a heap-allocated one
+            jni::SetField<jlong>(*env2, jregion, *offlineRegionPtrId,
+                reinterpret_cast<jlong>(new mbgl::OfflineRegion(std::move(*region))));
+
+            // Invoke Java callback
+            jni::CallMethod<void>(*env2, createCallback, *createOnCreateMethodId, jregion);
+        }
+
+        // Delete global refs and detach when we're done
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(obj));
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(createCallback));
+        detach_jni_thread(theJVM, &env2, renderDetach);
+    });
+}
+
+void setOfflineMapboxTileCountLimit(JNIEnv *env, jni::jobject* obj, jlong defaultFileSourcePtr, jlong limit) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "setOfflineMapboxTileCountLimit");
+
+    // Checks
+    assert(defaultFileSourcePtr != 0);
+    assert(limit > 0);
+
+    // Set limit
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+    defaultFileSource->setOfflineMapboxTileCountLimit(limit);
+}
+
+mbgl::OfflineRegion* getOfflineRegionPeer(JNIEnv *env, jni::jobject* offlineRegion_) {
+    jlong offlineRegionPtr = jni::GetField<jlong>(*env, offlineRegion_, *offlineRegionPtrId);
+    if (!offlineRegionPtr) {
+        jni::ThrowNew(*env, jni::FindClass(*env, "java/lang/IllegalStateException"),
+            "Use of OfflineRegion after OfflineRegion.delete");
+    }
+    return reinterpret_cast<mbgl::OfflineRegion *>(offlineRegionPtr);
+}
+
+void destroyOfflineRegion(JNIEnv *env, jni::jobject* offlineRegion_) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "destroyOfflineRegion");
+
+    // Offline region
+    jlong offlineRegionPtr = jni::GetField<jlong>(*env, offlineRegion_, *offlineRegionPtrId);
+    if (!offlineRegionPtr) {
+        return; // Already deleted
+    }
+
+    // File source
+    jni::jobject* jmanager = jni::GetField<jni::jobject*>(*env, offlineRegion_, *offlineRegionOfflineManagerId);
+    jlong defaultFileSourcePtr = jni::GetField<jlong>(*env, jmanager, *offlineManagerClassPtrId);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+
+    // Release the observer and delete the region
+    mbgl::OfflineRegion *offlineRegion = reinterpret_cast<mbgl::OfflineRegion *>(offlineRegionPtr);
+    defaultFileSource->setOfflineRegionObserver(*offlineRegion, nullptr);
+    jni::SetField<jlong>(*env, offlineRegion_, *offlineRegionPtrId, 0);
+    delete offlineRegion;
+}
+
+void setOfflineRegionObserver(JNIEnv *env, jni::jobject* offlineRegion_, jni::jobject* observerCallback) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "setOfflineRegionObserver");
+
+    // Offline region
+    mbgl::OfflineRegion* offlineRegion = getOfflineRegionPeer(env, offlineRegion_);
+
+    // File source
+    jni::jobject* jmanager = jni::GetField<jni::jobject*>(*env, offlineRegion_, *offlineRegionOfflineManagerId);
+    jlong defaultFileSourcePtr = jni::GetField<jlong>(*env, jmanager, *offlineManagerClassPtrId);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+
+    // Define the observer
+    class Observer : public mbgl::OfflineRegionObserver {
+    public:
+        Observer(jni::UniqueGlobalRef<jni::jobject>&& observerCallback_)
+            : observerCallback(std::move(observerCallback_)) {
+        }
+
+        ~Observer() override {
+            mbgl::Log::Debug(mbgl::Event::JNI, "~Observer()");
+            // Env
+            JNIEnv* env2;
+            jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+            jni::DeleteGlobalRef(*env2, std::move(observerCallback));
+            detach_jni_thread(theJVM, &env2, renderDetach);
+        }
+
+        void statusChanged(mbgl::OfflineRegionStatus status) override {
+            // Env
+            JNIEnv* env2;
+            jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+
+            // Conver to jint
+            jint downloadState;
+            switch(status.downloadState) {
+                case mbgl::OfflineRegionDownloadState::Inactive:
+                    downloadState = 0;
+                    break;
+                case mbgl::OfflineRegionDownloadState::Active:
+                    downloadState = 1;
+                    break;
+            }
+
+            // Stats object
+            jni::jobject* jstatus = &jni::NewObject(*env2, *offlineRegionStatusClass, *offlineRegionStatusConstructorId);
+            jni::SetField<jint>(*env2, jstatus, *offlineRegionStatusDownloadStateId, downloadState);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusCompletedResourceCountId, status.completedResourceCount);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusCompletedResourceSizeId, status.completedResourceSize);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusRequiredResourceCountId, status.requiredResourceCount);
+            jni::SetField<jboolean>(*env2, jstatus, *offlineRegionStatusRequiredResourceCountIsPreciseId, status.requiredResourceCountIsPrecise);
+            jni::CallMethod<void>(*env2, observerCallback.get(), *offlineRegionObserveronStatusChangedId, jstatus);
+
+            // Detach when we're done
+            detach_jni_thread(theJVM, &env2, renderDetach);
+        }
+
+        void responseError(mbgl::Response::Error error) override {
+            // Env
+            JNIEnv* env2;
+            jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+
+            // Handle the value of reason independently of the underlying int value
+            std::string errorReason;
+            switch(error.reason) {
+                case mbgl::Response::Error::Reason::Success:
+                    errorReason = "REASON_SUCCESS";
+                    break;
+                case mbgl::Response::Error::Reason::NotFound:
+                    errorReason = "REASON_NOT_FOUND";
+                    break;
+                case mbgl::Response::Error::Reason::Server:
+                    errorReason = "REASON_SERVER";
+                    break;
+                case mbgl::Response::Error::Reason::Connection:
+                    errorReason = "REASON_CONNECTION";
+                    break;
+                case mbgl::Response::Error::Reason::Other:
+                    errorReason = "REASON_OTHER";
+                    break;
+            }
+
+            // Error object
+            jni::jobject* jerror = &jni::NewObject(*env2, *offlineRegionErrorClass, *offlineRegionErrorConstructorId);
+            jni::SetField<jni::jobject*>(*env2, jerror, *offlineRegionErrorReasonId, std_string_to_jstring(env2, errorReason));
+            jni::SetField<jni::jobject*>(*env2, jerror, *offlineRegionErrorMessageId, std_string_to_jstring(env2, error.message));
+            jni::CallMethod<void>(*env2, observerCallback.get(), *offlineRegionObserveronErrorId, jerror);
+
+            // Detach when we're done
+            detach_jni_thread(theJVM, &env2, renderDetach);
+        }
+
+        void mapboxTileCountLimitExceeded(uint64_t limit) override {
+            // Env
+            JNIEnv* env2;
+            jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+
+            // Send limit
+            jni::CallMethod<void>(*env2, observerCallback.get(), *offlineRegionObserveronLimitId, jlong(limit));
+
+            // Detach when we're done
+            detach_jni_thread(theJVM, &env2, renderDetach);
+        }
+
+        jni::UniqueGlobalRef<jni::jobject> observerCallback;
     };
 
-    if (env->RegisterNatives(nativeMapViewClass, methods.data(), methods.size()) < 0) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
+    // Set the observer
+    defaultFileSource->setOfflineRegionObserver(*offlineRegion,
+        std::make_unique<Observer>(jni::NewGlobalRef(*env, observerCallback)));
+}
+
+void setOfflineRegionDownloadState(JNIEnv *env, jni::jobject* offlineRegion_, jint offlineRegionDownloadState) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "setOfflineRegionDownloadState");
+
+    // State
+    mbgl::OfflineRegionDownloadState state;
+    if (offlineRegionDownloadState == 0) {
+        state = mbgl::OfflineRegionDownloadState::Inactive;
+    } else if (offlineRegionDownloadState == 1) {
+        state = mbgl::OfflineRegionDownloadState::Active;
+    } else {
+        mbgl::Log::Error(mbgl::Event::JNI, "State can only be 0 (inactive) or 1 (active).");
+        return;
     }
 
-    latLngClass = reinterpret_cast<jclass>(env->NewGlobalRef(latLngClass));
-    if (latLngClass == nullptr) {
-        env->ExceptionDescribe();
-        return JNI_ERR;
-    }
+    // Offline region
+    mbgl::OfflineRegion* offlineRegion = getOfflineRegionPeer(env, offlineRegion_);
 
-    latLngBoundsClass = reinterpret_cast<jclass>(env->NewGlobalRef(latLngBoundsClass));
-    if (latLngBoundsClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        return JNI_ERR;
-    }
+    // File source
+    jni::jobject* jmanager = jni::GetField<jni::jobject*>(*env, offlineRegion_, *offlineRegionOfflineManagerId);
+    jlong defaultFileSourcePtr = jni::GetField<jlong>(*env, jmanager, *offlineManagerClassPtrId);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
 
-    iconClass = reinterpret_cast<jclass>(env->NewGlobalRef(iconClass));
-    if (iconClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        return JNI_ERR;
-    }
+    // Set new state
+    defaultFileSource->setOfflineRegionDownloadState(*offlineRegion, state);
+}
 
-    markerClass = reinterpret_cast<jclass>(env->NewGlobalRef(markerClass));
-    if (markerClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        return JNI_ERR;
-    }
+void getOfflineRegionStatus(JNIEnv *env, jni::jobject* offlineRegion_, jni::jobject* statusCallback) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "getOfflineRegionStatus");
 
-    polylineClass = reinterpret_cast<jclass>(env->NewGlobalRef(polylineClass));
-    if (polylineClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        return JNI_ERR;
-    }
+    // Offline region
+    mbgl::OfflineRegion* offlineRegion = getOfflineRegionPeer(env, offlineRegion_);
 
-    polygonClass = reinterpret_cast<jclass>(env->NewGlobalRef(polygonClass));
-    if (polygonClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        return JNI_ERR;
-    }
+    // File source
+    jni::jobject* jmanager = jni::GetField<jni::jobject*>(*env, offlineRegion_, *offlineRegionOfflineManagerId);
+    jlong defaultFileSourcePtr = jni::GetField<jlong>(*env, jmanager, *offlineManagerClassPtrId);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
 
-    runtimeExceptionClass = reinterpret_cast<jclass>(env->NewGlobalRef(runtimeExceptionClass));
-    if (runtimeExceptionClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        return JNI_ERR;
-    }
+    // Makes sure the callback doesn't get GC'ed
+    statusCallback = jni::NewGlobalRef(*env, statusCallback).release();
 
-    nullPointerExceptionClass =
-        reinterpret_cast<jclass>(env->NewGlobalRef(nullPointerExceptionClass));
-    if (nullPointerExceptionClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        return JNI_ERR;
-    }
+    // Set new state
+    defaultFileSource->getOfflineRegionStatus(*offlineRegion, [statusCallback](std::exception_ptr error, mbgl::optional<mbgl::OfflineRegionStatus> status) mutable {
 
-    arrayListClass = reinterpret_cast<jclass>(env->NewGlobalRef(arrayListClass));
-    if (arrayListClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        return JNI_ERR;
-    }
+        // Reattach, the callback comes from a different thread
+        JNIEnv *env2;
+        jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+        if (renderDetach) {
+            mbgl::Log::Debug(mbgl::Event::JNI, "Attached.");
+        }
 
-    projectedMetersClass = reinterpret_cast<jclass>(env->NewGlobalRef(projectedMetersClass));
-    if (projectedMetersClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        env->DeleteGlobalRef(arrayListClass);
-        return JNI_ERR;
-    }
+        if (error) {
+            std::string message = mbgl::util::toString(error);
+            jni::CallMethod<void>(*env2, statusCallback, *offlineRegionStatusOnErrorId, std_string_to_jstring(env2, message));
+        } else if (status) {
+            // Conver to jint
+            jint downloadState = -1;
+            if (status->downloadState == mbgl::OfflineRegionDownloadState::Inactive) {
+                downloadState = 0;
+            } else if (status->downloadState == mbgl::OfflineRegionDownloadState::Active) {
+                downloadState = 1;
+            } else {
+                mbgl::Log::Error(mbgl::Event::JNI, "Unsupported OfflineRegionDownloadState value.");
+                return;
+            }
 
-    pointFClass = reinterpret_cast<jclass>(env->NewGlobalRef(pointFClass));
-    if (pointFClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        env->DeleteGlobalRef(arrayListClass);
-        env->DeleteGlobalRef(projectedMetersClass);
-        return JNI_ERR;
-    }
+            // Stats object
+            jni::jobject* jstatus = &jni::NewObject(*env2, *offlineRegionStatusClass, *offlineRegionStatusConstructorId);
+            jni::SetField<jint>(*env2, jstatus, *offlineRegionStatusDownloadStateId, downloadState);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusCompletedResourceCountId, status->completedResourceCount);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusCompletedResourceSizeId, status->completedResourceSize);
+            jni::SetField<jlong>(*env2, jstatus, *offlineRegionStatusRequiredResourceCountId, status->requiredResourceCount);
+            jni::SetField<jboolean>(*env2, jstatus, *offlineRegionStatusRequiredResourceCountIsPreciseId, status->requiredResourceCountIsPrecise);
+            jni::CallMethod<void>(*env2, statusCallback, *offlineRegionStatusOnStatusId, jstatus);
+        }
 
-    rectFClass = reinterpret_cast<jclass>(env->NewGlobalRef(rectFClass));
-    if (rectFClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        env->DeleteGlobalRef(arrayListClass);
-        env->DeleteGlobalRef(projectedMetersClass);
-        env->DeleteGlobalRef(pointFClass);
-        return JNI_ERR;
-    }
+        // Delete global refs and detach when we're done
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(statusCallback));
+        detach_jni_thread(theJVM, &env2, renderDetach);
+    });
+}
 
-    httpContextClass = reinterpret_cast<jclass>(env->NewGlobalRef(httpContextClass));
-    if (httpContextClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        env->DeleteGlobalRef(arrayListClass);
-        env->DeleteGlobalRef(projectedMetersClass);
-        env->DeleteGlobalRef(pointFClass);
-        env->DeleteGlobalRef(rectFClass);
-    }
+void deleteOfflineRegion(JNIEnv *env, jni::jobject* offlineRegion_, jni::jobject* deleteCallback) {
+    mbgl::Log::Debug(mbgl::Event::JNI, "deleteOfflineRegion");
 
-    httpRequestClass = reinterpret_cast<jclass>(env->NewGlobalRef(httpRequestClass));
-    if (httpRequestClass == nullptr) {
-        env->ExceptionDescribe();
-        env->DeleteGlobalRef(latLngClass);
-        env->DeleteGlobalRef(latLngBoundsClass);
-        env->DeleteGlobalRef(iconClass);
-        env->DeleteGlobalRef(markerClass);
-        env->DeleteGlobalRef(polylineClass);
-        env->DeleteGlobalRef(polygonClass);
-        env->DeleteGlobalRef(runtimeExceptionClass);
-        env->DeleteGlobalRef(nullPointerExceptionClass);
-        env->DeleteGlobalRef(arrayListClass);
-        env->DeleteGlobalRef(projectedMetersClass);
-        env->DeleteGlobalRef(pointFClass);
-        env->DeleteGlobalRef(rectFClass);
-        env->DeleteGlobalRef(httpContextClass);
-    }
+    // Offline region
+    mbgl::OfflineRegion* offlineRegion = getOfflineRegionPeer(env, offlineRegion_);
+
+    // File source
+    jni::jobject* jmanager = jni::GetField<jni::jobject*>(*env, offlineRegion_, *offlineRegionOfflineManagerId);
+    jlong defaultFileSourcePtr = jni::GetField<jlong>(*env, jmanager, *offlineManagerClassPtrId);
+    mbgl::DefaultFileSource *defaultFileSource = reinterpret_cast<mbgl::DefaultFileSource *>(defaultFileSourcePtr);
+
+    // Makes sure the callback doesn't get GC'ed
+    deleteCallback = jni::NewGlobalRef(*env, deleteCallback).release();
+
+    // Set new state
+    jni::SetField<jlong>(*env, offlineRegion_, *offlineRegionPtrId, 0);
+    defaultFileSource->deleteOfflineRegion(std::move(*offlineRegion), [deleteCallback](std::exception_ptr error) mutable {
+
+        // Reattach, the callback comes from a different thread
+        JNIEnv *env2;
+        jboolean renderDetach = attach_jni_thread(theJVM, &env2, "Offline Thread");
+        if (renderDetach) {
+            mbgl::Log::Debug(mbgl::Event::JNI, "Attached.");
+        }
+
+        if (error) {
+            std::string message = mbgl::util::toString(error);
+            jni::CallMethod<void>(*env2, deleteCallback, *offlineRegionDeleteOnErrorId, std_string_to_jstring(env2, message));
+        } else {
+            jni::CallMethod<void>(*env2, deleteCallback, *offlineRegionDeleteOnDeleteId);
+        }
+
+        // Delete global refs and detach when we're done
+        jni::DeleteGlobalRef(*env2, jni::UniqueGlobalRef<jni::jobject>(deleteCallback));
+        detach_jni_thread(theJVM, &env2, renderDetach);
+    });
+}
+
+// Offline calls end
+
+}
+
+extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    theJVM = vm;
+
+    jni::JNIEnv& env = jni::GetEnv(*vm, jni::jni_version_1_6);
+
+    mbgl::android::RegisterNativeHTTPRequest(env);
+
+    latLngClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/geometry/LatLng");
+    latLngClass = jni::NewGlobalRef(env, latLngClass).release();
+    latLngConstructorId = &jni::GetMethodID(env, *latLngClass, "<init>", "(DD)V");
+    latLngLatitudeId = &jni::GetFieldID(env, *latLngClass, "latitude", "D");
+    latLngLongitudeId = &jni::GetFieldID(env, *latLngClass, "longitude", "D");
+
+    latLngBoundsClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/geometry/LatLngBounds");
+    latLngBoundsClass = jni::NewGlobalRef(env, latLngBoundsClass).release();
+    latLngBoundsConstructorId = &jni::GetMethodID(env, *latLngBoundsClass, "<init>", "(DDDD)V");
+    latLngBoundsLatNorthId = &jni::GetFieldID(env, *latLngBoundsClass, "mLatNorth", "D");
+    latLngBoundsLatSouthId = &jni::GetFieldID(env, *latLngBoundsClass, "mLatSouth", "D");
+    latLngBoundsLonEastId = &jni::GetFieldID(env, *latLngBoundsClass, "mLonEast", "D");
+    latLngBoundsLonWestId = &jni::GetFieldID(env, *latLngBoundsClass, "mLonWest", "D");
+
+    iconClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/annotations/Icon");
+    iconClass = jni::NewGlobalRef(env, iconClass).release();
+    iconIdId = &jni::GetFieldID(env, *iconClass, "mId", "Ljava/lang/String;");
+
+    markerClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/annotations/Marker");
+    markerClass = jni::NewGlobalRef(env, markerClass).release();
+    markerPositionId = &jni::GetFieldID(env, *markerClass, "position", "Lcom/mapbox/mapboxsdk/geometry/LatLng;");
+    markerIconId = &jni::GetFieldID(env, *markerClass, "icon", "Lcom/mapbox/mapboxsdk/annotations/Icon;");
+    markerIdId = &jni::GetFieldID(env, *markerClass, "id", "J");
+
+    polylineClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/annotations/Polyline");
+    polylineClass = jni::NewGlobalRef(env, polylineClass).release();
+    polylineAlphaId = &jni::GetFieldID(env, *polylineClass, "alpha", "F");
+    polylineColorId = &jni::GetFieldID(env, *polylineClass, "color", "I");
+    polylineWidthId = &jni::GetFieldID(env, *polylineClass, "width", "F");
+    polylinePointsId = &jni::GetFieldID(env, *polylineClass, "points", "Ljava/util/List;");
+
+    polygonClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/annotations/Polygon");
+    polygonClass = jni::NewGlobalRef(env, polygonClass).release();
+    polygonAlphaId = &jni::GetFieldID(env, *polygonClass, "alpha", "F");
+    polygonFillColorId = &jni::GetFieldID(env, *polygonClass, "fillColor", "I");
+    polygonStrokeColorId = &jni::GetFieldID(env, *polygonClass, "strokeColor", "I");
+    polygonPointsId = &jni::GetFieldID(env, *polygonClass, "points", "Ljava/util/List;");
+
+    jni::jclass* listClass = &jni::FindClass(env, "java/util/List");
+    listToArrayId = &jni::GetMethodID(env, *listClass, "toArray", "()[Ljava/lang/Object;");
+
+    arrayListClass = &jni::FindClass(env, "java/util/ArrayList");
+    arrayListClass = jni::NewGlobalRef(env, arrayListClass).release();
+    arrayListConstructorId = &jni::GetMethodID(env, *arrayListClass, "<init>", "()V");
+    arrayListAddId = &jni::GetMethodID(env, *arrayListClass, "add", "(Ljava/lang/Object;)Z");
+
+    projectedMetersClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/geometry/ProjectedMeters");
+    projectedMetersClass = jni::NewGlobalRef(env, projectedMetersClass).release();
+    projectedMetersConstructorId = &jni::GetMethodID(env, *projectedMetersClass, "<init>", "(DD)V");
+    projectedMetersNorthingId = &jni::GetFieldID(env, *projectedMetersClass, "northing", "D");
+    projectedMetersEastingId = &jni::GetFieldID(env, *projectedMetersClass, "easting", "D");
+
+    pointFClass = &jni::FindClass(env, "android/graphics/PointF");
+    pointFClass = jni::NewGlobalRef(env, pointFClass).release();
+    pointFConstructorId = &jni::GetMethodID(env, *pointFClass, "<init>", "(FF)V");
+    pointFXId = &jni::GetFieldID(env, *pointFClass, "x", "F");
+    pointFYId = &jni::GetFieldID(env, *pointFClass, "y", "F");
+
+    rectFClass = &jni::FindClass(env, "android/graphics/RectF");
+    rectFClass = jni::NewGlobalRef(env, rectFClass).release();
+    rectFConstructorId = &jni::GetMethodID(env, *rectFClass, "<init>", "()V");
+    rectFLeftId = &jni::GetFieldID(env, *rectFClass, "left", "F");
+    rectFRightId = &jni::GetFieldID(env, *rectFClass, "right", "F");
+    rectFTopId = &jni::GetFieldID(env, *rectFClass, "top", "F");
+    rectFBottomId = &jni::GetFieldID(env, *rectFClass, "bottom", "F");
+
+    customLayerClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/layers/CustomLayer");
+    customLayerClass = jni::NewGlobalRef(env, customLayerClass).release();
+    customLayerIdId = &jni::GetFieldID(env, *customLayerClass, "mID", "Ljava/lang/String;");
+    customLayerContextId = &jni::GetFieldID(env, *customLayerClass, "mContext", "J");
+    customLayerInitializeFunctionId = &jni::GetFieldID(env, *customLayerClass, "mInitializeFunction", "J");
+    customLayerRenderFunctionId = &jni::GetFieldID(env, *customLayerClass, "mRenderFunction", "J");
+    customLayerDeinitializeFunctionId = &jni::GetFieldID(env, *customLayerClass, "mDeinitializeFunction", "J");
+
+    jni::jclass& nativeMapViewClass = jni::FindClass(env, "com/mapbox/mapboxsdk/maps/NativeMapView");
+
+    onInvalidateId = &jni::GetMethodID(env, nativeMapViewClass, "onInvalidate", "()V");
+    onMapChangedId = &jni::GetMethodID(env, nativeMapViewClass, "onMapChanged", "(I)V");
+    onFpsChangedId = &jni::GetMethodID(env, nativeMapViewClass, "onFpsChanged", "(D)V");
+
+    #define MAKE_NATIVE_METHOD(name, sig) jni::MakeNativeMethod<decltype(name), name>( #name, sig )
+
+    jni::RegisterNatives(env, nativeMapViewClass,
+        MAKE_NATIVE_METHOD(nativeCreate, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;FIJ)J"),
+        MAKE_NATIVE_METHOD(nativeDestroy, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeInitializeDisplay, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeTerminateDisplay, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeInitializeContext, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeTerminateContext, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeCreateSurface, "(JLandroid/view/Surface;)V"),
+        MAKE_NATIVE_METHOD(nativeDestroySurface, "(J)V"),
+        MAKE_NATIVE_METHOD(nativePause, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeIsPaused, "(J)Z"),
+        MAKE_NATIVE_METHOD(nativeResume, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeUpdate, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeRenderSync, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeViewResize, "(JII)V"),
+        MAKE_NATIVE_METHOD(nativeFramebufferResize, "(JII)V"),
+        MAKE_NATIVE_METHOD(nativeAddClass, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeRemoveClass, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeHasClass, "(JLjava/lang/String;)Z"),
+        MAKE_NATIVE_METHOD(nativeSetClasses, "(JLjava/util/List;)V"),
+        MAKE_NATIVE_METHOD(nativeGetClasses, "(J)Ljava/util/List;"),
+        MAKE_NATIVE_METHOD(nativeSetDefaultTransitionDuration, "(JJ)V"),
+        MAKE_NATIVE_METHOD(nativeGetDefaultTransitionDuration, "(J)J"),
+        MAKE_NATIVE_METHOD(nativeSetStyleUrl, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeSetStyleJson, "(JLjava/lang/String;Ljava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeGetStyleJson, "(J)Ljava/lang/String;"),
+        MAKE_NATIVE_METHOD(nativeSetAccessToken, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeGetAccessToken, "(J)Ljava/lang/String;"),
+        MAKE_NATIVE_METHOD(nativeCancelTransitions, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeSetGestureInProgress, "(JZ)V"),
+        MAKE_NATIVE_METHOD(nativeMoveBy, "(JDDJ)V"),
+        MAKE_NATIVE_METHOD(nativeSetLatLng, "(JLcom/mapbox/mapboxsdk/geometry/LatLng;J)V"),
+        MAKE_NATIVE_METHOD(nativeGetLatLng, "(J)Lcom/mapbox/mapboxsdk/geometry/LatLng;"),
+        MAKE_NATIVE_METHOD(nativeResetPosition, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeGetCameraValues, "(J)[D"),
+        MAKE_NATIVE_METHOD(nativeGetPitch, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeSetPitch, "(JDJ)V"),
+        MAKE_NATIVE_METHOD(nativeScaleBy, "(JDDDJ)V"),
+        MAKE_NATIVE_METHOD(nativeSetScale, "(JDDDJ)V"),
+        MAKE_NATIVE_METHOD(nativeGetScale, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeSetZoom, "(JDJ)V"),
+        MAKE_NATIVE_METHOD(nativeGetZoom, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeResetZoom, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeGetMinZoom, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeSetMinZoom, "(JD)V"),
+        MAKE_NATIVE_METHOD(nativeGetMaxZoom, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeSetMaxZoom, "(JD)V"),
+        MAKE_NATIVE_METHOD(nativeRotateBy, "(JDDDDJ)V"),
+        MAKE_NATIVE_METHOD(nativeSetBearing, "(JDJ)V"),
+        MAKE_NATIVE_METHOD(nativeSetBearingXY, "(JDDD)V"),
+        MAKE_NATIVE_METHOD(nativeGetBearing, "(J)D"),
+        MAKE_NATIVE_METHOD(nativeResetNorth, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeAddMarker, "(JLcom/mapbox/mapboxsdk/annotations/Marker;)J"),
+        MAKE_NATIVE_METHOD(nativeAddMarkers, "(JLjava/util/List;)[J"),
+        MAKE_NATIVE_METHOD(nativeAddPolyline, "(JLcom/mapbox/mapboxsdk/annotations/Polyline;)J"),
+        MAKE_NATIVE_METHOD(nativeAddPolylines, "(JLjava/util/List;)[J"),
+        MAKE_NATIVE_METHOD(nativeAddPolygon, "(JLcom/mapbox/mapboxsdk/annotations/Polygon;)J"),
+        MAKE_NATIVE_METHOD(nativeAddPolygons, "(JLjava/util/List;)[J"),
+        MAKE_NATIVE_METHOD(nativeUpdateMarker, "(JLcom/mapbox/mapboxsdk/annotations/Marker;)V"),
+        MAKE_NATIVE_METHOD(nativeRemoveAnnotation, "(JJ)V"),
+        MAKE_NATIVE_METHOD(nativeRemoveAnnotations, "(J[J)V"),
+        MAKE_NATIVE_METHOD(nativeGetAnnotationsInBounds, "(JLcom/mapbox/mapboxsdk/geometry/LatLngBounds;)[J"),
+        MAKE_NATIVE_METHOD(nativeAddAnnotationIcon, "(JLjava/lang/String;IIF[B)V"),
+        MAKE_NATIVE_METHOD(nativeSetVisibleCoordinateBounds, "(J[Lcom/mapbox/mapboxsdk/geometry/LatLng;Landroid/graphics/RectF;DJ)V"),
+        MAKE_NATIVE_METHOD(nativeOnLowMemory, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeSetDebug, "(JZ)V"),
+        MAKE_NATIVE_METHOD(nativeToggleDebug, "(J)V"),
+        MAKE_NATIVE_METHOD(nativeGetDebug, "(J)Z"),
+        MAKE_NATIVE_METHOD(nativeIsFullyLoaded, "(J)Z"),
+        MAKE_NATIVE_METHOD(nativeSetReachability, "(JZ)V"),
+        MAKE_NATIVE_METHOD(nativeGetMetersPerPixelAtLatitude, "(JDD)D"),
+        MAKE_NATIVE_METHOD(nativeProjectedMetersForLatLng, "(JLcom/mapbox/mapboxsdk/geometry/LatLng;)Lcom/mapbox/mapboxsdk/geometry/ProjectedMeters;"),
+        MAKE_NATIVE_METHOD(nativeLatLngForProjectedMeters, "(JLcom/mapbox/mapboxsdk/geometry/ProjectedMeters;)Lcom/mapbox/mapboxsdk/geometry/LatLng;"),
+        MAKE_NATIVE_METHOD(nativePixelForLatLng, "(JLcom/mapbox/mapboxsdk/geometry/LatLng;)Landroid/graphics/PointF;"),
+        MAKE_NATIVE_METHOD(nativeLatLngForPixel, "(JLandroid/graphics/PointF;)Lcom/mapbox/mapboxsdk/geometry/LatLng;"),
+        MAKE_NATIVE_METHOD(nativeGetTopOffsetPixelsForAnnotationSymbol, "(JLjava/lang/String;)D"),
+        MAKE_NATIVE_METHOD(nativeJumpTo, "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;DD)V"),
+        MAKE_NATIVE_METHOD(nativeEaseTo, "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;JDD)V"),
+        MAKE_NATIVE_METHOD(nativeFlyTo, "(JDLcom/mapbox/mapboxsdk/geometry/LatLng;JDD)V"),
+        MAKE_NATIVE_METHOD(nativeAddCustomLayer, "(JLcom/mapbox/mapboxsdk/layers/CustomLayer;Ljava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeRemoveCustomLayer, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(nativeSetContentPadding, "(JDDDD)V")
+    );
+
+    // Offline begin
+
+    struct OfflineManager {
+        static constexpr auto Name() { return "com/mapbox/mapboxsdk/offline/OfflineManager"; }
+
+        struct ListOfflineRegionsCallback {
+            static constexpr auto Name() { return "com/mapbox/mapboxsdk/offline/OfflineManager$ListOfflineRegionsCallback"; }
+        };
+
+        struct CreateOfflineRegionsCallback {
+            static constexpr auto Name() { return "com/mapbox/mapboxsdk/offline/OfflineManager$CreateOfflineRegionCallback"; }
+        };
+    };
+
+    struct OfflineRegion {
+        static constexpr auto Name() { return "com/mapbox/mapboxsdk/offline/OfflineRegion"; }
+    };
+
+    jni::Class<OfflineManager> offlineManagerClass = jni::Class<OfflineManager>::Find(env);
+    offlineManagerClassPtrId = &jni::GetFieldID(env, offlineManagerClass, "mDefaultFileSourcePtr", "J");
+
+    jni::RegisterNatives(env, offlineManagerClass,
+        MAKE_NATIVE_METHOD(createDefaultFileSource, "(Ljava/lang/String;Ljava/lang/String;J)J"),
+        MAKE_NATIVE_METHOD(setAccessToken, "(JLjava/lang/String;)V"),
+        MAKE_NATIVE_METHOD(getAccessToken, "(J)Ljava/lang/String;"),
+        MAKE_NATIVE_METHOD(listOfflineRegions, "(JLcom/mapbox/mapboxsdk/offline/OfflineManager$ListOfflineRegionsCallback;)V"),
+        MAKE_NATIVE_METHOD(createOfflineRegion, "(JLcom/mapbox/mapboxsdk/offline/OfflineRegionDefinition;[BLcom/mapbox/mapboxsdk/offline/OfflineManager$CreateOfflineRegionCallback;)V"),
+        MAKE_NATIVE_METHOD(setOfflineMapboxTileCountLimit, "(JJ)V")
+    );
+
+    jni::Class<OfflineManager::ListOfflineRegionsCallback> listOfflineRegionsCallbackClass = jni::Class<OfflineManager::ListOfflineRegionsCallback>::Find(env);
+    listOnListMethodId = &jni::GetMethodID(env, listOfflineRegionsCallbackClass, "onList", "([Lcom/mapbox/mapboxsdk/offline/OfflineRegion;)V");
+    listOnErrorMethodId = &jni::GetMethodID(env, listOfflineRegionsCallbackClass, "onError", "(Ljava/lang/String;)V");
+
+    jni::Class<OfflineManager::CreateOfflineRegionsCallback> createOfflineRegionCallbackClass = jni::Class<OfflineManager::CreateOfflineRegionsCallback>::Find(env);
+    createOnCreateMethodId = &jni::GetMethodID(env, createOfflineRegionCallbackClass, "onCreate", "(Lcom/mapbox/mapboxsdk/offline/OfflineRegion;)V");
+    createOnErrorMethodId = &jni::GetMethodID(env, createOfflineRegionCallbackClass, "onError", "(Ljava/lang/String;)V");
+
+    offlineRegionClass = &jni::FindClass(env, OfflineRegion::Name());
+    offlineRegionClass = jni::NewGlobalRef(env, offlineRegionClass).release();
+    offlineRegionConstructorId = &jni::GetMethodID(env, *offlineRegionClass, "<init>", "()V");
+    offlineRegionOfflineManagerId = &jni::GetFieldID(env, *offlineRegionClass, "offlineManager", "Lcom/mapbox/mapboxsdk/offline/OfflineManager;");
+    offlineRegionIdId = &jni::GetFieldID(env, *offlineRegionClass, "mId", "J");
+    offlineRegionDefinitionId = &jni::GetFieldID(env, *offlineRegionClass, "mDefinition", "Lcom/mapbox/mapboxsdk/offline/OfflineRegionDefinition;");
+    offlineRegionMetadataId = &jni::GetFieldID(env, *offlineRegionClass, "mMetadata", "[B");
+    offlineRegionPtrId = &jni::GetFieldID(env, *offlineRegionClass, "mOfflineRegionPtr", "J");
+
+    jni::RegisterNatives(env, *offlineRegionClass,
+        MAKE_NATIVE_METHOD(destroyOfflineRegion, "()V"),
+        MAKE_NATIVE_METHOD(setOfflineRegionObserver, "(Lcom/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionObserver;)V"),
+        MAKE_NATIVE_METHOD(setOfflineRegionDownloadState, "(I)V"),
+        MAKE_NATIVE_METHOD(getOfflineRegionStatus, "(Lcom/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionStatusCallback;)V"),
+        MAKE_NATIVE_METHOD(deleteOfflineRegion, "(Lcom/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionDeleteCallback;)V")
+    );
+
+    // This needs to be updated once we support more than one type of region definition
+    offlineRegionDefinitionClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineTilePyramidRegionDefinition");
+    offlineRegionDefinitionClass = jni::NewGlobalRef(env, offlineRegionDefinitionClass).release();
+    offlineRegionDefinitionConstructorId = &jni::GetMethodID(env, *offlineRegionDefinitionClass, "<init>", "()V");
+    offlineRegionDefinitionStyleURLId = &jni::GetFieldID(env, *offlineRegionDefinitionClass, "styleURL", "Ljava/lang/String;");
+    offlineRegionDefinitionBoundsId = &jni::GetFieldID(env, *offlineRegionDefinitionClass, "bounds", "Lcom/mapbox/mapboxsdk/geometry/LatLngBounds;");
+    offlineRegionDefinitionMinZoomId = &jni::GetFieldID(env, *offlineRegionDefinitionClass, "minZoom", "D");
+    offlineRegionDefinitionMaxZoomId = &jni::GetFieldID(env, *offlineRegionDefinitionClass, "maxZoom", "D");
+    offlineRegionDefinitionPixelRatioId = &jni::GetFieldID(env, *offlineRegionDefinitionClass, "pixelRatio", "F");
+
+    jni::jclass* offlineRegionObserverClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionObserver");
+    offlineRegionObserveronStatusChangedId = &jni::GetMethodID(env, *offlineRegionObserverClass, "onStatusChanged", "(Lcom/mapbox/mapboxsdk/offline/OfflineRegionStatus;)V");
+    offlineRegionObserveronErrorId = &jni::GetMethodID(env, *offlineRegionObserverClass, "onError", "(Lcom/mapbox/mapboxsdk/offline/OfflineRegionError;)V");
+    offlineRegionObserveronLimitId = &jni::GetMethodID(env, *offlineRegionObserverClass, "mapboxTileCountLimitExceeded", "(J)V");
+
+    offlineRegionStatusClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineRegionStatus");
+    offlineRegionStatusClass = jni::NewGlobalRef(env, offlineRegionStatusClass).release();
+    offlineRegionStatusConstructorId = &jni::GetMethodID(env, *offlineRegionStatusClass, "<init>", "()V");
+    offlineRegionStatusDownloadStateId = &jni::GetFieldID(env, *offlineRegionStatusClass, "downloadState", "I");
+    offlineRegionStatusCompletedResourceCountId = &jni::GetFieldID(env, *offlineRegionStatusClass, "completedResourceCount", "J");
+    offlineRegionStatusCompletedResourceSizeId = &jni::GetFieldID(env, *offlineRegionStatusClass, "completedResourceSize", "J");
+    offlineRegionStatusRequiredResourceCountId = &jni::GetFieldID(env, *offlineRegionStatusClass, "requiredResourceCount", "J");
+    offlineRegionStatusRequiredResourceCountIsPreciseId = &jni::GetFieldID(env, *offlineRegionStatusClass, "requiredResourceCountIsPrecise", "Z");
+
+    offlineRegionErrorClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineRegionError");
+    offlineRegionErrorClass = jni::NewGlobalRef(env, offlineRegionErrorClass).release();
+    offlineRegionErrorConstructorId = &jni::GetMethodID(env, *offlineRegionErrorClass, "<init>", "()V");
+    offlineRegionErrorReasonId = &jni::GetFieldID(env, *offlineRegionErrorClass, "reason", "Ljava/lang/String;");
+    offlineRegionErrorMessageId = &jni::GetFieldID(env, *offlineRegionErrorClass, "message", "Ljava/lang/String;");
+
+    jni::jclass* offlineRegionStatusCallbackClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionStatusCallback");
+    offlineRegionStatusOnStatusId = &jni::GetMethodID(env, *offlineRegionStatusCallbackClass, "onStatus", "(Lcom/mapbox/mapboxsdk/offline/OfflineRegionStatus;)V");
+    offlineRegionStatusOnErrorId = &jni::GetMethodID(env, *offlineRegionStatusCallbackClass, "onError", "(Ljava/lang/String;)V");
+
+    jni::jclass* offlineRegionDeleteCallbackClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/offline/OfflineRegion$OfflineRegionDeleteCallback");
+    offlineRegionDeleteOnDeleteId = &jni::GetMethodID(env, *offlineRegionDeleteCallbackClass, "onDelete", "()V");
+    offlineRegionDeleteOnErrorId = &jni::GetMethodID(env, *offlineRegionDeleteCallbackClass, "onError", "(Ljava/lang/String;)V");
+
+    // Offline end
 
     char release[PROP_VALUE_MAX] = "";
     __system_property_get("ro.build.version.release", release);
     androidRelease = std::string(release);
 
     return JNI_VERSION_1_6;
-}
-
-extern "C" JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
-    mbgl::Log::Debug(mbgl::Event::JNI, "JNI_OnUnload");
-
-    theJVM = vm;
-
-    JNIEnv *env = nullptr;
-    jint ret = vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
-    if (ret != JNI_OK) {
-        mbgl::Log::Error(mbgl::Event::JNI, "GetEnv() failed with %i", ret);
-        throw new std::runtime_error("GetEnv() failed");
-    }
-
-    env->DeleteGlobalRef(latLngClass);
-    latLngClass = nullptr;
-    latLngConstructorId = nullptr;
-    latLngLongitudeId = nullptr;
-    latLngLatitudeId = nullptr;
-
-    env->DeleteGlobalRef(latLngBoundsClass);
-    latLngBoundsClass = nullptr;
-    latLngBoundsConstructorId = nullptr;
-    latLngBoundsLatNorthId = nullptr;
-    latLngBoundsLatSouthId = nullptr;
-    latLngBoundsLonEastId = nullptr;
-    latLngBoundsLonWestId = nullptr;
-
-    env->DeleteGlobalRef(iconClass);
-    iconClass = nullptr;
-    iconIdId = nullptr;
-
-    env->DeleteGlobalRef(markerClass);
-    markerClass = nullptr;
-    markerPositionId = nullptr;
-    markerIconId = nullptr;
-    markerIdId = nullptr;
-
-    env->DeleteGlobalRef(polylineClass);
-    polylineClass = nullptr;
-    polylineAlphaId = nullptr;
-    polylineColorId = nullptr;
-    polylineWidthId = nullptr;
-    polylinePointsId = nullptr;
-
-    env->DeleteGlobalRef(polygonClass);
-    polygonClass = nullptr;
-    polygonAlphaId = nullptr;
-    polygonFillColorId = nullptr;
-    polygonStrokeColorId = nullptr;
-    polygonPointsId = nullptr;
-
-    onInvalidateId = nullptr;
-    onMapChangedId = nullptr;
-    onFpsChangedId = nullptr;
-
-    env->DeleteGlobalRef(runtimeExceptionClass);
-    runtimeExceptionClass = nullptr;
-
-    env->DeleteGlobalRef(nullPointerExceptionClass);
-    nullPointerExceptionClass = nullptr;
-
-    listToArrayId = nullptr;
-
-    env->DeleteGlobalRef(arrayListClass);
-    arrayListClass = nullptr;
-    arrayListConstructorId = nullptr;
-    arrayListAddId = nullptr;
-
-    env->DeleteGlobalRef(projectedMetersClass);
-    projectedMetersClass = nullptr;
-    projectedMetersConstructorId = nullptr;
-    projectedMetersNorthingId = nullptr;
-    projectedMetersEastingId = nullptr;
-
-    env->DeleteGlobalRef(pointFClass);
-    pointFClass = nullptr;
-    pointFConstructorId = nullptr;
-    pointFXId = nullptr;
-    pointFYId = nullptr;
-
-    env->DeleteGlobalRef(rectFClass);
-    rectFClass = nullptr;
-    rectFConstructorId = nullptr;
-    rectFLeftId = nullptr;
-    rectFTopId = nullptr;
-    rectFRightId = nullptr;
-    rectFBottomId = nullptr;
-
-    env->DeleteGlobalRef(httpContextClass);
-    httpContextGetInstanceId = nullptr;
-    httpContextCreateRequestId = nullptr;
-
-    env->DeleteGlobalRef(httpRequestClass);
-    httpRequestStartId = nullptr;
-    httpRequestCancelId = nullptr;
-
-    theJVM = nullptr;
-}
 }

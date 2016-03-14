@@ -2,7 +2,7 @@
 #define MBGL_UTIL_RASTER
 
 #include <mbgl/gl/gl.hpp>
-#include <mbgl/util/texture_pool.hpp>
+#include <mbgl/gl/texture_pool.hpp>
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/ptr.hpp>
 #include <mbgl/util/chrono.hpp>
@@ -14,17 +14,17 @@ namespace mbgl {
 class Raster : public std::enable_shared_from_this<Raster> {
 
 public:
-    Raster(TexturePool&);
+    Raster(gl::TexturePool&);
     ~Raster();
 
     // load image data
     void load(PremultipliedImage);
 
     // bind current texture
-    void bind(bool linear = false);
+    void bind(bool linear, gl::GLObjectStore&);
 
     // uploads the texture if it hasn't been uploaded yet.
-    void upload();
+    void upload(gl::GLObjectStore&);
 
     // loaded status
     bool isLoaded() const;
@@ -38,7 +38,7 @@ public:
     bool textured = false;
 
     // the uploaded texture
-    GLuint texture = 0;
+    GLuint textureID = 0;
 
     // texture opacity
     double opacity = 0;
@@ -50,7 +50,7 @@ private:
     bool loaded = false;
 
     // shared texture pool
-    TexturePool& texturePool;
+    gl::TexturePool& texturePool;
 
     // min/mag filter
     GLint filter = 0;

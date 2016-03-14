@@ -41,7 +41,8 @@ test('Map', function(t) {
 
         options.request = function() {};
         t.doesNotThrow(function() {
-            new mbgl.Map(options);
+            var map = new mbgl.Map(options);
+            map.release();
         });
 
         t.end();
@@ -59,7 +60,8 @@ test('Map', function(t) {
 
         options.cancel = function() {};
         t.doesNotThrow(function() {
-            new mbgl.Map(options);
+            var map = new mbgl.Map(options);
+            map.release();
         });
 
         t.end();
@@ -78,7 +80,8 @@ test('Map', function(t) {
 
         options.ratio = 1.0;
         t.doesNotThrow(function() {
-            new mbgl.Map(options);
+            var map = new mbgl.Map(options);
+            map.release();
         });
 
         t.end();
@@ -287,6 +290,53 @@ test('Map', function(t) {
             }, /Map is currently rendering an image/);
 
             map.release();
+            t.end();
+        });
+    });
+
+    t.test('request callback', function (t) {
+        t.test('returning an error', function(t) {
+            var map = new mbgl.Map({
+                request: function(req, callback) {
+                    callback(new Error('request error'));
+                },
+            });
+            map.load(style);
+            map.render({ zoom: 1 }, function(err, data) {
+                map.release();
+                t.ok(err, 'returns error');
+                t.equal(err.message, 'request error');
+                t.end();
+            });
+        });
+
+        t.test('returning no content for a tile', function(t) {
+            var map = new mbgl.Map({
+                request: function(req, callback) {
+                    callback();
+                },
+            });
+            map.load(style);
+            map.render({ zoom: 1 }, function(err, data) {
+                map.release();
+                t.ok(data, 'no error');
+                t.end();
+            });
+        });
+
+        t.test('not holding references', function(t) {
+            var options = {
+                request: function() {},
+                ratio: 1
+            };
+
+            // We explicitly don't call release. mbgl.Map should
+            // not hold any reference to the node's main loop and
+            // prevent the test from exit.
+            var map1 = new mbgl.Map(options);
+            var map2 = new mbgl.Map(options);
+            var map3 = new mbgl.Map(options);
+
             t.end();
         });
     });

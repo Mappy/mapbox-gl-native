@@ -20,6 +20,13 @@ public class VisibleRegionTest {
     }
 
     @Test
+    public void testEquality() {
+        VisibleRegion region = new VisibleRegion(FAR_LEFT, FAR_RIGHT, NEAR_LEFT, NEAR_RIGHT, BOUNDS);
+        assertEquals("visibleRegion is not equal to a LatLng", region.equals(FAR_LEFT), false);
+        assertEquals("visibleRegion is equal to itself", region.equals(region), true);
+    }
+
+    @Test
     public void testFarLeftConstructor() {
         VisibleRegion region = new VisibleRegion(FAR_LEFT, FAR_RIGHT, NEAR_LEFT, NEAR_RIGHT, BOUNDS);
         assertEquals("LatLng should match", region.farLeft, FAR_LEFT);
@@ -54,6 +61,12 @@ public class VisibleRegionTest {
         VisibleRegion regionLeft = new VisibleRegion(FAR_LEFT, FAR_RIGHT, NEAR_LEFT, NEAR_RIGHT, BOUNDS);
         VisibleRegion regionRight = new VisibleRegion(FAR_LEFT, FAR_RIGHT, NEAR_LEFT, NEAR_RIGHT, BOUNDS);
         assertEquals("VisibleRegions should match", regionLeft, regionRight);
+    }
+
+    @Test
+    public void testHashcode() {
+        VisibleRegion region = new VisibleRegion(FAR_LEFT, FAR_RIGHT, NEAR_LEFT, NEAR_RIGHT, BOUNDS);
+        assertEquals("hashcode should match", -923534102, region.hashCode());
     }
 
     @Test

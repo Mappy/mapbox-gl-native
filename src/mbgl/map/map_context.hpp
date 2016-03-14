@@ -8,9 +8,9 @@
 #include <mbgl/map/map_data.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/util/async_task.hpp>
-#include <mbgl/util/gl_object_store.hpp>
 #include <mbgl/util/ptr.hpp>
 #include <mbgl/util/optional.hpp>
+#include <mbgl/gl/gl_object_store.hpp>
 
 #include <vector>
 
@@ -18,10 +18,11 @@ namespace mbgl {
 
 class View;
 class MapData;
-class TexturePool;
 class Painter;
 class SpriteImage;
 class FileRequest;
+
+namespace gl { class TexturePool; }
 
 struct FrameData {
     std::array<uint16_t, 2> framebufferSize;
@@ -76,16 +77,17 @@ private:
     void loadStyleJSON(const std::string& json, const std::string& base);
 
     View& view;
+    FileSource& fileSource;
     std::unique_ptr<MapData> dataPtr;
     MapData& data;
 
-    util::GLObjectStore glObjectStore;
+    gl::GLObjectStore glObjectStore;
 
     Update updateFlags = Update::Nothing;
     util::AsyncTask asyncUpdate;
     util::AsyncTask asyncInvalidate;
 
-    std::unique_ptr<TexturePool> texturePool;
+    std::unique_ptr<gl::TexturePool> texturePool;
     std::unique_ptr<Painter> painter;
     std::unique_ptr<Style> style;
 

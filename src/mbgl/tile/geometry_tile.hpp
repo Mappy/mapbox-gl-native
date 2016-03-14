@@ -24,15 +24,22 @@ enum class FeatureType : uint8_t {
     Polygon = 3
 };
 
-typedef std::vector<std::vector<Coordinate>> GeometryCollection;
+// Normalized vector tile coordinates.
+// Each geometry coordinate represents a point in a bidimensional space,
+// varying from -V...0...+V, where V is the maximum extent applicable.
+using GeometryCoordinate  = vec2<int16_t>;
+using GeometryCoordinates = std::vector<GeometryCoordinate>;
+using GeometryCollection  = std::vector<GeometryCoordinates>;
 
 class GeometryTileFeature : private util::noncopyable {
 public:
+    static const uint32_t defaultExtent = 4096;
+
     virtual ~GeometryTileFeature() = default;
     virtual FeatureType getType() const = 0;
     virtual optional<Value> getValue(const std::string& key) const = 0;
     virtual GeometryCollection getGeometries() const = 0;
-    virtual uint32_t getExtent() const = 0;
+    virtual uint32_t getExtent() const { return defaultExtent; }
 };
 
 class GeometryTileLayer : private util::noncopyable {

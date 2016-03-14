@@ -6,18 +6,20 @@
 
 namespace mbgl {
 
+class FileSource;
 class FileRequest;
 class StyleLayer;
-class TexturePool;
 class WorkRequest;
+namespace gl { class TexturePool; }
 
 class RasterTileData : public TileData {
 public:
     RasterTileData(const TileID&,
                    float pixelRatio,
                    const std::string& urlTemplate,
-                   TexturePool&,
+                   gl::TexturePool&,
                    Worker&,
+                   FileSource&,
                    const std::function<void(std::exception_ptr)>& callback);
     ~RasterTileData();
 
@@ -25,7 +27,7 @@ public:
     Bucket* getBucket(StyleLayer const &layer_desc) override;
 
 private:
-    TexturePool& texturePool;
+    gl::TexturePool& texturePool;
     Worker& worker;
     std::unique_ptr<FileRequest> req;
     std::unique_ptr<Bucket> bucket;

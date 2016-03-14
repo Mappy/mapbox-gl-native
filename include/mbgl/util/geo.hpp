@@ -2,6 +2,7 @@
 #define MBGL_UTIL_GEO
 
 #include <mbgl/util/vec.hpp>
+#include <mbgl/util/constants.hpp>
 
 #include <cmath>
 
@@ -9,15 +10,34 @@ namespace mbgl {
 
 class TileID;
 
-using PrecisionPoint = vec2<double>;
+using ScreenCoordinate = vec2<double>;
 
 class LatLng {
 public:
-    double latitude = 0;
-    double longitude = 0;
+    double latitude;
+    double longitude;
 
-    LatLng(double lat = 0, double lon = 0)
-        : latitude(lat), longitude(lon) {}
+    enum WrapMode : bool { Unwrapped, Wrapped };
+
+    LatLng(double lat = 0, double lon = 0, WrapMode mode = Unwrapped)
+        : latitude(lat), longitude(lon) { if (mode == Wrapped) wrap(); }
+
+    LatLng wrapped() const { return { latitude, longitude, Wrapped }; }
+
+    void wrap() {
+        if (longitude < -util::LONGITUDE_MAX) longitude = util::LONGITUDE_MAX + std::fmod(longitude + util::LONGITUDE_MAX, util::DEGREES_MAX);
+        if (longitude > util::LONGITUDE_MAX) longitude = -util::LONGITUDE_MAX + std::fmod(longitude + util::LONGITUDE_MAX, util::DEGREES_MAX);
+    }
+
+    // If we pass through the antimeridian, we update the start coordinate to make sure
+    // the end coordinate is always wrapped.
+    void unwrapForShortestPath(const LatLng& end) {
+        if (end.longitude < -util::LONGITUDE_MAX) {
+            longitude += util::DEGREES_MAX;
+        } else if (end.longitude > util::LONGITUDE_MAX) {
+            longitude -= util::DEGREES_MAX;
+        }
+    }
 
     explicit operator bool() const {
         return !(std::isnan(latitude) || std::isnan(longitude));
@@ -26,7 +46,7 @@ public:
     // Constructs a LatLng object with the top left position of the specified tile.
     LatLng(const TileID& id);
 
-    PrecisionPoint project() const;
+    ScreenCoordinate project() const;
 };
 
 inline bool operator==(const LatLng& a, const LatLng& b) {
@@ -179,9 +199,10 @@ public:
         : top(t), left(l), bottom(b), right(r) {}
     
     explicit operator bool() const {
-        return top || left || bottom || right;
+        return !(std::isnan(top) || std::isnan(left) || std::isnan(bottom) || std::isnan(right))
+            && (top || left || bottom || right);
     }
-    
+
     void operator+=(const EdgeInsets& o) {
         top += o.top;
         left += o.left;
@@ -195,7 +216,7 @@ public:
         };
     }
     
-    PrecisionPoint getCenter(uint16_t width, uint16_t height) const;
+    ScreenCoordinate getCenter(uint16_t width, uint16_t height) const;
 };
 
 } // namespace mbgl

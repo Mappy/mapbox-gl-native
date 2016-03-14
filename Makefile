@@ -2,6 +2,7 @@ export BUILDTYPE ?= Release
 export BUILD_TEST ?= 1
 export BUILD_RENDER ?= 1
 export BUILD_OFFLINE ?= 1
+export ENABLE_COVERAGE ?= 0
 
 # Determine build platform
 ifeq ($(shell uname -s), Darwin)
@@ -54,6 +55,7 @@ ipackage: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=$(FORMAT) BUILD_DE
 ipackage-strip: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO ./platform/ios/scripts/package.sh
 ipackage-sim: Xcode/ios ; @JOBS=$(JOBS) BUILDTYPE=Debug BITCODE=$(BITCODE) FORMAT=dynamic BUILD_DEVICE=false SYMBOLS=$(SYMBOLS) ./platform/ios/scripts/package.sh
 iframework: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=dynamic BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) ./platform/ios/scripts/package.sh
+ifabric: Xcode/ios ; @JOBS=$(JOBS) BITCODE=$(BITCODE) FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO BUNDLE_RESOURCES=YES ./platform/ios/scripts/package.sh
 itest: ipackage-sim ; ./platform/ios/scripts/test.sh
 idocument: ; OUTPUT=$(OUTPUT) ./platform/ios/scripts/document.sh
 
@@ -117,6 +119,10 @@ ifeq ($(BUILD),osx)
 xtest: ; $(RUN) HOST=osx HOST_VERSION=x86_64 Xcode/test
 endif
 
+.PHONY: check
+check: ; $(RUN) BUILDTYPE=Debug ENABLE_COVERAGE=1 check
+coveralls: ; $(RUN) BUILDTYPE=Debug ENABLE_COVERAGE=1 coveralls
+
 .PHONY: render
 render: ; $(RUN) Makefile/mbgl-render
 
@@ -152,15 +158,10 @@ endif
 
 clean: clear_sqlite_cache clear_xcode_cache
 	-find ./deps/gyp -name "*.pyc" -exec rm {} \;
-	-rm -rf ./build/
+	-find ./build -type f -not -path '*/*.xcodeproj/*' -exec rm {} \;
 	-rm -rf ./gyp/build/
-	-rm -rf ./macosx/build
-	-rm -rf ./linux/build
-	-rm -rf ./ios/build
-	-rm -rf ./test/build
 	-rm -rf ./config/*.gypi
-	-rm -rf ./platform/android/build \
-	        ./platform/android/MapboxGLAndroidSDK/build \
+	-rm -rf ./platform/android/MapboxGLAndroidSDK/build \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/build \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/obj.target \

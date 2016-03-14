@@ -79,6 +79,7 @@ GYP_FLAGS += -Dheadless_lib=$(HEADLESS)
 GYP_FLAGS += -Dtest=$(BUILD_TEST)
 GYP_FLAGS += -Drender=$(BUILD_RENDER)
 GYP_FLAGS += -Doffline=$(BUILD_OFFLINE)
+GYP_FLAGS += -Dcoverage=$(ENABLE_COVERAGE)
 GYP_FLAGS += -Dcxx_host=$(CXX_HOST)
 GYP_FLAGS += --depth=.
 GYP_FLAGS += -Goutput_dir=.
@@ -165,6 +166,12 @@ tidy: Ninja/compdb
 
 test-%: Makefile/test
 	./scripts/run_tests.sh "build/$(HOST_SLUG)/$(BUILDTYPE)/test" --gtest_filter=$*
+
+check: Makefile/test
+	./scripts/collect-coverage.sh
+
+coveralls: Makefile/test
+	./scripts/coveralls.sh
 
 #### Helper targets ############################################################
 

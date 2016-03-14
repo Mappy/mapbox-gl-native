@@ -20,10 +20,13 @@ static void InitializeMapbox() {
     [MGLMapCamera class];
     [MGLMapView class];
     [MGLMultiPoint class];
+    [MGLOfflinePack class];
+    [MGLOfflineStorage class];
     [MGLPointAnnotation class];
     [MGLPolygon class];
     [MGLPolyline class];
     [MGLShape class];
     [MGLStyle class];
+    [MGLTilePyramidOfflineRegion class];
     [MGLUserLocation class];
 }

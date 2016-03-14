@@ -13,13 +13,12 @@ import android.view.View;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
-import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.maps.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.utils.ApiAccess;
+import com.mapbox.mapboxsdk.testapp.utils.ApiAccess;
 
 public class DynamicMarkerChangeActivity extends AppCompatActivity {
 
@@ -48,14 +47,13 @@ public class DynamicMarkerChangeActivity extends AppCompatActivity {
         mIconFactory = IconFactory.getInstance(this);
 
         mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.setTag(true);
+        mMapView.setTag(false);
         mMapView.setAccessToken(ApiAccess.getToken(this));
         mMapView.onCreate(savedInstanceState);
         mMapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
                 mMapboxMap = mapboxMap;
-                mapboxMap.setStyle(Style.MAPBOX_STREETS);
                 mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(51.506675, -0.128699), 10));
 
                 // Create marker

@@ -82,11 +82,10 @@ void ShapeAnnotationImpl::updateStyle(Style& style) {
 
 void ShapeAnnotationImpl::updateTile(const TileID& tileID, AnnotationTile& tile) {
     static const double baseTolerance = 4;
-    static const uint16_t extent = 4096;
 
     if (!shapeTiler) {
         const uint64_t maxAmountOfTiles = 1 << maxZoom;
-        const double tolerance = baseTolerance / (maxAmountOfTiles * extent);
+        const double tolerance = baseTolerance / (maxAmountOfTiles * GeometryTileFeature::defaultExtent);
 
         geojsonvt::ProjectedRings rings;
         std::vector<geojsonvt::LonLat> points;
@@ -134,7 +133,7 @@ void ShapeAnnotationImpl::updateTile(const TileID& tileID, AnnotationTile& tile)
 
         GeometryCollection renderGeometry;
         for (auto& shapeRing : shapeFeature.tileGeometry.get<geojsonvt::TileRings>()) {
-            std::vector<Coordinate> renderLine;
+            GeometryCoordinates renderLine;
 
             for (auto& shapePoint : shapeRing) {
                 renderLine.emplace_back(shapePoint.x, shapePoint.y);

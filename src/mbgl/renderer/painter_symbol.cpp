@@ -23,7 +23,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
                         float sdfFontSize,
                         std::array<float, 2> texsize,
                         SDFShader& sdfShader,
-                        void (SymbolBucket::*drawSDF)(SDFShader&))
+                        void (SymbolBucket::*drawSDF)(SDFShader&, gl::GLObjectStore&))
 {
     mat4 vtxMatrix = translatedMatrix(matrix, styleProperties.translate, id, styleProperties.translateAnchor);
 
@@ -34,7 +34,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
 
     if (skewed) {
         matrix::identity(exMatrix);
-        s = util::EXTENT / util::tileSize / id.overscaling / std::pow(2, state.getZoom() - id.z);
+        s = util::EXTENT / util::tileSize / std::pow(2, state.getZoom() - id.sourceZ);
         gammaScale = 1.0f / std::cos(state.getPitch());
     } else {
         exMatrix = extrudeMatrix;
@@ -49,7 +49,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
     float fontScale = fontSize / sdfFontSize;
     matrix::scale(exMatrix, exMatrix, fontScale, fontScale, 1.0f);
 
-    config.program = sdfShader.program;
+    config.program = sdfShader.getID();
     sdfShader.u_matrix = vtxMatrix;
     sdfShader.u_exmatrix = exMatrix;
     sdfShader.u_texsize = texsize;
@@ -101,7 +101,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
         sdfShader.u_buffer = (haloOffset - styleProperties.haloWidth / fontScale) / sdfPx;
 
         setDepthSublayer(0);
-        (bucket.*drawSDF)(sdfShader);
+        (bucket.*drawSDF)(sdfShader, glObjectStore);
     }
 
     // Then, we draw the text/icon over the halo
@@ -122,7 +122,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
         sdfShader.u_buffer = (256.0f - 64.0f) / 256.0f;
 
         setDepthSublayer(1);
-        (bucket.*drawSDF)(sdfShader);
+        (bucket.*drawSDF)(sdfShader, glObjectStore);
     }
 }
 
@@ -174,7 +174,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
         SpriteAtlas* activeSpriteAtlas = layer.spriteAtlas;
         const bool iconScaled = fontScale != 1 || data.pixelRatio != activeSpriteAtlas->getPixelRatio() || bucket.iconsNeedLinear;
         const bool iconTransformed = layout.icon.rotationAlignment == RotationAlignmentType::Map || angleOffset != 0 || state.getPitch() != 0;
-        activeSpriteAtlas->bind(sdf || state.isChanging() || iconScaled || iconTransformed);
+        activeSpriteAtlas->bind(sdf || state.isChanging() || iconScaled || iconTransformed, glObjectStore);
 
         if (sdf) {
             renderSDF(bucket,
@@ -203,7 +203,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
 
             if (skewed) {
                 matrix::identity(exMatrix);
-                s = util::EXTENT / util::tileSize / id.overscaling / std::pow(2, state.getZoom() - id.z);
+                s = util::EXTENT / util::tileSize / std::pow(2, state.getZoom() - id.sourceZ);
             } else {
                 exMatrix = extrudeMatrix;
                 matrix::rotate_z(exMatrix, exMatrix, state.getNorthOrientationAngle());
@@ -219,7 +219,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
             float x = state.getHeight() / 2.0f * std::tan(state.getPitch());
             float extra = (topedgelength + x) / topedgelength - 1;
 
-            config.program = iconShader->program;
+            config.program = iconShader->getID();
             iconShader->u_matrix = vtxMatrix;
             iconShader->u_exmatrix = exMatrix;
             iconShader->u_texsize = {{ float(activeSpriteAtlas->getWidth()) / 4.0f, float(activeSpriteAtlas->getHeight()) / 4.0f }};
@@ -238,7 +238,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
             iconShader->u_opacity = properties.icon.opacity;
 
             setDepthSublayer(0);
-            bucket.drawIcons(*iconShader);
+            bucket.drawIcons(*iconShader, glObjectStore);
         }
     }
 
@@ -250,7 +250,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
             config.depthTest = GL_FALSE;
         }
 
-        glyphAtlas->bind();
+        glyphAtlas->bind(glObjectStore);
 
         renderSDF(bucket,
                   id,
@@ -267,7 +267,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
         config.stencilOp.reset();
         config.stencilTest = GL_TRUE;
 
-        config.program = collisionBoxShader->program;
+        config.program = collisionBoxShader->getID();
         collisionBoxShader->u_matrix = matrix;
         collisionBoxShader->u_scale = std::pow(2, state.getZoom() - id.z);
         collisionBoxShader->u_zoom = state.getZoom() * 10;
@@ -275,7 +275,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
         config.lineWidth = 1.0f;
 
         setDepthSublayer(0);
-        bucket.drawCollisionBoxes(*collisionBoxShader);
+        bucket.drawCollisionBoxes(*collisionBoxShader, glObjectStore);
 
     }
 

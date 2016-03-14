@@ -85,12 +85,12 @@ struct vec2 {
     }
 
     template<typename U = T, typename std::enable_if<std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
-    inline operator bool() const {
+    explicit operator bool() const {
         return !std::isnan(x) && !std::isnan(y);
     }
 
     template<typename U = T, typename std::enable_if<!std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
-    inline operator bool() const {
+    explicit operator bool() const {
         return x != std::numeric_limits<T>::min() && y != std::numeric_limits<T>::min();
     }
 };
@@ -105,6 +105,18 @@ struct vec3 {
     inline bool operator==(const vec3& rhs) const {
         return x == rhs.x && y == rhs.y && z == rhs.z;
     }
+
+    template<typename U = T, typename std::enable_if<std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
+    explicit operator bool() const {
+        return !std::isnan(x) && !std::isnan(y) && !std::isnan(z);
+    }
+
+    template<typename U = T, typename std::enable_if<!std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
+    explicit operator bool() const {
+        return x != std::numeric_limits<T>::min()
+            && y != std::numeric_limits<T>::min()
+            && z != std::numeric_limits<T>::min();
+    }
 };
 
 template <typename T = double>
@@ -117,11 +129,22 @@ struct vec4 {
     inline bool operator==(const vec4& rhs) const {
         return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w;
     }
+
+    template<typename U = T, typename std::enable_if<std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
+    explicit operator bool() const {
+        return !std::isnan(x) && !std::isnan(y) && !std::isnan(z) && !std::isnan(w);
+    }
+
+    template<typename U = T, typename std::enable_if<!std::numeric_limits<U>::has_quiet_NaN, int>::type = 0>
+    explicit operator bool() const {
+        return x != std::numeric_limits<T>::min()
+            && y != std::numeric_limits<T>::min()
+            && z != std::numeric_limits<T>::min()
+            && w != std::numeric_limits<T>::min();
+    }
 };
 
 
-using Coordinate = vec2<int16_t>;
-
 } // namespace mbgl
 
-#endif
+#endif // MBGL_UTIL_VEC

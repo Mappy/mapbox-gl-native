@@ -1,10 +1,13 @@
 package com.mapbox.mapboxsdk.maps;
 
+import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.UiThread;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.VideoView;
+
+import com.mapbox.mapboxsdk.constants.MapboxConstants;
 
 /**
  * Settings for the user interface of a MapboxMap. To obtain this interface, call getUiSettings().
@@ -23,11 +26,78 @@ public class UiSettings {
     private boolean zoomControlsEnabled;
     private boolean scrollGesturesEnabled;
 
+    private double maxZoomLevel = -1;
+    private double minZoomLevel = -1;
+
     UiSettings(@NonNull MapView mapView) {
         this.mapView = mapView;
         this.compassSettings = new ViewSettings();
         this.logoSettings = new ViewSettings();
         this.attributionSettings = new ViewSettings();
+    }
+
+    /**
+     * <p>
+     * Sets the minimum zoom level the map can be displayed at.
+     * </p>
+     *
+     * @param minZoom The new minimum zoom level.
+     */
+    @UiThread
+    public void setMinZoom(@FloatRange(from = MapboxConstants.MINIMUM_ZOOM, to = MapboxConstants.MAXIMUM_ZOOM) double minZoom) {
+        if ((minZoom < MapboxConstants.MINIMUM_ZOOM) || (minZoom > MapboxConstants.MAXIMUM_ZOOM)) {
+            Log.e(MapboxConstants.TAG, "Not setting minZoom, value is in unsupported range: " + minZoom);
+            return;
+        }
+        minZoomLevel = minZoom;
+        mapView.setMinZoom(minZoom);
+    }
+
+    /**
+     * <p>
+     * Gets the maximum zoom level the map can be displayed at.
+     * </p>
+     *
+     * @return The minimum zoom level.
+     */
+    @UiThread
+    public double getMinZoom() {
+        if (minZoomLevel == -1) {
+            return minZoomLevel = mapView.getMinZoom();
+        }
+        return minZoomLevel;
+    }
+
+    /**
+     * <p>
+     * Sets the maximum zoom level the map can be displayed at.
+     * </p>
+     *
+     * @param maxZoom The new maximum zoom level.
+     */
+    @UiThread
+    public void setMaxZoom(@FloatRange(from = MapboxConstants.MINIMUM_ZOOM, to = MapboxConstants.MAXIMUM_ZOOM) double maxZoom) {
+        if ((maxZoom < MapboxConstants.MINIMUM_ZOOM) || (maxZoom > MapboxConstants.MAXIMUM_ZOOM)) {
+            Log.e(MapboxConstants.TAG, "Not setting maxZoom, value is in unsupported range: " + maxZoom);
+            return;
+        }
+        maxZoomLevel = maxZoom;
+        mapView.setMaxZoom(maxZoom);
+    }
+
+    /**
+     * <p>
+     * Gets the maximum zoom level the map can be displayed at.
+     * </p>
+     *
+     * @return The maximum zoom level.
+     */
+    @UiThread
+    public double getMaxZoom() {
+        if (maxZoomLevel == -1) {
+            return maxZoomLevel = mapView.getMaxZoom();
+        }
+        return maxZoomLevel;
     }
 
     /**
@@ -110,7 +180,7 @@ public class UiSettings {
      * @return The top margin in pixels
      */
     public int getCompassMarginTop() {
-        return  compassSettings.getMargins()[1];
+        return compassSettings.getMargins()[1];
     }
 
     /**
@@ -119,7 +189,7 @@ public class UiSettings {
      * @return The right margin in pixels
      */
     public int getCompassMarginRight() {
-        return  compassSettings.getMargins()[2];
+        return compassSettings.getMargins()[2];
     }
 
     /**
@@ -128,7 +198,7 @@ public class UiSettings {
      * @return The bottom margin in pixels
      */
     public int getCompassMarginBottom() {
-        return  compassSettings.getMargins()[3];
+        return compassSettings.getMargins()[3];
     }
 
     /**
@@ -141,7 +211,7 @@ public class UiSettings {
      */
     public void setLogoEnabled(boolean enabled) {
         logoSettings.setEnabled(enabled);
-        mapView.setLogoVisibility(enabled );
+        mapView.setLogoEnabled(enabled);
     }
 
     /**
@@ -196,7 +266,7 @@ public class UiSettings {
      *
      * @return The left margin in pixels
      */
-    public int getLogoMarginLeft(){
+    public int getLogoMarginLeft() {
         return logoSettings.getMargins()[0];
     }
 
@@ -205,7 +275,7 @@ public class UiSettings {
      *
      * @return The top margin in pixels
      */
-    public int getLogoMarginTop(){
+    public int getLogoMarginTop() {
         return logoSettings.getMargins()[1];
     }
 
@@ -214,7 +284,7 @@ public class UiSettings {
      *
      * @return The right margin in pixels
      */
-    public int getLogoMarginRight(){
+    public int getLogoMarginRight() {
         return logoSettings.getMargins()[2];
     }
 
@@ -223,7 +293,7 @@ public class UiSettings {
      *
      * @return The bottom margin in pixels
      */
-    public int getLogoMarginBottom(){
+    public int getLogoMarginBottom() {
         return logoSettings.getMargins()[3];
     }
 
@@ -237,7 +307,7 @@ public class UiSettings {
      */
     public void setAttributionEnabled(boolean enabled) {
         attributionSettings.setEnabled(enabled);
-        mapView.setAttributionVisibility(enabled ? View.VISIBLE : View.GONE);
+        mapView.setAttributionEnabled(enabled ? View.VISIBLE : View.GONE);
     }
 
     /**
@@ -292,7 +362,7 @@ public class UiSettings {
      *
      * @return The left margin in pixels
      */
-    public int getAttributionMarginLeft(){
+    public int getAttributionMarginLeft() {
         return attributionSettings.getMargins()[0];
     }
 
@@ -301,7 +371,7 @@ public class UiSettings {
      *
      * @return The top margin in pixels
      */
-    public int getAttributionMarginTop(){
+    public int getAttributionMarginTop() {
         return attributionSettings.getMargins()[1];
     }
 
@@ -310,7 +380,7 @@ public class UiSettings {
      *
      * @return The right margin in pixels
      */
-    public int getAttributionMarginRight(){
+    public int getAttributionMarginRight() {
         return attributionSettings.getMargins()[2];
     }
 
@@ -319,7 +389,7 @@ public class UiSettings {
      *
      * @return The bottom margin in pixels
      */
-    public int getAttributionMarginBottom(){
+    public int getAttributionMarginBottom() {
         return attributionSettings.getMargins()[3];
     }
 
@@ -471,9 +541,30 @@ public class UiSettings {
         setZoomGesturesEnabled(enabled);
     }
 
-    public void invalidate(){
+    /**
+     * Returns the measured height of the MapView
+     *
+     * @return height in pixels
+     */
+    public float getHeight() {
+        return mapView.getMeasuredHeight();
+    }
+
+    /**
+     * Returns the measured width of the MapView
+     *
+     * @return widht in pixels
+     */
+    public float getWidth() {
+        return mapView.getMeasuredWidth();
+    }
+
+    /**
+     * Invalidates the ViewSettings instances shown on top of the MapView
+     */
+    public void invalidate() {
         mapView.setLogoMargins(getLogoMarginLeft(), getLogoMarginTop(), getLogoMarginRight(), getLogoMarginBottom());
-        mapView.setCompassMargins(getCompassMarginLeft(),getCompassMarginTop(),getCompassMarginRight(),getCompassMarginBottom());
+        mapView.setCompassMargins(getCompassMarginLeft(), getCompassMarginTop(), getCompassMarginRight(), getCompassMarginBottom());
         mapView.setAttributionMargins(getAttributionMarginLeft(), getAttributionMarginTop(), getAttributionMarginRight(), getAttributionMarginBottom());
     }
 }

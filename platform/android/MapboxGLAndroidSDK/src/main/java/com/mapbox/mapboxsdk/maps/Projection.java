@@ -1,6 +1,7 @@
 package com.mapbox.mapboxsdk.maps;
 
 import android.graphics.PointF;
+import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
 
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -18,6 +19,20 @@ public class Projection {
 
     Projection(@NonNull MapView mapView) {
         this.mMapView = mapView;
+    }
+
+    /**
+     * <p>
+     * Returns the distance spanned by one pixel at the specified latitude and current zoom level.
+     * </p>
+     * The distance between pixels decreases as the latitude approaches the poles.
+     * This relationship parallels the relationship between longitudinal coordinates at different latitudes.
+     *
+     * @param latitude The latitude for which to return the value.
+     * @return The distance measured in meters.
+     */
+    public double getMetersPerPixelAtLatitude(@FloatRange(from = -180, to = 180) double latitude) {
+        return mMapView.getMetersPerPixelAtLatitude(latitude);
     }
 
     /**
@@ -55,7 +70,7 @@ public class Projection {
                 .include(bottomRight)
                 .include(bottomLeft);
 
-        return new VisibleRegion(topLeft,topRight,bottomLeft,bottomRight,builder.build());
+        return new VisibleRegion(topLeft, topRight, bottomLeft, bottomRight, builder.build());
     }
 
     /**
@@ -68,5 +83,15 @@ public class Projection {
      */
     public PointF toScreenLocation(LatLng location) {
         return mMapView.toScreenLocation(location);
+    }
+
+    /**
+     * Calculates a zoom level based on minimum scale and current scale from MapView
+     *
+     * @param minScale The minimum scale to calculate the zoom level.
+     * @return zoom level that fits the MapView.
+     */
+    public double calculateZoom(float minScale) {
+        return Math.log(mMapView.getScale() * minScale) / Math.log(2);
     }
 }

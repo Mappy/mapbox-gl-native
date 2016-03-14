@@ -41,11 +41,6 @@ TEST_F(Storage, HTTPNetworkStatusChange) {
         mbgl::NetworkStatus::Reachable();
     });
 
-    // This timer will keep the loop alive to make sure we would be getting a response in caes the
-    // network status change triggered another change (which it shouldn't).
-    util::Timer delayTimer;
-    delayTimer.start(Milliseconds(300), Duration::zero(), [] () {});
-
     loop.run();
 }
 
@@ -102,6 +97,39 @@ TEST_F(Storage, HTTPNetworkStatusChangePreempt) {
     util::Timer reachableTimer;
     reachableTimer.start(Milliseconds(400), Duration::zero(), [] () {
         mbgl::NetworkStatus::Reachable();
+    });
+
+    loop.run();
+}
+
+TEST_F(Storage, HTTPNetworkStatusOnlineOffline) {
+    SCOPED_TEST(HTTPNetworkStatusOnlineOffline)
+
+    using namespace mbgl;
+
+    util::RunLoop loop;
+    OnlineFileSource fs;
+
+    const Resource resource { Resource::Unknown, "http://127.0.0.1:3000/test" };
+
+    EXPECT_EQ(NetworkStatus::Get(), NetworkStatus::Status::Online) << "Default status should be Online";
+    NetworkStatus::Set(NetworkStatus::Status::Offline);
+
+    util::Timer onlineTimer;
+    onlineTimer.start(Milliseconds(100), Duration::zero(), [&] () {
+        NetworkStatus::Set(NetworkStatus::Status::Online);
+    });
+
+    std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
+        req.reset();
+
+        EXPECT_EQ(nullptr, res.error);
+        ASSERT_TRUE(res.data.get());
+
+        EXPECT_EQ(NetworkStatus::Get(), NetworkStatus::Status::Online) << "Triggered before set back to Online";
+
+        loop.stop();
+        HTTPNetworkStatusOnlineOffline.finish();
     });
 
     loop.run();

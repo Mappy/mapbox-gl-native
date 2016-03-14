@@ -16,9 +16,10 @@
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/sprite/sprite_store.hpp>
 
-#include <mbgl/util/gl_object_store.hpp>
+#include <mbgl/gl/gl_object_store.hpp>
+#include <mbgl/gl/texture_pool.hpp>
+
 #include <mbgl/util/worker.hpp>
-#include <mbgl/util/texture_pool.hpp>
 #include <mbgl/util/exception.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/util/mapbox.hpp>
@@ -29,17 +30,15 @@
 
 namespace mbgl {
 
-MapContext::MapContext(View& view_, FileSource& fileSource, MapMode mode_, GLContextMode contextMode_, const float pixelRatio_)
+MapContext::MapContext(View& view_, FileSource& fileSource_, MapMode mode_, GLContextMode contextMode_, const float pixelRatio_)
     : view(view_),
+      fileSource(fileSource_),
       dataPtr(std::make_unique<MapData>(mode_, contextMode_, pixelRatio_)),
       data(*dataPtr),
       asyncUpdate([this] { update(); }),
       asyncInvalidate([&view_] { view_.invalidate(); }),
-      texturePool(std::make_unique<TexturePool>()) {
+      texturePool(std::make_unique<gl::TexturePool>()) {
     assert(util::ThreadContext::currentlyOn(util::ThreadType::Map));
-
-    util::ThreadContext::setFileSource(&fileSource);
-    util::ThreadContext::setGLObjectStore(&glObjectStore);
 
     view.activate();
 }
@@ -97,7 +96,7 @@ void MapContext::setStyleURL(const std::string& url) {
     styleURL = url;
     styleJSON.clear();
 
-    style = std::make_unique<Style>(data);
+    style = std::make_unique<Style>(data, fileSource);
 
     const size_t pos = styleURL.rfind('/');
     std::string base = "";
@@ -105,8 +104,7 @@ void MapContext::setStyleURL(const std::string& url) {
         base = styleURL.substr(0, pos + 1);
     }
 
-    FileSource* fs = util::ThreadContext::getFileSource();
-    styleRequest = fs->request(Resource::style(styleURL), [this, base](Response res) {
+    styleRequest = fileSource.request(Resource::style(styleURL), [this, base](Response res) {
         if (res.error) {
             if (res.error->reason == Response::Error::Reason::NotFound &&
                 util::mapbox::isMapboxURL(styleURL)) {
@@ -131,7 +129,7 @@ void MapContext::setStyleJSON(const std::string& json, const std::string& base) 
     styleURL.clear();
     styleJSON.clear();
 
-    style = std::make_unique<Style>(data);
+    style = std::make_unique<Style>(data, fileSource);
 
     loadStyleJSON(json, base);
 }
@@ -249,10 +247,7 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
 
     transformState = state;
 
-    // Cleanup OpenGL objects that we abandoned since the last render call.
-    glObjectStore.performCleanup();
-
-    if (!painter) painter = std::make_unique<Painter>(data, transformState);
+    if (!painter) painter = std::make_unique<Painter>(data, transformState, glObjectStore);
     painter->render(*style, frame, data.getAnnotationManager()->getSpriteAtlas());
 
     if (data.mode == MapMode::Still) {
@@ -260,10 +255,13 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
         callback = nullptr;
     }
 
+    // Cleanup OpenGL objects that we abandoned since the last render call.
+    glObjectStore.performCleanup();
+
     view.afterRender();
 
     if (style->hasTransitions()) {
-        updateFlags |= Update::Classes;
+        updateFlags |= Update::Zoom;
         asyncUpdate.send();
     } else if (painter->needsAnimation()) {
         updateFlags |= Update::Repaint;

@@ -12,15 +12,15 @@ class VertexArrayObject;
 
 class RasterBucket : public Bucket {
 public:
-    RasterBucket(TexturePool&);
+    RasterBucket(gl::TexturePool&);
 
-    void upload() override;
+    void upload(gl::GLObjectStore&) override;
     void render(Painter&, const StyleLayer&, const TileID&, const mat4&) override;
     bool hasData() const override;
 
     void setImage(PremultipliedImage);
 
-    void drawRaster(RasterShader& shader, StaticVertexBuffer &vertices, VertexArrayObject &array);
+    void drawRaster(RasterShader&, StaticVertexBuffer&, VertexArrayObject&, gl::GLObjectStore&);
 
     Raster raster;
 };

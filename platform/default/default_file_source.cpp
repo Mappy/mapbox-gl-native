@@ -39,12 +39,10 @@ public:
                 callback(*offlineResponse);
             }
 
-            if (!impl->offline) {
-                onlineRequest = impl->onlineFileSource.request(revalidation, [=] (Response onlineResponse) {
-                    impl->offlineDatabase.put(revalidation, onlineResponse);
-                    callback(onlineResponse);
-                });
-            }
+            onlineRequest = impl->onlineFileSource.request(revalidation, [=] (Response onlineResponse) {
+                impl->offlineDatabase.put(revalidation, onlineResponse);
+                callback(onlineResponse);
+            });
         }
 
         std::unique_ptr<FileRequest> onlineRequest;
@@ -113,12 +111,12 @@ public:
         tasks.erase(req);
     }
 
-    void put(const Resource& resource, const Response& response) {
-        offlineDatabase.put(resource, response);
+    void setOfflineMapboxTileCountLimit(uint64_t limit) {
+        offlineDatabase.setOfflineMapboxTileCountLimit(limit);
     }
 
-    void goOffline() {
-        offline = true;
+    void put(const Resource& resource, const Response& response) {
+        offlineDatabase.put(resource, response);
     }
 
 private:
@@ -135,7 +133,6 @@ private:
     OnlineFileSource onlineFileSource;
     std::unordered_map<FileRequest*, std::unique_ptr<Task>> tasks;
     std::unordered_map<int64_t, std::unique_ptr<OfflineDownload>> downloads;
-    bool offline = false;
 };
 
 DefaultFileSource::DefaultFileSource(const std::string& cachePath,
@@ -205,14 +202,14 @@ void DefaultFileSource::getOfflineRegionStatus(OfflineRegion& region, std::funct
     thread->invoke(&Impl::getRegionStatus, region.getID(), callback);
 }
 
+void DefaultFileSource::setOfflineMapboxTileCountLimit(uint64_t limit) const {
+    thread->invokeSync(&Impl::setOfflineMapboxTileCountLimit, limit);
+}
+
 // For testing only:
 
 void DefaultFileSource::put(const Resource& resource, const Response& response) {
     thread->invokeSync(&Impl::put, resource, response);
-}
-
-void DefaultFileSource::goOffline() {
-    thread->invokeSync(&Impl::goOffline);
 }
 
 } // namespace mbgl

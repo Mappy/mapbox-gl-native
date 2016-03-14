@@ -1,5 +1,6 @@
 #import "MBXViewController.h"
 #import "MBXCustomCalloutView.h"
+#import "MBXOfflinePacksTableViewController.h"
 
 #import <Mapbox/Mapbox.h>
 #import "../../../include/mbgl/util/default_styles.hpp"
@@ -21,7 +22,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
 
 @interface MBXViewController () <UIActionSheetDelegate, MGLMapViewDelegate>
 
-@property (nonatomic) MGLMapView *mapView;
+@property (nonatomic) IBOutlet MGLMapView *mapView;
 @property (nonatomic) NSUInteger styleIndex;
 
 @end
@@ -46,94 +47,54 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
 }
 
-- (id)init
-{
-    self = [super init];
-
-    if (self)
-    {
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(saveState:) name:UIApplicationDidEnterBackgroundNotification object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(restoreState:) name:UIApplicationWillEnterForegroundNotification object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(saveState:) name:UIApplicationWillTerminateNotification object:nil];
-    }
-
-    return self;
-}
-
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-
-    self.mapView = [[MGLMapView alloc] initWithFrame:self.view.bounds];
-    self.mapView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    self.mapView.delegate = self;
-    [self.view addSubview:self.mapView];
-
-    self.view.tintColor = kTintColor;
-    self.navigationController.navigationBar.tintColor = kTintColor;
-    self.mapView.tintColor = kTintColor;
-
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"settings.png"]
-                                                                             style:UIBarButtonItemStylePlain
-                                                                            target:self
-                                                                            action:@selector(showSettings)];
     
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(saveState:) name:UIApplicationDidEnterBackgroundNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(restoreState:) name:UIApplicationWillEnterForegroundNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(saveState:) name:UIApplicationWillTerminateNotification object:nil];
+
     self.styleIndex = 0;
 
-    UIButton *titleButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    [titleButton setFrame:CGRectMake(0, 0, 150, 40)];
+    UIButton *titleButton = (UIButton *)self.navigationItem.titleView;
     [titleButton setTitle:@(mbgl::util::default_styles::orderedStyles[self.styleIndex].name) forState:UIControlStateNormal];
-    [titleButton setTitleColor:kTintColor forState:UIControlStateNormal];
-    [titleButton addTarget:self action:@selector(cycleStyles) forControlEvents:UIControlEventTouchUpInside];
-    self.navigationItem.titleView = titleButton;
-
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"TrackingLocationOffMask.png"]
-                                                                              style:UIBarButtonItemStylePlain
-                                                                             target:self
-                                                                             action:@selector(locateUser)];
-
-    [self.mapView addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)]];
 
     [self restoreState:nil];
 }
 
 - (void)saveState:(__unused NSNotification *)notification
 {
-    if (self.mapView)
-    {
-        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        NSData *archivedCamera = [NSKeyedArchiver archivedDataWithRootObject:self.mapView.camera];
-        [defaults setObject:archivedCamera forKey:@"MBXCamera"];
-        [defaults setInteger:self.mapView.userTrackingMode forKey:@"MBXUserTrackingMode"];
-        [defaults setBool:self.mapView.showsUserLocation forKey:@"MBXShowsUserLocation"];
-        [defaults setInteger:self.mapView.debugMask forKey:@"MBXDebugMask"];
-        [defaults synchronize];
-    }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSData *archivedCamera = [NSKeyedArchiver archivedDataWithRootObject:self.mapView.camera];
+    [defaults setObject:archivedCamera forKey:@"MBXCamera"];
+    [defaults setInteger:self.mapView.userTrackingMode forKey:@"MBXUserTrackingMode"];
+    [defaults setBool:self.mapView.showsUserLocation forKey:@"MBXShowsUserLocation"];
+    [defaults setInteger:self.mapView.debugMask forKey:@"MBXDebugMask"];
+    [defaults synchronize];
 }
 
 - (void)restoreState:(__unused NSNotification *)notification
 {
-    if (self.mapView) {
-        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-        NSData *archivedCamera = [defaults objectForKey:@"MBXCamera"];
-        MGLMapCamera *camera = archivedCamera ? [NSKeyedUnarchiver unarchiveObjectWithData:archivedCamera] : nil;
-        if (camera)
-        {
-            self.mapView.camera = camera;
-        }
-        NSInteger uncheckedTrackingMode = [defaults integerForKey:@"MBXUserTrackingMode"];
-        if (uncheckedTrackingMode >= 0 &&
-            (NSUInteger)uncheckedTrackingMode >= MGLUserTrackingModeNone &&
-            (NSUInteger)uncheckedTrackingMode <= MGLUserTrackingModeFollowWithCourse)
-        {
-            self.mapView.userTrackingMode = (MGLUserTrackingMode)uncheckedTrackingMode;
-        }
-        self.mapView.showsUserLocation = [defaults boolForKey:@"MBXShowsUserLocation"];
-        NSInteger uncheckedDebugMask = [defaults integerForKey:@"MBXDebugMask"];
-        if (uncheckedDebugMask >= 0)
-        {
-            self.mapView.debugMask = (MGLMapDebugMaskOptions)uncheckedDebugMask;
-        }
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSData *archivedCamera = [defaults objectForKey:@"MBXCamera"];
+    MGLMapCamera *camera = archivedCamera ? [NSKeyedUnarchiver unarchiveObjectWithData:archivedCamera] : nil;
+    if (camera)
+    {
+        self.mapView.camera = camera;
+    }
+    NSInteger uncheckedTrackingMode = [defaults integerForKey:@"MBXUserTrackingMode"];
+    if (uncheckedTrackingMode >= 0 &&
+        (NSUInteger)uncheckedTrackingMode >= MGLUserTrackingModeNone &&
+        (NSUInteger)uncheckedTrackingMode <= MGLUserTrackingModeFollowWithCourse)
+    {
+        self.mapView.userTrackingMode = (MGLUserTrackingMode)uncheckedTrackingMode;
+    }
+    self.mapView.showsUserLocation = [defaults boolForKey:@"MBXShowsUserLocation"];
+    NSInteger uncheckedDebugMask = [defaults integerForKey:@"MBXDebugMask"];
+    if (uncheckedDebugMask >= 0)
+    {
+        self.mapView.debugMask = (MGLMapDebugMaskOptions)uncheckedDebugMask;
     }
 }
 
@@ -142,16 +103,24 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     return UIInterfaceOrientationMaskAll;
 }
 
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(__unused id)sender {
+    if ([segue.identifier isEqualToString:@"ShowOfflinePacks"]) {
+        MBXOfflinePacksTableViewController *controller = [segue destinationViewController];
+        controller.mapView = self.mapView;
+    }
+}
+
 #pragma mark - Actions
 
-- (void)showSettings
+- (IBAction)showSettings:(__unused id)sender
 {
     MGLMapDebugMaskOptions debugMask = self.mapView.debugMask;
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:@"Map Settings"
                                                        delegate:self
                                               cancelButtonTitle:@"Cancel"
                                          destructiveButtonTitle:nil
-                                              otherButtonTitles:@"Reset Position",
+                                              otherButtonTitles:
+                            @"Reset Position",
                             ((debugMask & MGLMapDebugTileBoundariesMask)
                              ? @"Hide Tile Boundaries"
                              : @"Show Tile Boundaries"),
@@ -454,7 +423,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     [self.mapView showAnnotations:@[annotation] animated:YES];
 }
 
-- (void)handleLongPress:(UILongPressGestureRecognizer *)longPress
+- (IBAction)handleLongPress:(UILongPressGestureRecognizer *)longPress
 {
     if (longPress.state == UIGestureRecognizerStateBegan)
     {
@@ -468,7 +437,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
 }
 
-- (void)cycleStyles
+- (IBAction)cycleStyles:(__unused id)sender
 {
     UIButton *titleButton = (UIButton *)self.navigationItem.titleView;
 
@@ -479,7 +448,7 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     [titleButton setTitle:@(mbgl::util::default_styles::orderedStyles[self.styleIndex].name) forState:UIControlStateNormal];
 }
 
-- (void)locateUser
+- (IBAction)locateUser:(__unused id)sender
 {
     MGLUserTrackingMode nextMode;
     switch (self.mapView.userTrackingMode) {
@@ -558,6 +527,9 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:[NSString stringWithFormat:@"telemetry_log-%@.json", [dateFormatter stringFromDate:[NSDate date]]]];
 
     return filePath;
+}
+
+- (IBAction)unwindToMapViewController:(__unused UIStoryboardSegue *)sender {
 }
 
 #pragma mark - Destruction

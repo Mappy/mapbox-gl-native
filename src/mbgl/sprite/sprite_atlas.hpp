@@ -3,6 +3,7 @@
 
 #include <mbgl/geometry/binpack.hpp>
 #include <mbgl/gl/gl.hpp>
+#include <mbgl/gl/gl_object_store.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/ptr.hpp>
 #include <mbgl/util/optional.hpp>
@@ -51,14 +52,14 @@ public:
     optional<SpriteAtlasPosition> getPosition(const std::string& name, bool repeating = false);
 
     // Binds the atlas texture to the GPU, and uploads data if it is out of date.
-    void bind(bool linear = false);
+    void bind(bool linear, gl::GLObjectStore&);
 
     // Updates sprites in the atlas texture that may have changed in the source SpriteStore object.
     void updateDirty();
 
     // Uploads the texture to the GPU to be available when we need it. This is a lazy operation;
     // the texture is only bound when the data is out of date (=dirty).
-    void upload();
+    void upload(gl::GLObjectStore&);
 
     inline dimension getWidth() const { return width; }
     inline dimension getHeight() const { return height; }
@@ -94,7 +95,7 @@ private:
     std::unique_ptr<uint32_t[]> data;
     std::atomic<bool> dirty;
     bool fullUploadRequired = true;
-    GLuint texture = 0;
+    gl::TextureHolder texture;
     uint32_t filter = 0;
     static const int buffer = 1;
 };

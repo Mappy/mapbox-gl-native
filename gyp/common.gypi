@@ -20,7 +20,6 @@
             '-Wno-variadic-macros',
             '-frtti',
             '-fexceptions',
-            '<@(variant_cflags)',
             '${CFLAGS}',
           ],
           'GCC_WARN_PEDANTIC': 'YES',
@@ -38,7 +37,6 @@
           '-Wno-error=unused-parameter',
           '-frtti',
           '-fexceptions',
-          '<@(variant_cflags)',
           '${CFLAGS}',
         ],
       }],
@@ -88,25 +86,56 @@
     ],
     'configurations': {
       'Debug': {
-        'cflags_cc': [ '-g', '-O0', '-fno-omit-frame-pointer','-fwrapv', '-fstack-protector-all', '-fno-common' ],
+        'conditions': [
+          ['OS=="mac"', {
+            'xcode_settings': {
+              'GCC_OPTIMIZATION_LEVEL': '0',
+              'GCC_GENERATE_DEBUGGING_SYMBOLS': 'YES',
+              'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES',
+              'DEAD_CODE_STRIPPING': 'NO',
+              'OTHER_CPLUSPLUSFLAGS': [ '-fno-omit-frame-pointer','-fwrapv', '-fstack-protector-all', '-fno-common' ],
+              'conditions': [
+                ['coverage', {
+                  'GCC_INSTRUMENT_PROGRAM_FLOW_ARCS': 'YES',
+                  'GCC_GENERATE_TEST_COVERAGE_FILES': 'YES',
+                  'OTHER_CPLUSPLUSFLAGS': [ '--coverage' ],
+                }],
+              ],
+            },
+          }, {
+            'cflags_cc': [ '-g', '-O0', '-fno-omit-frame-pointer','-fwrapv', '-fstack-protector-all', '-fno-common' ],
+            'conditions': [
+              ['coverage', { 'cflags_cc': [ '--coverage' ] }],
+            ],
+          }],
+        ],
         'defines': [ 'DEBUG' ],
-        'xcode_settings': {
-          'GCC_OPTIMIZATION_LEVEL': '0',
-          'GCC_GENERATE_DEBUGGING_SYMBOLS': 'YES',
-          'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES',
-          'DEAD_CODE_STRIPPING': 'NO',
-          'OTHER_CPLUSPLUSFLAGS': [ '-fno-omit-frame-pointer','-fwrapv', '-fstack-protector-all', '-fno-common']
-        }
+        'target_conditions': [
+          ['_type == "executable"', {
+            'conditions': [
+              ['OS=="mac" and coverage', {
+                 'xcode_settings': { 'OTHER_LDFLAGS': [ '--coverage' ] },
+              }, {
+                'ldflags': [ '--coverage' ],
+              }],
+            ],
+          }],
+        ],
       },
       'Release': {
-        'cflags_cc': [ '-g', '-O3' ],
         'defines': [ 'NDEBUG' ],
-        'xcode_settings': {
-          'GCC_OPTIMIZATION_LEVEL': '3',
-          'GCC_GENERATE_DEBUGGING_SYMBOLS': 'YES',
-          'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES',
-          'DEAD_CODE_STRIPPING': 'NO',
-        }
+        'conditions': [
+          ['OS=="mac"', {
+            'xcode_settings': {
+              'GCC_OPTIMIZATION_LEVEL': '3',
+              'GCC_GENERATE_DEBUGGING_SYMBOLS': 'YES',
+              'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES',
+              'DEAD_CODE_STRIPPING': 'NO',
+            },
+          }, {
+            'cflags_cc': [ '-g', '-O3' ],
+          }],
+        ],
       },
     },
   }

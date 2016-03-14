@@ -3,7 +3,6 @@
 #include <mbgl/gl/gl.hpp>
 #include <mbgl/platform/log.hpp>
 #include <mbgl/platform/platform.hpp>
-#include <mbgl/util/gl_object_store.hpp>
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/std.hpp>
 #include <mbgl/util/constants.hpp>
@@ -144,9 +143,9 @@ void SpriteAtlas::copy(const Holder& holder, const bool wrap) {
     dirty = true;
 }
 
-void SpriteAtlas::upload() {
+void SpriteAtlas::upload(gl::GLObjectStore& glObjectStore) {
     if (dirty) {
-        bind();
+        bind(false, glObjectStore);
     }
 }
 
@@ -181,14 +180,14 @@ void SpriteAtlas::updateDirty() {
     }
 }
 
-void SpriteAtlas::bind(bool linear) {
+void SpriteAtlas::bind(bool linear, gl::GLObjectStore& glObjectStore) {
     if (!data) {
         return; // Empty atlas
     }
 
     if (!texture) {
-        MBGL_CHECK_ERROR(glGenTextures(1, &texture));
-        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, texture));
+        texture.create(glObjectStore);
+        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, texture.getID()));
 #ifndef GL_ES_VERSION_2_0
         MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
 #endif
@@ -198,7 +197,7 @@ void SpriteAtlas::bind(bool linear) {
         MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
         fullUploadRequired = true;
     } else {
-        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, texture));
+        MBGL_CHECK_ERROR(glBindTexture(GL_TEXTURE_2D, texture.getID()));
     }
 
     GLuint filter_val = linear ? GL_LINEAR : GL_NEAREST;
@@ -247,13 +246,7 @@ void SpriteAtlas::bind(bool linear) {
     }
 };
 
-SpriteAtlas::~SpriteAtlas() {
-    std::lock_guard<std::recursive_mutex> lock(mtx);
-    if (texture) {
-        mbgl::util::ThreadContext::getGLObjectStore()->abandonTexture(texture);
-        texture = 0;
-    }
-}
+SpriteAtlas::~SpriteAtlas() = default;
 
 SpriteAtlas::Holder::Holder(const std::shared_ptr<const SpriteImage>& spriteImage_,
                             const Rect<dimension>& pos_)

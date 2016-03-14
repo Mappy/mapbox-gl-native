@@ -6,7 +6,6 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.os.AsyncTask;
 import android.os.IBinder;
-import android.os.PowerManager;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
@@ -15,7 +14,6 @@ public class TelemetryService extends Service {
     private static final String TAG = "TelemetryService";
 
     private TelemetryLocationReceiver telemetryLocationReceiver = null;
-    private PowerManager.WakeLock telemetryWakeLock;
 
     /**
      * Return the communication channel to the service.  May return null if
@@ -130,16 +128,21 @@ public class TelemetryService extends Service {
 
         Log.i(TAG, "onStartCommand() called");
 
-        // Start WakeLock to keep Location Data working when device sleeps
-        PowerManager mgr = (PowerManager)getSystemService(Context.POWER_SERVICE);
-        telemetryWakeLock = mgr.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TelemetryWakeLock");
-        telemetryWakeLock.acquire();
-
         return START_NOT_STICKY;
     }
 
     private void shutdownTelemetry() {
+
+        // Send Any Remaining events to the server
+        MapboxEventManager.getMapboxEventManager().flushEventsQueueImmediately();
+
+        // Undesired, but needed trick to keep app alive long enough for data to get to server
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            Log.e(TAG, "Error while trying to sleep for 1 second: " + e);
+        }
+
         unregisterReceiver(telemetryLocationReceiver);
-        telemetryWakeLock.release();
     }
 }

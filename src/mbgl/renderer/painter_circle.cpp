@@ -38,7 +38,7 @@ void Painter::renderCircle(CircleBucket& bucket,
     // are inversely related.
     float antialiasing = 1 / data.pixelRatio / properties.radius;
 
-    config.program = circleShader->program;
+    config.program = circleShader->getID();
 
     circleShader->u_matrix = vtxMatrix;
     circleShader->u_exmatrix = extrudeMatrix;
@@ -46,5 +46,5 @@ void Painter::renderCircle(CircleBucket& bucket,
     circleShader->u_blur = std::max<float>(properties.blur, antialiasing);
     circleShader->u_size = properties.radius;
 
-    bucket.drawCircles(*circleShader);
+    bucket.drawCircles(*circleShader, glObjectStore);
 }

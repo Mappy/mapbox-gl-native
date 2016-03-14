@@ -191,7 +191,11 @@ void NativeMapView::invalidate() {
 
 void NativeMapView::beforeRender() {
     mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::beforeRender()");
-    // no-op
+
+    if(sizeChanged){
+        sizeChanged = false;
+        glViewport(0, 0, fbWidth, fbHeight);
+    }
 }
 
 void NativeMapView::afterRender() {
@@ -427,6 +431,11 @@ void NativeMapView::createSurface(ANativeWindow *window_) {
 
         if (oldDisplay == EGL_NO_DISPLAY) {
             oldDisplay = display;
+        }
+
+        if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
+            mbgl::Log::Error(mbgl::Event::OpenGL,"eglMakeCurrent(EGL_NO_CONTEXT) returned error %d", eglGetError());
+            throw new std::runtime_error("eglMakeCurrent() failed");
         }
 
         if (!eglMakeCurrent(oldDisplay, oldDrawSurface, oldReadSurface, oldContext)) {
@@ -743,6 +752,7 @@ void NativeMapView::updateFps() {
 void NativeMapView::resizeView(int w, int h) {
     width = w;
     height = h;
+    sizeChanged = true;
     map->update(mbgl::Update::Dimensions);
 }
 

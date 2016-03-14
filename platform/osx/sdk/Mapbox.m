@@ -1,8 +1,8 @@
 #import <Mapbox/Mapbox.h>
 
 #import "../src/MGLMapView_Private.h"
-#import "../src/NSBundle+MGLAdditions.h"
-#import "../src/NSProcessInfo+MGLAdditions.h"
+#import "../../darwin/src/NSBundle+MGLAdditions.h"
+#import "../../darwin/src/NSProcessInfo+MGLAdditions.h"
 #import "../../darwin/src/NSString+MGLAdditions.h"
 
 __attribute__((constructor))
@@ -22,9 +22,12 @@ static void InitializeMapbox() {
     [MGLMapCamera class];
     [MGLMapView class];
     [MGLMultiPoint class];
+    [MGLOfflinePack class];
+    [MGLOfflineStorage class];
     [MGLPointAnnotation class];
     [MGLPolygon class];
     [MGLPolyline class];
     [MGLShape class];
     [MGLStyle class];
+    [MGLTilePyramidOfflineRegion class];
 }

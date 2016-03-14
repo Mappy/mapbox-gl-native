@@ -22,10 +22,13 @@
       'sources': [
         './src/native_map_view.cpp',
         './src/jni.cpp',
+        './src/attach_env.cpp',
       ],
 
       'cflags_cc': [
         '<@(boost_cflags)',
+        '<@(variant_cflags)',
+        '<@(jni.hpp_cflags)',
       ],
       'libraries': [
           '<@(libpng_static_libs)',

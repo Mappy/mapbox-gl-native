@@ -13,6 +13,10 @@ using namespace mbgl;
 static const GLchar * vertexShaderSource = "attribute vec2 a_pos; void main() { gl_Position = vec4(a_pos, 0, 1); }";
 static const GLchar * fragmentShaderSource = "void main() { gl_FragColor = vec4(0, 1, 0, 1); }";
 
+// Not using any mbgl-specific stuff (other than a basic error-checking macro) in the
+// layer implementation because it is intended to reflect how someone using custom layers
+// might actually write their own implementation.
+
 class TestLayer {
 public:
     ~TestLayer() {

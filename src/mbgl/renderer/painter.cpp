@@ -34,7 +34,6 @@
 
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/mat3.hpp>
-#include <mbgl/util/tile_coordinate.hpp>
 
 #if defined(DEBUG)
 #include <mbgl/util/stopwatch.hpp>
@@ -46,23 +45,25 @@
 
 using namespace mbgl;
 
-Painter::Painter(MapData& data_, TransformState& state_)
-    : data(data_), state(state_) {
+Painter::Painter(MapData& data_, TransformState& state_, gl::GLObjectStore& glObjectStore_)
+    : data(data_),
+      state(state_),
+      glObjectStore(glObjectStore_) {
     gl::debugging::enable();
 
-    plainShader = std::make_unique<PlainShader>();
-    outlineShader = std::make_unique<OutlineShader>();
-    lineShader = std::make_unique<LineShader>();
-    linesdfShader = std::make_unique<LineSDFShader>();
-    linepatternShader = std::make_unique<LinepatternShader>();
-    patternShader = std::make_unique<PatternShader>();
-    iconShader = std::make_unique<IconShader>();
-    rasterShader = std::make_unique<RasterShader>();
-    sdfGlyphShader = std::make_unique<SDFGlyphShader>();
-    sdfIconShader = std::make_unique<SDFIconShader>();
-    dotShader = std::make_unique<DotShader>();
-    collisionBoxShader = std::make_unique<CollisionBoxShader>();
-    circleShader = std::make_unique<CircleShader>();
+    plainShader = std::make_unique<PlainShader>(glObjectStore);
+    outlineShader = std::make_unique<OutlineShader>(glObjectStore);
+    lineShader = std::make_unique<LineShader>(glObjectStore);
+    linesdfShader = std::make_unique<LineSDFShader>(glObjectStore);
+    linepatternShader = std::make_unique<LinepatternShader>(glObjectStore);
+    patternShader = std::make_unique<PatternShader>(glObjectStore);
+    iconShader = std::make_unique<IconShader>(glObjectStore);
+    rasterShader = std::make_unique<RasterShader>(glObjectStore);
+    sdfGlyphShader = std::make_unique<SDFGlyphShader>(glObjectStore);
+    sdfIconShader = std::make_unique<SDFIconShader>(glObjectStore);
+    dotShader = std::make_unique<DotShader>(glObjectStore);
+    collisionBoxShader = std::make_unique<CollisionBoxShader>(glObjectStore);
+    circleShader = std::make_unique<CircleShader>(glObjectStore);
 
     // Reset GL values
     config.reset();
@@ -108,16 +109,16 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     {
         MBGL_DEBUG_GROUP("upload");
 
-        tileStencilBuffer.upload();
-        tileBorderBuffer.upload();
-        spriteAtlas->upload();
-        lineAtlas->upload();
-        glyphAtlas->upload();
-        annotationSpriteAtlas.upload();
+        tileStencilBuffer.upload(glObjectStore);
+        tileBorderBuffer.upload(glObjectStore);
+        spriteAtlas->upload(glObjectStore);
+        lineAtlas->upload(glObjectStore);
+        glyphAtlas->upload(glObjectStore);
+        annotationSpriteAtlas.upload(glObjectStore);
 
         for (const auto& item : order) {
             if (item.bucket && item.bucket->needsUpload()) {
-                item.bucket->upload();
+                item.bucket->upload(glObjectStore);
             }
         }
     }
@@ -268,9 +269,7 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         if (!imagePosA || !imagePosB)
             return;
 
-        float zoomFraction = state.getZoomFraction();
-
-        config.program = patternShader->program;
+        config.program = patternShader->getID();
         patternShader->u_matrix = identityMatrix;
         patternShader->u_pattern_tl_a = (*imagePosA).tl;
         patternShader->u_pattern_br_a = (*imagePosA).br;
@@ -280,8 +279,9 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         patternShader->u_opacity = properties.opacity;
 
         LatLng latLng = state.getLatLng();
-        TileCoordinate center = state.latLngToCoordinate(latLng);
-        float scale = 1 / std::pow(2, zoomFraction);
+        double centerX = state.lngX(latLng.longitude);
+        double centerY = state.latY(latLng.latitude);
+        float scale = 1 / std::pow(2, state.getZoomFraction());
 
         std::array<float, 2> sizeA = (*imagePosA).size;
         mat3 matrixA;
@@ -290,8 +290,8 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
                       1.0f / (sizeA[0] * properties.pattern.value.fromScale),
                       1.0f / (sizeA[1] * properties.pattern.value.fromScale));
         matrix::translate(matrixA, matrixA,
-                          std::fmod(center.column * util::tileSize, sizeA[0] * properties.pattern.value.fromScale),
-                          std::fmod(center.row    * util::tileSize, sizeA[1] * properties.pattern.value.fromScale));
+                          std::fmod(centerX, sizeA[0] * properties.pattern.value.fromScale),
+                          std::fmod(centerY, sizeA[1] * properties.pattern.value.fromScale));
         matrix::rotate(matrixA, matrixA, -state.getAngle());
         matrix::scale(matrixA, matrixA,
                        scale * state.getWidth()  / 2,
@@ -304,8 +304,8 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
                       1.0f / (sizeB[0] * properties.pattern.value.toScale),
                       1.0f / (sizeB[1] * properties.pattern.value.toScale));
         matrix::translate(matrixB, matrixB,
-                          std::fmod(center.column * util::tileSize, sizeB[0] * properties.pattern.value.toScale),
-                          std::fmod(center.row    * util::tileSize, sizeB[1] * properties.pattern.value.toScale));
+                          std::fmod(centerX, sizeB[0] * properties.pattern.value.toScale),
+                          std::fmod(centerY, sizeB[1] * properties.pattern.value.toScale));
         matrix::rotate(matrixB, matrixB, -state.getAngle());
         matrix::scale(matrixB, matrixB,
                        scale * state.getWidth()  / 2,
@@ -315,9 +315,9 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         patternShader->u_patternmatrix_b = matrixB;
 
         VertexArrayObject::Unbind();
-        backgroundBuffer.bind();
+        backgroundBuffer.bind(glObjectStore);
         patternShader->bind(0);
-        spriteAtlas->bind(true);
+        spriteAtlas->bind(true, glObjectStore);
     } else {
         Color color = properties.color;
         color[0] *= properties.opacity;
@@ -325,10 +325,10 @@ void Painter::renderBackground(const BackgroundLayer& layer) {
         color[2] *= properties.opacity;
         color[3] *= properties.opacity;
 
-        config.program = plainShader->program;
+        config.program = plainShader->getID();
         plainShader->u_matrix = identityMatrix;
         plainShader->u_color = color;
-        backgroundArray.bind(*plainShader, backgroundBuffer, BUFFER_OFFSET(0));
+        backgroundArray.bind(*plainShader, backgroundBuffer, BUFFER_OFFSET(0), glObjectStore);
     }
 
     config.stencilTest = GL_FALSE;
@@ -344,7 +344,7 @@ mat4 Painter::translatedMatrix(const mat4& matrix, const std::array<float, 2> &t
     if (translation[0] == 0 && translation[1] == 0) {
         return matrix;
     } else {
-        const double factor = ((double)(1 << id.z)) / state.getScale() * (util::EXTENT / util::tileSize / id.overscaling);
+        const double factor = double(1ll << id.sourceZ) * util::EXTENT / util::tileSize / state.getScale();
 
         mat4 vtxMatrix;
         if (anchor == TranslateAnchorType::Viewport) {

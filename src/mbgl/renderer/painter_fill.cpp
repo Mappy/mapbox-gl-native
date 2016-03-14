@@ -44,7 +44,7 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
     // Because we're drawing top-to-bottom, and we update the stencil mask
     // befrom, we have to draw the outline first (!)
     if (outline && pass == RenderPass::Translucent) {
-        config.program = outlineShader->program;
+        config.program = outlineShader->getID();
         outlineShader->u_matrix = vtxMatrix;
         config.lineWidth = 2.0f; // This is always fixed and does not depend on the pixelRatio!
 
@@ -56,7 +56,7 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
             static_cast<float>(frame.framebufferSize[1])
         }};
         setDepthSublayer(0);
-        bucket.drawVertices(*outlineShader);
+        bucket.drawVertices(*outlineShader, glObjectStore);
     }
 
     if (pattern) {
@@ -65,7 +65,8 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
 
         // Image fill.
         if (pass == RenderPass::Translucent && posA && posB) {
-            float factor = (util::EXTENT / util::tileSize / std::pow(2, state.getIntegerZoom() - id.z)) / id.overscaling;
+            const float factor =
+                (util::EXTENT / util::tileSize / std::pow(2, state.getIntegerZoom() - id.sourceZ));
 
             mat3 patternMatrixA;
             matrix::identity(patternMatrixA);
@@ -78,7 +79,7 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
                     1.0f / ((*posB).size[0] * factor * properties.pattern.value.toScale),
                     1.0f / ((*posB).size[1] * factor * properties.pattern.value.toScale));
 
-            config.program = patternShader->program;
+            config.program = patternShader->getID();
             patternShader->u_matrix = vtxMatrix;
             patternShader->u_pattern_tl_a = (*posA).tl;
             patternShader->u_pattern_br_a = (*posA).br;
@@ -99,23 +100,21 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
                 (int)((*posB).size[1] * properties.pattern.value.toScale)
             }};
 
-            int tileSize = 512;
+            float offsetAx = (std::fmod(util::tileSize, imageSizeScaledA[0]) * id.x) / (float)imageSizeScaledA[0];
+            float offsetAy = (std::fmod(util::tileSize, imageSizeScaledA[1]) * id.y) / (float)imageSizeScaledA[1];
 
-            float offsetAx = ((tileSize % imageSizeScaledA[0]) * id.x) / (float)imageSizeScaledA[0];
-            float offsetAy = ((tileSize % imageSizeScaledA[1]) * id.y) / (float)imageSizeScaledA[1];
-
-            float offsetBx = ((tileSize % imageSizeScaledB[0]) * id.x) / (float)imageSizeScaledB[0];
-            float offsetBy = ((tileSize % imageSizeScaledB[1]) * id.y) / (float)imageSizeScaledB[1];
+            float offsetBx = (std::fmod(util::tileSize, imageSizeScaledB[0]) * id.x) / (float)imageSizeScaledB[0];
+            float offsetBy = (std::fmod(util::tileSize, imageSizeScaledB[1]) * id.y) / (float)imageSizeScaledB[1];
 
             patternShader->u_offset_a = std::array<float, 2>{{offsetAx, offsetAy}};
             patternShader->u_offset_b = std::array<float, 2>{{offsetBx, offsetBy}};
 
             MBGL_CHECK_ERROR(glActiveTexture(GL_TEXTURE0));
-            spriteAtlas->bind(true);
+            spriteAtlas->bind(true, glObjectStore);
 
             // Draw the actual triangles into the color & stencil buffer.
             setDepthSublayer(0);
-            bucket.drawElements(*patternShader);
+            bucket.drawElements(*patternShader, glObjectStore);
         }
     }
     else {
@@ -125,20 +124,20 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
             // fragments or when it's translucent and we're drawing translucent
             // fragments
             // Draw filling rectangle.
-            config.program = plainShader->program;
+            config.program = plainShader->getID();
             plainShader->u_matrix = vtxMatrix;
             plainShader->u_color = fill_color;
 
             // Draw the actual triangles into the color & stencil buffer.
             setDepthSublayer(1);
-            bucket.drawElements(*plainShader);
+            bucket.drawElements(*plainShader, glObjectStore);
         }
     }
 
     // Because we're drawing top-to-bottom, and we update the stencil mask
     // below, we have to draw the outline first (!)
     if (fringeline && pass == RenderPass::Translucent) {
-        config.program = outlineShader->program;
+        config.program = outlineShader->getID();
         outlineShader->u_matrix = vtxMatrix;
         config.lineWidth = 2.0f; // This is always fixed and does not depend on the pixelRatio!
 
@@ -151,6 +150,6 @@ void Painter::renderFill(FillBucket& bucket, const FillLayer& layer, const TileI
         }};
 
         setDepthSublayer(2);
-        bucket.drawVertices(*outlineShader);
+        bucket.drawVertices(*outlineShader, glObjectStore);
     }
 }

@@ -1,18 +1,18 @@
 #import "MGLMapView_Private.h"
-#import "MGLAccountManager_Private.h"
 #import "MGLAttributionButton.h"
 #import "MGLCompassCell.h"
 #import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
 
+#import "../../darwin/src/MGLAccountManager_Private.h"
 #import "../../darwin/src/MGLGeometry_Private.h"
 #import "../../darwin/src/MGLMultiPoint_Private.h"
 
-#import <MGLMapCamera.h>
-#import <MGLPolygon.h>
-#import <MGLPolyline.h>
-#import <MGLAnnotationImage.h>
-#import <MGLMapViewDelegate.h>
+#import "MGLMapCamera.h"
+#import "MGLPolygon.h"
+#import "MGLPolyline.h"
+#import "MGLAnnotationImage.h"
+#import "MGLMapViewDelegate.h"
 
 #import <mbgl/mbgl.hpp>
 #import <mbgl/annotation/point_annotation.hpp>
@@ -30,8 +30,8 @@
 #import <map>
 #import <unordered_set>
 
-#import "NSBundle+MGLAdditions.h"
-#import "NSProcessInfo+MGLAdditions.h"
+#import "../../darwin/src/NSBundle+MGLAdditions.h"
+#import "../../darwin/src/NSProcessInfo+MGLAdditions.h"
 #import "../../darwin/src/NSException+MGLAdditions.h"
 #import "../../darwin/src/NSString+MGLAdditions.h"
 
@@ -92,7 +92,7 @@ typedef std::map<MGLAnnotationTag, MGLAnnotationContext> MGLAnnotationContextMap
 /// Returns an NSImage for the default marker image.
 NSImage *MGLDefaultMarkerImage() {
     NSString *path = [[NSBundle mgl_frameworkBundle] pathForResource:MGLDefaultStyleMarkerSymbolName
-                                                             ofType:@"pdf"];
+                                                              ofType:@"pdf"];
     return [[NSImage alloc] initWithContentsOfFile:path];
 }
 
@@ -899,7 +899,7 @@ public:
 - (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
     [self willChangeValueForKey:@"centerCoordinate"];
     [self willChangeValueForKey:@"zoomLevel"];
-    mbgl::PrecisionPoint center(point.x, self.bounds.size.height - point.y);
+    mbgl::ScreenCoordinate center(point.x, self.bounds.size.height - point.y);
     _mbglMap->scaleBy(scaleFactor, center, MGLDurationInSeconds(animated ? MGLAnimationDuration : 0));
     [self didChangeValueForKey:@"zoomLevel"];
     [self didChangeValueForKey:@"centerCoordinate"];
@@ -1214,7 +1214,7 @@ public:
             _directionAtBeginningOfGesture = self.direction;
             _pitchAtBeginningOfGesture = _mbglMap->getPitch();
         } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
-            mbgl::PrecisionPoint center(startPoint.x, self.bounds.size.height - startPoint.y);
+            mbgl::ScreenCoordinate center(startPoint.x, self.bounds.size.height - startPoint.y);
             if (self.rotateEnabled) {
                 CLLocationDirection newDirection = _directionAtBeginningOfGesture - delta.x / 10;
                 [self willChangeValueForKey:@"direction"];
@@ -1258,7 +1258,7 @@ public:
         _scaleAtBeginningOfGesture = _mbglMap->getScale();
     } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
         NSPoint zoomInPoint = [gestureRecognizer locationInView:self];
-        mbgl::PrecisionPoint center(zoomInPoint.x, self.bounds.size.height - zoomInPoint.y);
+        mbgl::ScreenCoordinate center(zoomInPoint.x, self.bounds.size.height - zoomInPoint.y);
         if (gestureRecognizer.magnification > -1) {
             [self willChangeValueForKey:@"zoomLevel"];
             [self willChangeValueForKey:@"centerCoordinate"];
@@ -1339,7 +1339,7 @@ public:
         _directionAtBeginningOfGesture = self.direction;
     } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
         NSPoint rotationPoint = [gestureRecognizer locationInView:self];
-        mbgl::PrecisionPoint center(rotationPoint.x, self.bounds.size.height - rotationPoint.y);
+        mbgl::ScreenCoordinate center(rotationPoint.x, self.bounds.size.height - rotationPoint.y);
         _mbglMap->setBearing(_directionAtBeginningOfGesture + gestureRecognizer.rotationInDegrees, center);
     } else if (gestureRecognizer.state == NSGestureRecognizerStateEnded
                || gestureRecognizer.state == NSGestureRecognizerStateCancelled) {
@@ -1999,14 +1999,14 @@ public:
 - (mbgl::Color)strokeColorForShapeAnnotation:(MGLShape *)annotation {
     NSColor *color = (_delegateHasStrokeColorsForShapeAnnotations
                       ? [self.delegate mapView:self strokeColorForShapeAnnotation:annotation]
-                      : [NSColor blackColor]);
+                      : [NSColor selectedMenuItemColor]);
     return MGLColorObjectFromNSColor(color);
 }
 
 - (mbgl::Color)fillColorForPolygonAnnotation:(MGLPolygon *)annotation {
     NSColor *color = (_delegateHasFillColorsForShapeAnnotations
                       ? [self.delegate mapView:self fillColorForPolygonAnnotation:annotation]
-                      : [NSColor blueColor]);
+                      : [NSColor selectedMenuItemColor]);
     return MGLColorObjectFromNSColor(color);
 }
 
@@ -2165,7 +2165,7 @@ public:
 
 /// Converts a geographic coordinate to a point in the view’s coordinate system.
 - (NSPoint)convertLatLng:(mbgl::LatLng)latLng toPointToView:(nullable NSView *)view {
-    mbgl::vec2<double> pixel = _mbglMap->pixelForLatLng(latLng);
+    mbgl::ScreenCoordinate pixel = _mbglMap->pixelForLatLng(latLng);
     // Cocoa origin is at the lower-left corner.
     pixel.y = NSHeight(self.bounds) - pixel.y;
     return [self convertPoint:NSMakePoint(pixel.x, pixel.y) toView:view];

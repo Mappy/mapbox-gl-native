@@ -12,7 +12,7 @@ void Painter::renderRaster(RasterBucket& bucket, const RasterLayer& layer, const
     const RasterPaintProperties& properties = layer.paint;
 
     if (bucket.hasData()) {
-        config.program = rasterShader->program;
+        config.program = rasterShader->getID();
         rasterShader->u_matrix = matrix;
         rasterShader->u_buffer = 0;
         rasterShader->u_opacity = properties.opacity;
@@ -28,7 +28,7 @@ void Painter::renderRaster(RasterBucket& bucket, const RasterLayer& layer, const
         config.depthTest = GL_TRUE;
         config.depthMask = GL_FALSE;
         setDepthSublayer(0);
-        bucket.drawRaster(*rasterShader, tileStencilBuffer, coveringRasterArray);
+        bucket.drawRaster(*rasterShader, tileStencilBuffer, coveringRasterArray, glObjectStore);
     }
 }
 
@@ -49,7 +49,7 @@ float Painter::contrastFactor(float contrast) {
 }
 
 std::array<float, 3> Painter::spinWeights(float spin) {
-    spin *= M_PI / 180;
+    spin *= util::DEG2RAD;
     float s = std::sin(spin);
     float c = std::cos(spin);
     std::array<float, 3> spin_weights = {{

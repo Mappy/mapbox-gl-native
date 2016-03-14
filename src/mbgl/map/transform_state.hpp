@@ -6,7 +6,6 @@
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/vec.hpp>
 #include <mbgl/util/mat4.hpp>
-#include <mbgl/util/vec4.hpp>
 
 #include <cstdint>
 #include <array>
@@ -15,7 +14,6 @@
 namespace mbgl {
 
 class TileID;
-class TileCoordinate;
 
 class TransformState {
     friend class Transform;
@@ -39,7 +37,7 @@ public:
     ConstrainMode getConstrainMode() const;
 
     // Position
-    LatLng getLatLng() const;
+    LatLng getLatLng(LatLng::WrapMode = LatLng::Unwrapped) const;
     double pixel_x() const;
     double pixel_y() const;
 
@@ -66,14 +64,13 @@ public:
     bool isGestureInProgress() const;
 
     // Conversion and projection
-    PrecisionPoint latLngToPoint(const LatLng&) const;
-    LatLng pointToLatLng(const PrecisionPoint&) const;
+    ScreenCoordinate latLngToScreenCoordinate(const LatLng&) const;
+    LatLng screenCoordinateToLatLng(const ScreenCoordinate&, LatLng::WrapMode = LatLng::Unwrapped) const;
 
-    TileCoordinate latLngToCoordinate(const LatLng&) const;
-    LatLng coordinateToLatLng(const TileCoordinate&) const;
-
-    PrecisionPoint coordinateToPoint(const TileCoordinate&) const;
-    TileCoordinate pointToCoordinate(const PrecisionPoint&) const;
+    double xLng(double x, double worldSize) const;
+    double yLat(double y, double worldSize) const;
+    double lngX(double lon) const;
+    double latY(double lat) const;
 
 private:
     bool rotatedNorth() const;
@@ -88,10 +85,6 @@ private:
     // logical dimensions
     uint16_t width = 0, height = 0;
 
-    double xLng(double x, double worldSize) const;
-    double yLat(double y, double worldSize) const;
-    double lngX(double lon) const;
-    double latY(double lat) const;
     double zoomScale(double zoom) const;
     double scaleZoom(double scale) const;
     double worldSize() const;
@@ -101,9 +94,9 @@ private:
     
     /** Recenter the map so that the given coordinate is located at the given
         point on screen. */
-    void moveLatLng(const LatLng&, const PrecisionPoint&);
+    void moveLatLng(const LatLng&, const ScreenCoordinate&);
     void setLatLngZoom(const LatLng &latLng, double zoom);
-    void setScalePoint(const double scale, const PrecisionPoint& point);
+    void setScalePoint(const double scale, const ScreenCoordinate& point);
 
 private:
     ConstrainMode constrainMode;
@@ -122,8 +115,8 @@ private:
     double pitch = 0.0;
 
     // cache values for spherical mercator math
-    double Bc = (scale * util::tileSize) / 360;
-    double Cc = (scale * util::tileSize) / util::M2PI;
+    double Bc = worldSize() / util::DEGREES_MAX;
+    double Cc = worldSize() / util::M2PI;
 };
 
 } // namespace mbgl

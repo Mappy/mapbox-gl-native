@@ -2,24 +2,20 @@
 #define MBGL_RENDERER_SHADER
 
 #include <mbgl/gl/gl.hpp>
+#include <mbgl/gl/gl_object_store.hpp>
 #include <mbgl/util/noncopyable.hpp>
-
-#include <cstdint>
-#include <array>
-#include <string>
 
 namespace mbgl {
 
 class Shader : private util::noncopyable {
 public:
-    Shader(const GLchar *name, const GLchar *vertex, const GLchar *fragment);
+    Shader(const GLchar *name, const GLchar *vertex, const GLchar *fragment, gl::GLObjectStore&);
 
     ~Shader();
     const GLchar *name;
-    GLuint program;
 
-    inline GLuint getID() const {
-        return program;
+    GLuint getID() const {
+        return program.getID();
     }
 
     virtual void bind(GLbyte *offset) = 0;
@@ -28,10 +24,11 @@ protected:
     GLint a_pos = -1;
 
 private:
-    bool compileShader(GLuint *shader, GLenum type, const GLchar *source[]);
+    bool compileShader(gl::ShaderHolder&, const GLchar *source[]);
 
-    GLuint vertShader = 0;
-    GLuint fragShader = 0;
+    gl::ProgramHolder program;
+    gl::ShaderHolder vertexShader = { GL_VERTEX_SHADER };
+    gl::ShaderHolder fragmentShader = { GL_FRAGMENT_SHADER };
 };
 
 } // namespace mbgl

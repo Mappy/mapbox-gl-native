@@ -1,6 +1,8 @@
 #ifndef MBGL_UTIL_CONSTANTS
 #define MBGL_UTIL_CONSTANTS
 
+#include <mbgl/util/chrono.hpp>
+
 #include <cmath>
 #include <string>
 #include <vector>
@@ -17,11 +19,15 @@ extern const double RAD2DEG;
 extern const double M2PI;
 extern const double EARTH_RADIUS_M;
 extern const double LATITUDE_MAX;
+extern const double LONGITUDE_MAX;
+extern const double DEGREES_MAX;
 extern const double PITCH_MAX;
 extern const double MIN_ZOOM;
 extern const double MAX_ZOOM;
 
 extern const uint64_t DEFAULT_MAX_CACHE_SIZE;
+
+extern const SystemDuration CLOCK_SKEW_RETRY_TIMEOUT;
 
 } // namespace util
 

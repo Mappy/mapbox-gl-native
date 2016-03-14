@@ -28,6 +28,7 @@
           '<@(opengl_cflags)',
           '<@(boost_cflags)',
           '<@(glfw_cflags)',
+          '<@(variant_cflags)',
         ],
         'ldflags': [
           '<@(glfw_ldflags)',
@@ -39,20 +40,27 @@
 
       'conditions': [
         ['OS == "mac"', {
-          'libraries': [ '<@(libraries)' ],
           'xcode_settings': {
             'SDKROOT': 'macosx',
             'SUPPORTED_PLATFORMS':'macosx',
             'OTHER_CPLUSPLUSFLAGS': [ '<@(cflags_cc)' ],
-            'OTHER_LDFLAGS': [ '<@(ldflags)' ],
-            'SDKROOT': 'macosx',
             'MACOSX_DEPLOYMENT_TARGET': '10.10',
-          }
+          },
         }, {
           'cflags_cc': [ '<@(cflags_cc)' ],
-          'libraries': [ '<@(libraries)', '<@(ldflags)' ],
         }]
       ],
+
+      'link_settings': {
+        'conditions': [
+          ['OS == "mac"', {
+            'libraries': [ '<@(libraries)' ],
+            'xcode_settings': { 'OTHER_LDFLAGS': [ '<@(ldflags)' ] }
+          }, {
+            'libraries': [ '<@(libraries)', '<@(ldflags)' ],
+          }]
+        ],
+      },
     },
   ],
 }

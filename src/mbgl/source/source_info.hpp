@@ -3,6 +3,7 @@
 
 #include <mbgl/style/types.hpp>
 #include <mbgl/util/constants.hpp>
+#include <mbgl/util/geo.hpp>
 
 #include <array>
 #include <vector>
@@ -16,11 +17,12 @@ class TileID;
 class SourceInfo {
 public:
     std::vector<std::string> tiles;
-    uint16_t minZoom = 0;
-    uint16_t maxZoom = 22;
+    uint8_t minZoom = 0;
+    uint8_t maxZoom = 22;
     std::string attribution;
-    std::array<float, 3> center = { { 0, 0, 0 } };
-    std::array<float, 4> bounds = { { -180, -90, 180, 90 } };
+    LatLng center;
+    double zoom = 0;
+    LatLngBounds bounds = LatLngBounds::world();
 };
 
 } // namespace mbgl

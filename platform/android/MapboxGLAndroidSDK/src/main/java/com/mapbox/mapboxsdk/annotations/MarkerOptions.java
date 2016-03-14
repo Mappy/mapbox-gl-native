@@ -12,9 +12,9 @@ import com.mapbox.mapboxsdk.geometry.LatLng;
  * <p>
  * Builder for composing {@link com.mapbox.mapboxsdk.annotations.Marker} objects.
  * </p>
- *
+ * <p/>
  * <h3>Example</h3>
- *
+ * <p/>
  * <pre>
  * mMapView.addMarker(new MarkerOptions()
  *   .title("Intersection")
@@ -39,10 +39,14 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
         marker = new Marker();
         position((LatLng) in.readParcelable(LatLng.class.getClassLoader()));
         snippet(in.readString());
-        String iconId = in.readString();
-        Bitmap iconBitmap = in.readParcelable(Bitmap.class.getClassLoader());
-        Icon icon = new Icon(iconId, iconBitmap);
-        icon(icon);
+
+        if(in.readByte()!=0){
+            // this means we have an icon
+            String iconId = in.readString();
+            Bitmap iconBitmap = in.readParcelable(Bitmap.class.getClassLoader());
+            Icon icon = new Icon(iconId, iconBitmap);
+            icon(icon);
+        }
         title(in.readString());
     }
 
@@ -53,15 +57,19 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
 
     @Override
     public int describeContents() {
-        return 0;
+        return hashCode();
     }
 
     @Override
     public void writeToParcel(Parcel out, int flags) {
         out.writeParcelable(getPosition(), flags);
         out.writeString(getSnippet());
-        out.writeString(getIcon().getId());
-        out.writeParcelable(getIcon().getBitmap(), flags);
+        Icon icon = getIcon();
+        out.writeByte((byte) (icon != null ? 1 : 0));
+        if (icon != null) {
+            out.writeString(getIcon().getId());
+            out.writeParcelable(getIcon().getBitmap(), flags);
+        }
         out.writeString(getTitle());
     }
 
@@ -77,43 +85,27 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
      * @return Marker The build marker
      */
     public Marker getMarker() {
+        marker.setPosition(position);
+        marker.setSnippet(snippet);
+        marker.setTitle(title);
+        marker.setIcon(icon);
         return marker;
     }
 
     public LatLng getPosition() {
-        return marker.getPosition();
+        return position;
     }
 
     public String getSnippet() {
-        return marker.getSnippet();
+        return snippet;
     }
 
     public String getTitle() {
-        return marker.getTitle();
+        return title;
     }
 
     public Icon getIcon() {
-        return marker.getIcon();
-    }
-
-    public MarkerOptions position(LatLng position) {
-        marker.setPosition(position);
-        return this;
-    }
-
-    public MarkerOptions snippet(String snippet) {
-        marker.setSnippet(snippet);
-        return this;
-    }
-
-    public MarkerOptions icon(@Nullable Icon icon) {
-        marker.setIcon(icon);
-        return this;
-    }
-
-    public MarkerOptions title(String title) {
-        marker.setTitle(title);
-        return this;
+        return icon;
     }
 
     @Override
@@ -130,7 +122,6 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
         if (getIcon() != null ? !getIcon().equals(marker.getIcon()) : marker.getIcon() != null)
             return false;
         return !(getTitle() != null ? !getTitle().equals(marker.getTitle()) : marker.getTitle() != null);
-
     }
 
     @Override

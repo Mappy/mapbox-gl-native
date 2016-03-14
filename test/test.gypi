@@ -77,6 +77,7 @@
         'storage/headers.cpp',
         'storage/http_cancel.cpp',
         'storage/http_error.cpp',
+        'storage/http_expires.cpp',
         'storage/http_header_parsing.cpp',
         'storage/http_issue_1369.cpp',
         'storage/http_load.cpp',
@@ -100,11 +101,6 @@
         'sprite/sprite_parser.cpp',
         'sprite/sprite_store.cpp',
       ],
-      'libraries': [
-        '<@(gtest_static_libs)',
-        '<@(sqlite_static_libs)',
-        '<@(geojsonvt_static_libs)',
-      ],
       'variables': {
         'cflags_cc': [
           '<@(gtest_cflags)',
@@ -114,23 +110,37 @@
           '<@(geojsonvt_cflags)',
           '<@(rapidjson_cflags)',
           '<@(pixelmatch_cflags)',
+          '<@(variant_cflags)',
         ],
         'ldflags': [
           '<@(gtest_ldflags)',
           '<@(sqlite_ldflags)',
+        ],
+        'libraries': [
+          '<@(gtest_static_libs)',
+          '<@(sqlite_static_libs)',
+          '<@(geojsonvt_static_libs)',
         ],
       },
       'conditions': [
         ['OS == "mac"', {
           'xcode_settings': {
             'OTHER_CPLUSPLUSFLAGS': [ '<@(cflags_cc)' ],
-            'OTHER_LDFLAGS': [ '<@(ldflags)' ],
           },
         }, {
          'cflags_cc': [ '<@(cflags_cc)' ],
-         'libraries': [ '<@(ldflags)' ],
         }],
       ],
+      'link_settings': {
+        'conditions': [
+          ['OS == "mac"', {
+            'libraries': [ '<@(libraries)' ],
+            'xcode_settings': { 'OTHER_LDFLAGS': [ '<@(ldflags)' ] }
+          }, {
+            'libraries': [ '<@(libraries)', '<@(ldflags)' ],
+          }]
+        ],
+      },
     },
   ]
 }

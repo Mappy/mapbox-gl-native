@@ -1,10 +1,7 @@
 package com.mapbox.mapboxsdk.maps;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Point;
-import android.support.v4.content.ContextCompat;
 
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
@@ -14,6 +11,7 @@ import com.mapbox.mapboxsdk.annotations.Polyline;
 import com.mapbox.mapboxsdk.annotations.PolylineOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 
@@ -47,6 +45,39 @@ public class MapboxMapTest {
     @Mock
     MapboxMap.OnMarkerClickListener mOnMarkerClickListener;
 
+    @Mock
+    MapboxMap.OnCameraChangeListener mOnCameraChangeListener;
+
+    @Mock
+    MapboxMap.InfoWindowAdapter mInfoWindowAdapter;
+
+    @Mock
+    MapboxMap.OnScrollListener mScrollListener;
+
+    @Mock
+    MapboxMap.OnFlingListener mFlingListener;
+
+    @Mock
+    MapboxMap.OnFpsChangedListener mFpsChangedListener;
+
+    @Mock
+    MapboxMap.OnInfoWindowClickListener mWindowClickListener;
+
+    @Mock
+    MapboxMap.OnInfoWindowCloseListener mWindowCloseListener;
+
+    @Mock
+    MapboxMap.OnInfoWindowLongClickListener mWindowLongClickListener;
+
+    @Mock
+    MapboxMap.OnMyLocationChangeListener mLocationChangeListener;
+
+    @Mock
+    MapboxMap.OnMyLocationTrackingModeChangeListener mMyLocationTrackingModeChangeListener;
+
+    @Mock
+    MapboxMap.OnMyBearingTrackingModeChangeListener mMyBearingTrackingModeChangeListener;
+
     @Before
     public void beforeTest() {
         MockitoAnnotations.initMocks(this);
@@ -78,6 +109,15 @@ public class MapboxMapTest {
     }
 
     //
+    // TrackingSettings
+    //
+
+    @Test
+    public void testTrackingSettings() {
+        assertNotNull("TrackingSettings should not be null", mMapboxMap.getTrackingSettings());
+    }
+
+    //
     // Projection
     //
 
@@ -85,7 +125,6 @@ public class MapboxMapTest {
     public void testProjection() {
         assertNotNull("Projection should not be null", mMapboxMap.getProjection());
     }
-
 
     //
     // InfoWindow
@@ -101,6 +140,12 @@ public class MapboxMapTest {
     public void testConcurrentInfoWindowDisabled() {
         mMapboxMap.setAllowConcurrentMultipleOpenInfoWindows(false);
         assertFalse("ConcurrentWindows should be false", mMapboxMap.isAllowConcurrentMultipleOpenInfoWindows());
+    }
+
+    @Test
+    public void testInfoWindowAdapter() {
+        mMapboxMap.setInfoWindowAdapter(mInfoWindowAdapter);
+        assertEquals("InfoWindowAdpter should be the same", mInfoWindowAdapter, mMapboxMap.getInfoWindowAdapter());
     }
 
     //
@@ -123,19 +168,68 @@ public class MapboxMapTest {
     }
 
     //
-    // Style
+    // padding
     //
 
     @Test
-    public void testStyleUrl() {
-        mMapboxMap.setStyleUrl("somestyle");
-        assertEquals("StyleUrl should be same", "somestyle", mMapboxMap.getStyleUrl());
+    public void testPadding() {
+        mMapboxMap.setOnCameraChangeListener(mOnCameraChangeListener);
+        CameraPosition position = new CameraPosition.Builder().bearing(1).tilt(2).zoom(3).target(new LatLng(4, 5)).build();
+        mMapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(position));
+        mMapboxMap.setPadding(0, 0, 0, 0);
+        verify(mOnCameraChangeListener, times(2)).onCameraChange(position);
+    }
+
+    //
+    // setters/getters interfaces
+    //
+
+    @Test
+    public void testScrollListener() {
+        mMapboxMap.setOnScrollListener(mScrollListener);
+        assertEquals("ScrollListener should match", mScrollListener, mMapboxMap.getOnScrollListener());
     }
 
     @Test
-    public void testStyle() {
-        mMapboxMap.setStyle(Style.MAPBOX_STREETS);
-        assertEquals("Style should be same", Style.MAPBOX_STREETS, mMapboxMap.getStyleUrl());
+    public void testFlingListener() {
+        mMapboxMap.setOnFlingListener(mFlingListener);
+        assertEquals("FlingListener should match", mFlingListener, mMapboxMap.getOnFlingListener());
+    }
+
+    @Test
+    public void testFpsListener() {
+        mMapboxMap.setOnFpsChangedListener(mFpsChangedListener);
+        assertEquals("FpsListener should match", mFpsChangedListener, mMapboxMap.getOnFpsChangedListener());
+    }
+
+    @Test
+    public void testInfoWindowClickListener() {
+        mMapboxMap.setOnInfoWindowClickListener(mWindowClickListener);
+        assertEquals("InfoWidowClickListener should match", mWindowClickListener, mMapboxMap.getOnInfoWindowClickListener());
+    }
+
+    @Test
+    public void testInfoWindowCloseListener() {
+        mMapboxMap.setOnInfoWindowCloseListener(mWindowCloseListener);
+        assertEquals("InfoWindowCloseListener should match", mWindowCloseListener, mMapboxMap.getOnInfoWindowCloseListener());
+    }
+
+    @Test
+    public void testInfoWindowLongClickListener() {
+        mMapboxMap.setOnInfoWindowLongClickListener(mWindowLongClickListener);
+        assertEquals("InfoWindowLongClickListener should match", mWindowLongClickListener, mMapboxMap.getOnInfoWindowLongClickListener());
+    }
+
+    @Test
+    public void testOnBearingTrackingModeChangeListener(){
+        mMapboxMap.setOnMyBearingTrackingModeChangeListener(mMyBearingTrackingModeChangeListener);
+        assertEquals("MyBearingTrackingChangeListerner should match",mMyBearingTrackingModeChangeListener, mMapboxMap.getOnMyBearingTrackingModeChangeListener());
+    }
+
+    @Test
+    public void testOnLocationTrackingModeChangeListener(){
+        mMapboxMap.setOnMyLocationTrackingModeChangeListener(mMyLocationTrackingModeChangeListener);
+        assertEquals("MyLocationTrackigChangeListener should match",mMyLocationTrackingModeChangeListener, mMapboxMap.getOnMyLocationTrackingModeChangeListener());
     }
 
     //
@@ -199,7 +293,7 @@ public class MapboxMapTest {
     @Test
     public void testNewCameraPositionEaseCamera() {
         CameraPosition position = new CameraPosition.Builder().bearing(1).tilt(2).zoom(3).target(new LatLng(4, 5)).build();
-        mMapboxMap.easeCamera(CameraUpdateFactory.newCameraPosition(position), 1000);
+        mMapboxMap.easeCamera(CameraUpdateFactory.newCameraPosition(position));
         assertEquals("CameraPosition should be same", position, mMapboxMap.getCameraPosition());
     }
 
@@ -385,6 +479,18 @@ public class MapboxMapTest {
     }
 
     //
+    // OnCameraChangeListener
+    //
+
+    @Test
+    public void testOnCameraChangeListener() {
+        CameraPosition position = new CameraPosition.Builder().bearing(1).tilt(2).zoom(3).target(new LatLng(4, 5)).build();
+        mMapboxMap.setOnCameraChangeListener(mOnCameraChangeListener);
+        mMapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(position));
+        verify(mOnCameraChangeListener, times(1)).onCameraChange(position);
+    }
+
+    //
     // Annotations
     //
 
@@ -410,42 +516,62 @@ public class MapboxMapTest {
 
     @Test
     public void testAddPolygon() {
-        PolygonOptions polygonOptions = new PolygonOptions();
+        PolygonOptions polygonOptions = new PolygonOptions().add(new LatLng());
         Polygon polygon = mMapboxMap.addPolygon(polygonOptions);
         assertTrue("Polygon should be contained", mMapboxMap.getPolygons().contains(polygon));
     }
 
     @Test
+    public void testAddEmptyPolygon() {
+        PolygonOptions polygonOptions = new PolygonOptions();
+        Polygon polygon = mMapboxMap.addPolygon(polygonOptions);
+        assertTrue("Polygon should be ignored", !mMapboxMap.getPolygons().contains(polygon));
+    }
+
+    @Test
     public void testAddPolygons() {
         List<PolygonOptions> polygonList = new ArrayList<>();
-        PolygonOptions polygonOptions1 = new PolygonOptions().fillColor(Color.BLACK);
-        PolygonOptions polygonOptions2 = new PolygonOptions().fillColor(Color.WHITE);
+        PolygonOptions polygonOptions1 = new PolygonOptions().fillColor(Color.BLACK).add(new LatLng());
+        PolygonOptions polygonOptions2 = new PolygonOptions().fillColor(Color.WHITE).add(new LatLng());
+        PolygonOptions polygonOptions3 = new PolygonOptions();
         polygonList.add(polygonOptions1);
         polygonList.add(polygonOptions2);
+        polygonList.add(polygonOptions3);
         mMapboxMap.addPolygons(polygonList);
         assertEquals("Polygons size should be 2", 2, mMapboxMap.getPolygons().size());
         assertTrue(mMapboxMap.getPolygons().contains(polygonOptions1.getPolygon()));
         assertTrue(mMapboxMap.getPolygons().contains(polygonOptions2.getPolygon()));
+        assertTrue("Polygon should be ignored", !mMapboxMap.getPolygons().contains(polygonOptions3.getPolygon()));
     }
 
     @Test
     public void testAddPolyline() {
-        PolylineOptions polylineOptions = new PolylineOptions();
+        PolylineOptions polylineOptions = new PolylineOptions().add(new LatLng());
         Polyline polyline = mMapboxMap.addPolyline(polylineOptions);
         assertTrue("Polyline should be contained", mMapboxMap.getPolylines().contains(polyline));
     }
 
     @Test
+    public void testAddEmptyPolyline() {
+        PolylineOptions polylineOptions = new PolylineOptions();
+        Polyline polyline = mMapboxMap.addPolyline(polylineOptions);
+        assertTrue("Polyline should be ignored", !mMapboxMap.getPolylines().contains(polyline));
+    }
+
+    @Test
     public void testAddPolylines() {
         List<PolylineOptions> polylineList = new ArrayList<>();
-        PolylineOptions polygonOptions1 = new PolylineOptions().color(Color.BLACK);
-        PolylineOptions polygonOptions2 = new PolylineOptions().color(Color.WHITE);
+        PolylineOptions polygonOptions1 = new PolylineOptions().color(Color.BLACK).add(new LatLng());
+        PolylineOptions polygonOptions2 = new PolylineOptions().color(Color.WHITE).add(new LatLng());
+        PolylineOptions polygonOptions3 = new PolylineOptions();
         polylineList.add(polygonOptions1);
         polylineList.add(polygonOptions2);
+        polylineList.add(polygonOptions3);
         mMapboxMap.addPolylines(polylineList);
         assertEquals("Polygons size should be 2", 2, mMapboxMap.getPolylines().size());
         assertTrue(mMapboxMap.getPolylines().contains(polygonOptions1.getPolyline()));
         assertTrue(mMapboxMap.getPolylines().contains(polygonOptions2.getPolyline()));
+        assertTrue("Polyline should be ignored", !mMapboxMap.getPolylines().contains(polygonOptions3.getPolyline()));
     }
 
     @Test

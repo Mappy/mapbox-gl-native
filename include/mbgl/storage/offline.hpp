@@ -99,20 +99,21 @@ public:
 
     /**
      * The number of resources that are known to be required for this region. See the
-     * documentation for `requiredResourceCountIsIndeterminate` for an important caveat
+     * documentation for `requiredResourceCountIsPrecise` for an important caveat
      * about this number.
      */
     uint64_t requiredResourceCount = 0;
 
     /**
-     * This property is true during early phases of an offline download, when the total
-     * required resource count is unknown and requiredResourceCount is merely a lower
+     * This property is true when the value of requiredResourceCount is a precise
+     * count of the number of required resources, and false when it is merely a lower
      * bound.
      *
-     * Specifically, it is true before until the style and tile sources have been
-     * downloaded, and false thereafter.
+     * Specifically, it is false during early phases of an offline download. Once
+     * style and tile sources have been downloaded, it is possible to calculate the
+     * precise number of required resources, at which point it is set to true.
      */
-    bool requiredResourceCountIsIndeterminate = true;
+    bool requiredResourceCountIsPrecise = false;
 
     bool complete() const {
         return completedResourceCount == requiredResourceCount;
@@ -149,6 +150,22 @@ public:
      * re-executes the user-provided implementation on the main thread.
      */
     virtual void responseError(Response::Error) {}
+
+    /*
+     * Implement this method to be notified when the limit on the number of Mapbox
+     * tiles stored for offline regions has been reached.
+     *
+     * Once the limit has been reached, the SDK will not download further offline
+     * tiles from Mapbox APIs until existing tiles have been removed. Contact your
+     * Mapbox sales representative to raise the limit.
+     *
+     * This limit does not apply to non-Mapbox tile sources.
+     *
+     * Note that this method will be executed on the database thread; it is the
+     * responsibility of the SDK bindings to wrap this object in an interface that
+     * re-executes the user-provided implementation on the main thread.
+     */
+    virtual void mapboxTileCountLimitExceeded(uint64_t /* limit */) {}
 };
 
 class OfflineRegion {

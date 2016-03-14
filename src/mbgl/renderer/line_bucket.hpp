@@ -24,29 +24,29 @@ class LineBucket : public Bucket {
     using TriangleGroup = ElementGroup<3>;
 
 public:
-    LineBucket(float overscaling);
+    LineBucket(uint32_t overscaling);
     ~LineBucket() override;
 
-    void upload() override;
+    void upload(gl::GLObjectStore&) override;
     void render(Painter&, const StyleLayer&, const TileID&, const mat4&) override;
     bool hasData() const override;
 
     void addGeometry(const GeometryCollection&);
-    void addGeometry(const std::vector<Coordinate>& line);
+    void addGeometry(const GeometryCoordinates& line);
 
-    void drawLines(LineShader& shader);
-    void drawLineSDF(LineSDFShader& shader);
-    void drawLinePatterns(LinepatternShader& shader);
+    void drawLines(LineShader&, gl::GLObjectStore&);
+    void drawLineSDF(LineSDFShader&, gl::GLObjectStore&);
+    void drawLinePatterns(LinepatternShader&, gl::GLObjectStore&);
 
 private:
     struct TriangleElement {
         TriangleElement(uint16_t a_, uint16_t b_, uint16_t c_) : a(a_), b(b_), c(c_) {}
         uint16_t a, b, c;
     };
-    void addCurrentVertex(const Coordinate& currentVertex, float flip, double distance,
+    void addCurrentVertex(const GeometryCoordinate& currentVertex, float flip, double distance,
             const vec2<double>& normal, float endLeft, float endRight, bool round,
             GLint startVertex, std::vector<LineBucket::TriangleElement>& triangleStore);
-    void addPieSliceVertex(const Coordinate& currentVertex, float flip, double distance,
+    void addPieSliceVertex(const GeometryCoordinate& currentVertex, float flip, double distance,
             const vec2<double>& extrude, bool lineTurnsLeft, GLint startVertex,
             std::vector<TriangleElement>& triangleStore);
 
@@ -63,7 +63,7 @@ private:
 
     std::vector<std::unique_ptr<TriangleGroup>> triangleGroups;
 
-    const float overscaling;
+    const uint32_t overscaling;
 };
 
 } // namespace mbgl

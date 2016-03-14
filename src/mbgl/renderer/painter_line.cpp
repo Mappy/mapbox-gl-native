@@ -51,7 +51,7 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
     color[2] *= properties.opacity;
     color[3] *= properties.opacity;
 
-    float ratio = state.getScale() / std::pow(2, id.z) / (util::EXTENT / (512.0 * id.overscaling));
+    const float ratio = state.getScale() / (1ll << id.sourceZ) * util::tileSize / util::EXTENT;
 
     mat2 antialiasingMatrix;
     matrix::identity(antialiasingMatrix);
@@ -70,7 +70,7 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
 
     if (!properties.dasharray.value.from.empty()) {
 
-        config.program = linesdfShader->program;
+        config.program = linesdfShader->getID();
 
         linesdfShader->u_matrix = vtxMatrix;
         linesdfShader->u_exmatrix = extrudeMatrix;
@@ -79,13 +79,16 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
         linesdfShader->u_blur = blur;
         linesdfShader->u_color = color;
 
-        LinePatternPos posA = lineAtlas->getDashPosition(properties.dasharray.value.from, layout.cap == CapType::Round);
-        LinePatternPos posB = lineAtlas->getDashPosition(properties.dasharray.value.to, layout.cap == CapType::Round);
-        lineAtlas->bind();
+        LinePatternPos posA = lineAtlas->getDashPosition(properties.dasharray.value.from, layout.cap == CapType::Round, glObjectStore);
+        LinePatternPos posB = lineAtlas->getDashPosition(properties.dasharray.value.to, layout.cap == CapType::Round, glObjectStore);
+        lineAtlas->bind(glObjectStore);
 
         const float widthA = posA.width * properties.dasharray.value.fromScale;
         const float widthB = posB.width * properties.dasharray.value.toScale;
-        float patternratio = std::pow(2.0, std::floor(::log2(state.getScale())) - id.z) / (util::EXTENT / util::tileSize) * id.overscaling;
+
+        const float patternratio =
+            std::pow(2.0, state.getIntegerZoom() - id.sourceZ) * util::tileSize / util::EXTENT;
+
         float scaleXA = patternratio / widthA / properties.dashLineWidth;
         float scaleYA = -posA.height / 2.0;
         float scaleXB = patternratio / widthB / properties.dashLineWidth;
@@ -102,7 +105,7 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
         linesdfShader->u_offset = -properties.offset;
         linesdfShader->u_antialiasingmatrix = antialiasingMatrix;
 
-        bucket.drawLineSDF(*linesdfShader);
+        bucket.drawLineSDF(*linesdfShader, glObjectStore);
 
     } else if (!properties.pattern.value.from.empty()) {
         optional<SpriteAtlasPosition> imagePosA = spriteAtlas->getPosition(properties.pattern.value.from, true);
@@ -111,9 +114,9 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
         if (!imagePosA || !imagePosB)
             return;
 
-        float factor = util::EXTENT / (512 * id.overscaling) / std::pow(2, state.getIntegerZoom() - id.z);
+        const float factor = util::EXTENT / util::tileSize / std::pow(2.0f, state.getIntegerZoom() - id.sourceZ);
 
-        config.program = linepatternShader->program;
+        config.program = linepatternShader->getID();
 
         linepatternShader->u_matrix = vtxMatrix;
         linepatternShader->u_exmatrix = extrudeMatrix;
@@ -134,9 +137,9 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
         linepatternShader->u_antialiasingmatrix = antialiasingMatrix;
 
         MBGL_CHECK_ERROR(glActiveTexture(GL_TEXTURE0));
-        spriteAtlas->bind(true);
+        spriteAtlas->bind(true, glObjectStore);
 
-        bucket.drawLinePatterns(*linepatternShader);
+        bucket.drawLinePatterns(*linepatternShader, glObjectStore);
 
     } else {
         // Mappy specific drawing on paths
@@ -147,7 +150,7 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
             stroke_color[2] *= properties.opacity;
             stroke_color[3] *= properties.opacity;
             
-            config.program = lineShader->program;
+            config.program = lineShader->getID();
             
             lineShader->u_matrix = vtxMatrix;
             lineShader->u_exmatrix = extrudeMatrix;
@@ -162,10 +165,10 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
             lineShader->u_color = stroke_color;
             
             setDepthSublayer(0);
-            bucket.drawLines(*lineShader);
+            bucket.drawLines(*lineShader, glObjectStore);
         }
 
-        config.program = lineShader->program;
+        config.program = lineShader->getID();
 
         lineShader->u_matrix = vtxMatrix;
         lineShader->u_exmatrix = extrudeMatrix;
@@ -178,6 +181,6 @@ void Painter::renderLine(LineBucket& bucket, const LineLayer& layer, const TileI
 
         lineShader->u_color = color;
 
-        bucket.drawLines(*lineShader);
+        bucket.drawLines(*lineShader, glObjectStore);
     }
 }

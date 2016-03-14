@@ -9,13 +9,14 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import com.mapbox.mapboxsdk.maps.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.utils.ApiAccess;
+import com.mapbox.mapboxsdk.maps.UiSettings;
+import com.mapbox.mapboxsdk.testapp.utils.ApiAccess;
 
 public class MaxMinZoomActivity extends AppCompatActivity {
 
@@ -38,14 +39,17 @@ public class MaxMinZoomActivity extends AppCompatActivity {
 
         mMapView = (MapView) findViewById(R.id.manualZoomMapView);
         mMapView.setAccessToken(ApiAccess.getToken(this));
+        mMapView.setStyle(Style.SATELLITE_STREETS);
         mMapView.onCreate(savedInstanceState);
         mMapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull final MapboxMap mapboxMap) {
                 mMapboxMap = mapboxMap;
-                mMapboxMap.setStyle(Style.SATELLITE_STREETS);
-                mMapboxMap.setMinZoom(3);
-                mMapboxMap.setMaxZoom(5);
+
+                UiSettings uiSettings = mapboxMap.getUiSettings();
+                uiSettings.setMinZoom(3);
+                uiSettings.setMaxZoom(5);
+
                 mMapboxMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(-1.063510, 32.895425)));
             }
         });

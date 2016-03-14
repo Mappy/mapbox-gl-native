@@ -19,6 +19,7 @@
 namespace mbgl {
 
 class MapData;
+class FileSource;
 class GlyphAtlas;
 class GlyphStore;
 class SpriteStore;
@@ -26,10 +27,10 @@ class SpriteAtlas;
 class LineAtlas;
 class StyleLayer;
 class TransformState;
-class TexturePool;
-
 class Tile;
 class Bucket;
+
+namespace gl { class TexturePool; }
 
 struct RenderItem {
     inline RenderItem(const StyleLayer& layer_,
@@ -54,7 +55,7 @@ class Style : public GlyphStore::Observer,
               public Source::Observer,
               public util::noncopyable {
 public:
-    Style(MapData&);
+    Style(MapData&, FileSource&);
     ~Style();
 
     class Observer : public GlyphStore::Observer,
@@ -79,7 +80,7 @@ public:
 
     // Fetch the tiles needed by the current viewport and emit a signal when
     // a tile is ready so observers can render the tile.
-    void update(const TransformState&, TexturePool&);
+    void update(const TransformState&, gl::TexturePool&);
 
     void cascade();
     void recalculate(float z);
@@ -107,6 +108,7 @@ public:
     void dumpDebugLogs() const;
 
     MapData& data;
+    FileSource& fileSource;
     std::unique_ptr<GlyphStore> glyphStore;
     std::unique_ptr<GlyphAtlas> glyphAtlas;
     std::unique_ptr<SpriteStore> spriteStore;
