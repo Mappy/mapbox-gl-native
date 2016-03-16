@@ -2235,6 +2235,16 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     return [self metersPerPointAtLatitude:latitude];
 }
 
+- (double)zoomLevelForCoordinateBounds:(MGLCoordinateBounds)bounds
+{
+    mbgl::LatLngBounds boundsLatLng = MGLLatLngBoundsFromCoordinateBounds(bounds);
+    mbgl::EdgeInsets padding = MGLEdgeInsetsFromNSEdgeInsets(self.contentInset);
+    mbgl::CameraOptions options;
+    options = _mbglMap->cameraForLatLngBounds(boundsLatLng, padding);
+    double zoom = options.zoom ? *options.zoom : self.maximumZoomLevel;
+    return zoom;
+}
+
 #pragma mark - Styling -
 
 - (NS_ARRAY_OF(NSURL *) *)bundledStyleURLs

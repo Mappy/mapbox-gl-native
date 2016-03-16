@@ -822,6 +822,16 @@ IB_DESIGNABLE
 
 - (CLLocationDistance)metersPerPixelAtLatitude:(CLLocationDegrees)latitude __attribute__((deprecated("Use -metersPerPointAtLatitude:.")));
 
+/**
+ Compute the zoomLevel for a bounding box according to current map size
+ and insets.
+ 
+ @param bounds The bounds for which the zoomLevel is requested
+ @return The zoom level
+ 
+ */
+- (double)zoomLevelForCoordinateBounds:(MGLCoordinateBounds)bounds;
+
 #pragma mark Annotating the Map
 
 /**
