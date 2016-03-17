@@ -29,6 +29,7 @@ offline.db
 /test/fixtures/**/actual.png
 /test/fixtures/**/diff.png
 /test/output
+/test/ios
 /include/mbgl/shader/shaders.hpp
 /src/shader/shaders_gl.cpp
 /src/shader/shaders_gles2.cpp
