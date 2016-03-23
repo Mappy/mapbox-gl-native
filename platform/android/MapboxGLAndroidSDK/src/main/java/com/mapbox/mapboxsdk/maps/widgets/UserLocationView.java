@@ -182,6 +182,10 @@ public final class UserLocationView extends View {
         return mStaleMarker ? mStaleHolder : holder;
     }
 
+    public RectF getCurrentDrawableRectF() {
+        return new RectF(getCurrentDrawableHolder().mBounds);
+    }
+
     private void drawShadow(Canvas canvas, UserLocationViewDrawableHolder holder) {
         if (!holder.hasShadow()) {
             return;

@@ -235,6 +235,7 @@ public class MapView extends FrameLayout {
         mAttributionsView.setOnClickListener(new AttributionOnClickListener(this));
 
         mScreenDensity = context.getResources().getDisplayMetrics().density;
+        Marker.setScreenDensity(mScreenDensity);
 
         // Load the attributes
         TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.MapView, 0, 0);
@@ -1600,6 +1601,16 @@ public class MapView extends FrameLayout {
             // Open / Close InfoWindow
             PointF tapPoint = new PointF(e.getX(), e.getY());
 
+            LatLng userLocationLatLng = new LatLng(mUserLocationView.getLocation());
+            PointF userLocationPointF = toScreenLocation(userLocationLatLng);
+            RectF userLocationRectF = mUserLocationView.getCurrentDrawableRectF();
+            userLocationRectF.offset(userLocationPointF.x, userLocationPointF.y);
+            if (userLocationRectF.contains(tapPoint.x, tapPoint.y)) {
+                if (mMapboxMap.onUserLocationViewClicked()) {
+                    return true;
+                }
+            }
+
             VisibleRegion visibleRegion = mMapboxMap.getProjection().getVisibleRegion();
             LatLngBounds screenBounds = visibleRegion.latLngBounds;
 
@@ -1614,7 +1625,7 @@ public class MapView extends FrameLayout {
                     RectF rect = marker.getBounds();
                     if (rect != null) {
                         PointF markerPoint = toScreenLocation(marker.getPosition());
-                        rect.offset(markerPoint.x - rect.width() / 2, markerPoint.y - rect.height() / 2);
+                        rect.offset(markerPoint.x, markerPoint.y);
 
                         if (rect.contains(tapPoint.x, tapPoint.y)) {
                             foundMaker = true;

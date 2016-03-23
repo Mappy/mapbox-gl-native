@@ -67,6 +67,7 @@ public class MapboxMap {
     private MapboxMap.OnMapClickListener mOnMapClickListener;
     private MapboxMap.OnMapLongClickListener mOnMapLongClickListener;
     private MapboxMap.OnMarkerClickListener mOnMarkerClickListener;
+    private MapboxMap.OnUserLocationViewClickListener mOnUserLocationViewClickListener;
     private MapboxMap.OnInfoWindowClickListener mOnInfoWindowClickListener;
     private MapboxMap.OnInfoWindowLongClickListener mOnInfoWindowLongClickListener;
     private MapboxMap.OnInfoWindowCloseListener mOnInfoWindowCloseListener;
@@ -1036,6 +1037,10 @@ public class MapboxMap {
         return marker;
     }
 
+    boolean onUserLocationViewClicked() {
+        return mOnUserLocationViewClickListener != null && mOnUserLocationViewClickListener.onUserLocationCLicked(getMyLocation());
+    }
+
     //
     // InfoWindow
     //
@@ -1236,6 +1241,18 @@ public class MapboxMap {
     @UiThread
     public void setOnMarkerClickListener(@Nullable OnMarkerClickListener listener) {
         mOnMarkerClickListener = listener;
+    }
+
+
+    /**
+     * Sets a callback that's invoked when the user clicks on the UserLocationView.
+     *
+     * @param listener The callback that's invoked when the user clicks on the UserLocationView.
+     *                 To unset the callback, use null.
+     */
+    @UiThread
+    public void setOnUserLocationViewClickListener(@Nullable OnUserLocationViewClickListener listener) {
+        mOnUserLocationViewClickListener = listener;
     }
 
     /**
@@ -1512,6 +1529,22 @@ public class MapboxMap {
          * @return If true the listener has consumed the event and the info window will not be shown.
          */
         boolean onMarkerClick(@NonNull Marker marker);
+    }
+
+    /**
+     * Interface definition for a callback to be invoked when the user clicks on the UserLocationView.
+     *
+     * @see MapboxMap#setOnUserLocationViewClickListener(OnUserLocationViewClickListener)
+     */
+    public interface OnUserLocationViewClickListener {
+
+        /**
+         * Called when the user clicks on a marker.
+         *
+         * @param location the user Location.
+         * @return true if the listener has consumed the event, false otherwise.
+         */
+        boolean onUserLocationCLicked(Location location);
     }
 
     /**

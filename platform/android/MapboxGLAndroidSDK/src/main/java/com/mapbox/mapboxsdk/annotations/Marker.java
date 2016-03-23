@@ -1,7 +1,6 @@
 package com.mapbox.mapboxsdk.annotations;
 
 import android.graphics.Bitmap;
-import android.graphics.PointF;
 import android.graphics.RectF;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -19,6 +18,8 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
  * <p/>
  */
 public class Marker extends Annotation {
+
+    private static float sScreenDensity;
 
     private LatLng position;
     private String snippet;
@@ -43,6 +44,10 @@ public class Marker extends Annotation {
         snippet = baseMarkerOptions.snippet;
         icon = baseMarkerOptions.icon;
         title = baseMarkerOptions.title;
+    }
+
+    public static void setScreenDensity(float screenDensity) {
+        sScreenDensity = screenDensity;
     }
 
     public LatLng getPosition() {
@@ -100,9 +105,10 @@ public class Marker extends Annotation {
         this.icon = icon;
         if (icon != null) {
             Bitmap bitmap = icon.getBitmap();
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            bounds = new RectF(0, 0, width, height);
+            int halfWidth = bitmap.getWidth() / 2;
+            int halfHeight = bitmap.getHeight() / 2;
+            bounds = new RectF(-halfWidth, -halfHeight, halfWidth, halfHeight);
+            bounds.offset(icon.getOffsetX() * sScreenDensity, icon.getOffsetY() * sScreenDensity);
         } else {
             bounds = null;
         }
@@ -182,9 +188,15 @@ public class Marker extends Annotation {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
 
         Marker marker = (Marker) o;
         return !(getPosition() != null ? !getPosition().equals(marker.getPosition()) : marker.getPosition() != null);
