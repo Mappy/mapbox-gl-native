@@ -36,6 +36,7 @@ offline.db
 /src/shader/shaders_gles2.cpp
 /bin/style.bin.js
 /node_modules
+/docs
 *~
 
 /ios/benchmark/assets/tiles/mapbox.mapbox-terrain-v2,mapbox.mapbox-streets-v6/
