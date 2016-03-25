@@ -36,7 +36,8 @@ jazzy \
     --module-version ${SHORT_VERSION} \
     --readme ${README} \
     --root-url https://www.mapbox.com/ios-sdk/api/${RELEASE_VERSION}/ \
-    --output ${OUTPUT}
+    --output ${OUTPUT} \
+    --swift-version 2.2
 # https://github.com/realm/jazzy/issues/411
 find ${OUTPUT} -name *.html -exec \
     perl -pi -e 's/Mapbox\s+(Docs|Reference)/Mapbox iOS SDK $1/' {} \;
