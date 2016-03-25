@@ -2593,7 +2593,10 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         
         MGLAnnotationContext annotationContext = _annotationContextsByAnnotationTag[annotationTag];
         NSString *reuseIdentifier = [self identifierByRemovingSpritePrefixIfNeeded: annotationContext.symbolIdentifier];
-        [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+        if (reuseIdentifier)
+        {
+            [self.annotationImagesByIdentifier removeObjectForKey: reuseIdentifier];
+        }
 
         _annotationContextsByAnnotationTag.erase(annotationTag);
     }
