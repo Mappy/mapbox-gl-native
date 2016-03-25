@@ -46,6 +46,10 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+/**
+ * Singleton control center for managing Telemetry Data.
+ * Primary access is via MapboxEventManager.getMapboxEventManager()
+ */
 public class MapboxEventManager {
 
     private static final String TAG = "MapboxEventManager";
@@ -86,7 +90,7 @@ public class MapboxEventManager {
      * Private Constructor for configuring the single instance per app.
      */
     private MapboxEventManager() {
-
+        super();
     }
 
     /**
@@ -97,7 +101,7 @@ public class MapboxEventManager {
      * @param context     The context associated with MapView
      * @param accessToken The accessToken to load MapView
      */
-    public void initialise(@NonNull Context context, @NonNull String accessToken) {
+    public void initialize(@NonNull Context context, @NonNull String accessToken) {
         this.context = context.getApplicationContext();
         this.accessToken = accessToken;
 

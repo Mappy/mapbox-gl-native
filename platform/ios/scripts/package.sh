@@ -147,6 +147,8 @@ if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
         cp -r \
             gyp/build/${BUILDTYPE}-iphoneos/${NAME}.framework \
             ${OUTPUT}/dynamic/
+        cp -r gyp/build/${BUILDTYPE}-iphoneos/${NAME}.framework.dSYM \
+            ${OUTPUT}/dynamic/
 
         step "Merging simulator dynamic library into device dynamic library…"
         lipo \
@@ -170,6 +172,8 @@ else
         cp -r \
             gyp/build/${BUILDTYPE}-iphonesimulator/${NAME}.framework \
             ${OUTPUT}/dynamic/${NAME}.framework
+        cp -r gyp/build/${BUILDTYPE}-iphonesimulator/${NAME}.framework.dSYM \
+            ${OUTPUT}/dynamic/
     fi
 fi
 
@@ -210,7 +214,7 @@ else
 fi
 if [[ ${BUILD_STATIC} == true ]]; then
     mkdir -p "${OUTPUT}/static/${NAME}.framework${BUNDLE_PATH}"
-    cp -pv platform/ios/resources/* "${OUTPUT}/static/${NAME}.framework${BUNDLE_PATH}"
+    cp -pv platform/{default,ios}/resources/* "${OUTPUT}/static/${NAME}.framework${BUNDLE_PATH}"
     INFO_PLIST_PATH="${OUTPUT}/static/${NAME}.framework/Info.plist"
     cp -pv platform/ios/framework/Info.plist "${INFO_PLIST_PATH}"
     plutil -replace CFBundleExecutable -string ${NAME} "${INFO_PLIST_PATH}"

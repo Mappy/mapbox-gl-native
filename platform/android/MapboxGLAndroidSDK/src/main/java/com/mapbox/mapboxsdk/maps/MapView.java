@@ -265,8 +265,8 @@ public class MapView extends FrameLayout {
         uiSettings.setZoomControlsEnabled(options.getZoomControlsEnabled());
 
         // Zoom
-        uiSettings.setMaxZoom(options.getMaxZoom());
-        uiSettings.setMinZoom(options.getMinZoom());
+        mMapboxMap.setMaxZoom(options.getMaxZoom());
+        mMapboxMap.setMinZoom(options.getMinZoom());
 
         // Compass
         uiSettings.setCompassEnabled(options.getCompassEnabled());
@@ -371,13 +371,13 @@ public class MapView extends FrameLayout {
             trackingSettings.setMyLocationTrackingMode(savedInstanceState.getInt(MapboxConstants.STATE_MY_LOCATION_TRACKING_MODE, MyLocationTracking.TRACKING_NONE));
             //noinspection ResourceType
             trackingSettings.setMyBearingTrackingMode(savedInstanceState.getInt(MapboxConstants.STATE_MY_BEARING_TRACKING_MODE, MyBearingTracking.NONE));
-        } else {
+        } else if (savedInstanceState == null) {
             // Force a check for Telemetry
             validateTelemetryServiceConfigured();
 
             // Start Telemetry (authorization determined in initial MapboxEventManager constructor)
             MapboxEventManager eventManager = MapboxEventManager.getMapboxEventManager();
-            eventManager.initialise(getContext(), getAccessToken());
+            eventManager.initialize(getContext(), getAccessToken());
         }
 
         // Initialize EGL
