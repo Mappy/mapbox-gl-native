@@ -1601,13 +1601,15 @@ public class MapView extends FrameLayout {
             // Open / Close InfoWindow
             PointF tapPoint = new PointF(e.getX(), e.getY());
 
-            LatLng userLocationLatLng = new LatLng(mUserLocationView.getLocation());
-            PointF userLocationPointF = toScreenLocation(userLocationLatLng);
-            RectF userLocationRectF = mUserLocationView.getCurrentDrawableRectF();
-            userLocationRectF.offset(userLocationPointF.x, userLocationPointF.y);
-            if (userLocationRectF.contains(tapPoint.x, tapPoint.y)) {
-                if (mMapboxMap.onUserLocationViewClicked()) {
-                    return true;
+            if (mUserLocationView != null && mUserLocationView.getLocation() != null) {
+                LatLng userLocationLatLng = new LatLng(mUserLocationView.getLocation());
+                PointF userLocationPointF = toScreenLocation(userLocationLatLng);
+                RectF userLocationRectF = mUserLocationView.getCurrentDrawableRectF();
+                userLocationRectF.offset(userLocationPointF.x, userLocationPointF.y);
+                if (userLocationRectF.contains(tapPoint.x, tapPoint.y)) {
+                    if (mMapboxMap.onUserLocationViewClicked()) {
+                        return true;
+                    }
                 }
             }
 
