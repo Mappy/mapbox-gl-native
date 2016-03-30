@@ -10,6 +10,7 @@ public abstract class BaseMarkerOptions<U extends Marker, T extends BaseMarkerOp
     protected String snippet;
     protected String title;
     protected Icon icon;
+    protected int zOrder;
 
     public T position(LatLng position) {
         this.position = position;
@@ -28,6 +29,11 @@ public abstract class BaseMarkerOptions<U extends Marker, T extends BaseMarkerOp
 
     public T icon(Icon icon) {
         this.icon = icon;
+        return getThis();
+    }
+
+    public T zOrder(int zOrder) {
+        this.zOrder = zOrder;
         return getThis();
     }
 

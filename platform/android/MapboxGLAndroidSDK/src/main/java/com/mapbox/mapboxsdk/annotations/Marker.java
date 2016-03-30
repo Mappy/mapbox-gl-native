@@ -28,6 +28,7 @@ public class Marker extends Annotation {
     private InfoWindow infoWindow = null;
     private boolean infoWindowShown = false;
     private int topOffsetPixels;
+    private int zOrder = 0;
 
     @Nullable
     private RectF bounds;
@@ -44,6 +45,7 @@ public class Marker extends Annotation {
         snippet = baseMarkerOptions.snippet;
         icon = baseMarkerOptions.icon;
         title = baseMarkerOptions.title;
+        zOrder = baseMarkerOptions.zOrder;
     }
 
     public static void setScreenDensity(float screenDensity) {
@@ -140,6 +142,14 @@ public class Marker extends Annotation {
         this.title = title;
     }
 
+    public void setZOrder(int zOrder) {
+        this.zOrder = zOrder;
+    }
+
+    public int getZOrder() {
+        return this.zOrder;
+    }
+
     /**
      * Do not use this method. Used internally by the SDK.
      */
@@ -213,4 +223,5 @@ public class Marker extends Annotation {
     public String toString() {
         return "Marker [position[" + getPosition() + "]]";
     }
+
 }

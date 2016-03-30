@@ -50,6 +50,7 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
             icon(icon);
         }
         title(in.readString());
+        zOrder(in.readInt());
     }
 
     @Override
@@ -75,6 +76,7 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
             out.writeFloat(icon.getOffsetY());
         }
         out.writeString(getTitle());
+        out.writeInt(getZOrder());
     }
 
     private Marker marker;
@@ -93,6 +95,7 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
         marker.setSnippet(snippet);
         marker.setTitle(title);
         marker.setIcon(icon);
+        marker.setZOrder(zOrder);
         return marker;
     }
 
@@ -110,6 +113,10 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
 
     public Icon getIcon() {
         return icon;
+    }
+
+    public int getZOrder() {
+        return zOrder;
     }
 
     @Override

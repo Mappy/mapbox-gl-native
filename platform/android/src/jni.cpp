@@ -61,6 +61,7 @@ jni::jclass* markerClass = nullptr;
 jni::jfieldID* markerPositionId = nullptr;
 jni::jfieldID* markerIconId = nullptr;
 jni::jfieldID* markerIdId = nullptr;
+jni::jfieldID* markerZOrderId = nullptr;
 
 jni::jclass* polylineClass = nullptr;
 jni::jfieldID* polylineAlphaId = nullptr;
@@ -761,6 +762,7 @@ jlong nativeAddMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jn
 
     jni::jobject* position = jni::GetField<jni::jobject*>(*env, marker, *markerPositionId);
     jni::jobject* icon = jni::GetField<jni::jobject*>(*env, marker, *markerIconId);
+    jint zOrder = jni::GetField<jint>(*env, marker, *markerZOrderId);
 
     jni::jstring* jid = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, icon, *iconIdId));
     std::string id = std_string_from_jstring(env, jid);
@@ -769,7 +771,7 @@ jlong nativeAddMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jn
     jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
 
     // Because Java only has int, not unsigned int, we need to bump the annotation id up to a long.
-    return nativeMapView->getMap().addPointAnnotation(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id));
+    return nativeMapView->getMap().addPointAnnotation(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id, zOrder));
 }
 
 void nativeUpdateMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* marker) {
@@ -1760,6 +1762,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     markerPositionId = &jni::GetFieldID(env, *markerClass, "position", "Lcom/mapbox/mapboxsdk/geometry/LatLng;");
     markerIconId = &jni::GetFieldID(env, *markerClass, "icon", "Lcom/mapbox/mapboxsdk/annotations/Icon;");
     markerIdId = &jni::GetFieldID(env, *markerClass, "id", "J");
+    markerZOrderId = &jni::GetFieldID(env, *markerClass, "zOrder", "I");
 
     polylineClass = &jni::FindClass(env, "com/mapbox/mapboxsdk/annotations/Polyline");
     polylineClass = jni::NewGlobalRef(env, polylineClass).release();
