@@ -211,6 +211,10 @@ public:
     
     NSUInteger _changeDelimiterSuppressionDepth;
     
+    /// Center coordinate of the pinch gesture on the previous iteration of the gesture.
+    CLLocationCoordinate2D _previousPinchCenterCoordinate;
+    NSUInteger _previousPinchNumberOfTouches;
+    
     BOOL _delegateHasAlphasForShapeAnnotations;
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
@@ -439,7 +443,9 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     _pendingLongitude = NAN;
     _targetCoordinate = kCLLocationCoordinate2DInvalid;
 
-    [MGLMapboxEvents pushEvent:MGLEventTypeMapLoad withAttributes:@{}];
+    if ([UIApplication sharedApplication].applicationState != UIApplicationStateBackground) {
+        [MGLMapboxEvents pushEvent:MGLEventTypeMapLoad withAttributes:@{}];
+    }
 }
 
 - (void)createGLView
@@ -808,6 +814,11 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
                                       - viewController.bottomLayoutGuide.length);
     contentInset.bottom = (CGRectGetMaxY(self.bounds)
                            - [self convertPoint:bottomPoint fromView:viewController.view].y);
+
+    // Negative insets are invalid, replace with 0.
+    contentInset.top = fmaxf(contentInset.top, 0);
+    contentInset.bottom = fmaxf(contentInset.bottom, 0);
+
     self.contentInset = contentInset;
 }
 
@@ -982,6 +993,8 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         _displayLink.paused = NO;
 
         [self validateLocationServices];
+        
+        [MGLMapboxEvents pushEvent:MGLEventTypeMapLoad withAttributes:@{}];
     }
 }
 
@@ -1129,6 +1142,17 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         if (log2(newScale) < _mbglMap->getMinZoom()) return;
         
         _mbglMap->setScale(newScale, { centerPoint.x, centerPoint.y });
+        
+        // The gesture recognizer only reports the gesture’s current center
+        // point, so use the previous center point to anchor the transition.
+        // If the number of touches has changed, the remembered center point is
+        // meaningless.
+        if (self.userTrackingMode == MGLUserTrackingModeNone && pinch.numberOfTouches == _previousPinchNumberOfTouches)
+        {
+            CLLocationCoordinate2D centerCoordinate = _previousPinchCenterCoordinate;
+            _mbglMap->setLatLng(MGLLatLngFromLocationCoordinate2D(centerCoordinate),
+                                { centerPoint.x, centerPoint.y });
+        }
 
         [self notifyMapChange:mbgl::MapChangeRegionIsChanging];
     }
@@ -1172,6 +1196,9 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
         [self unrotateIfNeededForGesture];
     }
+    
+    _previousPinchCenterCoordinate = [self convertPoint:[pinch locationInView:pinch.view] toCoordinateFromView:self];
+    _previousPinchNumberOfTouches = pinch.numberOfTouches;
 }
 
 - (void)handleRotateGesture:(UIRotationGestureRecognizer *)rotate
@@ -2128,7 +2155,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 - (mbgl::LatLng)convertPoint:(CGPoint)point toLatLngFromView:(nullable UIView *)view
 {
     CGPoint convertedPoint = [self convertPoint:point fromView:view];
-    return _mbglMap->latLngForPixel(mbgl::ScreenCoordinate(convertedPoint.x, convertedPoint.y));
+    return _mbglMap->latLngForPixel(mbgl::ScreenCoordinate(convertedPoint.x, convertedPoint.y)).wrapped();
 }
 
 - (CGPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable UIView *)view
@@ -2997,9 +3024,9 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
 - (void)showAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations animated:(BOOL)animated
 {
-    CGFloat defaultPadding = 100;
-    CGFloat yPadding = (self.frame.size.height / 2 <= defaultPadding) ? (self.frame.size.height / 5) : defaultPadding;
-    CGFloat xPadding = (self.frame.size.width / 2 <= defaultPadding) ? (self.frame.size.width / 5) : defaultPadding;
+    CGFloat maximumPadding = 100;
+    CGFloat yPadding = (self.frame.size.height / 5 <= maximumPadding) ? (self.frame.size.height / 5) : maximumPadding;
+    CGFloat xPadding = (self.frame.size.width / 5 <= maximumPadding) ? (self.frame.size.width / 5) : maximumPadding;
 
     UIEdgeInsets edgeInsets = UIEdgeInsetsMake(yPadding, xPadding, yPadding, xPadding);
 

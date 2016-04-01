@@ -535,6 +535,23 @@ public class MapboxMapTest {
     }
 
     @Test
+    public void testAddMarkersEmpty() {
+        List<MarkerOptions> markerList = new ArrayList<>();
+        mMapboxMap.addMarkers(markerList);
+        assertEquals("Markers size should be 0", 0, mMapboxMap.getMarkers().size());
+    }
+
+    @Test
+    public void testAddMarkersSingleMarker() {
+        List<MarkerOptions> markerList = new ArrayList<>();
+        MarkerOptions markerOptions = new MarkerOptions().title("a");
+        markerList.add(markerOptions);
+        mMapboxMap.addMarkers(markerList);
+        assertEquals("Markers size should be 1", 1, mMapboxMap.getMarkers().size());
+        assertTrue(mMapboxMap.getMarkers().contains(markerOptions.getMarker()));
+    }
+
+    @Test
     public void testAddPolygon() {
         PolygonOptions polygonOptions = new PolygonOptions().add(new LatLng());
         Polygon polygon = mMapboxMap.addPolygon(polygonOptions);
@@ -565,6 +582,22 @@ public class MapboxMapTest {
     }
 
     @Test
+    public void addPolygonsEmpty() {
+        mMapboxMap.addPolygons(new ArrayList<PolygonOptions>());
+        assertEquals("Polygons size should be 0", 0, mMapboxMap.getPolygons().size());
+    }
+
+    @Test
+    public void addPolygonsSingle() {
+        List<PolygonOptions> polygonList = new ArrayList<>();
+        PolygonOptions polygonOptions = new PolygonOptions().fillColor(Color.BLACK).add(new LatLng());
+        polygonList.add(polygonOptions);
+        mMapboxMap.addPolygons(polygonList);
+        assertEquals("Polygons size should be 1", 1, mMapboxMap.getPolygons().size());
+        assertTrue(mMapboxMap.getPolygons().contains(polygonOptions.getPolygon()));
+    }
+
+    @Test
     public void testAddPolyline() {
         PolylineOptions polylineOptions = new PolylineOptions().add(new LatLng());
         Polyline polyline = mMapboxMap.addPolyline(polylineOptions);
@@ -592,6 +625,22 @@ public class MapboxMapTest {
         assertTrue(mMapboxMap.getPolylines().contains(polygonOptions1.getPolyline()));
         assertTrue(mMapboxMap.getPolylines().contains(polygonOptions2.getPolyline()));
         assertTrue("Polyline should be ignored", !mMapboxMap.getPolylines().contains(polygonOptions3.getPolyline()));
+    }
+
+    @Test
+    public void testAddPolylinesEmpty() {
+        mMapboxMap.addPolylines(new ArrayList<PolylineOptions>());
+        assertEquals("Polygons size should be 0", 0, mMapboxMap.getPolylines().size());
+    }
+
+    @Test
+    public void testAddPolylinesSingle() {
+        List<PolylineOptions> polylineList = new ArrayList<>();
+        PolylineOptions polygonOptions = new PolylineOptions().color(Color.BLACK).add(new LatLng());
+        polylineList.add(polygonOptions);
+        mMapboxMap.addPolylines(polylineList);
+        assertEquals("Polygons size should be 1", 1, mMapboxMap.getPolylines().size());
+        assertTrue(mMapboxMap.getPolylines().contains(polygonOptions.getPolyline()));
     }
 
     @Test
