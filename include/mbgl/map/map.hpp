@@ -208,6 +208,7 @@ private:
     };
 
     RenderState renderState = RenderState::never;
+    bool loading = false;
 };
 
 } // namespace mbgl
