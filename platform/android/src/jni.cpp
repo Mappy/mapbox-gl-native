@@ -762,13 +762,14 @@ jlong nativeAddMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jn
 
     jni::jobject* position = jni::GetField<jni::jobject*>(*env, marker, *markerPositionId);
     jni::jobject* icon = jni::GetField<jni::jobject*>(*env, marker, *markerIconId);
-    jint zOrder = jni::GetField<jint>(*env, marker, *markerZOrderId);
 
     jni::jstring* jid = reinterpret_cast<jni::jstring*>(jni::GetField<jni::jobject*>(*env, icon, *iconIdId));
     std::string id = std_string_from_jstring(env, jid);
 
     jdouble latitude = jni::GetField<jdouble>(*env, position, *latLngLatitudeId);
     jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
+
+    jint zOrder = jni::GetField<jint>(*env, marker, *markerZOrderId);
 
     // Because Java only has int, not unsigned int, we need to bump the annotation id up to a long.
     return nativeMapView->getMap().addPointAnnotation(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id, zOrder));
@@ -793,8 +794,10 @@ void nativeUpdateMarker(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, 
     jdouble latitude = jni::GetField<jdouble>(*env, position, *latLngLatitudeId);
     jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
 
+    jint zOrder = jni::GetField<jint>(*env, marker, *markerZOrderId);
+
     // Because Java only has int, not unsigned int, we need to bump the annotation id up to a long.
-    nativeMapView->getMap().updatePointAnnotation(markerId, mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), iconId));
+    nativeMapView->getMap().updatePointAnnotation(markerId, mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), iconId, zOrder));
 }
 
 jni::jarray<jlong>* nativeAddMarkers(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr, jni::jobject* jlist) {
@@ -829,7 +832,9 @@ jni::jarray<jlong>* nativeAddMarkers(JNIEnv *env, jni::jobject* obj, jlong nativ
         jdouble longitude = jni::GetField<jdouble>(*env, position, *latLngLongitudeId);
         jni::DeleteLocalRef(*env, position);
 
-        markers.emplace_back(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id));
+        jint zOrder = jni::GetField<jint>(*env, marker, *markerZOrderId);
+
+        markers.emplace_back(mbgl::PointAnnotation(mbgl::LatLng(latitude, longitude), id, zOrder));
      }
 
     jni::DeleteLocalRef(*env, jarray);
