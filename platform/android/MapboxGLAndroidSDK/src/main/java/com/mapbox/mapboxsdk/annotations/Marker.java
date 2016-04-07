@@ -197,6 +197,19 @@ public class Marker extends Annotation {
     }
 
     @Override
+    public int compareTo(@NonNull Annotation annotation) {
+        if (annotation instanceof Marker) {
+            Marker marker = (Marker)annotation;
+            if (zOrder < marker.zOrder) {
+                return -1;
+            } else if (zOrder > marker.zOrder) {
+                return 1;
+            }
+        }
+        return super.compareTo(annotation);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
