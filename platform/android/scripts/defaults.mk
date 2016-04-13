@@ -2,6 +2,7 @@ HEADLESS ?= none
 PLATFORM ?= android
 ASSET ?= zip
 HTTP ?= android
+LOOP ?= android
 
 GYP_FLAVOR_SUFFIX=-android
 

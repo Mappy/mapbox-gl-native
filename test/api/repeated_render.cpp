@@ -1,5 +1,5 @@
-#include "../fixtures/util.hpp"
-#include "../fixtures/fixture_log_observer.hpp"
+#include <mbgl/test/util.hpp>
+#include <mbgl/test/fixture_log_observer.hpp>
 
 #include <mbgl/map/map.hpp>
 #include <mbgl/platform/default/headless_view.hpp>
@@ -37,7 +37,9 @@ TEST(API, RepeatedRender) {
         auto result = promise.get_future().get();
         ASSERT_EQ(256, result.width);
         ASSERT_EQ(512, result.height);
+#if !TEST_READ_ONLY
         util::write_file("test/fixtures/api/1.png", encodePNG(result));
+#endif
     }
 
     {
@@ -49,7 +51,9 @@ TEST(API, RepeatedRender) {
         auto result = promise.get_future().get();
         ASSERT_EQ(256, result.width);
         ASSERT_EQ(512, result.height);
+#if !TEST_READ_ONLY
         util::write_file("test/fixtures/api/2.png", encodePNG(result));
+#endif
     }
 
     auto observer = Log::removeObserver();

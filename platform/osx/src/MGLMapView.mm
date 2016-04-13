@@ -1210,7 +1210,7 @@ public:
         if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
             delta.y *= -1;
             [self offsetCenterCoordinateBy:delta animated:NO];
-            [gestureRecognizer setTranslation:NSZeroPoint inView:self];
+            [gestureRecognizer setTranslation:NSZeroPoint inView:nil];
         }
     }
 }

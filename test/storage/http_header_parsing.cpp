@@ -6,7 +6,7 @@
 
 #include <cmath>
 
-TEST_F(Storage, HTTPExpiresParsing) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPExpiresParsing)) {
     SCOPED_TEST(HTTPExpiresTest)
 
     using namespace mbgl;
@@ -14,7 +14,7 @@ TEST_F(Storage, HTTPExpiresParsing) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req1 = fs.request({ Resource::Unknown,
+    std::unique_ptr<AsyncRequest> req1 = fs.request({ Resource::Unknown,
                  "http://127.0.0.1:3000/test?modified=1420794326&expires=1420797926&etag=foo" },
                [&](Response res) {
         req1.reset();
@@ -31,7 +31,7 @@ TEST_F(Storage, HTTPExpiresParsing) {
     loop.run();
 }
 
-TEST_F(Storage, HTTPCacheControlParsing) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPCacheControlParsing)) {
     SCOPED_TEST(HTTPCacheControlTest)
 
     using namespace mbgl;
@@ -39,7 +39,7 @@ TEST_F(Storage, HTTPCacheControlParsing) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/test?cachecontrol=max-age=120" },
+    std::unique_ptr<AsyncRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/test?cachecontrol=max-age=120" },
                [&](Response res) {
         req2.reset();
         EXPECT_EQ(nullptr, res.error);

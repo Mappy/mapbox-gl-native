@@ -2,6 +2,7 @@
 #define MBGL_STYLE_STYLE
 
 #include <mbgl/style/zoom_history.hpp>
+#include <mbgl/style/property_transition.hpp>
 
 #include <mbgl/source/source.hpp>
 #include <mbgl/text/glyph_store.hpp>
@@ -80,10 +81,10 @@ public:
 
     // Fetch the tiles needed by the current viewport and emit a signal when
     // a tile is ready so observers can render the tile.
-    void update(const TransformState&, gl::TexturePool&);
+    void update(const TransformState&, const TimePoint&, gl::TexturePool&);
 
-    void cascade();
-    void recalculate(float z);
+    void cascade(const TimePoint&);
+    void recalculate(float z, const TimePoint&);
 
     bool hasTransitions() const;
 
@@ -99,6 +100,12 @@ public:
     void addLayer(std::unique_ptr<StyleLayer>,
                   optional<std::string> beforeLayerID = {});
     void removeLayer(const std::string& layerID);
+
+    bool addClass(const std::string&, const PropertyTransition& = {});
+    bool removeClass(const std::string&, const PropertyTransition& = {});
+    bool hasClass(const std::string&) const;
+    void setClasses(const std::vector<std::string>&, const PropertyTransition& = {});
+    std::vector<std::string> getClasses() const;
 
     RenderData getRenderData() const;
 
@@ -118,6 +125,8 @@ public:
 private:
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<StyleLayer>> layers;
+    std::vector<std::string> classes;
+    optional<PropertyTransition> transitionProperties;
 
     std::vector<std::unique_ptr<StyleLayer>>::const_iterator findLayer(const std::string& layerID) const;
 

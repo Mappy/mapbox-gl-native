@@ -27,6 +27,36 @@
 
 namespace mbgl {
 
+bool Style::addClass(const std::string& className, const PropertyTransition& properties) {
+    if (std::find(classes.begin(), classes.end(), className) != classes.end()) return false;
+    classes.push_back(className);
+    transitionProperties = properties;
+    return true;
+}
+
+bool Style::hasClass(const std::string& className) const {
+    return std::find(classes.begin(), classes.end(), className) != classes.end();
+}
+
+bool Style::removeClass(const std::string& className, const PropertyTransition& properties) {
+    const auto it = std::find(classes.begin(), classes.end(), className);
+    if (it != classes.end()) {
+        classes.erase(it);
+        transitionProperties = properties;
+        return true;
+    }
+    return false;
+}
+
+void Style::setClasses(const std::vector<std::string>& classNames, const PropertyTransition& properties) {
+    classes = classNames;
+    transitionProperties = properties;
+}
+
+std::vector<std::string> Style::getClasses() const {
+    return classes;
+}
+
 Style::Style(MapData& data_, FileSource& fileSource_)
     : data(data_),
       fileSource(fileSource_),
@@ -34,7 +64,7 @@ Style::Style(MapData& data_, FileSource& fileSource_)
       glyphAtlas(std::make_unique<GlyphAtlas>(1024, 1024)),
       spriteStore(std::make_unique<SpriteStore>(data.pixelRatio)),
       spriteAtlas(std::make_unique<SpriteAtlas>(1024, 1024, data.pixelRatio, *spriteStore)),
-      lineAtlas(std::make_unique<LineAtlas>(512, 512)),
+      lineAtlas(std::make_unique<LineAtlas>(256, 512)),
       workers(4) {
     glyphStore->setObserver(this);
     spriteStore->setObserver(this);
@@ -43,6 +73,7 @@ Style::Style(MapData& data_, FileSource& fileSource_)
 void Style::setJSON(const std::string& json, const std::string&) {
     sources.clear();
     layers.clear();
+    classes.clear();
 
     StyleParser parser;
     parser.parse(json);
@@ -116,12 +147,12 @@ void Style::removeLayer(const std::string& id) {
     layers.erase(it);
 }
 
-void Style::update(const TransformState& transform,
+void Style::update(const TransformState& transform, const TimePoint& timePoint,
                    gl::TexturePool& texturePool) {
     bool allTilesUpdated = true;
     StyleUpdateParameters parameters(data.pixelRatio,
                                      data.getDebug(),
-                                     data.getAnimationTime(),
+                                     timePoint,
                                      transform,
                                      workers,
                                      fileSource,
@@ -144,37 +175,44 @@ void Style::update(const TransformState& transform,
     }
 }
 
-void Style::cascade() {
-    std::vector<ClassID> classes;
+void Style::cascade(const TimePoint& timePoint) {
+    // When in continuous mode, we can either have user- or style-defined
+    // transitions. Still mode is always immediate.
+    static const PropertyTransition immediateTransition;
 
-    std::vector<std::string> classNames = data.getClasses();
-    for (auto it = classNames.rbegin(); it != classNames.rend(); it++) {
-        classes.push_back(ClassDictionary::Get().lookup(*it));
+    std::vector<ClassID> classIDs;
+    for (const auto& className : classes) {
+        classIDs.push_back(ClassDictionary::Get().lookup(className));
     }
-    classes.push_back(ClassID::Default);
-    classes.push_back(ClassID::Fallback);
+    classIDs.push_back(ClassID::Default);
+    classIDs.push_back(ClassID::Fallback);
 
-    StyleCascadeParameters parameters(classes,
-                                      data.getAnimationTime(),
-                                      PropertyTransition { data.getDefaultTransitionDuration(),
-                                                           data.getDefaultTransitionDelay() });
+    const StyleCascadeParameters parameters {
+        classIDs,
+        timePoint,
+        data.mode == MapMode::Continuous ? transitionProperties.value_or(immediateTransition) : immediateTransition
+    };
+
+    transitionProperties = {};
 
     for (const auto& layer : layers) {
         layer->cascade(parameters);
     }
 }
 
-void Style::recalculate(float z) {
+void Style::recalculate(float z, const TimePoint& timePoint) {
     for (const auto& source : sources) {
         source->enabled = false;
     }
 
-    zoomHistory.update(z, data.getAnimationTime());
+    zoomHistory.update(z, timePoint);
 
-    StyleCalculationParameters parameters(z,
-                                          data.getAnimationTime(),
-                                          zoomHistory,
-                                          data.getDefaultFadeDuration());
+    const StyleCalculationParameters parameters {
+        z,
+        timePoint,
+        zoomHistory,
+        data.mode == MapMode::Continuous ? util::DEFAULT_FADE_DURATION : Duration::zero()
+    };
 
     hasPendingTransitions = false;
     for (const auto& layer : layers) {

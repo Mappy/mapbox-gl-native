@@ -34,7 +34,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
 
     if (skewed) {
         matrix::identity(exMatrix);
-        s = util::EXTENT / util::tileSize / std::pow(2, state.getZoom() - id.sourceZ);
+        s = id.pixelsToTileUnits(1, state.getZoom());
         gammaScale = 1.0f / std::cos(state.getPitch());
     } else {
         exMatrix = extrudeMatrix;
@@ -62,7 +62,7 @@ void Painter::renderSDF(SymbolBucket &bucket,
     sdfShader.u_zoom = (state.getZoom() - zoomAdjust) * 10; // current zoom level
 
     if (data.mode == MapMode::Continuous) {
-        FadeProperties f = frameHistory.getFadeProperties(data.getAnimationTime(), data.getDefaultFadeDuration());
+        FadeProperties f = frameHistory.getFadeProperties(frame.timePoint, util::DEFAULT_FADE_DURATION);
         sdfShader.u_fadedist = f.fadedist * 10;
         sdfShader.u_minfadezoom = std::floor(f.minfadezoom * 10);
         sdfShader.u_maxfadezoom = std::floor(f.maxfadezoom * 10);
@@ -203,7 +203,7 @@ void Painter::renderSymbol(SymbolBucket& bucket, const SymbolLayer& layer, const
 
             if (skewed) {
                 matrix::identity(exMatrix);
-                s = util::EXTENT / util::tileSize / std::pow(2, state.getZoom() - id.sourceZ);
+                s = id.pixelsToTileUnits(1, state.getZoom());
             } else {
                 exMatrix = extrudeMatrix;
                 matrix::rotate_z(exMatrix, exMatrix, state.getNorthOrientationAngle());

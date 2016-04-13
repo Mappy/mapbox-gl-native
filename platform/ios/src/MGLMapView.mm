@@ -18,6 +18,7 @@
 #include <mbgl/platform/darwin/reachability.h>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/network_status.hpp>
+#include <mbgl/style/property_transition.hpp>
 #include <mbgl/util/geo.hpp>
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/constants.hpp>
@@ -1141,7 +1142,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
         if (log2(newScale) < _mbglMap->getMinZoom()) return;
         
-        _mbglMap->setScale(newScale, { centerPoint.x, centerPoint.y });
+        _mbglMap->setScale(newScale, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
         
         // The gesture recognizer only reports the gesture’s current center
         // point, so use the previous center point to anchor the transition.
@@ -1151,7 +1152,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         {
             CLLocationCoordinate2D centerCoordinate = _previousPinchCenterCoordinate;
             _mbglMap->setLatLng(MGLLatLngFromLocationCoordinate2D(centerCoordinate),
-                                { centerPoint.x, centerPoint.y });
+                                mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
         }
 
         [self notifyMapChange:mbgl::MapChangeRegionIsChanging];
@@ -1189,7 +1190,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
 
         if (velocity)
         {
-            _mbglMap->setScale(newScale, { centerPoint.x, centerPoint.y }, MGLDurationInSeconds(duration));
+            _mbglMap->setScale(newScale, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y }, MGLDurationInSeconds(duration));
         }
 
         [self notifyGestureDidEndWithDrift:velocity];
@@ -1238,7 +1239,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             newDegrees = fmaxf(newDegrees, -30);
         }
         
-        _mbglMap->setBearing(newDegrees, { centerPoint.x, centerPoint.y });
+        _mbglMap->setBearing(newDegrees, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
 
         [self notifyMapChange:mbgl::MapChangeRegionIsChanging];
     }
@@ -1253,7 +1254,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             CGFloat newRadians = radians + velocity * duration * 0.1;
             CGFloat newDegrees = MGLDegreesFromRadians(newRadians) * -1;
 
-            _mbglMap->setBearing(newDegrees, { centerPoint.x, centerPoint.y }, MGLDurationInSeconds(duration));
+            _mbglMap->setBearing(newDegrees, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y }, MGLDurationInSeconds(duration));
 
             [self notifyGestureDidEndWithDrift:YES];
 
@@ -1404,7 +1405,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
             centerPoint = self.userLocationAnnotationViewCenter;
         }
         _mbglMap->scaleBy(powf(2, newZoom) / _mbglMap->getScale(),
-                          { centerPoint.x, centerPoint.y });
+                          mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
 
         [self notifyMapChange:mbgl::MapChangeRegionIsChanging];
     }
@@ -1439,7 +1440,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         {
             centerPoint = self.userLocationAnnotationViewCenter;
         }
-        _mbglMap->setPitch(pitchNew, centerPoint);
+        _mbglMap->setPitch(pitchNew, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
 
         [self notifyMapChange:mbgl::MapChangeRegionIsChanging];
     }
@@ -1993,7 +1994,7 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
     else
     {
         CGPoint centerPoint = self.userLocationAnnotationViewCenter;
-        _mbglMap->setBearing(direction, { centerPoint.x, centerPoint.y },
+        _mbglMap->setBearing(direction, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y },
                              MGLDurationInSeconds(duration));
     }
 }
@@ -2308,8 +2309,8 @@ mbgl::Duration MGLDurationInSeconds(NSTimeInterval duration)
         newAppliedClasses.insert(newAppliedClasses.end(), [appliedClass UTF8String]);
     }
 
-    _mbglMap->setDefaultTransitionDuration(MGLDurationInSeconds(transitionDuration));
-    _mbglMap->setClasses(newAppliedClasses);
+    mbgl::PropertyTransition transition { { MGLDurationInSeconds(transitionDuration) } };
+    _mbglMap->setClasses(newAppliedClasses, transition);
 }
 
 - (BOOL)hasStyleClass:(NSString *)styleClass

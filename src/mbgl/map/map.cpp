@@ -8,6 +8,7 @@
 #include <mbgl/annotation/point_annotation.hpp>
 #include <mbgl/annotation/shape_annotation.hpp>
 #include <mbgl/style/style_layer.hpp>
+#include <mbgl/style/property_transition.hpp>
 #include <mbgl/layer/custom_layer.hpp>
 
 #include <mbgl/util/projection.hpp>
@@ -55,7 +56,7 @@ void Map::resume() {
 
 void Map::renderStill(StillImageCallback callback) {
     context->invoke(&MapContext::renderStill, transform->getState(),
-                    FrameData{ view.getFramebufferSize() }, callback);
+                    FrameData { view.getFramebufferSize(), Clock::now() }, callback);
 }
 
 void Map::renderSync() {
@@ -67,7 +68,7 @@ void Map::renderSync() {
 
     const Update flags = transform->updateTransitions(Clock::now());
     const bool fullyLoaded = context->invokeSync<bool>(
-            &MapContext::renderSync, transform->getState(), FrameData { view.getFramebufferSize() });
+            &MapContext::renderSync, transform->getState(), FrameData { view.getFramebufferSize(), Clock::now() });
 
     view.notifyMapChange(fullyLoaded ?
         MapChangeDidFinishRenderingFrameFullyRendered :
@@ -92,9 +93,7 @@ void Map::renderSync() {
 }
 
 void Map::update(Update flags) {
-    if (flags & Update::Dimensions) {
-        transform->resize(view.getSize());
-    }
+    if (flags & Update::Dimensions) transform->resize(view.getSize());
     context->invoke(&MapContext::triggerUpdate, transform->getState(), flags);
 }
 
@@ -152,18 +151,18 @@ bool Map::isPanning() const {
 
 void Map::jumpTo(const CameraOptions& camera) {
     transform->jumpTo(camera);
-    update(camera.zoom ? Update::Zoom : Update::Repaint);
+    update(camera.zoom ? Update::RecalculateStyle : Update::Repaint);
 }
 
 void Map::easeTo(const CameraOptions& camera, const AnimationOptions& animation) {
     transform->easeTo(camera, animation);
-    update(camera.zoom ? Update::Zoom : Update::Repaint);
+    update(camera.zoom ? Update::RecalculateStyle : Update::Repaint);
 }
     
     
 void Map::flyTo(const CameraOptions& camera, const AnimationOptions& animation) {
     transform->flyTo(camera, animation);
-    update(Update::Zoom);
+    update(Update::RecalculateStyle);
 }
 
 #pragma mark - Position
@@ -174,47 +173,45 @@ void Map::moveBy(const ScreenCoordinate& point, const Duration& duration) {
 }
 
 void Map::setLatLng(const LatLng& latLng, const Duration& duration) {
-    setLatLng(latLng, EdgeInsets(), duration);
+    setLatLng(latLng, ScreenCoordinate {}, duration);
 }
 
-void Map::setLatLng(const LatLng& latLng, const EdgeInsets& padding, const Duration& duration) {
+void Map::setLatLng(const LatLng& latLng, optional<EdgeInsets> padding, const Duration& duration) {
     transform->setLatLng(latLng, padding, duration);
     update(Update::Repaint);
 }
 
-void Map::setLatLng(const LatLng& latLng, const ScreenCoordinate& point, const Duration& duration) {
-    transform->setLatLng(latLng, point, duration);
+void Map::setLatLng(const LatLng& latLng, optional<ScreenCoordinate> anchor, const Duration& duration) {
+    transform->setLatLng(latLng, anchor, duration);
     update(Update::Repaint);
 }
 
-LatLng Map::getLatLng(const EdgeInsets& padding) const {
+LatLng Map::getLatLng(optional<EdgeInsets> padding) const {
     return transform->getLatLng(padding);
 }
 
-void Map::resetPosition(const EdgeInsets& padding) {
+void Map::resetPosition(optional<EdgeInsets> padding) {
     CameraOptions camera;
     camera.angle = 0;
     camera.pitch = 0;
     camera.center = LatLng(0, 0);
-    if (padding) {
-        camera.padding = padding;
-    }
+    camera.padding = padding;
     camera.zoom = 0;
     transform->jumpTo(camera);
-    update(Update::Zoom);
+    update(Update::RecalculateStyle);
 }
 
 
 #pragma mark - Scale
 
-void Map::scaleBy(double ds, const ScreenCoordinate& point, const Duration& duration) {
-    transform->scaleBy(ds, point, duration);
-    update(Update::Zoom);
+void Map::scaleBy(double ds, optional<ScreenCoordinate> anchor, const Duration& duration) {
+    transform->scaleBy(ds, anchor, duration);
+    update(Update::RecalculateStyle);
 }
 
-void Map::setScale(double scale, const ScreenCoordinate& point, const Duration& duration) {
-    transform->setScale(scale, point, duration);
-    update(Update::Zoom);
+void Map::setScale(double scale, optional<ScreenCoordinate> anchor, const Duration& duration) {
+    transform->setScale(scale, anchor, duration);
+    update(Update::RecalculateStyle);
 }
 
 double Map::getScale() const {
@@ -225,9 +222,9 @@ void Map::setZoom(double zoom, const Duration& duration) {
     setZoom(zoom, {}, duration);
 }
 
-void Map::setZoom(double zoom, const EdgeInsets& padding, const Duration& duration) {
+void Map::setZoom(double zoom, optional<EdgeInsets> padding, const Duration& duration) {
     transform->setZoom(zoom, padding, duration);
-    update(Update::Zoom);
+    update(Update::RecalculateStyle);
 }
 
 double Map::getZoom() const {
@@ -238,12 +235,12 @@ void Map::setLatLngZoom(const LatLng& latLng, double zoom, const Duration& durat
     setLatLngZoom(latLng, zoom, {}, duration);
 }
 
-void Map::setLatLngZoom(const LatLng& latLng, double zoom, const EdgeInsets& padding, const Duration& duration) {
+void Map::setLatLngZoom(const LatLng& latLng, double zoom, optional<EdgeInsets> padding, const Duration& duration) {
     transform->setLatLngZoom(latLng, zoom, padding, duration);
-    update(Update::Zoom);
+    update(Update::RecalculateStyle);
 }
 
-CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeInsets& padding) {
+CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, optional<EdgeInsets> padding) {
     AnnotationSegment segment = {
         bounds.northwest(),
         bounds.southwest(),
@@ -253,7 +250,7 @@ CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeI
     return cameraForLatLngs(segment, padding);
 }
 
-CameraOptions Map::cameraForLatLngs(const std::vector<LatLng>& latLngs, const EdgeInsets& padding) {
+CameraOptions Map::cameraForLatLngs(const std::vector<LatLng>& latLngs, optional<EdgeInsets> padding) {
     CameraOptions options;
     if (latLngs.empty()) {
         return options;
@@ -274,26 +271,31 @@ CameraOptions Map::cameraForLatLngs(const std::vector<LatLng>& latLngs, const Ed
     double height = nePixel.y - swPixel.y;
 
     // Calculate the zoom level.
-    double scaleX = (getWidth() - padding.left - padding.right) / width;
-    double scaleY = (getHeight() - padding.top - padding.bottom) / height;
+    double scaleX = getWidth() / width;
+    double scaleY = getHeight() / height;
+    if (padding && *padding) {
+        scaleX -= (padding->left + padding->right) / width;
+        scaleY -= (padding->top + padding->bottom) / height;
+    }
     double minScale = ::fmin(scaleX, scaleY);
     double zoom = ::log2(getScale() * minScale);
     zoom = util::clamp(zoom, getMinZoom(), getMaxZoom());
 
     // Calculate the center point of a virtual bounds that is extended in all directions by padding.
-    ScreenCoordinate paddedNEPixel = {
-        nePixel.x + padding.right / minScale,
-        nePixel.y + padding.top / minScale,
-    };
-    ScreenCoordinate paddedSWPixel = {
-        swPixel.x - padding.left / minScale,
-        swPixel.y - padding.bottom / minScale,
-    };
-    ScreenCoordinate centerPixel = {
-        (paddedNEPixel.x + paddedSWPixel.x) / 2,
-        (paddedNEPixel.y + paddedSWPixel.y) / 2,
-    };
-    
+    ScreenCoordinate centerPixel = nePixel + swPixel;
+    if (padding && *padding) {
+        ScreenCoordinate paddedNEPixel = {
+            padding->right / minScale,
+            padding->top / minScale,
+        };
+        ScreenCoordinate paddedSWPixel = {
+            padding->left / minScale,
+            padding->bottom / minScale,
+        };
+        centerPixel = centerPixel - paddedNEPixel - paddedSWPixel;
+    }
+    centerPixel /= 2;
+
     // CameraOptions origin is at the top-left corner.
     centerPixel.y = viewportHeight - centerPixel.y;
 
@@ -351,12 +353,12 @@ void Map::setBearing(double degrees, const Duration& duration) {
     setBearing(degrees, EdgeInsets(), duration);
 }
 
-void Map::setBearing(double degrees, const ScreenCoordinate& center, const Duration& duration) {
-    transform->setAngle(-degrees * util::DEG2RAD, center, duration);
+void Map::setBearing(double degrees, optional<ScreenCoordinate> anchor, const Duration& duration) {
+    transform->setAngle(-degrees * util::DEG2RAD, anchor, duration);
     update(Update::Repaint);
 }
 
-void Map::setBearing(double degrees, const EdgeInsets& padding, const Duration& duration) {
+void Map::setBearing(double degrees, optional<EdgeInsets> padding, const Duration& duration) {
     transform->setAngle(-degrees * util::DEG2RAD, padding, duration);
     update(Update::Repaint);
 }
@@ -374,10 +376,10 @@ void Map::resetNorth(const Duration& duration) {
 #pragma mark - Pitch
 
 void Map::setPitch(double pitch, const Duration& duration) {
-    setPitch(pitch, {NAN, NAN}, duration);
+    setPitch(pitch, {}, duration);
 }
 
-void Map::setPitch(double pitch, const ScreenCoordinate& anchor, const Duration& duration) {
+void Map::setPitch(double pitch, optional<ScreenCoordinate> anchor, const Duration& duration) {
     transform->setPitch(pitch * util::DEG2RAD, anchor, duration);
     update(Update::Repaint);
 }
@@ -529,56 +531,24 @@ bool Map::isFullyLoaded() const {
     return context->invokeSync<bool>(&MapContext::isLoaded);
 }
 
-void Map::addClass(const std::string& klass) {
-    if (data->addClass(klass)) {
-        update(Update::Classes);
-    }
+void Map::addClass(const std::string& className, const PropertyTransition& properties) {
+    context->invoke(&MapContext::addClass, className, properties);
 }
 
-void Map::removeClass(const std::string& klass) {
-    if (data->removeClass(klass)) {
-        update(Update::Classes);
-    }
+void Map::removeClass(const std::string& className, const PropertyTransition& properties) {
+    context->invoke(&MapContext::removeClass, className, properties);
 }
 
-void Map::setClasses(const std::vector<std::string>& classes) {
-    data->setClasses(classes);
-    update(Update::Classes);
+void Map::setClasses(const std::vector<std::string>& classNames, const PropertyTransition& properties) {
+    context->invoke(&MapContext::setClasses, classNames, properties);
 }
 
-bool Map::hasClass(const std::string& klass) const {
-    return data->hasClass(klass);
+bool Map::hasClass(const std::string& className) const {
+    return context->invokeSync<bool>(&MapContext::hasClass, className);
 }
 
 std::vector<std::string> Map::getClasses() const {
-    return data->getClasses();
-}
-
-void Map::setDefaultFadeDuration(const Duration& duration) {
-    data->setDefaultFadeDuration(duration);
-    update(Update::Classes);
-}
-
-Duration Map::getDefaultFadeDuration() const {
-    return data->getDefaultFadeDuration();
-}
-
-void Map::setDefaultTransitionDuration(const Duration& duration) {
-    data->setDefaultTransitionDuration(duration);
-    update(Update::DefaultTransition);
-}
-
-Duration Map::getDefaultTransitionDuration() const {
-    return data->getDefaultTransitionDuration();
-}
-
-void Map::setDefaultTransitionDelay(const Duration& delay) {
-    data->setDefaultTransitionDelay(delay);
-    update(Update::DefaultTransition);
-}
-
-Duration Map::getDefaultTransitionDelay() const {
-    return data->getDefaultTransitionDelay();
+    return context->invokeSync<std::vector<std::string>>(&MapContext::getClasses);
 }
 
 void Map::setSourceTileCacheSize(size_t size) {

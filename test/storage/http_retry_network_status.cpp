@@ -12,7 +12,7 @@
 // trigger an immediate retry of all requests that are not in progress. This test makes sure that
 // we don't accidentally double-trigger the request.
 
-TEST_F(Storage, HTTPNetworkStatusChange) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPNetworkStatusChange)) {
     SCOPED_TEST(HTTPNetworkStatusChange)
 
     using namespace mbgl;
@@ -23,7 +23,7 @@ TEST_F(Storage, HTTPNetworkStatusChange) {
     const Resource resource { Resource::Unknown, "http://127.0.0.1:3000/delayed" };
 
     // This request takes 200 milliseconds to answer.
-    std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
+    std::unique_ptr<AsyncRequest> req = fs.request(resource, [&](Response res) {
          req.reset();
          EXPECT_EQ(nullptr, res.error);
          ASSERT_TRUE(res.data.get());
@@ -46,7 +46,7 @@ TEST_F(Storage, HTTPNetworkStatusChange) {
 
 // Tests that a change in network status preempts requests that failed due to connection or
 // reachability issues.
-TEST_F(Storage, HTTPNetworkStatusChangePreempt) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPNetworkStatusChangePreempt)) {
     SCOPED_TEST(HTTPNetworkStatusChangePreempt)
 
     using namespace mbgl;
@@ -57,7 +57,7 @@ TEST_F(Storage, HTTPNetworkStatusChangePreempt) {
     const auto start = Clock::now();
 
     const Resource resource{ Resource::Unknown, "http://127.0.0.1:3001/test" };
-    std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
+    std::unique_ptr<AsyncRequest> req = fs.request(resource, [&](Response res) {
         static int counter = 0;
         const auto duration = std::chrono::duration<const double>(Clock::now() - start).count();
         if (counter == 0) {
@@ -102,7 +102,7 @@ TEST_F(Storage, HTTPNetworkStatusChangePreempt) {
     loop.run();
 }
 
-TEST_F(Storage, HTTPNetworkStatusOnlineOffline) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPNetworkStatusOnlineOffline)) {
     SCOPED_TEST(HTTPNetworkStatusOnlineOffline)
 
     using namespace mbgl;
@@ -120,7 +120,7 @@ TEST_F(Storage, HTTPNetworkStatusOnlineOffline) {
         NetworkStatus::Set(NetworkStatus::Status::Online);
     });
 
-    std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
+    std::unique_ptr<AsyncRequest> req = fs.request(resource, [&](Response res) {
         req.reset();
 
         EXPECT_EQ(nullptr, res.error);

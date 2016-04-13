@@ -1,5 +1,5 @@
-#include "../fixtures/util.hpp"
-#include "../fixtures/fixture_log_observer.hpp"
+#include <mbgl/test/util.hpp>
+#include <mbgl/test/fixture_log_observer.hpp>
 
 #include <mbgl/sprite/sprite_parser.hpp>
 #include <mbgl/sprite/sprite_image.hpp>
@@ -11,6 +11,14 @@
 
 using namespace mbgl;
 
+namespace {
+
+auto readImage(const std::string& name) {
+    return decodeImage(util::read_file(name));
+}
+
+} // namespace
+
 TEST(Sprite, SpriteImageCreationInvalid) {
     FixtureLog log;
 
@@ -21,13 +29,20 @@ TEST(Sprite, SpriteImageCreationInvalid) {
 
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 0, 16, 1, false));    // width == 0
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 16, 0, 1, false));    // height == 0
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, -1, 16, 1, false));   // width < 0
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 16, -1, 1, false));   // height < 0
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 1, 1, 0, false));     // ratio == 0
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 1, 1, -1, false));    // ratio < 0
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 1, 1, 23, false));    // ratio too large
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 2048, 16, 1, false)); // too wide
     ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 16, 1025, 1, false)); // too tall
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, -1, 0, 16, 16, 1, false));  // srcX < 0
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, -1, 16, 16, 1, false));  // srcY < 0
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, image_1x.width + 1, 16, 1, false));   // right edge out of bounds
+    ASSERT_EQ(nullptr, createSpriteImage(image_1x, 0, 0, 16, image_1x.height + 1, 1, false));  // bottom edge out of bounds
 
-    EXPECT_EQ(6u, log.count({
-                      EventSeverity::Warning,
+    EXPECT_EQ(13u, log.count({
+                      EventSeverity::Error,
                       Event::Sprite,
                       int64_t(-1),
                       "Can't create sprite with invalid metrics",
@@ -48,29 +63,8 @@ TEST(Sprite, SpriteImageCreation1x) {
         EXPECT_EQ(18, sprite->image.width);
         EXPECT_EQ(18, sprite->image.height);
         EXPECT_EQ(1, sprite->pixelRatio);
-        EXPECT_EQ(0x7FCC5F263D1FFE16u, test::crc64(sprite->image));
-    }
-
-    { // outside image == blank
-        const auto sprite = createSpriteImage(image_1x, 200, 0, 16, 16, 1, false);
-        ASSERT_TRUE(sprite.get());
-        EXPECT_EQ(16, sprite->getWidth());
-        EXPECT_EQ(16, sprite->getHeight());
-        EXPECT_EQ(16, sprite->image.width);
-        EXPECT_EQ(16, sprite->image.height);
-        EXPECT_EQ(1, sprite->pixelRatio);
-        EXPECT_EQ(0x0000000000000000u, test::crc64(sprite->image)) << std::hex << test::crc64(sprite->image);
-    }
-
-    { // outside image == blank
-        const auto sprite = createSpriteImage(image_1x, 0, 300, 16, 16, 1, false);
-        ASSERT_TRUE(sprite.get());
-        EXPECT_EQ(16, sprite->getWidth());
-        EXPECT_EQ(16, sprite->getHeight());
-        EXPECT_EQ(16, sprite->image.width);
-        EXPECT_EQ(16, sprite->image.height);
-        EXPECT_EQ(1, sprite->pixelRatio);
-        EXPECT_EQ(0x0000000000000000u, test::crc64(sprite->image)) << std::hex << test::crc64(sprite->image);
+        EXPECT_EQ(readImage("test/fixtures/annotations/result-spriteimagecreation1x-museum.png"),
+                  sprite->image);
     }
 }
 
@@ -85,7 +79,8 @@ TEST(Sprite, SpriteImageCreation2x) {
     EXPECT_EQ(36, sprite->image.width);
     EXPECT_EQ(36, sprite->image.height);
     EXPECT_EQ(2, sprite->pixelRatio);
-    EXPECT_EQ(0x85F345098DD4F9E3u, test::crc64(sprite->image));
+    EXPECT_EQ(readImage("test/fixtures/annotations/result-spriteimagecreation2x.png"),
+              sprite->image);
 }
 
 TEST(Sprite, SpriteImageCreation1_5x) {
@@ -99,7 +94,8 @@ TEST(Sprite, SpriteImageCreation1_5x) {
     EXPECT_EQ(36, sprite->image.width);
     EXPECT_EQ(36, sprite->image.height);
     EXPECT_EQ(1.5, sprite->pixelRatio);
-    EXPECT_EQ(0x85F345098DD4F9E3u, test::crc64(sprite->image));
+    EXPECT_EQ(readImage("test/fixtures/annotations/result-spriteimagecreation1_5x-museum.png"),
+              sprite->image);
 
     // "hospital_icon":{"x":314,"y":518,"width":36,"height":36,"pixelRatio":2,"sdf":false}
     const auto sprite2 = createSpriteImage(image_2x, 314, 518, 35, 35, 1.5, false);
@@ -109,7 +105,8 @@ TEST(Sprite, SpriteImageCreation1_5x) {
     EXPECT_EQ(35, sprite2->image.width);
     EXPECT_EQ(35, sprite2->image.height);
     EXPECT_EQ(1.5, sprite2->pixelRatio);
-    EXPECT_EQ(14312995667113444493u, test::crc64(sprite2->image));
+    EXPECT_EQ(readImage("test/fixtures/annotations/result-spriteimagecreation1_5x-hospital.png"),
+              sprite2->image);
 }
 
 TEST(Sprite, SpriteParsing) {
@@ -204,7 +201,7 @@ TEST(Sprite, SpriteParsing) {
         EXPECT_EQ(18, sprite->image.width);
         EXPECT_EQ(18, sprite->image.height);
         EXPECT_EQ(1, sprite->pixelRatio);
-        EXPECT_EQ(0xFF56F5F48F707147u, test::crc64(sprite->image));
+        EXPECT_EQ(readImage("test/fixtures/annotations/result-spriteparsing.png"), sprite->image);
     }
 }
 
@@ -228,7 +225,7 @@ TEST(Sprite, SpriteParsingEmptyImage) {
     EXPECT_EQ(0u, images.size());
 
     EXPECT_EQ(1u, log.count({
-                      EventSeverity::Warning,
+                      EventSeverity::Error,
                       Event::Sprite,
                       int64_t(-1),
                       "Can't create sprite with invalid metrics",
@@ -261,7 +258,7 @@ TEST(Sprite, SpriteParsingWidthTooBig) {
                       "Value of 'width' must be an integer between 0 and 65535",
                   }));
     EXPECT_EQ(1u, log.count({
-                      EventSeverity::Warning,
+                      EventSeverity::Error,
                       Event::Sprite,
                       int64_t(-1),
                       "Can't create sprite with invalid metrics",
@@ -284,7 +281,7 @@ TEST(Sprite, SpriteParsingNegativeWidth) {
                       "Value of 'width' must be an integer between 0 and 65535",
                   }));
     EXPECT_EQ(1u, log.count({
-                      EventSeverity::Warning,
+                      EventSeverity::Error,
                       Event::Sprite,
                       int64_t(-1),
                       "Can't create sprite with invalid metrics",
@@ -301,7 +298,7 @@ TEST(Sprite, SpriteParsingNullRatio) {
     EXPECT_EQ(0u, images.size());
 
     EXPECT_EQ(1u, log.count({
-                      EventSeverity::Warning,
+                      EventSeverity::Error,
                       Event::Sprite,
                       int64_t(-1),
                       "Can't create sprite with invalid metrics",

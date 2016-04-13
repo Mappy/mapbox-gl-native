@@ -8,7 +8,7 @@
 
 #include <future>
 
-TEST_F(Storage, HTTPTest) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPTest)) {
     SCOPED_TEST(HTTPTest)
 
     using namespace mbgl;
@@ -16,7 +16,7 @@ TEST_F(Storage, HTTPTest) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req1 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/test" },
+    std::unique_ptr<AsyncRequest> req1 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/test" },
                [&](Response res) {
         req1.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -33,7 +33,7 @@ TEST_F(Storage, HTTPTest) {
     loop.run();
 }
 
-TEST_F(Storage, HTTP404) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTP404)) {
     SCOPED_TEST(HTTP404)
 
     using namespace mbgl;
@@ -41,7 +41,7 @@ TEST_F(Storage, HTTP404) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/doesnotexist" },
+    std::unique_ptr<AsyncRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/doesnotexist" },
                [&](Response res) {
         req2.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -59,7 +59,7 @@ TEST_F(Storage, HTTP404) {
     loop.run();
 }
 
-TEST_F(Storage, HTTPTile404) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPTile404)) {
     SCOPED_TEST(HTTPTile404)
 
     using namespace mbgl;
@@ -67,7 +67,7 @@ TEST_F(Storage, HTTPTile404) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req2 = fs.request({ Resource::Tile, "http://127.0.0.1:3000/doesnotexist" },
+    std::unique_ptr<AsyncRequest> req2 = fs.request({ Resource::Tile, "http://127.0.0.1:3000/doesnotexist" },
                [&](Response res) {
         req2.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -84,7 +84,7 @@ TEST_F(Storage, HTTPTile404) {
     loop.run();
 }
 
-TEST_F(Storage, HTTP200EmptyData) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTP200EmptyData)) {
     SCOPED_TEST(HTTP200EmptyData)
 
     using namespace mbgl;
@@ -92,7 +92,7 @@ TEST_F(Storage, HTTP200EmptyData) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/empty-data" },
+    std::unique_ptr<AsyncRequest> req = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/empty-data" },
                [&](Response res) {
         req.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -109,7 +109,7 @@ TEST_F(Storage, HTTP200EmptyData) {
     loop.run();
 }
 
-TEST_F(Storage, HTTP204) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTP204)) {
     SCOPED_TEST(HTTP204)
 
     using namespace mbgl;
@@ -117,7 +117,7 @@ TEST_F(Storage, HTTP204) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/no-content" },
+    std::unique_ptr<AsyncRequest> req2 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/no-content" },
                [&](Response res) {
         req2.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -134,7 +134,7 @@ TEST_F(Storage, HTTP204) {
     loop.run();
 }
 
-TEST_F(Storage, HTTP500) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTP500)) {
     SCOPED_TEST(HTTP500)
 
     using namespace mbgl;
@@ -142,7 +142,7 @@ TEST_F(Storage, HTTP500) {
     util::RunLoop loop;
     OnlineFileSource fs;
 
-    std::unique_ptr<FileRequest> req3 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/permanent-error" },
+    std::unique_ptr<AsyncRequest> req3 = fs.request({ Resource::Unknown, "http://127.0.0.1:3000/permanent-error" },
                [&](Response res) {
         req3.reset();
         EXPECT_TRUE(util::ThreadContext::currentlyOn(util::ThreadType::Main));
@@ -160,7 +160,7 @@ TEST_F(Storage, HTTP500) {
     loop.run();
 }
 
-TEST_F(Storage, HTTPNoCallback) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPNoCallback)) {
     SCOPED_TEST(HTTPNoCallback)
 
     using namespace mbgl;

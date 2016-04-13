@@ -4,7 +4,7 @@
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/run_loop.hpp>
 
-TEST_F(Storage, HTTPLoad) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPLoad)) {
     SCOPED_TEST(HTTPLoad)
 
     using namespace mbgl;
@@ -16,7 +16,7 @@ TEST_F(Storage, HTTPLoad) {
     const int max = 10000;
     int number = 1;
 
-    std::unique_ptr<FileRequest> reqs[concurrency];
+    std::unique_ptr<AsyncRequest> reqs[concurrency];
 
     std::function<void(int)> req = [&](int i) {
         const auto current = number++;

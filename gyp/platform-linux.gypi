@@ -7,20 +7,17 @@
       'hard_dependency': 1,
       'dependencies': [
         'version',
+        'loop',
       ],
 
       'sources': [
-        '../platform/default/async_task.cpp',
         '../platform/default/log_stderr.cpp',
         '../platform/default/string_stdlib.cpp',
-        '../platform/default/run_loop.cpp',
-        '../platform/default/application_root.cpp',
         '../platform/default/thread.cpp',
         '../platform/default/image.cpp',
         '../platform/default/webp_reader.cpp',
         '../platform/default/png_reader.cpp',
         '../platform/default/jpeg_reader.cpp',
-        '../platform/default/timer.cpp',
         '../platform/default/default_file_source.cpp',
         '../platform/default/online_file_source.cpp',
         '../platform/default/mbgl/storage/offline.hpp',
@@ -35,9 +32,9 @@
 
       'variables': {
         'cflags_cc': [
+          '<@(opengl_cflags)',
           '<@(libpng_cflags)',
           '<@(libjpeg-turbo_cflags)',
-          '<@(libuv_cflags)',
           '<@(nunicode_cflags)',
           '<@(boost_cflags)',
           '<@(sqlite_cflags)',
@@ -48,7 +45,6 @@
         'ldflags': [
           '<@(libpng_ldflags)',
           '<@(libjpeg-turbo_ldflags)',
-          '<@(libuv_ldflags)',
           '<@(nunicode_ldflags)',
           '<@(sqlite_ldflags)',
           '<@(zlib_ldflags)',
@@ -57,7 +53,6 @@
         'libraries': [
           '<@(libpng_static_libs)',
           '<@(libjpeg-turbo_static_libs)',
-          '<@(libuv_static_libs)',
           '<@(nunicode_static_libs)',
           '<@(sqlite_static_libs)',
           '<@(zlib_static_libs)',

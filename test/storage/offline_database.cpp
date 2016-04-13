@@ -1,4 +1,5 @@
-#include "../fixtures/fixture_log_observer.hpp"
+#include <mbgl/test/util.hpp>
+#include <mbgl/test/fixture_log_observer.hpp>
 
 #include <mbgl/storage/offline_database.hpp>
 #include <mbgl/storage/resource.hpp>
@@ -94,7 +95,7 @@ private:
 //    EXPECT_EQ(1ul, dynamic_cast<FixtureLogObserver*>(observer.get())->count({ EventSeverity::Error, Event::Database, 14, "unable to open database file" }));
 //}
 
-TEST(OfflineDatabase, Create) {
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(Create)) {
     using namespace mbgl;
 
     createDir("test/fixtures/database");
@@ -108,7 +109,7 @@ TEST(OfflineDatabase, Create) {
     Log::removeObserver();
 }
 
-TEST(OfflineDatabase, SchemaVersion) {
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(SchemaVersion)) {
     using namespace mbgl;
 
     createDir("test/fixtures/database");
@@ -130,7 +131,7 @@ TEST(OfflineDatabase, SchemaVersion) {
     EXPECT_EQ(1ul, flo->count({ EventSeverity::Warning, Event::Database, -1, "Removing existing incompatible offline database" }));
 }
 
-TEST(OfflineDatabase, Invalid) {
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(Invalid)) {
     using namespace mbgl;
 
     createDir("test/fixtures/database");
@@ -487,7 +488,7 @@ TEST(OfflineDatabase, CreateRegionInfiniteMaxZoom) {
     EXPECT_EQ(INFINITY, region.getDefinition().maxZoom);
 }
 
-TEST(OfflineDatabase, ConcurrentUse) {
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(ConcurrentUse)) {
     using namespace mbgl;
 
     createDir("test/fixtures/database");
@@ -550,12 +551,12 @@ TEST(OfflineDatabase, PutReturnsSize) {
 TEST(OfflineDatabase, PutEvictsLeastRecentlyUsedResources) {
     using namespace mbgl;
 
-    OfflineDatabase db(":memory:", 1024 * 25);
+    OfflineDatabase db(":memory:", 1024 * 100);
 
     Response response;
     response.data = randomString(1024);
 
-    for (uint32_t i = 1; i <= 20; i++) {
+    for (uint32_t i = 1; i <= 100; i++) {
         Resource resource = Resource::style("http://example.com/"s + util::toString(i));
         db.put(resource, response);
         EXPECT_TRUE(bool(db.get(resource))) << i;
@@ -567,14 +568,14 @@ TEST(OfflineDatabase, PutEvictsLeastRecentlyUsedResources) {
 TEST(OfflineDatabase, PutRegionResourceDoesNotEvict) {
     using namespace mbgl;
 
-    OfflineDatabase db(":memory:", 1024 * 25);
+    OfflineDatabase db(":memory:", 1024 * 100);
     OfflineRegionDefinition definition { "", LatLngBounds::world(), 0, INFINITY, 1.0 };
     OfflineRegion region = db.createRegion(definition, OfflineRegionMetadata());
 
     Response response;
     response.data = randomString(1024);
 
-    for (uint32_t i = 1; i <= 20; i++) {
+    for (uint32_t i = 1; i <= 100; i++) {
         db.putRegionResource(region.getID(), Resource::style("http://example.com/"s + util::toString(i)), response);
     }
 
@@ -586,17 +587,10 @@ TEST(OfflineDatabase, PutFailsWhenEvictionInsuffices) {
     using namespace mbgl;
 
     Log::setObserver(std::make_unique<FixtureLogObserver>());
-    OfflineDatabase db(":memory:", 1024 * 25);
-
-    Response small;
-    small.data = randomString(1024);
-
-    for (uint32_t i = 1; i <= 10; i++) {
-        db.put(Resource::style("http://example.com/"s + util::toString(i)), small);
-    }
+    OfflineDatabase db(":memory:", 1024 * 100);
 
     Response big;
-    big.data = randomString(1024 * 15);
+    big.data = randomString(1024 * 100);
     db.put(Resource::style("http://example.com/big"), big);
     EXPECT_FALSE(bool(db.get(Resource::style("http://example.com/big"))));
 

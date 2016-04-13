@@ -71,7 +71,7 @@ Painter::Painter(MapData& data_, TransformState& state_, gl::GLObjectStore& glOb
 Painter::~Painter() = default;
 
 bool Painter::needsAnimation() const {
-    return frameHistory.needsAnimation(data.getDefaultFadeDuration());
+    return frameHistory.needsAnimation(util::DEFAULT_FADE_DURATION);
 }
 
 void Painter::prepareTile(const Tile& tile) {
@@ -154,7 +154,7 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
         drawClippingMasks(generator.getStencils());
     }
 
-    frameHistory.record(data.getAnimationTime(), state.getZoom());
+    frameHistory.record(frame.timePoint, state.getZoom());
 
     // Actually render the layers
     if (debug::renderTree) { Log::Info(Event::Render, "{"); indent++; }
@@ -260,20 +260,19 @@ mat4 Painter::translatedMatrix(const mat4& matrix, const std::array<float, 2> &t
     if (translation[0] == 0 && translation[1] == 0) {
         return matrix;
     } else {
-        const double factor = double(1ll << id.sourceZ) * util::EXTENT / util::tileSize / state.getScale();
 
         mat4 vtxMatrix;
         if (anchor == TranslateAnchorType::Viewport) {
             const double sin_a = std::sin(-state.getAngle());
             const double cos_a = std::cos(-state.getAngle());
             matrix::translate(vtxMatrix, matrix,
-                    factor * (translation[0] * cos_a - translation[1] * sin_a),
-                    factor * (translation[0] * sin_a + translation[1] * cos_a),
+                    id.pixelsToTileUnits(translation[0] * cos_a - translation[1] * sin_a, state.getZoom()),
+                    id.pixelsToTileUnits(translation[0] * sin_a + translation[1] * cos_a, state.getZoom()),
                     0);
         } else {
             matrix::translate(vtxMatrix, matrix,
-                    factor * translation[0],
-                    factor * translation[1],
+                    id.pixelsToTileUnits(translation[0], state.getZoom()),
+                    id.pixelsToTileUnits(translation[1], state.getZoom()),
                     0);
         }
 

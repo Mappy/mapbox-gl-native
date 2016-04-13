@@ -7,7 +7,7 @@
 
 #include <cmath>
 
-TEST_F(Storage, HTTPCancel) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPCancel)) {
     SCOPED_TEST(HTTPCancel)
 
     using namespace mbgl;
@@ -25,7 +25,7 @@ TEST_F(Storage, HTTPCancel) {
     loop.runOnce();
 }
 
-TEST_F(Storage, HTTPCancelMultiple) {
+TEST_F(Storage, TEST_REQUIRES_SERVER(HTTPCancelMultiple)) {
     SCOPED_TEST(HTTPCancelMultiple)
 
     using namespace mbgl;
@@ -35,10 +35,10 @@ TEST_F(Storage, HTTPCancelMultiple) {
 
     const Resource resource { Resource::Unknown, "http://127.0.0.1:3000/test" };
 
-    std::unique_ptr<FileRequest> req2 = fs.request(resource, [&](Response) {
+    std::unique_ptr<AsyncRequest> req2 = fs.request(resource, [&](Response) {
         ADD_FAILURE() << "Callback should not be called";
     });
-    std::unique_ptr<FileRequest> req = fs.request(resource, [&](Response res) {
+    std::unique_ptr<AsyncRequest> req = fs.request(resource, [&](Response res) {
         req.reset();
         EXPECT_EQ(nullptr, res.error);
         ASSERT_TRUE(res.data.get());

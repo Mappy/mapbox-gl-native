@@ -7,6 +7,7 @@
 
       'sources': [
         '../platform/default/headless_view.cpp',
+        '../platform/darwin/src/headless_view_cgl.cpp',
         '../platform/default/headless_display.cpp',
       ],
 

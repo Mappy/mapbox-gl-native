@@ -1,7 +1,7 @@
 #include <mbgl/util/thread.hpp>
 #include <mbgl/util/run_loop.hpp>
 
-#include "../fixtures/util.hpp"
+#include <mbgl/test/util.hpp>
 
 using namespace mbgl::util;
 
@@ -67,7 +67,7 @@ TEST(Thread, invoke) {
     const std::thread::id tid = std::this_thread::get_id();
 
     RunLoop loop;
-    std::vector<std::unique_ptr<mbgl::WorkRequest>> requests;
+    std::vector<std::unique_ptr<mbgl::AsyncRequest>> requests;
 
     loop.invoke([&] {
         EXPECT_EQ(tid, std::this_thread::get_id());
@@ -123,7 +123,7 @@ TEST(Thread, context) {
     const std::thread::id tid = std::this_thread::get_id();
 
     RunLoop loop;
-    std::vector<std::unique_ptr<mbgl::WorkRequest>> requests;
+    std::vector<std::unique_ptr<mbgl::AsyncRequest>> requests;
 
     loop.invoke([&] {
         Thread<TestObject> thread({"Test", ThreadType::Worker, ThreadPriority::Low}, tid);

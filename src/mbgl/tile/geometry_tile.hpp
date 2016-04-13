@@ -9,6 +9,7 @@
 #include <mbgl/util/vec.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/optional.hpp>
+#include <mbgl/util/constants.hpp>
 
 #include <cstdint>
 #include <string>
@@ -33,7 +34,7 @@ using GeometryCollection  = std::vector<GeometryCoordinates>;
 
 class GeometryTileFeature : private util::noncopyable {
 public:
-    static const uint32_t defaultExtent = 4096;
+    static const uint32_t defaultExtent = util::EXTENT;
 
     virtual ~GeometryTileFeature() = default;
     virtual FeatureType getType() const = 0;
@@ -55,7 +56,7 @@ public:
     virtual util::ptr<GeometryTileLayer> getLayer(const std::string&) const = 0;
 };
 
-class FileRequest;
+class AsyncRequest;
 
 class GeometryTileMonitor : private util::noncopyable {
 public:
@@ -73,7 +74,7 @@ public:
      *
      * To cease monitoring, release the returned Request.
      */
-    virtual std::unique_ptr<FileRequest> monitorTile(const Callback&) = 0;
+    virtual std::unique_ptr<AsyncRequest> monitorTile(const Callback&) = 0;
 };
 
 class GeometryTileFeatureExtractor {

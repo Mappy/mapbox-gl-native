@@ -12,6 +12,7 @@
 
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/style_layer.hpp>
+#include <mbgl/style/property_transition.hpp>
 
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/sprite/sprite_store.hpp>
@@ -80,11 +81,14 @@ void MapContext::pause() {
     asyncInvalidate.send();
 }
 
-void MapContext::triggerUpdate(const TransformState& state, const Update flags) {
-    transformState = state;
+void MapContext::updateAsync(Update flags) {
     updateFlags |= flags;
-
     asyncUpdate.send();
+}
+
+void MapContext::triggerUpdate(const TransformState& state, Update flags) {
+    transformState = state;
+    updateAsync(flags);
 }
 
 void MapContext::setStyleURL(const std::string& url) {
@@ -141,10 +145,9 @@ void MapContext::loadStyleJSON(const std::string& json, const std::string& base)
     styleJSON = json;
 
     // force style cascade, causing all pending transitions to complete.
-    style->cascade();
+    style->cascade(Clock::now());
 
-    updateFlags |= Update::DefaultTransition | Update::Classes | Update::Zoom | Update::Annotations;
-    asyncUpdate.send();
+    updateAsync(Update::Classes | Update::RecalculateStyle | Update::Annotations);
 }
 
 void MapContext::update() {
@@ -161,7 +164,10 @@ void MapContext::update() {
         data.getAnnotationManager()->updateAnimatedLayer(*style);
     }
 
-    data.setAnimationTime(Clock::now());
+    // This time point is used to:
+    // - Calculate style property transitions;
+    // - Hint style sources to notify when all its tiles are loaded;
+    frameData.timePoint = Clock::now();
 
     if (style->loaded && updateFlags & Update::Annotations) {
         data.getAnnotationManager()->updateStyle(*style);
@@ -169,28 +175,19 @@ void MapContext::update() {
     }
 
     if (updateFlags & Update::Classes) {
-        style->cascade();
+        style->cascade(frameData.timePoint);
     }
 
-    if (updateFlags & Update::Classes || updateFlags & Update::Zoom) {
-        style->recalculate(transformState.getZoom());
+    if (updateFlags & Update::Classes || updateFlags & Update::RecalculateStyle) {
+        style->recalculate(transformState.getZoom(), frameData.timePoint);
     }
 
-    if (updateFlags == Update::AnimatedAnnotations) {
-        if (data.mode == MapMode::Continuous) {
-            asyncInvalidate.send();
-        } else if (callback && style->isLoaded()) {
-            renderSync(transformState, frameData);
-        }
-    }
-    else {
-        style->update(transformState, *texturePool);
+    style->update(transformState, frameData.timePoint, *texturePool);
 
-        if (data.mode == MapMode::Continuous) {
-            asyncInvalidate.send();
-        } else if (callback && style->isLoaded()) {
-            renderSync(transformState, frameData);
-        }
+    if (data.mode == MapMode::Continuous) {
+        asyncInvalidate.send();
+    } else if (callback && isLoaded()) {
+        renderSync(transformState, frameData);
     }
 
     updateFlags = Update::Nothing;
@@ -226,8 +223,7 @@ void MapContext::renderStill(const TransformState& state, const FrameData& frame
     transformState = state;
     frameData = frame;
 
-    updateFlags |= Update::RenderStill;
-    asyncUpdate.send();
+    updateAsync(Update::RenderStill);
 }
 
 bool MapContext::renderSync(const TransformState& state, const FrameData& frame) {
@@ -241,6 +237,7 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
     view.beforeRender();
 
     transformState = state;
+    frameData = frame;
 
     if (!painter) painter = std::make_unique<Painter>(data, transformState, glObjectStore);
     painter->render(*style, frame, data.getAnnotationManager()->getSpriteAtlas());
@@ -256,14 +253,12 @@ bool MapContext::renderSync(const TransformState& state, const FrameData& frame)
     view.afterRender();
 
     if (style->hasTransitions()) {
-        updateFlags |= Update::Zoom;
-        asyncUpdate.send();
+        updateAsync(Update::RecalculateStyle);
     } else if (painter->needsAnimation()) {
-        updateFlags |= Update::Repaint;
-        asyncUpdate.send();
+        updateAsync(Update::Repaint);
     } else if (data.getAnnotationManager()->animationOngoing) {
         updateFlags |= Update::AnimatedAnnotations;
-        asyncUpdate.send();
+        updateAsync(updateFlags);
     }
 
     return isLoaded();
@@ -290,14 +285,33 @@ double MapContext::getTopOffsetPixelsForAnnotationIcon(const std::string& name) 
 
 void MapContext::addLayer(std::unique_ptr<StyleLayer> layer, optional<std::string> after) {
     style->addLayer(std::move(layer), after);
-    updateFlags |= Update::Classes;
-    asyncUpdate.send();
+    updateAsync(Update::Classes);
 }
 
 void MapContext::removeLayer(const std::string& id) {
     style->removeLayer(id);
-    updateFlags |= Update::Classes;
-    asyncUpdate.send();
+    updateAsync(Update::Classes);
+}
+
+std::vector<std::string> MapContext::getClasses() const {
+    return style->getClasses();
+}
+
+bool MapContext::hasClass(const std::string& className) const {
+    return style->hasClass(className);
+}
+
+void MapContext::addClass(const std::string& className, const PropertyTransition& properties) {
+    if (style->addClass(className, properties)) updateAsync(Update::Classes);
+}
+
+void MapContext::removeClass(const std::string& className, const PropertyTransition& properties) {
+    if (style->removeClass(className, properties)) updateAsync(Update::Classes);
+}
+
+void MapContext::setClasses(const std::vector<std::string>& classNames, const PropertyTransition& properties) {
+    style->setClasses(classNames, properties);
+    updateAsync(Update::Classes);
 }
 
 void MapContext::setSourceTileCacheSize(size_t size) {
@@ -318,8 +332,7 @@ void MapContext::onLowMemory() {
 }
 
 void MapContext::onResourceLoaded() {
-    updateFlags |= Update::Repaint;
-    asyncUpdate.send();
+    updateAsync(Update::Repaint);
 }
 
 void MapContext::onResourceError(std::exception_ptr error) {
