@@ -411,8 +411,8 @@ final class NativeMapView {
         return nativeGetAnnotationsInBounds(mNativeMapViewPtr, bbox);
     }
 
-    public void addAnnotationIcon(String symbol, int width, int height, float scale, float offsetX, float offsetY, byte[] pixels) {
-        nativeAddAnnotationIcon(mNativeMapViewPtr, symbol, width, height, scale, offsetX, offsetY, pixels);
+    public void addAnnotationIcon(String symbol, int width, int height, float scale, float offsetX, float offsetY, int zOrder, byte[] pixels) {
+        nativeAddAnnotationIcon(mNativeMapViewPtr, symbol, width, height, scale, offsetX, offsetY, zOrder, pixels);
     }
 
     public void setVisibleCoordinateBounds(LatLng[] coordinates, RectF padding, double direction, long duration) {
@@ -646,7 +646,7 @@ final class NativeMapView {
     private native long[] nativeGetAnnotationsInBounds(long mNativeMapViewPtr, LatLngBounds bbox);
 
     private native void nativeAddAnnotationIcon(long nativeMapViewPtr, String symbol,
-                                                int width, int height, float scale, float offsetX, float offsetY, byte[] pixels);
+                                                int width, int height, float scale, float offsetX, float offsetY, int zOrder, byte[] pixels);
 
     private native void nativeSetVisibleCoordinateBounds(long mNativeMapViewPtr, LatLng[] coordinates,
                                                          RectF padding, double direction, long duration);

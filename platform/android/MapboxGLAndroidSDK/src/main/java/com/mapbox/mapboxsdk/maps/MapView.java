@@ -1004,6 +1004,7 @@ public class MapView extends FrameLayout {
                 scale,
                 icon.getOffsetX(),
                 icon.getOffsetY(),
+                icon.getZOrder(),
                 buffer.array());
     }
 

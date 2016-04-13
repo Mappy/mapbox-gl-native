@@ -1022,7 +1022,7 @@ jni::jarray<jlong>* nativeGetAnnotationsInBounds(JNIEnv *env, jni::jobject* obj,
 }
 
 void nativeAddAnnotationIcon(JNIEnv *env, jni::jobject* obj, jlong nativeMapViewPtr,
-        jni::jstring* symbol, jint width, jint height, jfloat scale, jfloat offsetX, jfloat offsetY, jni::jarray<jbyte>* jpixels) {
+        jni::jstring* symbol, jint width, jint height, jfloat scale, jfloat offsetX, jfloat offsetY, jint zOrder, jni::jarray<jbyte>* jpixels) {
     mbgl::Log::Debug(mbgl::Event::JNI, "nativeAddAnnotationIcon");
     assert(nativeMapViewPtr != 0);
     NativeMapView *nativeMapView = reinterpret_cast<NativeMapView *>(nativeMapViewPtr);
@@ -1045,6 +1045,7 @@ void nativeAddAnnotationIcon(JNIEnv *env, jni::jobject* obj, jlong nativeMapView
         jboolean(false),
         mbgl::vec2<float>{static_cast<float>(offsetX), static_cast<float>(offsetY)}
     );
+    iconImage->zOrder = (uint32_t) zOrder;
 
     nativeMapView->getMap().addAnnotationIcon(symbolName, iconImage);
 }
@@ -1889,7 +1890,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         MAKE_NATIVE_METHOD(nativeRemoveAnnotation, "(JJ)V"),
         MAKE_NATIVE_METHOD(nativeRemoveAnnotations, "(J[J)V"),
         MAKE_NATIVE_METHOD(nativeGetAnnotationsInBounds, "(JLcom/mapbox/mapboxsdk/geometry/LatLngBounds;)[J"),
-        MAKE_NATIVE_METHOD(nativeAddAnnotationIcon, "(JLjava/lang/String;IIFFF[B)V"),
+        MAKE_NATIVE_METHOD(nativeAddAnnotationIcon, "(JLjava/lang/String;IIFFFI[B)V"),
         MAKE_NATIVE_METHOD(nativeSetVisibleCoordinateBounds, "(J[Lcom/mapbox/mapboxsdk/geometry/LatLng;Landroid/graphics/RectF;DJ)V"),
         MAKE_NATIVE_METHOD(nativeOnLowMemory, "(J)V"),
         MAKE_NATIVE_METHOD(nativeSetDebug, "(JZ)V"),

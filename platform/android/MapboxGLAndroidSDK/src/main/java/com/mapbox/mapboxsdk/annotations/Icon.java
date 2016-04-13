@@ -15,6 +15,8 @@ public final class Icon {
     private float mOffsetX;
     private float mOffsetY;
 
+    private int mZOrder;
+
     Icon(String id, Bitmap bitmap) {
         mId = id;
         mBitmap = bitmap;
@@ -31,6 +33,10 @@ public final class Icon {
         mOffsetY = y;
     }
 
+    public void setZOrder(int zOrder) {
+        mZOrder = zOrder;
+    }
+
     public String getId() {
         return mId;
     }
@@ -45,6 +51,10 @@ public final class Icon {
 
     public float getOffsetY() {
         return mOffsetY;
+    }
+
+    public int getZOrder() {
+        return mZOrder;
     }
 
     @Override
