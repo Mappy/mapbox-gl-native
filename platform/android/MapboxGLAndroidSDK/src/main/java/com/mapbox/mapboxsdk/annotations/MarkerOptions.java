@@ -132,6 +132,8 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
             return false;
         if (getIcon() != null ? !getIcon().equals(marker.getIcon()) : marker.getIcon() != null)
             return false;
+        if (getZOrder() != marker.getZOrder())
+            return false;
         return !(getTitle() != null ? !getTitle().equals(marker.getTitle()) : marker.getTitle() != null);
     }
 
@@ -142,6 +144,7 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
         result = 31 * result + (getSnippet() != null ? getSnippet().hashCode() : 0);
         result = 31 * result + (getIcon() != null ? getIcon().hashCode() : 0);
         result = 31 * result + (getTitle() != null ? getTitle().hashCode() : 0);
+        result = 31 * result + getZOrder();
         return result;
     }
 }

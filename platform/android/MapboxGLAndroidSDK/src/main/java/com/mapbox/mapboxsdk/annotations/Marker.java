@@ -142,7 +142,7 @@ public class Marker extends Annotation {
         this.title = title;
     }
 
-    public void setZOrder(int zOrder) {
+    void setZOrder(int zOrder) {
         this.zOrder = zOrder;
     }
 
