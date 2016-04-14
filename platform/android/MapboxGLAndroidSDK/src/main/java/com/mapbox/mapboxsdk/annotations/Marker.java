@@ -200,10 +200,11 @@ public class Marker extends Annotation {
     public int compareTo(@NonNull Annotation annotation) {
         if (annotation instanceof Marker) {
             Marker marker = (Marker)annotation;
+            // Sort by reverse z-order so that tapped marker is the upper one
             if (zOrder < marker.zOrder) {
-                return -1;
-            } else if (zOrder > marker.zOrder) {
                 return 1;
+            } else if (zOrder > marker.zOrder) {
+                return -1;
             }
         }
         return super.compareTo(annotation);
