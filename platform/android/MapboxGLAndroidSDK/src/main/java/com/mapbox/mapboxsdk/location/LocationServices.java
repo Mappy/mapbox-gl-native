@@ -21,20 +21,20 @@ public class LocationServices implements com.mapzen.android.lost.api.LocationLis
 
     private static final String TAG = "LocationServices";
 
-    private static LocationServices instance;
+    protected static LocationServices instance;
 
-    private Context context;
+    protected Context context;
     private LostApiClient locationClient;
     private Location lastLocation;
 
     private List<LocationListener> locationListeners;
 
-    private boolean isGPSEnabled;
+    protected boolean isGPSEnabled;
 
     /**
      * Private constructor for singleton LocationServices
      */
-    private LocationServices(Context context) {
+    protected LocationServices(Context context) {
         super();
         this.context = context;
         // Setup location services
@@ -120,7 +120,7 @@ public class LocationServices implements com.mapzen.android.lost.api.LocationLis
      */
     @Override
     public void onLocationChanged(Location location) {
-        Log.i(TAG, "onLocationChanged()..." + location);
+        Log.i(TAG, "ooo onLocationChanged()..." + location);
         this.lastLocation = location;
 
         // Update Listeners
