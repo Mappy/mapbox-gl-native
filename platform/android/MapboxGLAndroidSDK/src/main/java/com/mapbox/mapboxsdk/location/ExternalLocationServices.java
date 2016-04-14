@@ -57,22 +57,14 @@ public class ExternalLocationServices extends LocationServices implements Extern
      * @param enableGPS true if GPS is to be enabled, false if GPS is to be disabled
      */
     public void toggleGPS(boolean enableGPS) {
-//        if ((ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) &&
-//                (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-//            Log.w(TAG, "Location Permissions Not Granted Yet.  Try again after requesting.");
-//            return;
-//        }
-//
-//        if (enableGPS) {
-//            // LocationRequest Tuned for GPS
-//
-//        } else {
-//            // LocationRequest Tuned for PASSIVE
-//        }
-//
-//        isGPSEnabled = enableGPS;
-        Log.d(TAG, "!!!! Toggling GPS");
-        super.toggleGPS(enableGPS);
+        if ((ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) &&
+                (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+            Log.w(TAG, "Location Permissions Not Granted Yet.  Try again after requesting.");
+            isGPSEnabled = false;
+            return;
+        }
+
+        isGPSEnabled = enableGPS;
     }
 
     /**
