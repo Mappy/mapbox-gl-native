@@ -39,6 +39,19 @@ public class ExternalLocationServices extends LocationServices implements Extern
     }
 
     /**
+     * Primary (singleton) access method for LocationServices
+     *
+     * @param context Context
+     * @return LocationServices
+     */
+    public static LocationServices getLocationServices(@NonNull final Context context) {
+        if (instance == null) {
+            initExternalLocationServices(context);
+        }
+        return instance;
+    }
+
+    /**
      * Enabled / Disable GPS focused location tracking
      *
      * @param enableGPS true if GPS is to be enabled, false if GPS is to be disabled
