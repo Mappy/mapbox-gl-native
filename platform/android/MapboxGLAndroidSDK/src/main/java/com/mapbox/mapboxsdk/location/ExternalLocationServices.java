@@ -35,7 +35,9 @@ public class ExternalLocationServices extends LocationServices implements Extern
      * @return LocationServices
      */
     public static void initExternalLocationServices(@NonNull final Context context) {
-        instance = new ExternalLocationServices(context.getApplicationContext());
+        if(instance == null || !(instance instanceof ExternalLocationServices)) {
+            instance = new ExternalLocationServices(context.getApplicationContext());
+        }
     }
 
     /**
@@ -51,11 +53,7 @@ public class ExternalLocationServices extends LocationServices implements Extern
         return instance;
     }
 
-    /**
-     * Enabled / Disable GPS focused location tracking
-     *
-     * @param enableGPS true if GPS is to be enabled, false if GPS is to be disabled
-     */
+    @Override
     public void toggleGPS(boolean enableGPS) {
         if ((ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) &&
                 (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
@@ -67,15 +65,9 @@ public class ExternalLocationServices extends LocationServices implements Extern
         isGPSEnabled = enableGPS;
     }
 
-    /**
-     * Called when the location has changed.
-     *
-     * @param location The updated location
-     */
     @Override
     public void onLocationChanged(Location location) {
-        Log.i(TAG, "!!!! onLocationChanged()..." + location+", GPS enabled ?"+isGPSEnabled);
-        Thread.dumpStack();
+        Log.i(TAG, "!!!! onLocationChanged()..." + location + ", GPS enabled ?" + isGPSEnabled);
         if (isGPSEnabled) {
             super.onLocationChanged(location);
         }
