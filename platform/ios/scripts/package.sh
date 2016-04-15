@@ -98,6 +98,7 @@ if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
             -target http-nsurl \
             -target asset-fs \
             -target headless-eagl \
+            -target loop \
             -jobs ${JOBS}
     fi
 
@@ -132,6 +133,7 @@ if [[ ${BUILD_STATIC} == true ]]; then
         -target http-nsurl \
         -target asset-fs \
         -target headless-eagl \
+        -target loop \
         -jobs ${JOBS}
 fi
 
@@ -149,7 +151,7 @@ if [[ ${BUILD_DYNAMIC} == true ]]; then
         -jobs ${JOBS}
 fi
 
-LIBS=(core.a platform-ios.a asset-fs.a http-nsurl.a)
+LIBS=(core.a platform-ios.a asset-fs.a http-nsurl.a loop.a)
 
 # https://medium.com/@syshen/create-an-ios-universal-framework-148eb130a46c
 if [[ "${BUILD_FOR_DEVICE}" == true ]]; then
