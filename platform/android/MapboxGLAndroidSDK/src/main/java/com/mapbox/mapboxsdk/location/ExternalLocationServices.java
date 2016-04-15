@@ -17,10 +17,10 @@ import com.mapzen.android.lost.api.LostApiClient;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExternalLocationServices extends LocationServices implements ExternalLocationListener{
+public class ExternalLocationServices extends LocationServices {
 
     private static final String TAG = "ExternalLocServices";
-
+    private ExternalLocationListener mExternalLocationListener;
     /**
      * Private constructor for singleton LocationServices
      */
@@ -65,15 +65,24 @@ public class ExternalLocationServices extends LocationServices implements Extern
         isGPSEnabled = enableGPS;
     }
 
-    @Override
-    public void onLocationChanged(Location location) {
-        Log.i(TAG, "!!!! onLocationChanged()..." + location + ", GPS enabled ?" + isGPSEnabled);
-        if (isGPSEnabled) {
-            super.onLocationChanged(location);
-        }
-    }
-
     public static void releaseExternalLocationServices() {
         instance = null;
+    }
+
+    public ExternalLocationListener getExternalLocationListener() {
+        if (mExternalLocationListener == null) {
+            mExternalLocationListener = new ExternalLocationListenerImpl();
+        }
+        return mExternalLocationListener;
+    }
+
+    class ExternalLocationListenerImpl implements ExternalLocationListener {
+        @Override
+        public void onLocationChanged(Location location) {
+            Log.i(TAG, "!!!! onLocationChanged()..." + location + ", GPS enabled ?" + isGPSEnabled);
+            if (isGPSEnabled) {
+                ExternalLocationServices.this.onLocationChanged(location);
+            }
+        }
     }
 }
