@@ -163,4 +163,15 @@ public class LocationServices implements com.mapzen.android.lost.api.LocationLis
     public boolean removeLocationListener(@NonNull LocationListener locationListener) {
         return this.locationListeners.remove(locationListener);
     }
+
+    public void release() {
+        if (com.mapzen.android.lost.api.LocationServices.FusedLocationApi != null) {
+            com.mapzen.android.lost.api.LocationServices.FusedLocationApi.removeLocationUpdates(this);
+        }
+        context = null;
+        locationClient = null;
+        locationListeners.clear();
+        locationListeners = null;
+    }
+
 }
