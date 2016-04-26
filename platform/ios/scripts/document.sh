@@ -32,14 +32,14 @@ sed -n -e '/^## /{' -e ':a' -e 'n' -e '/^##/q' -e 'p' -e 'ba' -e '}' platform/io
 rm -rf ${OUTPUT}
 mkdir -p ${OUTPUT}
 
-jazzy \
-    --sdk iphonesimulator \
-    --swift-version $SWIFT_VERSION \
-    --github-file-prefix https://github.com/mapbox/mapbox-gl-native/tree/${BRANCH} \
-    --module-version ${SHORT_VERSION} \
-    --readme ${README} \
-    --root-url https://www.mapbox.com/ios-sdk/api/${RELEASE_VERSION}/ \
-    --output ${OUTPUT}
+# jazzy \
+#     --sdk iphonesimulator \
+#     --swift-version $SWIFT_VERSION \
+#     --github-file-prefix https://github.com/mapbox/mapbox-gl-native/tree/${BRANCH} \
+#     --module-version ${SHORT_VERSION} \
+#     --readme ${README} \
+#     --root-url https://www.mapbox.com/ios-sdk/api/${RELEASE_VERSION}/ \
+#     --output ${OUTPUT}
 # https://github.com/realm/jazzy/issues/411
 find ${OUTPUT} -name *.html -exec \
     perl -pi -e 's/Mapbox\s+(Docs|Reference)/Mapbox iOS SDK $1/' {} \;
