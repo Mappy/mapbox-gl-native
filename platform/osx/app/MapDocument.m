@@ -121,22 +121,22 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     NSURL *styleURL;
     switch (tag) {
         case 1:
-            styleURL = [MGLStyle streetsStyleURL];
+            styleURL = [MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         case 2:
-            styleURL = [MGLStyle emeraldStyleURL];
+            styleURL = [MGLStyle outdoorsStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         case 3:
-            styleURL = [MGLStyle lightStyleURL];
+            styleURL = [MGLStyle lightStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         case 4:
-            styleURL = [MGLStyle darkStyleURL];
+            styleURL = [MGLStyle darkStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         case 5:
-            styleURL = [MGLStyle satelliteStyleURL];
+            styleURL = [MGLStyle satelliteStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         case 6:
-            styleURL = [MGLStyle hybridStyleURL];
+            styleURL = [MGLStyle satelliteStreetsStyleURLWithVersion:MGLStyleDefaultVersion];
             break;
         default:
             NSAssert(NO, @"Cannot set style from control with tag %li", (long)tag);
@@ -440,22 +440,22 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
         NSCellStateValue state;
         switch (menuItem.tag) {
             case 1:
-                state = [styleURL isEqual:[MGLStyle streetsStyleURL]];
+                state = [styleURL isEqual:[MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             case 2:
-                state = [styleURL isEqual:[MGLStyle emeraldStyleURL]];
+                state = [styleURL isEqual:[MGLStyle outdoorsStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             case 3:
-                state = [styleURL isEqual:[MGLStyle lightStyleURL]];
+                state = [styleURL isEqual:[MGLStyle lightStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             case 4:
-                state = [styleURL isEqual:[MGLStyle darkStyleURL]];
+                state = [styleURL isEqual:[MGLStyle darkStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             case 5:
-                state = [styleURL isEqual:[MGLStyle satelliteStyleURL]];
+                state = [styleURL isEqual:[MGLStyle satelliteStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             case 6:
-                state = [styleURL isEqual:[MGLStyle hybridStyleURL]];
+                state = [styleURL isEqual:[MGLStyle satelliteStreetsStyleURLWithVersion:MGLStyleDefaultVersion]];
                 break;
             default:
                 return NO;
@@ -550,12 +550,12 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     }
     
     NSArray *styleURLs = @[
-        [MGLStyle streetsStyleURL],
-        [MGLStyle emeraldStyleURL],
-        [MGLStyle lightStyleURL],
-        [MGLStyle darkStyleURL],
-        [MGLStyle satelliteStyleURL],
-        [MGLStyle hybridStyleURL],
+        [MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion],
+        [MGLStyle outdoorsStyleURLWithVersion:MGLStyleDefaultVersion],
+        [MGLStyle lightStyleURLWithVersion:MGLStyleDefaultVersion],
+        [MGLStyle darkStyleURLWithVersion:MGLStyleDefaultVersion],
+        [MGLStyle satelliteStyleURLWithVersion:MGLStyleDefaultVersion],
+        [MGLStyle satelliteStreetsStyleURLWithVersion:MGLStyleDefaultVersion],
     ];
     return [styleURLs indexOfObject:self.mapView.styleURL];
 }
