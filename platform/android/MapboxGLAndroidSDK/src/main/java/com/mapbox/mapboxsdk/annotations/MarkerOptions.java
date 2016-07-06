@@ -45,7 +45,7 @@ public final class MarkerOptions extends BaseMarkerOptions<Marker, MarkerOptions
             String iconId = in.readString();
             Bitmap iconBitmap = in.readParcelable(Bitmap.class.getClassLoader());
             float offsetX = in.readFloat();
-            float offsetY = in.readParcelable(Bitmap.class.getClassLoader());
+            float offsetY = in.readFloat();
             Icon icon = new Icon(iconId, iconBitmap, offsetX, offsetY);
             icon(icon);
         }
