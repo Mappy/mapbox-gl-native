@@ -454,34 +454,6 @@ By default, the polyline doesn't have a white stroke.
  */
 - (nullable UIView *)mapView:(MGLMapView *)mapView rightCalloutAccessoryViewForAnnotation:(id <MGLAnnotation>)annotation;
 
-#pragma mark Managing Callout Views
-
-/**
- Returns a Boolean value indicating whether the annotation is able to display
- extra information in a callout bubble.
- 
- This method is called after an annotation is selected, before any callout is
- displayed for the annotation.
- 
- If the return value is `YES`, a callout view is shown when the user taps on an
- annotation, selecting it. The default callout displays the annotation’s title
- and subtitle. You can add accessory views to either end of the callout by
- implementing the `-mapView:leftCalloutAccessoryViewForAnnotation:` and
- `-mapView:rightCalloutAccessoryViewForAnnotation:` methods. You can further
- customize the callout’s contents by implementing the
- `-mapView:calloutViewForAnnotation:` method.
- 
- If the return value is `NO`, or if this method is absent from the delegate, or
- if the annotation lacks a title, the annotation will not show a callout even
- when selected.
- 
- @param mapView The map view that has selected the annotation.
- @param annotation The object representing the annotation.
- @return A Boolean value indicating whether the annotation should show a
-    callout.
- */
-- (BOOL)mapView:(MGLMapView *)mapView annotationCanShowCallout:(id <MGLAnnotation>)annotation;
-
 /**
  Tells the delegate that the user tapped one of the accessory controls in the
  annotation’s callout view.
