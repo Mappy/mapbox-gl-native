@@ -137,7 +137,7 @@ const NSTimeInterval MGLFlushInterval = 180;
         NSNumber *accountTypeNumber = [bundle objectForInfoDictionaryKey:@"MGLMapboxAccountType"];
         [[NSUserDefaults standardUserDefaults] registerDefaults:@{
              @"MGLMapboxAccountType": accountTypeNumber ?: @0,
-             @"MGLMapboxMetricsEnabled": @YES,
+             @"MGLMapboxMetricsEnabled": @NO,
              @"MGLMapboxMetricsDebugLoggingEnabled": @NO,
          }];
     }
@@ -225,11 +225,11 @@ const NSTimeInterval MGLFlushInterval = 180;
     if (NSProcessInfo.processInfo.mgl_isInterfaceBuilderDesignablesAgent) {
         return nil;
     }
-    static dispatch_once_t onceToken;
+//    static dispatch_once_t onceToken;
     static MGLMapboxEvents *_sharedManager;
-    dispatch_once(&onceToken, ^{
-        _sharedManager = [[self alloc] init];
-    });
+//    dispatch_once(&onceToken, ^{
+//        _sharedManager = [[self alloc] init];
+//    });
     return _sharedManager;
 }
 
