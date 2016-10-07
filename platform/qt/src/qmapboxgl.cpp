@@ -1,3 +1,4 @@
+#include "qmapboxgl.hpp"
 #include "qmapboxgl_p.hpp"
 
 #include "qt_conversion.hpp"
@@ -28,7 +29,6 @@
 
 #include <QDebug>
 #include <QImage>
-#include <QMapboxGL>
 #include <QMargins>
 #include <QString>
 #include <QStringList>
@@ -61,22 +61,6 @@ static_assert(mbgl::underlying_type(QMapboxGL::NorthRightwards) == mbgl::underly
 static_assert(mbgl::underlying_type(QMapboxGL::NorthDownwards) == mbgl::underlying_type(mbgl::NorthOrientation::Downwards), "error");
 static_assert(mbgl::underlying_type(QMapboxGL::NorthLeftwards) == mbgl::underlying_type(mbgl::NorthOrientation::Leftwards), "error");
 
-// mbgl::MapChange
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeRegionWillChange) == mbgl::underlying_type(mbgl::MapChangeRegionWillChange), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeRegionWillChangeAnimated) == mbgl::underlying_type(mbgl::MapChangeRegionWillChangeAnimated), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeRegionIsChanging) == mbgl::underlying_type(mbgl::MapChangeRegionIsChanging), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeRegionDidChange) == mbgl::underlying_type(mbgl::MapChangeRegionDidChange), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeRegionDidChangeAnimated) == mbgl::underlying_type(mbgl::MapChangeRegionDidChangeAnimated), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeWillStartLoadingMap) == mbgl::underlying_type(mbgl::MapChangeWillStartLoadingMap), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFinishLoadingMap) == mbgl::underlying_type(mbgl::MapChangeDidFinishLoadingMap), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFailLoadingMap) == mbgl::underlying_type(mbgl::MapChangeDidFailLoadingMap), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeWillStartRenderingFrame) == mbgl::underlying_type(mbgl::MapChangeWillStartRenderingFrame), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFinishRenderingFrame) == mbgl::underlying_type(mbgl::MapChangeDidFinishRenderingFrame), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFinishRenderingFrameFullyRendered) == mbgl::underlying_type(mbgl::MapChangeDidFinishRenderingFrameFullyRendered), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeWillStartRenderingMap) == mbgl::underlying_type(mbgl::MapChangeWillStartRenderingMap), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFinishRenderingMap) == mbgl::underlying_type(mbgl::MapChangeDidFinishRenderingMap), "error");
-static_assert(mbgl::underlying_type(QMapboxGL::MapChangeDidFinishRenderingMapFullyRendered) == mbgl::underlying_type(mbgl::MapChangeDidFinishRenderingMapFullyRendered), "error");
-
 namespace {
 
 QThreadStorage<std::shared_ptr<mbgl::util::RunLoop>> loop;
@@ -107,17 +91,74 @@ auto fromQMapboxTransitionOptions(const QMapbox::TransitionOptions &options) {
     return mbgl::style::TransitionOptions { convert(options.duration), convert(options.delay) };
 }
 
+auto toQMapboxTransitionOptions(const mbgl::style::TransitionOptions &options) {
+    auto convert = [](auto& value) -> QVariant {
+        if (value) {
+            return qint64(std::chrono::duration_cast<mbgl::Milliseconds>(*value).count());
+        }
+        return {};
+    };
+    return QMapbox::TransitionOptions { convert(options.duration), convert(options.delay) };
+}
+
 auto fromQStringList(const QStringList &list)
 {
-    std::vector<std::string> strings(list.size());
+    std::vector<std::string> strings;
+    strings.reserve(list.size());
     for (const QString &string : list) {
-        strings.emplace_back(string.toStdString());
+        strings.push_back(string.toStdString());
     }
     return strings;
 }
 
+std::unique_ptr<const mbgl::SpriteImage> toSpriteImage(const QImage &sprite) {
+    const QImage swapped = sprite
+        .rgbSwapped()
+        .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+
+    auto img = std::make_unique<uint8_t[]>(swapped.byteCount());
+    memcpy(img.get(), swapped.constBits(), swapped.byteCount());
+
+    return std::make_unique<mbgl::SpriteImage>(
+        mbgl::PremultipliedImage{ static_cast<uint16_t>(swapped.width()),
+                                  static_cast<uint16_t>(swapped.height()), std::move(img) },
+        1.0);
 }
 
+} // namespace
+
+/*!
+    \class QMapboxGLSettings
+    \brief The QMapboxGLSettings class stores the initial configuration for QMapboxGL.
+
+    \inmodule Mapbox Qt SDK
+
+    QMapboxGLSettings is used to configure QMapboxGL at the moment of its creation.
+    Once created, the QMapboxGLSettings of a QMapboxGL can no longer be changed.
+
+    \since 4.7
+*/
+
+/*!
+    \enum QMapboxGLSettings::GLContextMode
+
+    This enum set the expectations towards the GL state.
+
+    \value UniqueGLContext  The GL context is only used by QMapboxGL, so it is not
+    reset before each rendering. Use this mode if the intention is to only draw a
+    fullscreen map.
+
+    \value SharedGLContext  The GL context is shared and the state will be restored
+    before rendering. This mode is safer when GL calls are performed prior of after
+    we call QMapboxGL::render for rendering a map.
+
+    \sa contextMode()
+*/
+
+/*!
+    Constructs a QMapboxGLSettings object with the default values. The default
+    configuration is valid for initializing a QMapboxGL.
+*/
 QMapboxGLSettings::QMapboxGLSettings()
     : m_mapMode(QMapboxGLSettings::ContinuousMap)
     , m_contextMode(QMapboxGLSettings::SharedGLContext)
@@ -126,6 +167,7 @@ QMapboxGLSettings::QMapboxGLSettings()
     , m_cacheMaximumSize(mbgl::util::DEFAULT_MAX_CACHE_SIZE)
     , m_cacheDatabasePath(":memory:")
     , m_assetPath(QCoreApplication::applicationDirPath())
+    , m_accessToken(qgetenv("MAPBOX_ACCESS_TOKEN"))
 {
 }
 
@@ -208,8 +250,29 @@ void QMapboxGLSettings::setAccessToken(const QString &token)
     m_accessToken = token;
 }
 
-QMapboxGL::QMapboxGL(QObject *parent_, const QMapboxGLSettings &settings)
-    : QObject(parent_)
+/*!
+    \class QMapboxGL
+    \brief The QMapboxGL class is a Qt wrapper for the Mapbox GL Native engine.
+
+    \inmodule Mapbox Qt SDK
+
+    QMapboxGL is a Qt friendly version the Mapbox GL Native engine using Qt types
+    and deep integration with Qt event loop. QMapboxGL relies as much as possible
+    on Qt, trying to minimize the external dependencies. For instance it will use
+    QNetworkAccessManager for HTTP requests and QString for UTF-8 manipulation.
+
+    QMapboxGL is not thread-safe and it is assumed that it will be accessed from
+    the same thread as the thread where the GL context lives.
+
+    \since 4.7
+*/
+
+/*!
+    Constructs a QMapboxGL object with \a settings and sets \a parent as the parent
+    object. The \a settings cannot be changed after the object is constructed.
+*/
+QMapboxGL::QMapboxGL(QObject *parent, const QMapboxGLSettings &settings)
+    : QObject(parent)
 {
     // Multiple QMapboxGL running on the same thread
     // will share the same mbgl::util::RunLoop
@@ -230,22 +293,42 @@ void QMapboxGL::cycleDebugOptions()
     d_ptr->mapObj->cycleDebugOptions();
 }
 
-QString QMapboxGL::styleJSON() const
+QString QMapboxGL::styleJson() const
 {
     return QString::fromStdString(d_ptr->mapObj->getStyleJSON());
 }
 
-QString QMapboxGL::styleURL() const
+QString QMapboxGL::styleUrl() const
 {
     return QString::fromStdString(d_ptr->mapObj->getStyleURL());
 }
 
-void QMapboxGL::setStyleJSON(const QString &style)
+/*!
+    Sets a new \a style from a JSON that must conform with the
+    \l {https://www.mapbox.com/mapbox-gl-style-spec/}
+    {Mapbox Style Specification}.
+
+    \note In case of a invalid style it will trigger a mapChanged
+    signal with QMapbox::MapChangeDidFailLoadingMap as argument.
+*/
+void QMapboxGL::setStyleJson(const QString &style)
 {
     d_ptr->mapObj->setStyleJSON(style.toStdString());
 }
 
-void QMapboxGL::setStyleURL(const QString &url)
+/*!
+    Sets a URL for fetching a JSON that will be later feed to
+    setStyleJson. URLs using the Mapbox scheme (\a mapbox://) are
+    also accepted and translated automatically to an actual HTTPS
+    request.
+
+    The Mapbox scheme is not enforced by any means and a style can
+    be fetched from anything that QNetworkAccessManager can handle.
+
+    \note In case of a invalid style it will trigger a mapChanged
+    signal with QMapbox::MapChangeDidFailLoadingMap as argument.
+*/
+void QMapboxGL::setStyleUrl(const QString &url)
 {
     d_ptr->mapObj->setStyleURL(url.toStdString());
 }
@@ -388,19 +471,9 @@ void QMapboxGL::addClass(const QString &className)
     d_ptr->mapObj->addClass(className.toStdString());
 }
 
-void QMapboxGL::addClass(const QString &className, const QMapbox::TransitionOptions &options)
-{
-    d_ptr->mapObj->addClass(className.toStdString(), fromQMapboxTransitionOptions(options));
-}
-
 void QMapboxGL::removeClass(const QString &className)
 {
     d_ptr->mapObj->removeClass(className.toStdString());
-}
-
-void QMapboxGL::removeClass(const QString &className, const QMapbox::TransitionOptions &options)
-{
-    d_ptr->mapObj->removeClass(className.toStdString(), fromQMapboxTransitionOptions(options));
 }
 
 bool QMapboxGL::hasClass(const QString &className) const
@@ -413,11 +486,6 @@ void QMapboxGL::setClasses(const QStringList &classNames)
     d_ptr->mapObj->setClasses(fromQStringList(classNames));
 }
 
-void QMapboxGL::setClasses(const QStringList &classNames, const QMapbox::TransitionOptions &options)
-{
-    d_ptr->mapObj->setClasses(fromQStringList(classNames), fromQMapboxTransitionOptions(options));
-}
-
 QStringList QMapboxGL::getClasses() const
 {
     QStringList classNames;
@@ -425,6 +493,14 @@ QStringList QMapboxGL::getClasses() const
         classNames << QString::fromStdString(mbglClass);
     }
     return classNames;
+}
+
+QMapbox::TransitionOptions QMapboxGL::getTransitionOptions() const {
+    return toQMapboxTransitionOptions(d_ptr->mapObj->getTransitionOptions());
+}
+
+void QMapboxGL::setTransitionOptions(const QMapbox::TransitionOptions &options) {
+    d_ptr->mapObj->setTransitionOptions(fromQMapboxTransitionOptions(options));
 }
 
 mbgl::Annotation fromPointAnnotation(const PointAnnotation &pointAnnotation) {
@@ -467,8 +543,6 @@ void QMapboxGL::setLayoutProperty(const QString& layer_, const QString& property
         qWarning() << "Error setting layout property:" << layer_ << "-" << property;
         return;
     }
-
-    d_ptr->mapObj->update(mbgl::Update::RecalculateStyle);
 }
 
 void QMapboxGL::setPaintProperty(const QString& layer_, const QString& property, const QVariant& value, const QString& klass_)
@@ -490,8 +564,6 @@ void QMapboxGL::setPaintProperty(const QString& layer_, const QString& property,
         qWarning() << "Error setting paint property:" << layer_ << "-" << property;
         return;
     }
-
-    d_ptr->mapObj->update(mbgl::Update::RecalculateStyle | mbgl::Update::Classes);
 }
 
 bool QMapboxGL::isRotating() const
@@ -545,15 +617,7 @@ void QMapboxGL::addAnnotationIcon(const QString &name, const QImage &sprite)
 {
     if (sprite.isNull()) return;
 
-    const QImage swapped = sprite
-        .rgbSwapped()
-        .convertToFormat(QImage::Format_ARGB32_Premultiplied);
-
-    auto img = std::make_unique<uint8_t[]>(swapped.byteCount());
-    memcpy(img.get(), swapped.constBits(), swapped.byteCount());
-
-    d_ptr->mapObj->addAnnotationIcon(name.toStdString(), std::make_shared<mbgl::SpriteImage>(
-        mbgl::PremultipliedImage { size_t(swapped.width()), size_t(swapped.height()), std::move(img) }, 1.0));
+    d_ptr->mapObj->addAnnotationIcon(name.toStdString(), toSpriteImage(sprite));
 }
 
 QPointF QMapboxGL::pixelForCoordinate(const Coordinate &coordinate_) const
@@ -621,12 +685,12 @@ QMargins QMapboxGL::margins() const
     );
 }
 
-void QMapboxGL::addSource(const QString& sourceID, const QVariant& value)
+void QMapboxGL::addSource(const QString &sourceID, const QVariantMap &params)
 {
     using namespace mbgl::style;
     using namespace mbgl::style::conversion;
 
-    Result<std::unique_ptr<Source>> source = convert<std::unique_ptr<Source>>(value, sourceID.toStdString());
+    Result<std::unique_ptr<Source>> source = convert<std::unique_ptr<Source>>(QVariant(params), sourceID.toStdString());
     if (!source) {
         qWarning() << "Unable to add source:" << source.error().message.c_str();
         return;
@@ -658,12 +722,12 @@ void QMapboxGL::addCustomLayer(const QString &id,
             before ? mbgl::optional<std::string>(before) : mbgl::optional<std::string>());
 }
 
-void QMapboxGL::addLayer(const QVariant& value)
+void QMapboxGL::addLayer(const QVariantMap &params)
 {
     using namespace mbgl::style;
     using namespace mbgl::style::conversion;
 
-    Result<std::unique_ptr<Layer>> layer = convert<std::unique_ptr<Layer>>(value);
+    Result<std::unique_ptr<Layer>> layer = convert<std::unique_ptr<Layer>>(QVariant(params));
     if (!layer) {
         qWarning() << "Unable to add layer:" << layer.error().message.c_str();
         return;
@@ -675,6 +739,18 @@ void QMapboxGL::addLayer(const QVariant& value)
 void QMapboxGL::removeLayer(const QString& id)
 {
     d_ptr->mapObj->removeLayer(id.toStdString());
+}
+
+void QMapboxGL::addImage(const QString &name, const QImage &sprite)
+{
+    if (sprite.isNull()) return;
+
+    d_ptr->mapObj->addImage(name.toStdString(), toSpriteImage(sprite));
+}
+
+void QMapboxGL::removeImage(const QString &name)
+{
+    d_ptr->mapObj->removeImage(name.toStdString());
 }
 
 void QMapboxGL::setFilter(const QString& layer_, const QVariant& filter_)
@@ -742,11 +818,11 @@ QMapboxGLPrivate::QMapboxGLPrivate(QMapboxGL *q, const QMapboxGLSettings &settin
         static_cast<mbgl::ConstrainMode>(settings.constrainMode()),
         static_cast<mbgl::ViewportMode>(settings.viewportMode())))
 {
-    qRegisterMetaType<QMapboxGL::MapChange>("QMapboxGL::MapChange");
+    qRegisterMetaType<QMapbox::MapChange>("QMapbox::MapChange");
 
     fileSourceObj->setAccessToken(settings.accessToken().toStdString());
     connect(this, SIGNAL(needsRendering()), q_ptr, SIGNAL(needsRendering()), Qt::QueuedConnection);
-    connect(this, SIGNAL(mapChanged(QMapboxGL::MapChange)), q_ptr, SIGNAL(mapChanged(QMapboxGL::MapChange)), Qt::QueuedConnection);
+    connect(this, SIGNAL(mapChanged(QMapbox::MapChange)), q_ptr, SIGNAL(mapChanged(QMapbox::MapChange)), Qt::QueuedConnection);
 }
 
 QMapboxGLPrivate::~QMapboxGLPrivate()
@@ -789,7 +865,7 @@ void QMapboxGLPrivate::invalidate()
 
 void QMapboxGLPrivate::notifyMapChange(mbgl::MapChange change)
 {
-    emit mapChanged(static_cast<QMapboxGL::MapChange>(change));
+    emit mapChanged(static_cast<QMapbox::MapChange>(change));
 }
 
 void QMapboxGLPrivate::connectionEstablished()

@@ -45,9 +45,10 @@ enum class MapDebugOptions : EnumType {
     Collision   = 1 << 4,
     Overdraw    = 1 << 5,
 // FIXME: https://github.com/mapbox/mapbox-gl-native/issues/5117
-#ifndef GL_ES_VERSION_2_0
+#if not MBGL_USE_GLES2
     StencilClip = 1 << 6,
-#endif // GL_ES_VERSION_2_0
+    DepthBuffer = 1 << 7,
+#endif // MBGL_USE_GLES2
 };
 
 constexpr MapDebugOptions operator|(MapDebugOptions lhs, MapDebugOptions rhs) {
@@ -55,11 +56,19 @@ constexpr MapDebugOptions operator|(MapDebugOptions lhs, MapDebugOptions rhs) {
 }
 
 constexpr MapDebugOptions& operator|=(MapDebugOptions& lhs, MapDebugOptions rhs) {
-    return (lhs = lhs | rhs);
+    return (lhs = MapDebugOptions(mbgl::underlying_type(lhs) | mbgl::underlying_type(rhs)));
 }
 
 constexpr bool operator&(MapDebugOptions lhs, MapDebugOptions rhs) {
     return mbgl::underlying_type(lhs) & mbgl::underlying_type(rhs);
+}
+
+constexpr MapDebugOptions& operator&=(MapDebugOptions& lhs, MapDebugOptions rhs) {
+    return (lhs = MapDebugOptions(mbgl::underlying_type(lhs) & mbgl::underlying_type(rhs)));
+}
+
+constexpr MapDebugOptions operator~(MapDebugOptions value) {
+    return MapDebugOptions(~mbgl::underlying_type(value));
 }
 
 } // namespace mbgl

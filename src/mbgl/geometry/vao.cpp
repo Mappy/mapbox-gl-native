@@ -1,21 +1,17 @@
 #include <mbgl/geometry/vao.hpp>
+#include <mbgl/gl/vertex_array.hpp>
 #include <mbgl/platform/log.hpp>
-#include <mbgl/gl/object_store.hpp>
 #include <mbgl/util/string.hpp>
+#include <mbgl/gl/gl.hpp>
 
 namespace mbgl {
-
-void VertexArrayObject::Unbind() {
-    if (!gl::BindVertexArray) return;
-    MBGL_CHECK_ERROR(gl::BindVertexArray(0));
-}
 
 VertexArrayObject::VertexArrayObject() {
 }
 
 VertexArrayObject::~VertexArrayObject() = default;
 
-void VertexArrayObject::bindVertexArrayObject(gl::ObjectStore& store) {
+void VertexArrayObject::bindVertexArrayObject(gl::Context& context) {
     if (!gl::GenVertexArrays || !gl::BindVertexArray) {
         static bool reported = false;
         if (!reported) {
@@ -25,14 +21,19 @@ void VertexArrayObject::bindVertexArrayObject(gl::ObjectStore& store) {
         return;
     }
 
-    if (!vao) {
-        vao = store.createVAO();
+    if (!vertexArray) {
+        vertexArray = context.createVertexArray();
+        context.vertexBuffer.setDirty();
+        context.elementBuffer.setDirty();
     }
-    MBGL_CHECK_ERROR(gl::BindVertexArray(*vao));
+
+    context.vertexArrayObject = *vertexArray;
 }
 
-void VertexArrayObject::verifyBinding(Shader& shader, GLuint vertexBuffer, GLuint elementsBuffer,
-                                      GLbyte *offset) {
+void VertexArrayObject::verifyBinding(Shader& shader,
+                                      gl::BufferID vertexBuffer,
+                                      gl::BufferID elementsBuffer,
+                                      int8_t* offset) {
     if (bound_shader != shader.getID()) {
         throw std::runtime_error(std::string("trying to rebind VAO to another shader from " +
                                              util::toString(bound_shader) + "(" + bound_shader_name + ") to " +
@@ -46,8 +47,10 @@ void VertexArrayObject::verifyBinding(Shader& shader, GLuint vertexBuffer, GLuin
     }
 }
 
-void VertexArrayObject::storeBinding(Shader &shader, GLuint vertexBuffer, GLuint elementsBuffer,
-                                     GLbyte *offset) {
+void VertexArrayObject::storeBinding(Shader& shader,
+                                     gl::BufferID vertexBuffer,
+                                     gl::BufferID elementsBuffer,
+                                     int8_t* offset) {
     bound_shader = shader.getID();
     bound_shader_name = shader.name;
     bound_offset = offset;

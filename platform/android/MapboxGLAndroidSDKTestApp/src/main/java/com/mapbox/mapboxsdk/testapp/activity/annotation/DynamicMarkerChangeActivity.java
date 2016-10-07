@@ -9,11 +9,13 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.MenuItem;
 import android.view.View;
+
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
-import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.constants.Style;
+import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
@@ -24,10 +26,10 @@ public class DynamicMarkerChangeActivity extends AppCompatActivity {
     private static final LatLng LAT_LNG_CHELSEA = new LatLng(51.481670, -0.190849);
     private static final LatLng LAT_LNG_ARSENAL = new LatLng(51.555062, -0.108417);
 
-    private MapView mMapView;
-    private MapboxMap mMapboxMap;
-    private IconFactory mIconFactory;
-    private Marker mMarker;
+    private MapView mapView;
+    private MapboxMap mapboxMap;
+    private IconFactory iconFactory;
+    private Marker marker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,24 +45,24 @@ public class DynamicMarkerChangeActivity extends AppCompatActivity {
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mIconFactory = IconFactory.getInstance(this);
+        iconFactory = IconFactory.getInstance(this);
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.setTag(false);
-        mMapView.onCreate(savedInstanceState);
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.setTag(false);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mMapboxMap = mapboxMap;
+                DynamicMarkerChangeActivity.this.mapboxMap = mapboxMap;
                 mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(51.506675, -0.128699), 10));
 
                 // Create marker
                 MarkerOptions markerOptions = new MarkerOptions()
                         .position(LAT_LNG_CHELSEA)
-                        .icon(mIconFactory.fromResource(R.drawable.ic_chelsea))
+                        .icon(iconFactory.fromResource(R.drawable.ic_chelsea))
                         .title(getString(R.string.dynamic_marker_chelsea_title))
                         .snippet(getString(R.string.dynamic_marker_chelsea_snippet));
-                mMarker = mapboxMap.addMarker(markerOptions);
+                marker = mapboxMap.addMarker(markerOptions);
             }
         });
 
@@ -68,8 +70,8 @@ public class DynamicMarkerChangeActivity extends AppCompatActivity {
         fab.setColorFilter(ContextCompat.getColor(this, R.color.primary));
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
-                if (mMapboxMap != null) {
+            public void onClick(View view) {
+                if (mapboxMap != null) {
                     updateMarker();
                 }
             }
@@ -78,44 +80,46 @@ public class DynamicMarkerChangeActivity extends AppCompatActivity {
 
     private void updateMarker() {
         // update model
-        boolean first = (boolean) mMapView.getTag();
-        mMapView.setTag(!first);
+        boolean first = (boolean) mapView.getTag();
+        mapView.setTag(!first);
 
         // update marker
-        mMarker.setPosition(first ? LAT_LNG_CHELSEA : LAT_LNG_ARSENAL);
-        mMarker.setIcon(mIconFactory.fromResource(first ? R.drawable.ic_chelsea : R.drawable.ic_arsenal));
-        mMarker.setTitle(first ? getString(R.string.dynamic_marker_chelsea_title) : getString(R.string.dynamic_marker_arsenal_title));
-        mMarker.setSnippet(first ? getString(R.string.dynamic_marker_chelsea_snippet) :  getString(R.string.dynamic_marker_arsenal_snippet));
+        marker.setPosition(first ? LAT_LNG_CHELSEA : LAT_LNG_ARSENAL);
+        marker.setIcon(iconFactory.fromResource(first ? R.drawable.ic_chelsea : R.drawable.ic_arsenal));
+        marker.setTitle(first
+            ? getString(R.string.dynamic_marker_chelsea_title) : getString(R.string.dynamic_marker_arsenal_title));
+        marker.setSnippet(first
+            ? getString(R.string.dynamic_marker_chelsea_snippet) : getString(R.string.dynamic_marker_arsenal_snippet));
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mMapView.onResume();
+        mapView.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override

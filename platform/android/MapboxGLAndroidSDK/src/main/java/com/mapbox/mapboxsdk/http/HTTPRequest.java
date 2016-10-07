@@ -1,12 +1,19 @@
 package com.mapbox.mapboxsdk.http;
 
+
+import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.mapbox.mapboxsdk.BuildConfig;
+import com.mapbox.mapboxsdk.MapboxAccountManager;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.net.NoRouteToHostException;
 import java.net.ProtocolException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -20,11 +27,13 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.internal.Util;
 
 class HTTPRequest implements Callback {
 
     private static OkHttpClient mClient = new OkHttpClient();
-    private final String LOG_TAG = HTTPRequest.class.getName();
+    private static final String LOG_TAG = HTTPRequest.class.getName();
+    private String USER_AGENT_STRING = null;
 
     private static final int CONNECTION_ERROR = 0;
     private static final int TEMPORARY_ERROR = 1;
@@ -41,15 +50,20 @@ class HTTPRequest implements Callback {
 
     private native void nativeOnFailure(int type, String message);
 
-    private native void nativeOnResponse(int code, String etag, String modified, String cacheControl, String expires, byte[] body);
+    private native void nativeOnResponse(int code, String etag, String modified, String cacheControl, String expires, String retryAfter, String xRateLimitReset, byte[] body);
 
-    private HTTPRequest(long nativePtr, String resourceUrl, String userAgent, String etag, String modified) {
+    private HTTPRequest(long nativePtr, String resourceUrl, String etag, String modified) {
         mNativePtr = nativePtr;
 
         try {
+            // Don't try a request if we aren't connected
+            if (!MapboxAccountManager.getInstance().isConnected()) {
+                throw new NoRouteToHostException("No Internet connection available.");
+            }
+
             HttpUrl httpUrl = HttpUrl.parse(resourceUrl);
             final String host = httpUrl.host().toLowerCase(MapboxConstants.MAPBOX_LOCALE);
-            if (host.equals("mapbox.com") || host.endsWith(".mapbox.com")) {
+            if (host.equals("mapbox.com") || host.endsWith(".mapbox.com") || host.equals("mapbox.cn") || host.endsWith(".mapbox.cn")) {
                 if (httpUrl.querySize() == 0) {
                     resourceUrl = resourceUrl + "?";
                 } else {
@@ -58,7 +72,10 @@ class HTTPRequest implements Callback {
                 resourceUrl = resourceUrl + "events=true";
             }
 
-            Request.Builder builder = new Request.Builder().url(resourceUrl).tag(resourceUrl.toLowerCase(MapboxConstants.MAPBOX_LOCALE)).addHeader("User-Agent", userAgent);
+            Request.Builder builder = new Request.Builder()
+                    .url(resourceUrl)
+                    .tag(resourceUrl.toLowerCase(MapboxConstants.MAPBOX_LOCALE))
+                    .addHeader("User-Agent", getUserAgent());
             if (etag.length() > 0) {
                 builder = builder.addHeader("If-None-Match", etag);
             } else if (modified.length() > 0) {
@@ -73,7 +90,10 @@ class HTTPRequest implements Callback {
     }
 
     public void cancel() {
-        mCall.cancel();
+        // mCall can be null if the constructor gets aborted (e.g, under a NoRouteToHostException).
+        if (mCall != null) {
+            mCall.cancel();
+        }
 
         // TODO: We need a lock here because we can try
         // to cancel at the same time the request is getting
@@ -110,7 +130,14 @@ class HTTPRequest implements Callback {
 
         mLock.lock();
         if (mNativePtr != 0) {
-            nativeOnResponse(response.code(), response.header("ETag"), response.header("Last-Modified"), response.header("Cache-Control"), response.header("Expires"), body);
+            nativeOnResponse(response.code(),
+                    response.header("ETag"),
+                    response.header("Last-Modified"),
+                    response.header("Cache-Control"),
+                    response.header("Expires"),
+                    response.header("Retry-After"),
+                    response.header("x-rate-limit-reset"),
+                    body);
         }
         mLock.unlock();
     }
@@ -121,10 +148,8 @@ class HTTPRequest implements Callback {
     }
 
     private void onFailure(Exception e) {
-        Log.w(LOG_TAG, String.format("[HTTP] Request could not be executed: %s", e.getMessage()));
-
         int type = PERMANENT_ERROR;
-        if ((e instanceof UnknownHostException) || (e instanceof SocketException) || (e instanceof ProtocolException) || (e instanceof SSLException)) {
+        if ((e instanceof NoRouteToHostException) || (e instanceof UnknownHostException) || (e instanceof SocketException) || (e instanceof ProtocolException) || (e instanceof SSLException)) {
             type = CONNECTION_ERROR;
         } else if ((e instanceof InterruptedIOException)) {
             type = TEMPORARY_ERROR;
@@ -132,10 +157,47 @@ class HTTPRequest implements Callback {
 
         String errorMessage = e.getMessage() != null ? e.getMessage() : "Error processing the request";
 
+        if (type == TEMPORARY_ERROR) {
+            Log.d(LOG_TAG, String.format(MapboxConstants.MAPBOX_LOCALE,
+                "Request failed due to a temporary error: %s", errorMessage));
+        } else if (type == CONNECTION_ERROR) {
+            Log.i(LOG_TAG, String.format(MapboxConstants.MAPBOX_LOCALE,
+                "Request failed due to a connection error: %s", errorMessage));
+        } else {
+            // PERMANENT_ERROR
+            Log.w(LOG_TAG, String.format(MapboxConstants.MAPBOX_LOCALE,
+                "Request failed due to a permanent error: %s", errorMessage));
+        }
+
         mLock.lock();
         if (mNativePtr != 0) {
             nativeOnFailure(type, errorMessage);
         }
         mLock.unlock();
+    }
+
+    private String getUserAgent() {
+        if (USER_AGENT_STRING == null) {
+            return USER_AGENT_STRING = Util.toHumanReadableAscii(
+                    String.format("%s %s (%s) Android/%s (%s)",
+                            getApplicationIdentifier(),
+                            BuildConfig.MAPBOX_VERSION_STRING,
+                            BuildConfig.GIT_REVISION_SHORT,
+                            Build.VERSION.SDK_INT,
+                            Build.CPU_ABI)
+            );
+        } else {
+            return USER_AGENT_STRING;
+        }
+    }
+
+    private String getApplicationIdentifier() {
+        try {
+            Context context = MapboxAccountManager.getInstance().getApplicationContext();
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return String.format("%s/%s (%s)", context.getPackageName(), packageInfo.versionName, packageInfo.versionCode);
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

@@ -5,14 +5,14 @@
 
 namespace mbgl {
 
-PlainShader::PlainShader(gl::ObjectStore& store, Defines defines)
+PlainShader::PlainShader(gl::Context& context, Defines defines)
     : Shader(shaders::fill::name,
              shaders::fill::vertex,
              shaders::fill::fragment,
-             store, defines) {
+             context, defines) {
 }
 
-void PlainShader::bind(GLbyte* offset) {
+void PlainShader::bind(int8_t* offset) {
     MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
     MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 2, GL_SHORT, false, 0, offset));
 }

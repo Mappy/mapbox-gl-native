@@ -3,6 +3,7 @@ package com.mapbox.mapboxsdk.annotations;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.view.View;
+
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
@@ -41,11 +42,18 @@ public class Marker extends Annotation {
         title = baseMarkerOptions.title;
     }
 
-    Marker(BaseMarkerViewOptions baseMarkerViewOptions){
+    Marker(BaseMarkerViewOptions baseMarkerViewOptions) {
         position = baseMarkerViewOptions.position;
         snippet = baseMarkerViewOptions.snippet;
         icon = baseMarkerViewOptions.icon;
         title = baseMarkerViewOptions.title;
+    }
+
+    Marker(LatLng position, Icon icon, String title, String snippet) {
+        this.position = position;
+        this.icon = icon;
+        this.title = title;
+        this.snippet = snippet;
     }
 
     public LatLng getPosition() {
@@ -72,6 +80,8 @@ public class Marker extends Annotation {
 
     /**
      * Do not use this method. Used internally by the SDK.
+     *
+     * @return true if the infoWindow is shown
      */
     public boolean isInfoWindowShown() {
         return infoWindowShown;
@@ -126,7 +136,7 @@ public class Marker extends Annotation {
      * Update only for default Marker's InfoWindow content for Title and Snippet
      */
     private void refreshInfoWindowContent() {
-        if (isInfoWindowShown() && mapView != null  && mapboxMap != null && mapboxMap.getInfoWindowAdapter() == null) {
+        if (isInfoWindowShown() && mapView != null && mapboxMap != null && mapboxMap.getInfoWindowAdapter() == null) {
             InfoWindow infoWindow = getInfoWindow(mapView);
             if (mapView.getContext() != null) {
                 infoWindow.adaptDefaultMarker(this, mapboxMap, mapView);
@@ -135,11 +145,16 @@ public class Marker extends Annotation {
             if (map != null) {
                 map.updateMarker(this);
             }
+            infoWindow.update();
         }
     }
 
     /**
      * Do not use this method. Used internally by the SDK.
+     *
+     * @param mapboxMap the hosting mapbox map
+     * @param mapView   the hosting map view
+     * @return the info window that was shown
      */
     public InfoWindow showInfoWindow(@NonNull MapboxMap mapboxMap, @NonNull MapView mapView) {
         setMapboxMap(mapboxMap);
@@ -177,6 +192,8 @@ public class Marker extends Annotation {
 
     /**
      * Do not use this method. Used internally by the SDK.
+     *
+     * @param topOffsetPixels the top offset pixels.
      */
     public void setTopOffsetPixels(int topOffsetPixels) {
         this.topOffsetPixels = topOffsetPixels;
@@ -184,6 +201,8 @@ public class Marker extends Annotation {
 
     /**
      * Do not use this method. Used internally by the SDK.
+     *
+     * @param rightOffsetPixels the right offset pixels.
      */
     public void setRightOffsetPixels(int rightOffsetPixels) {
         this.rightOffsetPixels = rightOffsetPixels;

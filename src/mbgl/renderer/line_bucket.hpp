@@ -24,7 +24,7 @@ public:
     LineBucket(uint32_t overscaling);
     ~LineBucket() override;
 
-    void upload(gl::ObjectStore&, gl::Config&) override;
+    void upload(gl::Context&) override;
     void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
     bool hasData() const override;
     bool needsClipping() const override;
@@ -32,9 +32,9 @@ public:
     void addGeometry(const GeometryCollection&);
     void addGeometry(const GeometryCoordinates& line);
 
-    void drawLines(LineShader&, gl::ObjectStore&, bool overdraw);
-    void drawLineSDF(LineSDFShader&, gl::ObjectStore&, bool overdraw);
-    void drawLinePatterns(LinepatternShader&, gl::ObjectStore&, bool overdraw);
+    void drawLines(LineShader&, gl::Context&, PaintMode);
+    void drawLineSDF(LineSDFShader&, gl::Context&, PaintMode);
+    void drawLinePatterns(LinepatternShader&, gl::Context&, PaintMode);
 
 private:
     struct TriangleElement {
@@ -43,9 +43,9 @@ private:
     };
     void addCurrentVertex(const GeometryCoordinate& currentVertex, double& distance,
             const Point<double>& normal, double endLeft, double endRight, bool round,
-            GLint startVertex, std::vector<LineBucket::TriangleElement>& triangleStore);
+            int32_t startVertex, std::vector<LineBucket::TriangleElement>& triangleStore);
     void addPieSliceVertex(const GeometryCoordinate& currentVertex, double distance,
-            const Point<double>& extrude, bool lineTurnsLeft, GLint startVertex,
+            const Point<double>& extrude, bool lineTurnsLeft, int32_t startVertex,
             std::vector<TriangleElement>& triangleStore);
 
 public:
@@ -55,9 +55,9 @@ private:
     LineVertexBuffer vertexBuffer;
     TriangleElementsBuffer triangleElementsBuffer;
 
-    GLint e1;
-    GLint e2;
-    GLint e3;
+    int32_t e1;
+    int32_t e2;
+    int32_t e3;
 
     std::vector<std::unique_ptr<TriangleGroup>> triangleGroups;
 

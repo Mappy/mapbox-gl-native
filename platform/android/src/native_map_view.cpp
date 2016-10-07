@@ -15,6 +15,7 @@
 #include <mbgl/platform/platform.hpp>
 #include <mbgl/platform/event.hpp>
 #include <mbgl/platform/log.hpp>
+#include <mbgl/gl/extension.hpp>
 #include <mbgl/gl/gl.hpp>
 #include <mbgl/util/constants.hpp>
 
@@ -125,7 +126,9 @@ std::array<uint16_t, 2> NativeMapView::getFramebufferSize() const {
 }
 
 void NativeMapView::activate() {
-    mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::activate");
+    if (active++) {
+        return;
+    }
 
     oldDisplay = eglGetCurrentDisplay();
     oldReadSurface = eglGetCurrentSurface(EGL_READ);
@@ -151,7 +154,9 @@ void NativeMapView::activate() {
 }
 
 void NativeMapView::deactivate() {
-    mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::deactivate");
+    if (--active) {
+        return;
+    }
 
     assert(vm != nullptr);
 
@@ -173,8 +178,6 @@ void NativeMapView::deactivate() {
 }
 
 void NativeMapView::invalidate() {
-    mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::invalidate()");
-
     assert(vm != nullptr);
     assert(obj != nullptr);
 
@@ -193,6 +196,35 @@ void NativeMapView::render() {
     }
 
     map->render();
+
+    if(snapshot){
+         snapshot = false;
+
+         // take snapshot
+         const unsigned int w = fbWidth;
+         const unsigned int h = fbHeight;
+         mbgl::PremultipliedImage image { static_cast<uint16_t>(w), static_cast<uint16_t>(h) };
+         MBGL_CHECK_ERROR(glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, image.data.get()));
+         const size_t stride = image.stride();
+         auto tmp = std::make_unique<uint8_t[]>(stride);
+         uint8_t *rgba = image.data.get();
+         for (int i = 0, j = h - 1; i < j; i++, j--) {
+            std::memcpy(tmp.get(), rgba + i * stride, stride);
+            std::memcpy(rgba + i * stride, rgba + j * stride, stride);
+            std::memcpy(rgba + j * stride, tmp.get(), stride);
+         }
+
+         // encode and convert to jbytes
+         std::string string = encodePNG(image);
+         jbyteArray arr = env->NewByteArray(string.length());
+         env->SetByteArrayRegion(arr,0,string.length(),(jbyte*)string.c_str());
+
+         // invoke Mapview#OnSnapshotReady
+         env->CallVoidMethod(obj, onSnapshotReadyId, arr);
+         if (env->ExceptionCheck()) {
+             env->ExceptionDescribe();
+         }
+    }
 
     if ((display != EGL_NO_DISPLAY) && (surface != EGL_NO_SURFACE)) {
         if (!eglSwapBuffers(display, surface)) {
@@ -436,6 +468,10 @@ void NativeMapView::destroySurface() {
     }
 }
 
+void NativeMapView::scheduleTakeSnapshot() {
+    snapshot = true;
+}
+
 // Speed
 /*
 typedef enum {
@@ -637,8 +673,6 @@ EGLConfig NativeMapView::chooseConfig(const EGLConfig configs[], EGLint numConfi
 }
 
 void NativeMapView::notifyMapChange(mbgl::MapChange change) {
-    mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::notifyMapChange()");
-
     assert(vm != nullptr);
     assert(obj != nullptr);
 
@@ -655,8 +689,6 @@ void NativeMapView::enableFps(bool enable) {
 }
 
 void NativeMapView::updateFps() {
-    mbgl::Log::Debug(mbgl::Event::Android, "NativeMapView::updateFps()");
-
     if (!fpsEnabled) {
         return;
     }

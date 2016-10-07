@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.annotations;
 
 import android.content.Context;
 import android.graphics.PointF;
+import android.graphics.RectF;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -11,6 +12,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.mapbox.mapboxsdk.R;
+import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.Projection;
@@ -114,14 +116,16 @@ public class MarkerViewManager {
             final View convertView = markerViewMap.get(marker);
             if (convertView != null) {
                 PointF point = mapboxMap.getProjection().toScreenLocation(marker.getPosition());
-                if (marker.getOffsetX() == -1) {
+                if (marker.getOffsetX() == MapboxConstants.UNMEASURED) {
                     // ensure view is measured first
-                    if (convertView.getMeasuredWidth() == 0) {
+                    if (convertView.getWidth() == 0) {
                         convertView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
                     }
-                    int x = (int) (marker.getAnchorU() * convertView.getMeasuredWidth());
-                    int y = (int) (marker.getAnchorV() * convertView.getMeasuredHeight());
-                    marker.setOffset(x, y);
+                    if (convertView.getMeasuredWidth() != 0) {
+                        int x = (int) (marker.getAnchorU() * convertView.getMeasuredWidth());
+                        int y = (int) (marker.getAnchorV() * convertView.getMeasuredHeight());
+                        marker.setOffset(x, y);
+                    }
                 }
 
                 convertView.setX(point.x - marker.getOffsetX());
@@ -129,9 +133,7 @@ public class MarkerViewManager {
 
                 // animate visibility
                 if (marker.isVisible() && convertView.getVisibility() == View.GONE) {
-                    convertView.animate().cancel();
-                    convertView.setAlpha(0);
-                    AnimatorUtils.alpha(convertView, 1);
+                    animateVisible(marker, true);
                 }
             }
         }
@@ -156,7 +158,9 @@ public class MarkerViewManager {
     }
 
     /**
+     * Update and invalidate the MarkerView icon.
      *
+     * @param markerView the marker view to updates
      */
     public void updateIcon(@NonNull MarkerView markerView) {
         View convertView = markerViewMap.get(markerView);
@@ -319,7 +323,7 @@ public class MarkerViewManager {
 
         if (!markerViewAdapters.contains(markerViewAdapter)) {
             markerViewAdapters.add(markerViewAdapter);
-            invalidateViewMarkersInBounds();
+            invalidateViewMarkersInVisibleRegion();
         }
     }
 
@@ -344,7 +348,7 @@ public class MarkerViewManager {
     /**
      * Schedule that ViewMarkers found in the viewport are invalidated.
      * <p>
-     * This method is rate limited, and {@link #invalidateViewMarkersInBounds} will only be called
+     * This method is rate limited, and {@link #invalidateViewMarkersInVisibleRegion} will only be called
      * once each 250 ms.
      * </p>
      */
@@ -354,7 +358,7 @@ public class MarkerViewManager {
             if (currentTime < viewMarkerBoundsUpdateTime) {
                 return;
             }
-            invalidateViewMarkersInBounds();
+            invalidateViewMarkersInVisibleRegion();
             viewMarkerBoundsUpdateTime = currentTime + 250;
         }
     }
@@ -366,9 +370,9 @@ public class MarkerViewManager {
      * ones for each found Marker in the changed viewport.
      * </p>
      */
-    public void invalidateViewMarkersInBounds() {
-        Projection projection = mapboxMap.getProjection();
-        List<MarkerView> markers = mapView.getMarkerViewsInBounds(projection.getVisibleRegion().latLngBounds);
+    public void invalidateViewMarkersInVisibleRegion() {
+        RectF mapViewRect = new RectF(0, 0, mapView.getWidth(), mapView.getHeight());
+        List<MarkerView> markers = mapView.getMarkerViewsInRect(mapViewRect);
         View convertView;
 
         // remove old markers
@@ -442,6 +446,9 @@ public class MarkerViewManager {
                 }
             }
         }
+        // trigger update to make newly added ViewMarker visible,
+        // these would only be updated when the map is moved.
+        update();
     }
 
     //TODO: This whole method is a stopgap for: https://github.com/mapbox/mapbox-gl-native/issues/5384

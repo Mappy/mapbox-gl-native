@@ -1,0 +1,123 @@
+<%
+  const type = locals.type;
+  const layoutProperties = locals.layoutProperties;
+  const paintProperties = locals.paintProperties;
+  const layoutPropertiesByName = locals.layoutPropertiesByName;
+  const paintPropertiesByName = locals.paintPropertiesByName;
+-%>
+// This file is generated. 
+// Edit platform/darwin/scripts/generate-style-code.js, then run `make style-code-darwin`.
+
+#import "MGLStyleAttributeValue.h"
+#import "MGLBaseStyleLayer.h"
+
+NS_ASSUME_NONNULL_BEGIN
+
+<% for (const property of layoutProperties) { -%>
+<% if (property.type == "enum") { -%>
+/**
+ <%- propertyDoc(property.name, property, type) %>
+ */
+typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %>) {
+<% for (const value in property.values) { -%>
+    /**
+     <%- propertyDoc(property.name, property.values[value], type) %>
+     */
+    MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %><%- camelize(value) %>,
+<% } -%>
+};
+
+<% } -%>
+<% } -%>
+<% for (const property of paintProperties) { -%>
+<% if (property.type == "enum") { -%>
+/**
+ <%- propertyDoc(property.name, property, type) %>
+ */
+typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %>) {
+<% for (const value in property.values) { -%>
+    /**
+     <%- propertyDoc(property.name, property.values[value], type) %>
+     */
+    MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %><%- camelize(value) %>,
+<% } -%>
+};
+
+<% } -%>
+<% } -%>
+<% if (type == 'background') { -%>
+/**
+ A map style's background layer is the bottommost layer and is used to style a color 
+ or pattern to show below all other map features. You can query an `MGLMapView` for its 
+ `style` and obtain the background layer using the `-[MGLStyle layerWithIdentifier:]` 
+ method and passing `background` for the identifier. 
+ */
+<% } else { -%>
+/**
+ A <%- type %> layer which allows customization of styling properties at runtime. You may 
+ instantiate a new <%- type %> layer to add to a map style or you may query an 
+ `MGLMapView` for its `style` and obtain existing layers using the 
+ `-[MGLStyle layerWithIdentifier:]` method. 
+ */
+<% } -%>
+@interface MGL<%- camelize(type) %>StyleLayer : MGLBaseStyleLayer <MGLStyleLayer>
+<% if (type == 'background') { -%>
+
+- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier;
+<% } -%>
+
+- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier source:(MGLSource *)source;
+
+<% if (type !== 'background' && type !== 'raster') { -%>
+- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier source:(MGLSource *)source sourceLayer:(NSString *)sourceLayer;
+<% } -%>
+
+<% if (type !== 'background' && type !== 'raster') { -%>
+/**
+ A predicate that corresponds to the layer's <a href='https://www.mapbox.com/mapbox-gl-style-spec/#types-filter'>filter</a>.
+ 
+ The predicate's left expression must be a string that identifies a feature
+ property, or one of the special keys.
+ */
+@property (nonatomic, nullable) NSPredicate *predicate;
+
+<% } -%>
+<% if (layoutProperties.length) { -%>
+#pragma mark - Accessing the Layout Attributes
+
+<% for (const property of layoutProperties) { -%>
+/**
+ <%- propertyDoc(property.name, property, type) %>
+<% if ('default' in property) { -%>
+ 
+ The default value of this property is <%- propertyDefault(property, type) %>.<% if (!property.required) { %> Set this property to `nil` to reset it to the default value.<% } %>
+<% } if (property.requires) { -%>
+ 
+ <%- propertyReqs(property, layoutPropertiesByName, type) %>
+<% } -%>
+ */
+@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) <%- propertyType(property, false, type) %> <%- camelizeWithLeadingLowercase(property.name) %>;
+
+<% } -%>
+<% } -%>
+<% if (paintProperties.length) { -%>
+#pragma mark - Accessing the Paint Attributes
+
+<% for (const property of paintProperties) { -%>
+/**
+ <%- propertyDoc(property.name, property, type) %>
+<% if ('default' in property) { -%>
+ 
+ The default value of this property is <%- propertyDefault(property, type) %>.<% if (!property.required) { %> Set this property to `nil` to reset it to the default value.<% } %>
+<% } if (property.requires) { -%>
+
+ <%- propertyReqs(property, paintPropertiesByName, type) %>
+<% } -%>
+ */
+@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) <%- propertyType(property, false, type) %> <%- camelizeWithLeadingLowercase(property.name) %>;
+
+<% } -%>
+<% } -%>
+@end
+
+NS_ASSUME_NONNULL_END

@@ -19,6 +19,7 @@
     <string name="activity_press_for_marker">Press Map For Marker</string>
     <string name="activity_view_marker">View Marker API</string>
     <string name="activity_view_marker_scale">Scaling in the View Marker API</string>
+    <string name="activity_add_remove_markers">Add/Remove marker</string>
 
     <!-- InfoWindow-->
     <string name="activity_info_window">Standard InfoWindow</string>
@@ -38,6 +39,7 @@
 
     <!-- Navigation -->
     <string name="activity_location_picker">Location Picker</string>
+    <string name="activity_car_driving">Driving animation</string>
 
     <!-- Other -->
     <string name="activity_double_map">Double Map Activity</string>
@@ -51,10 +53,21 @@
     <string name="activity_map_padding">Map Padding</string>
     <string name="activity_debug_mode">Debug Mode</string>
     <string name="activity_offline">Offline Map</string>
+    <string name="activity_update_metadata">Update metadata Map</string>
     <string name="activity_minmax_zoom">Min/Max Zoom</string>
     <string name="activity_viewpager">ViewPager</string>
-    <string name="title_activity_navigation_drawer">Navigation Drawer</string>
     <string name="activity_runtime_style">Runtime Style</string>
+    <string name="activity_style_file">Local Style file</string>
+    <string name="activity_geojson_clustering">GeoJson Clustering</string>
+    <string name="activity_print">Print a map</string>
+    <string name="activity_surfaceview_overlay">SurfaceView MediaOverlay</string>
+    <string name="activity_query_rendered_feature_properties">Query feature properties</string>
+    <string name="activity_query_rendered_features_box_count">Count features in box</string>
+    <string name="activity_query_rendered_features_box_highlight">Highlight features in box</string>
+    <string name="activity_circle">Add Circle</string>
+    <string name="activity_add_sprite">Add Custom Sprite</string>
+    <string name="activity_navigation_drawer">Android SDK View integration</string>
+    <string name="activity_video_view">Video View</string>
 
     <!-- Description -->
     <string name="description_user_location_tracking">Tracks the location of the user</string>
@@ -78,6 +91,7 @@
     <string name="description_map_padding">Map Padding example</string>
     <string name="description_debug_mode">Debug Mode</string>
     <string name="description_offline">Offline Map example</string>
+    <string name="description_update_metadata">Update metadata example</string>
     <string name="description_animated_marker">Animate the position change of a Marker</string>
     <string name="description_polyline">Add a polyline to a map</string>
     <string name="description_polygon">Add a polygon to a map</string>
@@ -92,8 +106,20 @@
     <string name="description_dynamic_info_window_adapter">Learn how to create a dynamic custom InfoWindow</string>
     <string name="description_location_picker">Use a fixed Marker to select your location</string>
     <string name="description_viewpager">Use SupportMapFragments in a ViewPager</string>
-    <string name="description_navigation_drawer">Test for Navigation Drawer support</string>
     <string name="description_runtime_style">Adopt the map style on the fly</string>
+    <string name="description_circle">Use GeoJson source to show a circle</string>
+    <string name="description_custom_sprite">Use a custom sprite in a Symbol Layer</string>
+    <string name="description_geojson_clustering">Use GeoJson sources and dynamic layers to cluster information</string>
+    <string name="description_print">Shows how to print a map</string>
+    <string name="description_navigation_drawer">Test animation of Android SDK View components</string>
+    <string name="description_surfaceview_mediacontrols">Test overlaying SurfaceView</string>
+    <string name="description_query_rendered_feature_properties_point">Query rendered feature properties on click</string>
+    <string name="description_query_rendered_features_box_count">Count all rendered features in box</string>
+    <string name="description_query_rendered_features_box_highlight">Hightligh buildings in box</string>
+    <string name="description_car_driving">MyLocationView follow map update example</string>
+    <string name="description_video_view">Android video view on top of the map view</string>
+    <string name="description_add_remove_markers">Based on zoom level</string>
+    <string name="description_style_file">Use a local file as the style</string>
 
     <string name="menuitem_title_concurrent_infowindow">Concurrent Open InfoWindows</string>
     <string name="menuitem_title_deselect_markers_on_tap">Deselect Markers On Tap</string>
@@ -115,9 +141,16 @@
     <string name="category_userlocation">User Location</string>
     <string name="category_navigation">Navigation</string>
     <string name="category_style">Styling</string>
+    <string name="category_features">Features</string>
 
     <string name="action_visible_bounds_explanation">Center map around 2 markers</string>
     <string name="action_remove_polylines">Remove polylines</string>
+
+    <string name="action_visibility_polygon">Change visibility</string>
+    <string name="action_alpha_polygon">Change alpha</string>
+    <string name="action_points_polygon">Change points</string>
+    <string name="action_color_polygon">Change color</string>
+    <string name="action_width_polyline">Change width</string>
 
     <string name="button_camera_move">Move</string>
     <string name="button_camera_ease">Ease</string>
@@ -144,6 +177,7 @@
     <string-array name="bulk_marker_list">
         <item>10</item>
         <item>100</item>
+        <item>500</item>
         <item>1000</item>
         <item>10000</item>
     </string-array>
@@ -178,9 +212,8 @@
 
     <string name="navigation_select_location_button_text">Select Location!</string>
 
-    <string name="title_section1">Section 1</string>
-    <string name="title_section2">Section 2</string>
-    <string name="title_section3">Section 3</string>
+    <string name="title_section1">Different style</string>
+    <string name="title_section2">Show Snackbar</string>
 
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>

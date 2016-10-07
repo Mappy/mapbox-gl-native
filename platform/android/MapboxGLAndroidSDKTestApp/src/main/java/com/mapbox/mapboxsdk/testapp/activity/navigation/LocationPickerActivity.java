@@ -28,10 +28,8 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
-import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.annotations.MarkerView;
 import com.mapbox.mapboxsdk.annotations.MarkerViewOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
@@ -48,7 +46,7 @@ import com.mapbox.services.commons.ServicesException;
 import com.mapbox.services.commons.models.Position;
 import com.mapbox.services.geocoding.v5.GeocodingCriteria;
 import com.mapbox.services.geocoding.v5.MapboxGeocoding;
-import com.mapbox.services.geocoding.v5.models.GeocodingFeature;
+import com.mapbox.services.geocoding.v5.models.CarmenFeature;
 import com.mapbox.services.geocoding.v5.models.GeocodingResponse;
 
 import java.util.List;
@@ -95,11 +93,13 @@ public class LocationPickerActivity extends AppCompatActivity {
                 mapboxMap = map;
 
                 //Add user marker
-                mapboxMap.getMarkerViewManager().addMarkerViewAdapter(new PulseMarkerViewAdapter(LocationPickerActivity.this));
+                mapboxMap.getMarkerViewManager().addMarkerViewAdapter(
+                    new PulseMarkerViewAdapter(LocationPickerActivity.this));
                 userMarker = createCustomUserMarker(new LatLng(0, 0));
 
                 //Fix the focal point to the center of the map
-                PointF focalPoint = new PointF((mapView.getX() + mapView.getWidth() / 2), (mapView.getY() + mapView.getHeight() / 2));
+                PointF focalPoint = new PointF(
+                    (mapView.getX() + mapView.getWidth() / 2), (mapView.getY() + mapView.getHeight() / 2));
                 mapboxMap.getUiSettings().setFocalPoint(focalPoint);
 
                 //Track camera updates to animate the user location views
@@ -127,7 +127,8 @@ public class LocationPickerActivity extends AppCompatActivity {
                         zoomInOn(location);
                         userMarker.setPosition(new LatLng(location));
                     } else {
-                        final ProgressDialog loadingDialog = ProgressDialog.show(LocationPickerActivity.this, "Loading", "Getting user location", false);
+                        final ProgressDialog loadingDialog = ProgressDialog.show(
+                            LocationPickerActivity.this, "Loading", "Getting user location", false);
                         locationServices.addLocationListener(new LocationListener() {
                             @Override
                             public void onLocationChanged(@Nullable Location location) {
@@ -224,7 +225,7 @@ public class LocationPickerActivity extends AppCompatActivity {
         clearDisplayViewButton = (ImageButton) findViewById(R.id.clearDisplayViewButton);
         clearDisplayViewButton.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
+            public void onClick(View view) {
                 removeAddressPin();
                 hide(clearDisplayViewButton);
                 showDropPin();
@@ -238,7 +239,7 @@ public class LocationPickerActivity extends AppCompatActivity {
         selectLocationButton.setOnClickListener(
                 new View.OnClickListener() {
                     @Override
-                    public void onClick(View v) {
+                    public void onClick(View view) {
                         Log.i(TAG, "Location Selected!");
                         if (mapboxMap != null) {
                             //Control button's state
@@ -274,7 +275,8 @@ public class LocationPickerActivity extends AppCompatActivity {
 
         dropPinView = new ImageView(this);
         dropPinView.setImageResource(R.drawable.ic_droppin_24dp);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         params.bottomMargin = (int) (12 * density);
         dropPinView.setLayoutParams(params);
 
@@ -313,7 +315,7 @@ public class LocationPickerActivity extends AppCompatActivity {
             MapboxGeocoding client = new MapboxGeocoding.Builder()
                     .setAccessToken(getString(R.string.mapbox_access_token))
                     .setCoordinates(Position.fromCoordinates(point.getLongitude(), point.getLatitude()))
-                    .setType(GeocodingCriteria.TYPE_ADDRESS)
+                    .setGeocodingType(GeocodingCriteria.TYPE_ADDRESS)
                     .build();
 
             //Place the request
@@ -321,10 +323,10 @@ public class LocationPickerActivity extends AppCompatActivity {
                 @Override
                 public void onResponse(Call<GeocodingResponse> call, Response<GeocodingResponse> response) {
 
-                    List<GeocodingFeature> results = response.body().getFeatures();
+                    List<CarmenFeature> results = response.body().getFeatures();
                     String address = null;
                     if (results.size() > 0) {
-                        GeocodingFeature feature = results.get(0);
+                        CarmenFeature feature = results.get(0);
                         address = feature.getAddress() + " " + feature.getText();
                         Log.i(TAG, "address " + address);
                     } else {
@@ -335,14 +337,14 @@ public class LocationPickerActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void onFailure(Call<GeocodingResponse> call, Throwable t) {
-                    Log.e(TAG, "Geocoding Failure: " + t.getMessage());
-                    callbacks.onFailure(t);
+                public void onFailure(Call<GeocodingResponse> call, Throwable throwable) {
+                    Log.e(TAG, "Geocoding Failure: " + throwable.getMessage());
+                    callbacks.onFailure(throwable);
                 }
             });
-        } catch (ServicesException e) {
-            Log.e(TAG, "Error geocoding: " + e.toString());
-            callbacks.onFailure(e);
+        } catch (ServicesException servicesException) {
+            Log.e(TAG, "Error geocoding: " + servicesException.toString());
+            callbacks.onFailure(servicesException);
         }
     }
 
@@ -381,11 +383,12 @@ public class LocationPickerActivity extends AppCompatActivity {
     }
 
     private boolean arePermissionsGranted() {
-        if (Build.VERSION.SDK_INT >= 23 &&
-                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 23
+            && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+            && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             Log.i(TAG, "Requesting permissions");
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS);
+            ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS);
             return false;
         }
         Log.i(TAG, "Permissions already granted");

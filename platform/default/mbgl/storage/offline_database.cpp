@@ -48,7 +48,9 @@ void OfflineDatabase::ensureSchema() {
             case 0: break; // cache-only database; ok to delete
             case 1: break; // cache-only database; ok to delete
             case 2: migrateToVersion3(); // fall through
-            case 3: return;
+            case 3: // no-op and fall through
+            case 4: migrateToVersion5(); // fall through
+            case 5: return;
             default: throw std::runtime_error("unknown schema version");
             }
 
@@ -79,8 +81,10 @@ void OfflineDatabase::ensureSchema() {
 
         // If you change the schema you must write a migration from the previous version.
         db->exec("PRAGMA auto_vacuum = INCREMENTAL");
+        db->exec("PRAGMA journal_mode = DELETE");
+        db->exec("PRAGMA synchronous = FULL");
         db->exec(schema);
-        db->exec("PRAGMA user_version = 3");
+        db->exec("PRAGMA user_version = 5");
     } catch (...) {
         Log::Error(Event::Database, "Unexpected error creating database schema: %s", util::toString(std::current_exception()).c_str());
         throw;
@@ -109,6 +113,18 @@ void OfflineDatabase::migrateToVersion3() {
     db->exec("PRAGMA auto_vacuum = INCREMENTAL");
     db->exec("VACUUM");
     db->exec("PRAGMA user_version = 3");
+}
+
+// Schema version 4 was WAL journal + NORMAL sync. It was reverted during pre-
+// release development and the migration was removed entirely to avoid potential
+// conflicts from quickly (and needlessly) switching journal and sync modes.
+//
+// See: https://github.com/mapbox/mapbox-gl-native/pull/6320
+
+void OfflineDatabase::migrateToVersion5() {
+    db->exec("PRAGMA journal_mode = DELETE");
+    db->exec("PRAGMA synchronous = FULL");
+    db->exec("PRAGMA user_version = 5");
 }
 
 OfflineDatabase::Statement OfflineDatabase::getStatement(const char * sql) {
@@ -505,6 +521,19 @@ OfflineRegion OfflineDatabase::createRegion(const OfflineRegionDefinition& defin
     stmt->run();
 
     return OfflineRegion(db->lastInsertRowid(), definition, metadata);
+}
+
+OfflineRegionMetadata OfflineDatabase::updateMetadata(const int64_t regionID, const OfflineRegionMetadata& metadata) {
+    // clang-format off
+    Statement stmt = getStatement(
+                                  "UPDATE regions SET description = ?1"
+                                  "WHERE id = ?2");
+    // clang-format on
+    stmt->bindBlob(1, metadata);
+    stmt->bind(2, regionID);
+    stmt->run();
+    
+    return metadata;
 }
 
 void OfflineDatabase::deleteRegion(OfflineRegion&& region) {

@@ -42,8 +42,9 @@ inline optional<QVariant> objectMember(const QVariant& value, const char* key) {
     }
 }
 
-template <class Fn>
-optional<Error> eachMember(const QVariant& value, Fn&& fn) {
+using EachMemberFn = std::function<optional<Error>(const std::string&, const QVariant&)>;
+
+optional<Error> eachMember(const QVariant& value, EachMemberFn&& fn) {
     auto map = value.toMap();
     auto iter = map.constBegin();
 
@@ -68,7 +69,7 @@ inline optional<bool> toBool(const QVariant& value) {
 }
 
 inline optional<float> toNumber(const QVariant& value) {
-    if (value.type() == QVariant::Double) {
+    if (value.type() == QVariant::Int || value.type() == QVariant::Double) {
         return value.toFloat();
     } else {
         return {};

@@ -3,10 +3,9 @@ package com.mapbox.mapboxsdk.camera;
 import android.content.res.TypedArray;
 import android.os.Parcelable;
 
+import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.mapboxsdk.constants.MathConstants;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.testapp.R;
 import com.mapbox.mapboxsdk.utils.MathUtils;
 import com.mapbox.mapboxsdk.utils.MockParcel;
 
@@ -59,7 +58,7 @@ public class CameraPositionTest {
         CameraPosition cameraPosition = new CameraPosition.Builder(typedArray).build();
         assertEquals("bearing should match", bearing, cameraPosition.bearing, DELTA);
         assertEquals("latlng should match", new LatLng(latitude, longitude), cameraPosition.target);
-        assertEquals("tilt should match", tilt, cameraPosition.tilt, DELTA);
+        assertEquals("tilt should match", Math.toRadians(tilt), cameraPosition.tilt, DELTA);
         assertEquals("zoom should match", zoom, cameraPosition.zoom, DELTA);
     }
 
@@ -73,9 +72,9 @@ public class CameraPositionTest {
 
         double[] cameraVars = new double[]{latitude, longitude, bearing, tilt, zoom};
         CameraPosition cameraPosition = new CameraPosition.Builder(cameraVars).build();
-        assertEquals("bearing should match", bearing, cameraPosition.bearing, DELTA);
+        assertEquals("bearing should match", Math.toDegrees(bearing), cameraPosition.bearing, DELTA);
         assertEquals("latlng should match", new LatLng(latitude, longitude), cameraPosition.target);
-        assertEquals("tilt should match", tilt, cameraPosition.tilt, DELTA);
+        assertEquals("tilt should match", Math.toRadians(tilt), cameraPosition.tilt, DELTA);
         assertEquals("zoom should match", zoom, cameraPosition.zoom, DELTA);
     }
 
@@ -90,41 +89,7 @@ public class CameraPositionTest {
     public void testHashcode() {
         LatLng latLng = new LatLng(1, 2);
         CameraPosition cameraPosition = new CameraPosition(latLng, 3, 4, 5);
-        assertEquals("toString should match", -1007681505, cameraPosition.hashCode());
-    }
-
-    @Test
-    public void testRadiantBuilder() {
-        LatLng latLng = new LatLng(1, 2);
-        CameraPosition.Builder builder = new CameraPosition.Builder(true);
-        builder.target(latLng);
-        builder.zoom(3);
-        builder.tilt(4);
-        builder.bearing(5);
-        CameraPosition cameraPosition = new CameraPosition(latLng, 3, 4, 5);
-        assertEquals("CameraPosition should match", cameraPosition, builder.build());
-    }
-
-    @Test
-    public void testDegreesRadiantBuilder() {
-        LatLng latLng = new LatLng(1, 2);
-        float tilt = 4;
-        float bearing = 5;
-        float bearingRadiant = (float) (-bearing * MathConstants.DEG2RAD);
-        float tiltRadiant = (float) (MathUtils.clamp(tilt, MapboxConstants.MINIMUM_TILT, MapboxConstants.MAXIMUM_TILT) * MathConstants.DEG2RAD);
-
-        CameraPosition.Builder degreeBuilder = new CameraPosition.Builder(false);
-        degreeBuilder.target(latLng);
-        degreeBuilder.zoom(3);
-        degreeBuilder.tilt(tilt);
-        degreeBuilder.bearing(bearing);
-
-        CameraPosition.Builder radiantBuilder = new CameraPosition.Builder(true);
-        radiantBuilder.target(latLng);
-        radiantBuilder.zoom(3);
-        radiantBuilder.tilt(tiltRadiant);
-        radiantBuilder.bearing(bearingRadiant);
-        assertEquals("CameraPosition should match", radiantBuilder.build(), degreeBuilder.build());
+        assertEquals("hashCode should match", -1007681505, cameraPosition.hashCode());
     }
 
     @Test

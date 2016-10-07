@@ -13,10 +13,6 @@ namespace mbgl {
 namespace style {
 namespace conversion {
 
-
-//XXX
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 inline bool isUndefined(const mbgl::android::Value& value) {
     return value.isNull();
 }
@@ -48,7 +44,7 @@ inline optional<mbgl::android::Value> objectMember(const mbgl::android::Value& v
 }
 
 template <class Fn>
-optional<Error> eachMember(const mbgl::android::Value& value, Fn&& fn) {
+optional<Error> eachMember(const mbgl::android::Value&, Fn&&) {
     //TODO
     mbgl::Log::Warning(mbgl::Event::Android, "eachMember not implemented");
     return {};
@@ -84,7 +80,8 @@ inline optional<Value> toValue(const mbgl::android::Value& value) {
     } else if (value.isString()) {
         return { value.toString() };
     } else if (value.isNumber()) {
-       return { value.toNumber() };
+        //Need to cast to a double here as the float is otherwise considered a bool...
+       return { (double) value.toNumber() };
     } else {
         return {};
     }

@@ -32,10 +32,10 @@ import retrofit2.Response;
 
 public class DirectionsActivity extends AppCompatActivity {
 
-    private final static String LOG_TAG = "DirectionsActivity";
+    private static final String LOG_TAG = "DirectionsActivity";
 
-    private MapView mMapView;
-    private MapboxMap mMapboxMap;
+    private MapView mapView;
+    private MapboxMap mapboxMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,12 +51,12 @@ public class DirectionsActivity extends AppCompatActivity {
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.onCreate(savedInstanceState);
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mMapboxMap = mapboxMap;
+                DirectionsActivity.this.mapboxMap = mapboxMap;
                 loadRoute();
             }
         });
@@ -74,17 +74,17 @@ public class DirectionsActivity extends AppCompatActivity {
                 (origin.getLatitude() + destination.getLatitude()) / 2,
                 (origin.getLongitude() + destination.getLongitude()) / 2);
 
-        mMapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
+        mapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
                 .target(centroid)
                 .zoom(14)
                 .build()));
 
         // Add origin and destination to the map
-        mMapboxMap.addMarker(new MarkerOptions()
+        mapboxMap.addMarker(new MarkerOptions()
                 .position(new LatLng(origin.getLatitude(), origin.getLongitude()))
                 .title("Origin")
                 .snippet("Dupont Circle"));
-        mMapboxMap.addMarker(new MarkerOptions()
+        mapboxMap.addMarker(new MarkerOptions()
                 .position(new LatLng(destination.getLatitude(), destination.getLongitude()))
                 .title("Destination")
                 .snippet("The White House"));
@@ -105,8 +105,8 @@ public class DirectionsActivity extends AppCompatActivity {
             md.enqueueCall(new Callback<DirectionsResponse>() {
 
                 @Override
-                public void onFailure(Call<DirectionsResponse> call, Throwable t) {
-                    Log.e(LOG_TAG, "Error: " + t.getMessage());
+                public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
+                    Log.e(LOG_TAG, "Error: " + throwable.getMessage());
                 }
 
                 @Override
@@ -123,9 +123,9 @@ public class DirectionsActivity extends AppCompatActivity {
                 }
 
             });
-        } catch (ServicesException e) {
-            Log.e(LOG_TAG, "Error displaying route: " + e.toString());
-            e.printStackTrace();
+        } catch (ServicesException servicesException) {
+            Log.e(LOG_TAG, "Error displaying route: " + servicesException.toString());
+            servicesException.printStackTrace();
         }
     }
 
@@ -142,37 +142,37 @@ public class DirectionsActivity extends AppCompatActivity {
         }
 
         // Draw Points on MapView
-        mMapboxMap.addPolyline(builder);
+        mapboxMap.addPolyline(builder);
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mMapView.onResume();
+        mapView.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override

@@ -1,5 +1,6 @@
 #include <mbgl/shader/shader.hpp>
 #include <mbgl/gl/gl.hpp>
+#include <mbgl/gl/context.hpp>
 #include <mbgl/util/stopwatch.hpp>
 #include <mbgl/util/exception.hpp>
 #include <mbgl/platform/log.hpp>
@@ -15,12 +16,15 @@
 
 namespace mbgl {
 
-Shader::Shader(const char* name_, const char* vertexSource, const char* fragmentSource, gl::ObjectStore& store, Defines defines)
-    : name(name_)
-    , program(store.createProgram())
-    , vertexShader(store.createShader(GL_VERTEX_SHADER))
-    , fragmentShader(store.createShader(GL_FRAGMENT_SHADER))
-{
+Shader::Shader(const char* name_,
+               const char* vertexSource,
+               const char* fragmentSource,
+               gl::Context& context,
+               Defines defines)
+    : name(name_),
+      program(context.createProgram()),
+      vertexShader(context.createVertexShader()),
+      fragmentShader(context.createFragmentShader()) {
     util::stopwatch stopwatch("shader compilation", Event::Shader);
 
     if (!compileShader(vertexShader, vertexSource)) {
@@ -48,8 +52,6 @@ Shader::Shader(const char* name_, const char* vertexSource, const char* fragment
     MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_extrude, "a_extrude"));
     MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_offset, "a_offset"));
     MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_data, "a_data"));
-    MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_data1, "a_data1"));
-    MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_data2, "a_data2"));
     MBGL_CHECK_ERROR(glBindAttribLocation(program.get(), a_texture_pos, "a_texture_pos"));
 
     // Link program
@@ -103,6 +105,10 @@ Shader::~Shader() {
         MBGL_CHECK_ERROR(glDetachShader(program.get(), vertexShader.get()));
         MBGL_CHECK_ERROR(glDetachShader(program.get(), fragmentShader.get()));
     }
+}
+
+gl::UniformLocation Shader::getUniformLocation(const char* uniform) const {
+    return MBGL_CHECK_ERROR(glGetUniformLocation(program.get(), uniform));
 }
 
 } // namespace mbgl

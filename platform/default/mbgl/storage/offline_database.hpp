@@ -40,6 +40,8 @@ public:
     OfflineRegion createRegion(const OfflineRegionDefinition&,
                                const OfflineRegionMetadata&);
 
+    OfflineRegionMetadata updateMetadata(const int64_t regionID, const OfflineRegionMetadata&);
+    
     void deleteRegion(OfflineRegion&&);
 
     // Return value is (response, stored size)
@@ -60,6 +62,7 @@ private:
     void ensureSchema();
     void removeExisting();
     void migrateToVersion3();
+    void migrateToVersion5();
 
     class Statement {
     public:

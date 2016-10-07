@@ -11,8 +11,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.content.res.Configuration;
 import android.location.Location;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
@@ -25,14 +23,18 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
+
 import com.mapbox.mapboxsdk.BuildConfig;
+import com.mapbox.mapboxsdk.MapboxAccountManager;
 import com.mapbox.mapboxsdk.constants.GeoConstants;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.TelemetryServiceNotConfiguredException;
 import com.mapbox.mapboxsdk.location.LocationServices;
 import com.mapbox.mapboxsdk.utils.MathUtils;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
@@ -43,6 +45,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 import java.util.Vector;
+
 import okhttp3.CertificatePinner;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -178,16 +181,10 @@ public class MapboxEventManager {
                 this.accessToken = stagingAccessToken;
             }
 
-            String appName = context.getPackageManager().getApplicationLabel(appInfo).toString();
-            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            String versionName = packageInfo.versionName;
-            int versionCode = packageInfo.versionCode;
-
             // Build User Agent
-            if (TextUtils.equals(userAgent, BuildConfig.MAPBOX_EVENTS_USER_AGENT_BASE) && !TextUtils.isEmpty(appName) && !TextUtils.isEmpty(versionName)) {
-                userAgent = appName + "/" + versionName + "/" + versionCode + " " + userAgent;
-                // Ensure that only ASCII characters are sent
-                userAgent = Util.toHumanReadableAscii(userAgent);
+            String appIdentifier = getApplicationIdentifier();
+            if (TextUtils.equals(userAgent, BuildConfig.MAPBOX_EVENTS_USER_AGENT_BASE) && !TextUtils.isEmpty(appIdentifier)) {
+                userAgent = Util.toHumanReadableAscii(String.format(MapboxConstants.MAPBOX_LOCALE, "%s %s", appIdentifier, userAgent));
             }
 
         } catch (Exception e) {
@@ -629,9 +626,7 @@ public class MapboxEventManager {
             }
 
             // Check for NetworkConnectivity
-            ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = cm.getActiveNetworkInfo();
-            if (networkInfo == null || !networkInfo.isConnected()) {
+            if (!MapboxAccountManager.getInstance().isConnected()) {
                 Log.w(TAG, "Not connected to network, so empty events cache and return without attempting to send events");
                 // Make sure that events don't pile up when Offline
                 // and thus impact available memory over time.
@@ -776,6 +771,15 @@ public class MapboxEventManager {
         @Override
         public void run() {
             new FlushTheEventsTask().execute();
+        }
+    }
+
+    private String getApplicationIdentifier() {
+        try {
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return String.format(MapboxConstants.MAPBOX_LOCALE, "%s/%s/%s", context.getPackageName(), packageInfo.versionName, packageInfo.versionCode);
+        } catch (Exception e) {
+            return "";
         }
     }
 }

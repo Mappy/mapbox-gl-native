@@ -7,7 +7,6 @@ import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.annotation.UiThread;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.ActionBar;
@@ -17,7 +16,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -35,8 +33,6 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
 
     private MapView mapView;
     private MapboxMap mapboxMap;
-    private Location location;
-    private boolean firstRun;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,13 +59,14 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
         mapboxMapOptions.myLocationForegroundTintColor(Color.GREEN);
         mapboxMapOptions.myLocationBackgroundTintColor(Color.YELLOW);
         mapboxMapOptions.myLocationBackgroundPadding(new int[]{0, 0,
-                (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding),
-                (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding)});
+            (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding),
+            (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding)});
 
         mapboxMapOptions.myLocationAccuracyTint(Color.RED);
         mapboxMapOptions.myLocationAccuracyAlpha(155);
 
         mapView = new MapView(this, mapboxMapOptions);
+        mapView.setId(R.id.mapView);
         ViewGroup parent = (ViewGroup) findViewById(R.id.container);
         parent.addView(mapView);
 
@@ -85,9 +82,13 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
 
     public void toggleGps(boolean enableGps) {
         if (enableGps) {
-            if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) ||
-                    (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
+            if ((ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                || (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED)) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
             } else {
                 enableLocation(true);
             }
@@ -102,7 +103,7 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
             Location location = mapboxMap.getMyLocation();
             if (location != null) {
                 onLocationChanged(location);
-            }else{
+            } else {
                 LocationServices.getLocationServices(this).addLocationListener(this);
             }
         } else {
@@ -111,12 +112,10 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_LOCATION: {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    enableLocation(true);
-                }
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == PERMISSIONS_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableLocation(true);
             }
         }
     }

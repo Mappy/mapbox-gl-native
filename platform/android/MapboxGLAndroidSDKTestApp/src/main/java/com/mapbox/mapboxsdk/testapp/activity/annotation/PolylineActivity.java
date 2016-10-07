@@ -25,6 +25,7 @@ import java.util.List;
 public class PolylineActivity extends AppCompatActivity {
 
     private static final String STATE_POLYLINE_OPTIONS = "polylineOptions";
+
     private static final LatLng ANDORRA = new LatLng(42.505777, 1.52529);
     private static final LatLng LUXEMBOURG = new LatLng(49.815273, 6.129583);
     private static final LatLng MONACO = new LatLng(43.738418, 7.424616);
@@ -32,10 +33,19 @@ public class PolylineActivity extends AppCompatActivity {
     private static final LatLng SAN_MARINO = new LatLng(43.942360, 12.457777);
     private static final LatLng LIECHTENSTEIN = new LatLng(47.166000, 9.555373);
 
-    private List<Polyline> mPolylines;
-    private ArrayList<PolylineOptions> mPolylineOptions = new ArrayList<>();
-    private MapView mMapView;
-    private MapboxMap mMapboxMap;
+    private static final float FULL_ALPHA = 1.0f;
+    private static final float PARTIAL_ALPHA = 0.5f;
+    private static final float NO_ALPHA = 0.0f;
+
+    private List<Polyline> polylines;
+    private ArrayList<PolylineOptions> polylineOptions = new ArrayList<>();
+    private MapView mapView;
+    private MapboxMap mapboxMap;
+
+    private boolean fullAlpha = true;
+    private boolean visible = true;
+    private boolean width = true;
+    private boolean color = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,40 +62,44 @@ public class PolylineActivity extends AppCompatActivity {
         }
 
         if (savedInstanceState != null) {
-            mPolylineOptions = savedInstanceState.getParcelableArrayList(STATE_POLYLINE_OPTIONS);
+            polylineOptions = savedInstanceState.getParcelableArrayList(STATE_POLYLINE_OPTIONS);
         } else {
-            mPolylineOptions.addAll(getAllPolylines());
+            polylineOptions.addAll(getAllPolylines());
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.onCreate(savedInstanceState);
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mMapboxMap = mapboxMap;
-                mPolylines = mapboxMap.addPolylines(mPolylineOptions);
+                PolylineActivity.this.mapboxMap = mapboxMap;
+                polylines = mapboxMap.addPolylines(polylineOptions);
             }
         });
 
-        findViewById(R.id.fab).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mMapboxMap != null) {
-                    if (mPolylines != null && mPolylines.size() > 0) {
-                        if (mPolylines.size() == 1) {
-                            // test for removing annotation
-                            mMapboxMap.removeAnnotation(mPolylines.get(0));
-                        } else {
-                            // test for removing annotations
-                            mMapboxMap.removeAnnotations(mPolylines);
+        View fab = findViewById(R.id.fab);
+        if (fab != null) {
+            fab.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    if (mapboxMap != null) {
+                        if (polylines != null && polylines.size() > 0) {
+                            if (polylines.size() == 1) {
+                                // test for removing annotation
+                                mapboxMap.removeAnnotation(polylines.get(0));
+                            } else {
+                                // test for removing annotations
+                                mapboxMap.removeAnnotations(polylines);
+                            }
                         }
+                        polylineOptions.clear();
+                        polylineOptions.addAll(getRandomLine());
+                        polylines = mapboxMap.addPolylines(polylineOptions);
+
                     }
-                    mPolylineOptions.clear();
-                    mPolylineOptions.addAll(getRandomLine());
-                    mPolylines = mMapboxMap.addPolylines(mPolylineOptions);
                 }
-            }
-        });
+            });
+        }
     }
 
     private List<PolylineOptions> getAllPolylines() {
@@ -112,38 +126,39 @@ public class PolylineActivity extends AppCompatActivity {
         Collections.shuffle(randomLines);
         return new ArrayList<PolylineOptions>() {{
             add(randomLines.get(0));
-        }};
+        }
+        };
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mMapView.onResume();
+        mapView.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
-        outState.putParcelableArrayList(STATE_POLYLINE_OPTIONS, mPolylineOptions);
+        mapView.onSaveInstanceState(outState);
+        outState.putParcelableArrayList(STATE_POLYLINE_OPTIONS, polylineOptions);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override
@@ -157,8 +172,36 @@ public class PolylineActivity extends AppCompatActivity {
         switch (item.getItemId()) {
             case R.id.action_id_remove:
                 // test to remove all annotations
-                mPolylineOptions.clear();
-                mMapboxMap.clear();
+                polylineOptions.clear();
+                mapboxMap.clear();
+                return true;
+
+            case R.id.action_id_alpha:
+                fullAlpha = !fullAlpha;
+                for (Polyline p : polylines) {
+                    p.setAlpha(fullAlpha ? FULL_ALPHA : PARTIAL_ALPHA);
+                }
+                return true;
+
+            case R.id.action_id_color:
+                color = !color;
+                for (Polyline p : polylines) {
+                    p.setColor(color ? Color.RED : Color.BLUE);
+                }
+                return true;
+
+            case R.id.action_id_width:
+                width = !width;
+                for (Polyline p : polylines) {
+                    p.setWidth(width ? 3.0f : 5.0f);
+                }
+                return true;
+
+            case R.id.action_id_visible:
+                visible = !visible;
+                for (Polyline p : polylines) {
+                    p.setAlpha(visible ? (fullAlpha ? FULL_ALPHA : PARTIAL_ALPHA) : NO_ALPHA);
+                }
                 return true;
 
             case android.R.id.home:

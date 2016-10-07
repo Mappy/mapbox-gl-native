@@ -19,6 +19,8 @@ enum MapChange : uint8_t {
     MapChangeWillStartRenderingMap = 11,
     MapChangeDidFinishRenderingMap = 12,
     MapChangeDidFinishRenderingMapFullyRendered = 13,
+    MapChangeDidFinishLoadingStyle = 14,
+    MapChangeSourceDidChange = 15
 };
 
 } // namespace mbgl

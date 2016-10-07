@@ -26,25 +26,32 @@ public:
 
     // Paint properties
 
-    PropertyValue<float> getCircleRadius() const;
+    static PropertyValue<float> getDefaultCircleRadius();
+    PropertyValue<float> getCircleRadius(const optional<std::string>& klass = {}) const;
     void setCircleRadius(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<Color> getCircleColor() const;
+    static PropertyValue<Color> getDefaultCircleColor();
+    PropertyValue<Color> getCircleColor(const optional<std::string>& klass = {}) const;
     void setCircleColor(PropertyValue<Color>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getCircleBlur() const;
+    static PropertyValue<float> getDefaultCircleBlur();
+    PropertyValue<float> getCircleBlur(const optional<std::string>& klass = {}) const;
     void setCircleBlur(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getCircleOpacity() const;
+    static PropertyValue<float> getDefaultCircleOpacity();
+    PropertyValue<float> getCircleOpacity(const optional<std::string>& klass = {}) const;
     void setCircleOpacity(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<std::array<float, 2>> getCircleTranslate() const;
+    static PropertyValue<std::array<float, 2>> getDefaultCircleTranslate();
+    PropertyValue<std::array<float, 2>> getCircleTranslate(const optional<std::string>& klass = {}) const;
     void setCircleTranslate(PropertyValue<std::array<float, 2>>, const optional<std::string>& klass = {});
 
-    PropertyValue<TranslateAnchorType> getCircleTranslateAnchor() const;
+    static PropertyValue<TranslateAnchorType> getDefaultCircleTranslateAnchor();
+    PropertyValue<TranslateAnchorType> getCircleTranslateAnchor(const optional<std::string>& klass = {}) const;
     void setCircleTranslateAnchor(PropertyValue<TranslateAnchorType>, const optional<std::string>& klass = {});
 
-    PropertyValue<CirclePitchScaleType> getCirclePitchScale() const;
+    static PropertyValue<CirclePitchScaleType> getDefaultCirclePitchScale();
+    PropertyValue<CirclePitchScaleType> getCirclePitchScale(const optional<std::string>& klass = {}) const;
     void setCirclePitchScale(PropertyValue<CirclePitchScaleType>, const optional<std::string>& klass = {});
 
     // Private implementation

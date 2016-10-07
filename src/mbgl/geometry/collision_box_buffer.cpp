@@ -6,8 +6,8 @@
 
 namespace mbgl {
 
-size_t CollisionBoxVertexBuffer::add(int16_t x, int16_t y, float ox, float oy, float maxzoom, float placementZoom) {
-    const size_t idx = index();
+uint32_t CollisionBoxVertexBuffer::add(int16_t x, int16_t y, float ox, float oy, float maxzoom, float placementZoom) {
+    const uint32_t idx = index();
     void *data = addElement();
 
     int16_t *shorts = static_cast<int16_t *>(data);
@@ -17,7 +17,7 @@ size_t CollisionBoxVertexBuffer::add(int16_t x, int16_t y, float ox, float oy, f
     shorts[3] /* offset */ = ::round(oy);
 
     uint8_t *ubytes = static_cast<uint8_t *>(data);
-    // a_data1
+    // a_data
     ubytes[8] = maxzoom * 10;
     ubytes[9] = placementZoom * 10;
 

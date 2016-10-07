@@ -14,10 +14,17 @@
 
 #include <unistd.h>
 
+#ifndef NODE_EXECUTABLE
+#define NODE_EXECUTABLE node
+#endif
+
+#define xstr(s) str(s)
+#define str(s) #s
+
 namespace mbgl {
 namespace test {
 
-Server::Server(const char* executable) {
+Server::Server(const char* script) {
     int input[2];
     int output[2];
 
@@ -48,14 +55,18 @@ Server::Server(const char* executable) {
         close(output[1]);
         close(output[0]);
 
+        const char* executable = xstr(NODE_EXECUTABLE);
+
+        fprintf(stderr, "executable: %s\n", executable);
+
         // Launch the actual server process.
-        int ret = execl(executable, executable, nullptr);
+        int ret = execl(executable, executable, script, nullptr);
 
         // This call should not return. In case execl failed, we exit anyway.
         if (ret < 0) {
             Log::Error(Event::Setup, "Failed to start server: %s", strerror(errno));
         }
-        exit(0);
+        abort();
     } else {
         // This is the parent process.
 
@@ -110,8 +121,22 @@ void checkImage(const std::string& base,
     }
 #endif
 
-    PremultipliedImage expected = decodeImage(util::read_file(base + "/expected.png"));
+    std::string expected_image;
+    try {
+        expected_image = util::read_file(base + "/expected.png");
+    } catch (std::exception& ex) {
+        Log::Error(Event::Setup, "Failed to load expected image %s: %s",
+                   (base + "/expected.png").c_str(), ex.what());
+        throw;
+    }
+
+    PremultipliedImage expected = decodeImage(expected_image);
     PremultipliedImage diff { expected.width, expected.height };
+
+
+#if !TEST_READ_ONLY
+    util::write_file(base + "/actual.png", encodePNG(actual));
+#endif
 
     ASSERT_EQ(expected.width, actual.width);
     ASSERT_EQ(expected.height, actual.height);
@@ -126,7 +151,6 @@ void checkImage(const std::string& base,
     EXPECT_LE(pixels / (expected.width * expected.height), imageThreshold);
 
 #if !TEST_READ_ONLY
-    util::write_file(base + "/actual.png", encodePNG(actual));
     util::write_file(base + "/diff.png", encodePNG(diff));
 #endif
 }

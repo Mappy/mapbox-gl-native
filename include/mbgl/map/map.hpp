@@ -51,9 +51,12 @@ public:
     void update(Update update);
 
     // Styling
-    void addClass(const std::string&, const style::TransitionOptions& = {});
-    void removeClass(const std::string&, const style::TransitionOptions& = {});
-    void setClasses(const std::vector<std::string>&, const style::TransitionOptions& = {});
+    void addClass(const std::string&);
+    void removeClass(const std::string&);
+    void setClasses(const std::vector<std::string>&);
+
+    style::TransitionOptions getTransitionOptions() const;
+    void setTransitionOptions(const style::TransitionOptions&);
 
     bool hasClass(const std::string&) const;
     std::vector<std::string> getClasses() const;
@@ -148,8 +151,6 @@ public:
     void updateAnnotation(AnnotationID, const Annotation&);
     void removeAnnotation(AnnotationID);
 
-    AnnotationIDs getPointAnnotationsInBounds(const LatLngBounds&);
-
     // Sources
     style::Source* getSource(const std::string& sourceID);
     void addSource(std::unique_ptr<style::Source>);
@@ -160,9 +161,21 @@ public:
     void addLayer(std::unique_ptr<style::Layer>, const optional<std::string>& beforeLayerID = {});
     void removeLayer(const std::string& layerID);
 
+    // Add image, bound to the style
+    void addImage(const std::string&, std::unique_ptr<const SpriteImage>);
+    void removeImage(const std::string&);
+
+    // Defaults
+    std::string getStyleName() const;
+    LatLng getDefaultLatLng() const;
+    double getDefaultZoom() const;
+    double getDefaultBearing() const;
+    double getDefaultPitch() const;
+
     // Feature queries
     std::vector<Feature> queryRenderedFeatures(const ScreenCoordinate&, const optional<std::vector<std::string>>& layerIDs = {});
     std::vector<Feature> queryRenderedFeatures(const ScreenBox&,        const optional<std::vector<std::string>>& layerIDs = {});
+    AnnotationIDs queryPointAnnotations(const ScreenBox&);
 
     // Memory
     void setSourceTileCacheSize(size_t);

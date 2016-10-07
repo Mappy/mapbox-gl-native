@@ -24,7 +24,7 @@ public:
                    uint16_t tileSize);
     ~TileSourceImpl() override;
 
-    void load(FileSource&) final;
+    void loadDescription(FileSource&) final;
 
     uint16_t getTileSize() const final {
         return tileSize;
@@ -33,6 +33,8 @@ public:
     const variant<std::string, Tileset>& getURLOrTileset() const {
         return urlOrTileset;
     }
+    
+    optional<std::string> getAttribution() const override;
 
 protected:
     Range<uint8_t> getZoomRange() final;

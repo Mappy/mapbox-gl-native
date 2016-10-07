@@ -58,6 +58,10 @@ global.defaultValue = function (property) {
     return 1;
   }
 
+  if (property.name === 'fill-outline-color') {
+    return '{}';
+  }
+
   switch (property.type) {
   case 'number':
     return property.default;
@@ -70,7 +74,17 @@ global.defaultValue = function (property) {
       return `${propertyType(property)}::${camelize(property.default)}`;
     }
   case 'color':
-    return `{ ${parseCSSColor(property.default).join(', ')} }`
+    var color = parseCSSColor(property.default).join(', ');
+    switch (color) {
+    case '0, 0, 0, 0':
+      return '{}';
+    case '0, 0, 0, 1':
+      return 'Color::black()';
+    case '1, 1, 1, 1':
+      return 'Color::white()';
+    default:
+      return `{ ${color} }`;
+    }
   case 'array':
     const defaults = (property.default || []).map((e) => defaultValue({ type: property.value, default: e }));
     if (property.length) {
@@ -88,7 +102,7 @@ const layerCpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer.cpp.ej
 const propertiesHpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer_properties.hpp.ejs', 'utf8'), {strict: true});
 const propertiesCpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer_properties.cpp.ejs', 'utf8'), {strict: true});
 
-const layers = spec.layer.type.values.map((type) => {
+const layers = Object.keys(spec.layer.type.values).map((type) => {
   const layoutProperties = Object.keys(spec[`layout_${type}`]).reduce((memo, name) => {
     if (name !== 'visibility') {
       spec[`layout_${type}`][name].name = name;

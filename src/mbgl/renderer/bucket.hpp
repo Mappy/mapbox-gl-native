@@ -1,24 +1,21 @@
 #pragma once
 
-#include <mbgl/gl/gl.hpp>
 #include <mbgl/renderer/render_pass.hpp>
 #include <mbgl/util/noncopyable.hpp>
 
 #include <atomic>
 
-#define BUFFER_OFFSET_0  ((GLbyte*)nullptr)
+#define BUFFER_OFFSET_0  ((int8_t*)nullptr)
 #define BUFFER_OFFSET(i) ((BUFFER_OFFSET_0) + (i))
 
 namespace mbgl {
 
 class Painter;
 class PaintParameters;
-class CollisionTile;
 class RenderTile;
 
 namespace gl {
-class ObjectStore;
-class Config;
+class Context;
 } // namespace gl
 
 namespace style {
@@ -31,7 +28,7 @@ public:
 
     // As long as this bucket has a Prepare render pass, this function is getting called. Typically,
     // this only happens once when the bucket is being rendered for the first time.
-    virtual void upload(gl::ObjectStore&, gl::Config&) = 0;
+    virtual void upload(gl::Context&) = 0;
 
     // Every time this bucket is getting rendered, this function is called. This happens either
     // once or twice (for Opaque and Transparent render passes).
@@ -46,9 +43,6 @@ public:
     bool needsUpload() const {
         return !uploaded;
     }
-
-    virtual void placeFeatures(CollisionTile&) {}
-    virtual void swapRenderData() {}
 
 protected:
     std::atomic<bool> uploaded { false };

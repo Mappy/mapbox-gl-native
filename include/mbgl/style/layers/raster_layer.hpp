@@ -21,25 +21,32 @@ public:
 
     // Paint properties
 
-    PropertyValue<float> getRasterOpacity() const;
+    static PropertyValue<float> getDefaultRasterOpacity();
+    PropertyValue<float> getRasterOpacity(const optional<std::string>& klass = {}) const;
     void setRasterOpacity(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterHueRotate() const;
+    static PropertyValue<float> getDefaultRasterHueRotate();
+    PropertyValue<float> getRasterHueRotate(const optional<std::string>& klass = {}) const;
     void setRasterHueRotate(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterBrightnessMin() const;
+    static PropertyValue<float> getDefaultRasterBrightnessMin();
+    PropertyValue<float> getRasterBrightnessMin(const optional<std::string>& klass = {}) const;
     void setRasterBrightnessMin(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterBrightnessMax() const;
+    static PropertyValue<float> getDefaultRasterBrightnessMax();
+    PropertyValue<float> getRasterBrightnessMax(const optional<std::string>& klass = {}) const;
     void setRasterBrightnessMax(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterSaturation() const;
+    static PropertyValue<float> getDefaultRasterSaturation();
+    PropertyValue<float> getRasterSaturation(const optional<std::string>& klass = {}) const;
     void setRasterSaturation(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterContrast() const;
+    static PropertyValue<float> getDefaultRasterContrast();
+    PropertyValue<float> getRasterContrast(const optional<std::string>& klass = {}) const;
     void setRasterContrast(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getRasterFadeDuration() const;
+    static PropertyValue<float> getDefaultRasterFadeDuration();
+    PropertyValue<float> getRasterFadeDuration(const optional<std::string>& klass = {}) const;
     void setRasterFadeDuration(PropertyValue<float>, const optional<std::string>& klass = {});
 
     // Private implementation

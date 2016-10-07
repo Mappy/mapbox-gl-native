@@ -2,6 +2,21 @@
 
 #include <mbgl/style/source.hpp>
 #include <mbgl/util/geojson.hpp>
+#include <mbgl/util/optional.hpp>
+
+#include <mapbox/geojson.hpp>
+
+namespace mapbox {
+
+namespace geojsonvt {
+class GeoJSONVT;
+} // namespace geojsonvt
+
+namespace supercluster {
+class Supercluster;
+} // namespace supercluster
+
+} // namespace mapbox
 
 #include <mapbox/geojson.hpp>
 
@@ -42,13 +57,18 @@ public:
     void setURL(const std::string& url);
     void setGeoJSON(const GeoJSON&);
 
-    std::string getURL();
+    optional<std::string> getURL();
 
     // Private implementation
 
     class Impl;
     Impl* const impl;
 };
+
+template <>
+inline bool Source::is<GeoJSONSource>() const {
+    return type == SourceType::GeoJSON;
+}
 
 } // namespace style
 } // namespace mbgl

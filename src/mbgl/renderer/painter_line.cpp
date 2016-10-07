@@ -20,11 +20,12 @@ void Painter::renderLine(PaintParameters& parameters,
     // Abort early.
     if (pass == RenderPass::Opaque) return;
 
-    config.stencilOp.reset();
-    config.stencilTest = GL_TRUE;
-    config.depthFunc.reset();
-    config.depthTest = GL_TRUE;
-    config.depthMask = GL_FALSE;
+    context.stencilOp = { gl::StencilTestOperation::Keep, gl::StencilTestOperation::Keep,
+                          gl::StencilTestOperation::Replace };
+    context.stencilTest = true;
+    context.depthFunc = gl::DepthTestFunction::LessEqual;
+    context.depthTest = true;
+    context.depthMask = false;
 
     const auto& properties = layer.impl->paint;
     const auto& layout = bucket.layout;
@@ -61,7 +62,7 @@ void Painter::renderLine(PaintParameters& parameters,
     auto& lineShader = parameters.shaders.line;
 
     if (!properties.lineDasharray.value.from.empty()) {
-        config.program = linesdfShader.getID();
+        context.program = linesdfShader.getID();
 
         linesdfShader.u_matrix = vtxMatrix;
         linesdfShader.u_linewidth = properties.lineWidth / 2;
@@ -72,8 +73,10 @@ void Painter::renderLine(PaintParameters& parameters,
         linesdfShader.u_color = color;
         linesdfShader.u_opacity = opacity;
 
-        LinePatternPos posA = lineAtlas->getDashPosition(properties.lineDasharray.value.from, layout.lineCap == LineCapType::Round);
-        LinePatternPos posB = lineAtlas->getDashPosition(properties.lineDasharray.value.to, layout.lineCap == LineCapType::Round);
+        const LinePatternCap cap =
+            layout.lineCap == LineCapType::Round ? LinePatternCap::Round : LinePatternCap::Square;
+        LinePatternPos posA = lineAtlas->getDashPosition(properties.lineDasharray.value.from, cap);
+        LinePatternPos posB = lineAtlas->getDashPosition(properties.lineDasharray.value.to, cap);
 
         const float widthA = posA.width * properties.lineDasharray.value.fromScale * layer.impl->dashLineWidth;
         const float widthB = posB.width * properties.lineDasharray.value.toScale * layer.impl->dashLineWidth;
@@ -94,18 +97,20 @@ void Painter::renderLine(PaintParameters& parameters,
         linesdfShader.u_antialiasingmatrix = antialiasingMatrix;
 
         linesdfShader.u_image = 0;
-        lineAtlas->bind(store, config, 0);
+        lineAtlas->bind(context, 0);
 
-        bucket.drawLineSDF(linesdfShader, store, isOverdraw());
+        bucket.drawLineSDF(linesdfShader, context, paintMode());
 
     } else if (!properties.linePattern.value.from.empty()) {
-        optional<SpriteAtlasPosition> imagePosA = spriteAtlas->getPosition(properties.linePattern.value.from, true);
-        optional<SpriteAtlasPosition> imagePosB = spriteAtlas->getPosition(properties.linePattern.value.to, true);
+        optional<SpriteAtlasPosition> imagePosA = spriteAtlas->getPosition(
+            properties.linePattern.value.from, SpritePatternMode::Repeating);
+        optional<SpriteAtlasPosition> imagePosB =
+            spriteAtlas->getPosition(properties.linePattern.value.to, SpritePatternMode::Repeating);
 
         if (!imagePosA || !imagePosB)
             return;
 
-        config.program = linepatternShader.getID();
+        context.program = linepatternShader.getID();
 
         linepatternShader.u_matrix = vtxMatrix;
         linepatternShader.u_linewidth = properties.lineWidth / 2;
@@ -135,9 +140,9 @@ void Painter::renderLine(PaintParameters& parameters,
         linepatternShader.u_antialiasingmatrix = antialiasingMatrix;
 
         linepatternShader.u_image = 0;
-        spriteAtlas->bind(true, store, config, 0);
+        spriteAtlas->bind(true, context, 0);
 
-        bucket.drawLinePatterns(linepatternShader, store, isOverdraw());
+        bucket.drawLinePatterns(linepatternShader, context, paintMode());
 
     } else {
 		// Mappy specific drawing on paths
@@ -145,7 +150,7 @@ void Painter::renderLine(PaintParameters& parameters,
 		{
 			Color stroke_color = {1.0, 1.0, 1.0, opacity};
 			
-			config.program = lineShader.getID();
+			context.program = lineShader.getID();
 			
 			lineShader.u_matrix = vtxMatrix;
 			lineShader.u_linewidth = (properties.lineWidth * 3.0f) / 4.0f;
@@ -161,10 +166,10 @@ void Painter::renderLine(PaintParameters& parameters,
 			lineShader.u_opacity = opacity;
 			
 			setDepthSublayer(0);
-			bucket.drawLines(lineShader, store, isOverdraw());
+			bucket.drawLines(lineShader, context, paintMode());
 		}
 
-		config.program = lineShader.getID();
+        context.program = lineShader.getID();
 
         lineShader.u_matrix = vtxMatrix;
         lineShader.u_linewidth = properties.lineWidth / 2;
@@ -179,7 +184,7 @@ void Painter::renderLine(PaintParameters& parameters,
         lineShader.u_color = color;
         lineShader.u_opacity = opacity;
 
-        bucket.drawLines(lineShader, store, isOverdraw());
+        bucket.drawLines(lineShader, context, paintMode());
     }
 }
 

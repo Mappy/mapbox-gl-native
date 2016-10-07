@@ -4,13 +4,41 @@ This document explains how to build the Mapbox macOS SDK from source. It is inte
 
 ## Requirements
 
-The Mapbox macOS SDK and the macosapp demo application run on macOS 10.10.0 and above.
+The Mapbox macOS SDK and the macosapp demo application run on macOS 10.10.0 or above.
+
+The Mapbox macOS SDK requires Xcode 7.3 or above.
 
 ## Building the SDK
 
 1. [Install core dependencies](../../INSTALL.md).
 1. Run `make xproj`.
 1. Switch to the “dynamic” or “macosapp” scheme. The former builds just the Cocoa framework, while the latter also builds a Cocoa demo application based on it.
+
+### Packaging builds
+
+Install [jazzy](https://github.com/realm/jazzy) for generating API documentation:
+
+```bash
+[sudo] gem install jazzy
+```
+
+Build and package the SDK by using one of the following commands:
+
+* `make xpackage` builds a dynamic framework in the Debug configuration, including debug symbols.
+* `make xdocument` generates API documentation using jazzy.
+
+You can customize the build output by passing the following arguments into the `make` invocation:
+
+* `BUILDTYPE=Release` will optimize for distribution. Defaults to `Debug`.
+* `SYMBOLS=NO` strips the build output of any debug symbols, yielding much smaller binaries. Defaults to `YES`.
+
+An example command that creates a dynamic framework suitable for distribution:
+
+```bash
+make xpackage BUILDTYPE=Release SYMBOLS=NO
+```
+
+The products of these build commands can be found in the `build/macos/pkg` folder at the base of the repository.
 
 ## Contributing
 
@@ -34,6 +62,7 @@ To add an Objective-C class, protocol, category, typedef, enumeration, or global
 To add an Objective-C header or implementation file to the macOS SDK:
 
 1. Add the file to the “dynamic” target’s Headers or Compile Sources build phase, as appropriate. You can either use the Build Phases tab of the project editor or the Target Membership section of the File inspector.
+1. Audit new headers for nullability. Typically, you will wrap a header with `NS_ASSUME_NONNULL_BEGIN` and `NS_ASSUME_NONNULL_END`.
 1. _(Optional.)_ If it’s a public header, change its visibility from Project to Public and import it in [the macOS SDK’s umbrella header](./src/Mapbox.h).
 1. _(Optional.)_ If the file would also be used by the iOS SDK, make sure it’s in [platform/darwin/src/](../darwin/src/), then consult [the companion iOS document](../ios/DEVELOPING.md#adding-a-source-code-file) for further instructions.
 

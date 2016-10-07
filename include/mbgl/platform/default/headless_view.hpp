@@ -1,6 +1,9 @@
 #pragma once
 
-#ifdef __APPLE__
+#if defined(__QT__)
+#define MBGL_USE_QT 1
+class QGLWidget;
+#elif defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_IOS
 #define MBGL_USE_EAGL 1
@@ -19,6 +22,8 @@ typedef XID GLXPbuffer;
 
 #include <mbgl/mbgl.hpp>
 #include <mbgl/gl/gl.hpp>
+#include <mbgl/gl/types.hpp>
+#include <mbgl/gl/extension.hpp>
 
 #include <memory>
 #include <thread>
@@ -40,10 +45,12 @@ public:
     void invalidate() override;
     void activate() override;
     void deactivate() override;
+    void notifyMapChange(MapChange) override;
 
-    PremultipliedImage readStillImage() override;
+    PremultipliedImage readStillImage(std::array<uint16_t, 2> size = {{ 0, 0 }}) override;
 
     void resize(uint16_t width, uint16_t height);
+    void setMapChangeCallback(std::function<void(MapChange)>&& cb) { mapChangeCallback = std::move(cb); }
 
 private:
     // Implementation specific functions
@@ -63,6 +70,10 @@ private:
     bool extensionsLoaded = false;
     bool active = false;
 
+#if MBGL_USE_QT
+    QGLWidget* glContext = nullptr;
+#endif
+
 #if MBGL_USE_CGL
     CGLContextObj glContext = nullptr;
 #endif
@@ -78,9 +89,11 @@ private:
     GLXPbuffer glxPbuffer = 0;
 #endif
 
-    GLuint fbo = 0;
-    GLuint fboDepthStencil = 0;
-    GLuint fboColor = 0;
+    std::function<void(MapChange)> mapChangeCallback;
+
+    gl::FramebufferID fbo = 0;
+    gl::RenderbufferID fboDepthStencil = 0;
+    gl::RenderbufferID fboColor = 0;
 };
 
 } // namespace mbgl

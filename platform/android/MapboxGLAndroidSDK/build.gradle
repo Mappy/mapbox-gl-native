@@ -26,7 +26,12 @@ dependencies {
     compile "com.android.support:support-v4:${supportLibVersion}"
     compile "com.android.support:design:${supportLibVersion}"
     compile 'com.squareup.okhttp3:okhttp:3.3.0'
-    compile 'com.mapzen.android:lost:1.1.0'
+    compile 'com.mapzen.android:lost:1.1.1'
+
+    // Mapbox Android Services
+    compile('com.mapbox.mapboxsdk:mapbox-java-services:1.3.1@jar') {
+        transitive = true
+    }
 }
 
 android {
@@ -36,6 +41,9 @@ android {
     defaultConfig {
         minSdkVersion Integer.parseInt(project.ANDROID_MIN_SDK)
         targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
+        buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT_BASE", String.format("\"MapboxEventsAndroid/%s\"", project.VERSION_NAME)
+        buildConfigField "String", "MAPBOX_VERSION_STRING", String.format("\"Mapbox/%s\"", project.VERSION_NAME)
+        buildConfigField "String", "GIT_REVISION_SHORT", String.format("\"%s\"", getGitRevision())
     }
 
     sourceSets {
@@ -59,12 +67,10 @@ android {
     buildTypes {
         debug {
             jniDebuggable true
-            buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT_BASE", new StringBuilder().append("\"").append("MapboxEventsAndroid/").append(project.VERSION_NAME).append("\"").toString()
         }
 
         release {
             jniDebuggable false
-            buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT_BASE", new StringBuilder().append("\"").append("MapboxEventsAndroid/").append(project.VERSION_NAME).append("\"").toString()
             consumerProguardFiles 'proguard-rules.pro'
         }
     }
@@ -75,16 +81,15 @@ configurations {
     all*.exclude group: 'commons-collections', module: 'commons-collections'
 }
 
-
 android.libraryVariants.all { variant ->
     def name = variant.name
+    //noinspection GroovyAssignabilityCheck
     task "javadoc$name"(type: Javadoc) {
         description = "Generates javadoc for build $name"
         failOnError = false
         destinationDir = new File(destinationDir, variant.baseName)
         source = files(variant.javaCompile.source)
         classpath = files(variant.javaCompile.classpath.files) + files(android.bootClasspath)
-        exclude '**/R.java', '**/BuildConfig.java', 'com/almeros/**'
         options.windowTitle("Mapbox Android SDK $VERSION_NAME Reference")
         options.docTitle("Mapbox Android SDK $VERSION_NAME")
         options.header("Mapbox Android SDK $VERSION_NAME Reference")
@@ -94,13 +99,8 @@ android.libraryVariants.all { variant ->
         options.overview("src/main/java/overview.html")
         options.group("Mapbox Android SDK", "com.mapbox.*")
         options.group("Third Party Libraries", "com.almeros.*")
-        // TODO exclude generated R, BuildConfig, com.almeros.*
+        exclude '**/R.java', '**/BuildConfig.java', 'com/almeros/**'
     }
-}
-
-checkstyle {
-    configFile project.file('../checks.xml')
-    showViolations true
 }
 
 /*
@@ -158,6 +158,12 @@ def getRepositoryPassword() {
             (hasProperty('NEXUS_PASSWORD') ? NEXUS_PASSWORD : "")
 }
 
+def getGitRevision() {
+    def cmd = "git rev-parse --short HEAD"
+    def proc = cmd.execute()
+    def ref = proc.text.trim()
+    return ref
+}
 
 task apklib(type: Zip) {
     appendix = extension = 'apklib'

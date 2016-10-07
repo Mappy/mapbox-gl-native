@@ -5,21 +5,26 @@
 #include <stdexcept>
 #include <vector>
 #include <iostream>
+#include <regex>
+
+namespace {
+
+const char* protocol = "mapbox://";
+const std::size_t protocolLength = 9;
+
+} // namespace
 
 namespace mbgl {
 namespace util {
 namespace mapbox {
 
-const std::string protocol = "mapbox://";
-const std::string baseURL = "https://api.mapbox.com/";
-
 bool isMapboxURL(const std::string& url) {
-    return std::equal(protocol.begin(), protocol.end(), url.begin());
+    return url.compare(0, protocolLength, protocol) == 0;
 }
 
-std::vector<std::string> getMapboxURLPathname(const std::string& url) {
+static std::vector<std::string> getMapboxURLPathname(const std::string& url) {
     std::vector<std::string> pathname;
-    auto startIndex = protocol.length();
+    auto startIndex = protocolLength;
     auto end = url.find_first_of("?#");
     if (end == std::string::npos) {
         end = url.length();
@@ -35,7 +40,21 @@ std::vector<std::string> getMapboxURLPathname(const std::string& url) {
     return pathname;
 }
 
-std::string normalizeSourceURL(const std::string& url, const std::string& accessToken) {
+static std::pair<std::string, std::size_t> normalizeQuery(const std::string& url) {
+    std::string query;
+
+    auto queryIdx = url.find("?");
+    if (queryIdx != std::string::npos) {
+        query = url.substr(queryIdx + 1, url.length() - queryIdx + 1);
+        if (!query.empty()) {
+            query = "&" + query;
+        }
+    }
+
+    return std::make_pair(query, queryIdx);
+}
+
+std::string normalizeSourceURL(const std::string& baseURL, const std::string& url, const std::string& accessToken) {
     if (!isMapboxURL(url)) {
         return url;
     }
@@ -44,10 +63,11 @@ std::string normalizeSourceURL(const std::string& url, const std::string& access
         throw std::runtime_error("You must provide a Mapbox API access token for Mapbox tile sources");
     }
 
-    return baseURL + "v4/" + url.substr(protocol.length()) + ".json?access_token=" + accessToken + "&secure";
+    auto query = normalizeQuery(url);
+    return baseURL + "/v4/" + url.substr(protocolLength, query.second - protocolLength) + ".json?access_token=" + accessToken + "&secure" + query.first;
 }
 
-std::string normalizeStyleURL(const std::string& url, const std::string& accessToken) {
+std::string normalizeStyleURL(const std::string& baseURL, const std::string& url, const std::string& accessToken) {
     if (!isMapboxURL(url)) {
         return url;
     }
@@ -61,10 +81,10 @@ std::string normalizeStyleURL(const std::string& url, const std::string& accessT
     const auto& user = pathname[1];
     const auto& id = pathname[2];
     const bool isDraft = pathname.size() > 3;
-    return baseURL + "styles/v1/" + user + "/" + id + (isDraft ? "/draft" : "") + "?access_token=" + accessToken;
+    return baseURL + "/styles/v1/" + user + "/" + id + (isDraft ? "/draft" : "") + "?access_token=" + accessToken + normalizeQuery(url).first;
 }
 
-std::string normalizeSpriteURL(const std::string& url, const std::string& accessToken) {
+std::string normalizeSpriteURL(const std::string& baseURL, const std::string& url, const std::string& accessToken) {
     if (!isMapboxURL(url)) {
         return url;
     }
@@ -88,17 +108,17 @@ std::string normalizeSpriteURL(const std::string& url, const std::string& access
 
     if (isDraft) {
         const auto& id = pathname[2];
-        return baseURL + "styles/v1/" + user + "/" + id + "/draft/sprite" + extension +
+        return baseURL + "/styles/v1/" + user + "/" + id + "/draft/sprite" + extension +
                "?access_token=" + accessToken;
 
     } else {
         const auto& id = pathname[2].substr(0, index);
-        return baseURL + "styles/v1/" + user + "/" + id + "/sprite" + extension + "?access_token=" +
+        return baseURL + "/styles/v1/" + user + "/" + id + "/sprite" + extension + "?access_token=" +
                accessToken;
     }
 }
 
-std::string normalizeGlyphsURL(const std::string& url, const std::string& accessToken) {
+std::string normalizeGlyphsURL(const std::string& baseURL, const std::string& url, const std::string& accessToken) {
     if (!isMapboxURL(url)) {
         return url;
     }
@@ -113,15 +133,16 @@ std::string normalizeGlyphsURL(const std::string& url, const std::string& access
     const auto& fontstack = pathname[2];
     const auto& range = pathname[3];
 
-    return baseURL + "fonts/v1/" + user + "/" + fontstack + "/" + range + "?access_token=" + accessToken;
+    return baseURL + "/fonts/v1/" + user + "/" + fontstack + "/" + range + "?access_token=" + accessToken;
 }
 
-std::string normalizeTileURL(const std::string& url, const std::string& accessToken) {
+std::string normalizeTileURL(const std::string& baseURL, const std::string& url, const std::string& accessToken) {
     if (!isMapboxURL(url)) {
         return url;
     }
 
-    return baseURL + "v4/" + url.substr(sizeof("mapbox://tiles/") - 1) + "?access_token=" + accessToken;
+    auto query = normalizeQuery(url);
+    return baseURL + "/v4/" + url.substr(sizeof("mapbox://tiles/") - 1, query.second - sizeof("mapbox://tiles/") + 1) + "?access_token=" + accessToken + normalizeQuery(url).first;
 }
 
 std::string canonicalizeTileURL(const std::string& url, SourceType type, uint16_t tileSize) {
@@ -171,6 +192,16 @@ std::string canonicalizeTileURL(const std::string& url, SourceType type, uint16_
     }
 
     result += "." + extension;
+    
+    // get the query and remove access_token, if more parameters exist, add them to the final result
+    if (queryIdx != url.length()) {
+        const auto query = url.substr(queryIdx + 1);
+        std::regex re ("&?access_token=([^&]*)");
+        std::string replace = std::regex_replace(query, re, "");
+        std::string subQuery = (replace.find("&") == 0) ? replace.substr(1, replace.length()) : replace;
+        if (subQuery.length() > 0) result += "?" + subQuery;
+    }
+
     return result;
 }
 

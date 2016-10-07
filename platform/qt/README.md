@@ -31,6 +31,10 @@ to provide it by setting the environment variable `MAPBOX_ACCESS_TOKEN`:
 
     export MAPBOX_ACCESS_TOKEN=MYTOKEN
 
+Optionally, you can specify a custom style to the QMapboxGL example application:
+
+    export MAPBOX_STYLE_URL=MYSTYLEURL
+
 #### Using QMapboxGL
 
 `QMapboxGL` is a [QObject](http://doc.qt.io/qt-5/qobject.html) - [MapWindow](https://github.com/mapbox/mapbox-gl-native/blob/master/platform/qt/app/mapwindow.hpp) provides an example [QGLWidget](http://doc.qt.io/qt-5/qglwidget.html) that contains a `QMapboxGL` object. If you use `QMapboxGL` in non-standard Qt widgets, make sure to initialize the GL extensions required by Mapbox whenever possible:
@@ -52,6 +56,10 @@ you also need:
 For macOS desktop, you can install Qt 5 via [Homebrew](http://brew.sh):
 
     brew install qt5
+
+Since Homebrew doesn't add Qt to the path, you'll have to do that manually before running any Make target:
+
+    export PATH=/usr/local/opt/qt5:$PATH
 
 We provide the following build targets for our Qt SDK:
 

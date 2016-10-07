@@ -5,14 +5,14 @@
 
 namespace mbgl {
 
-LineSDFShader::LineSDFShader(gl::ObjectStore& store, Defines defines)
+LineSDFShader::LineSDFShader(gl::Context& context, Defines defines)
     : Shader(shaders::linesdfpattern::name,
              shaders::linesdfpattern::vertex,
              shaders::linesdfpattern::fragment,
-             store, defines) {
+             context, defines) {
 }
 
-void LineSDFShader::bind(GLbyte* offset) {
+void LineSDFShader::bind(int8_t* offset) {
     MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
     MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 2, GL_SHORT, false, 8, offset + 0));
 

@@ -29,6 +29,7 @@ public:
     void onResponse(jni::JNIEnv&, int code,
                     jni::String etag, jni::String modified,
                     jni::String cacheControl, jni::String expires,
+                    jni::String retryAfter, jni::String xRateLimitReset,
                     jni::Array<jni::jbyte> body);
 
     static jni::Class<HTTPRequest> javaClass;
@@ -82,12 +83,11 @@ HTTPRequest::HTTPRequest(jni::JNIEnv& env, const Resource& resource_, FileSource
     jni::UniqueLocalFrame frame = jni::PushLocalFrame(env, 10);
 
     static auto constructor =
-        javaClass.GetConstructor<jni::jlong, jni::String, jni::String, jni::String, jni::String>(env);
+        javaClass.GetConstructor<jni::jlong, jni::String, jni::String, jni::String>(env);
 
     javaRequest = javaClass.New(env, constructor,
         reinterpret_cast<jlong>(this),
         jni::Make<jni::String>(env, resource.url),
-        jni::Make<jni::String>(env, "MapboxGL/1.0"),
         jni::Make<jni::String>(env, etagStr),
         jni::Make<jni::String>(env, modifiedStr)).NewGlobalRef(env);
 }
@@ -101,8 +101,11 @@ HTTPRequest::~HTTPRequest() {
 }
 
 void HTTPRequest::onResponse(jni::JNIEnv& env, int code,
-                             jni::String etag, jni::String modified, jni::String cacheControl,
-                             jni::String expires, jni::Array<jni::jbyte> body) {
+                             jni::String etag, jni::String modified,
+                             jni::String cacheControl, jni::String expires,
+                             jni::String jRetryAfter, jni::String jXRateLimitReset,
+                             jni::Array<jni::jbyte> body) {
+
     using Error = Response::Error;
 
     if (etag) {
@@ -135,6 +138,16 @@ void HTTPRequest::onResponse(jni::JNIEnv& env, int code,
         response.notModified = true;
     } else if (code == 404) {
         response.error = std::make_unique<Error>(Error::Reason::NotFound, "HTTP status code 404");
+    } else if (code == 429) {
+        optional<std::string> retryAfter;
+        optional<std::string> xRateLimitReset;
+        if (jRetryAfter) {
+            retryAfter = jni::Make<std::string>(env, jRetryAfter);
+        }
+        if (jXRateLimitReset) {
+            xRateLimitReset = jni::Make<std::string>(env, jXRateLimitReset);
+        }
+        response.error = std::make_unique<Error>(Error::Reason::RateLimit, "HTTP status code 429", http::parseRetryHeaders(retryAfter, xRateLimitReset));
     } else if (code >= 500 && code < 600) {
         response.error = std::make_unique<Error>(Error::Reason::Server, std::string{ "HTTP status code " } + std::to_string(code));
     } else {

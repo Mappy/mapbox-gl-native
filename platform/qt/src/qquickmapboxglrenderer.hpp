@@ -1,11 +1,13 @@
 #pragma once
 
+#include "qmapbox.hpp"
+#include "qmapboxgl.hpp"
+
 #include <QObject>
 #include <QQuickFramebufferObject>
 #include <QScopedPointer>
 
 class QGeoCoordinate;
-class QMapboxGL;
 class QOpenGLFramebufferObject;
 class QSize;
 

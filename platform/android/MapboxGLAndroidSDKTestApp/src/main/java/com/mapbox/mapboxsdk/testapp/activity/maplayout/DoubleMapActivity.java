@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.testapp.activity.maplayout;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -10,6 +11,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -27,6 +29,9 @@ import com.mapbox.mapboxsdk.testapp.R;
 public class DoubleMapActivity extends AppCompatActivity {
 
     private static final String TAG_FRAGMENT = "map";
+
+    // used for ui tests
+    private MapboxMap mapboxMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,10 +57,33 @@ public class DoubleMapActivity extends AppCompatActivity {
         }
     }
 
+    public void setMapboxMap(MapboxMap map) {
+        // we need to set mapboxmap on the parent activity,
+        // for auto-generated ui tests
+
+        mapboxMap = map;
+        mapboxMap.setStyleUrl(Style.DARK);
+        mapboxMap.moveCamera(CameraUpdateFactory.zoomTo(18));
+        try {
+            TrackingSettings settings = mapboxMap.getTrackingSettings();
+            settings.setMyLocationTrackingMode(MyLocationTracking.TRACKING_FOLLOW);
+        } catch (SecurityException securityException) {
+            // permission is handled in MainActivity
+            finish();
+        }
+    }
+
     public static class DoubleMapFragment extends Fragment {
 
-        private MapView mMapView;
-        private MapView mMapViewMini;
+        private DoubleMapActivity activity;
+        private MapView mapView;
+        private MapView mapViewMini;
+
+        @Override
+        public void onAttach(Context context) {
+            super.onAttach(context);
+            activity = (DoubleMapActivity) context;
+        }
 
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -67,28 +95,21 @@ public class DoubleMapActivity extends AppCompatActivity {
             super.onViewCreated(view, savedInstanceState);
 
             // MapView large
-            mMapView = (MapView) view.findViewById(R.id.mapView);
-            mMapView.onCreate(savedInstanceState);
-            mMapView.getMapAsync(new OnMapReadyCallback() {
+            mapView = (MapView) view.findViewById(R.id.mapView);
+            mapView.onCreate(savedInstanceState);
+            mapView.getMapAsync(new OnMapReadyCallback() {
                 @Override
                 public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                    mapboxMap.setStyleUrl(Style.DARK);
-
-                    mapboxMap.moveCamera(CameraUpdateFactory.zoomTo(18));
-                    try {
-                        TrackingSettings settings = mapboxMap.getTrackingSettings();
-                        settings.setMyLocationTrackingMode(MyLocationTracking.TRACKING_FOLLOW);
-                    } catch (SecurityException e) {
-                        // permission is handled in MainActivity
-                        getActivity().finish();
+                    if (activity != null) {
+                        activity.setMapboxMap(mapboxMap);
                     }
                 }
             });
 
             // MapView mini
-            mMapViewMini = (MapView) view.findViewById(R.id.mini_map);
-            mMapViewMini.onCreate(savedInstanceState);
-            mMapViewMini.getMapAsync(new OnMapReadyCallback() {
+            mapViewMini = (MapView) view.findViewById(R.id.mini_map);
+            mapViewMini.onCreate(savedInstanceState);
+            mapViewMini.getMapAsync(new OnMapReadyCallback() {
                 @Override
                 public void onMapReady(@NonNull MapboxMap mapboxMap) {
                     mapboxMap.setStyleUrl(Style.LIGHT);
@@ -103,7 +124,7 @@ public class DoubleMapActivity extends AppCompatActivity {
                     try {
                         TrackingSettings settings = mapboxMap.getTrackingSettings();
                         settings.setMyLocationTrackingMode(MyLocationTracking.TRACKING_FOLLOW);
-                    } catch (SecurityException e) {
+                    } catch (SecurityException securityException) {
                         // permission is handled in MainActivity
                         getActivity().finish();
                     }
@@ -112,46 +133,49 @@ public class DoubleMapActivity extends AppCompatActivity {
                         @Override
                         public void onMapClick(@NonNull LatLng point) {
                             // test if we can open 2 activities after each other
-                            startActivity(new Intent(mMapViewMini.getContext(), DoubleMapActivity.class));
+                            startActivity(new Intent(mapViewMini.getContext(), DoubleMapActivity.class));
                         }
                     });
                 }
             });
+
+            SurfaceView surfaceViewMini = (SurfaceView) mapViewMini.findViewById(R.id.surfaceView);
+            surfaceViewMini.setZOrderMediaOverlay(true);
         }
 
         @Override
         public void onResume() {
             super.onResume();
-            mMapView.onResume();
-            mMapViewMini.onResume();
+            mapView.onResume();
+            mapViewMini.onResume();
         }
 
         @Override
         public void onPause() {
             super.onPause();
-            mMapView.onPause();
-            mMapViewMini.onPause();
+            mapView.onPause();
+            mapViewMini.onPause();
         }
 
         @Override
         public void onDestroy() {
             super.onDestroy();
-            mMapView.onDestroy();
-            mMapViewMini.onDestroy();
+            mapView.onDestroy();
+            mapViewMini.onDestroy();
         }
 
         @Override
         public void onLowMemory() {
             super.onLowMemory();
-            mMapView.onLowMemory();
-            mMapViewMini.onLowMemory();
+            mapView.onLowMemory();
+            mapViewMini.onLowMemory();
         }
 
         @Override
         public void onSaveInstanceState(Bundle outState) {
             super.onSaveInstanceState(outState);
-            mMapView.onSaveInstanceState(outState);
-            mMapViewMini.onSaveInstanceState(outState);
+            mapView.onSaveInstanceState(outState);
+            mapViewMini.onSaveInstanceState(outState);
         }
     }
 

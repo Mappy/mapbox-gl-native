@@ -20,17 +20,17 @@ public:
     FillBucket();
     ~FillBucket() override;
 
-    void upload(gl::ObjectStore&, gl::Config&) override;
+    void upload(gl::Context&) override;
     void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
     bool hasData() const override;
     bool needsClipping() const override;
 
     void addGeometry(const GeometryCollection&);
 
-    void drawElements(PlainShader&, gl::ObjectStore&, bool overdraw);
-    void drawElements(PatternShader&, gl::ObjectStore&, bool overdraw);
-    void drawVertices(OutlineShader&, gl::ObjectStore&, bool overdraw);
-    void drawVertices(OutlinePatternShader&, gl::ObjectStore&, bool overdraw);
+    void drawElements(PlainShader&, gl::Context&, PaintMode);
+    void drawElements(PatternShader&, gl::Context&, PaintMode);
+    void drawVertices(OutlineShader&, gl::Context&, PaintMode);
+    void drawVertices(OutlinePatternShader&, gl::Context&, PaintMode);
 
 private:
     FillVertexBuffer vertexBuffer;

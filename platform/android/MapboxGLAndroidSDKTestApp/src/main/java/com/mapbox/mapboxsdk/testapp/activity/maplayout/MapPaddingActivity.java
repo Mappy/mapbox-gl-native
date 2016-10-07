@@ -21,8 +21,8 @@ import com.mapbox.mapboxsdk.testapp.R;
 
 public class MapPaddingActivity extends AppCompatActivity {
 
-    private MapView mMapView;
-    private MapboxMap mMapboxMap;
+    private MapView mapView;
+    private MapboxMap mapboxMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,14 +38,14 @@ public class MapPaddingActivity extends AppCompatActivity {
             actionBar.setDisplayShowHomeEnabled(true);
         }
 
-        mMapView = (MapView) findViewById(R.id.mapView);
-        mMapView.setTag(true);
-        mMapView.onCreate(savedInstanceState);
+        mapView = (MapView) findViewById(R.id.mapView);
+        mapView.setTag(true);
+        mapView.onCreate(savedInstanceState);
 
-        mMapView.getMapAsync(new OnMapReadyCallback() {
+        mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mMapboxMap = mapboxMap;
+                MapPaddingActivity.this.mapboxMap = mapboxMap;
 
                 int paddingLeft = (int) getResources().getDimension(R.dimen.map_padding_left);
                 int paddingBottom = (int) getResources().getDimension(R.dimen.map_padding_bottom);
@@ -60,31 +60,31 @@ public class MapPaddingActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        mMapView.onResume();
+        mapView.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mMapView.onPause();
+        mapView.onPause();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mMapView.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mMapView.onDestroy();
+        mapView.onDestroy();
     }
 
     @Override
     public void onLowMemory() {
         super.onLowMemory();
-        mMapView.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override
@@ -96,12 +96,13 @@ public class MapPaddingActivity extends AppCompatActivity {
     private void toggleGps(boolean enable) {
         try {
             // Enable user location
-            mMapboxMap.setMyLocationEnabled(enable);
+            mapboxMap.setMyLocationEnabled(enable);
 
-            TrackingSettings trackingSettings = mMapboxMap.getTrackingSettings();
+            TrackingSettings trackingSettings = mapboxMap.getTrackingSettings();
             trackingSettings.setDismissTrackingOnGesture(false);
-            trackingSettings.setMyLocationTrackingMode(enable ? MyLocationTracking.TRACKING_FOLLOW : MyLocationTracking.TRACKING_NONE);
-        } catch (SecurityException e) {
+            trackingSettings.setMyLocationTrackingMode(
+                enable ? MyLocationTracking.TRACKING_FOLLOW : MyLocationTracking.TRACKING_NONE);
+        } catch (SecurityException securityException) {
             // permission not granted is handled in FeatureOverviewActivity
             finish();
         }
@@ -118,8 +119,8 @@ public class MapPaddingActivity extends AppCompatActivity {
                 .tilt(45)
                 .build();
 
-        mMapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
-        mMapboxMap.addMarker(new MarkerOptions().title("Center map").position(bangalore));
+        mapboxMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+        mapboxMap.addMarker(new MarkerOptions().title("Center map").position(bangalore));
     }
 
     @Override
@@ -130,13 +131,13 @@ public class MapPaddingActivity extends AppCompatActivity {
                 return true;
 
             case R.id.action_user_tracking:
-                if (mMapboxMap != null) {
+                if (mapboxMap != null) {
                     toggleGps(true);
                 }
                 return true;
 
             case R.id.action_bangalore:
-                if (mMapboxMap != null) {
+                if (mapboxMap != null) {
                     moveToBangalore();
                 }
                 return true;

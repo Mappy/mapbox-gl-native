@@ -1,11 +1,14 @@
 package com.mapbox.mapboxsdk;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.text.TextUtils;
 
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.InvalidAccessTokenException;
 import com.mapbox.mapboxsdk.exceptions.MapboxAccountManagerNotStartedException;
+import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
 import com.mapbox.mapboxsdk.telemetry.MapboxEventManager;
 
 public class MapboxAccountManager {
@@ -38,10 +41,16 @@ public class MapboxAccountManager {
      */
     public static MapboxAccountManager start(Context context, String accessToken) {
         if (mapboxAccountManager == null) {
+            //Create a new account manager
             mapboxAccountManager = new MapboxAccountManager(context, accessToken);
+
+            //Initialize the event manager
+            MapboxEventManager.getMapboxEventManager().initialize(context, accessToken);
+
+            //Register a receiver to listen for connectivity updates
+            ConnectivityReceiver.instance(context);
         }
-        MapboxEventManager eventManager = MapboxEventManager.getMapboxEventManager();
-        eventManager.initialize(mapboxAccountManager.applicationContext, mapboxAccountManager.accessToken);
+
         return mapboxAccountManager;
     }
 
@@ -60,7 +69,7 @@ public class MapboxAccountManager {
     }
 
     /**
-     * Access Token for this application
+     * Access Token for this application.
      *
      * @return Mapbox Access Token
      */
@@ -69,14 +78,35 @@ public class MapboxAccountManager {
     }
 
     /**
-     * Runtime validation of Access Token
+     * Runtime validation of Access Token.
      *
      * @param accessToken Access Token to check
-     * @throws InvalidAccessTokenException
+     * @throws InvalidAccessTokenException the exception thrown
      */
     public static void validateAccessToken(String accessToken) throws InvalidAccessTokenException {
         if (TextUtils.isEmpty(accessToken) || (!accessToken.toLowerCase(MapboxConstants.MAPBOX_LOCALE).startsWith("pk.") && !accessToken.toLowerCase(MapboxConstants.MAPBOX_LOCALE).startsWith("sk."))) {
             throw new InvalidAccessTokenException();
         }
     }
+
+    /**
+     * Determines whether we have an Internet connection available. Please do not rely on this
+     * method in your apps, this method is used internally by the SDK.
+     *
+     * @return true if there is an Internet connection, false otherwise
+     */
+    public boolean isConnected() {
+        ConnectivityManager cm = (ConnectivityManager) applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+        return (activeNetwork != null && activeNetwork.isConnected());
+    }
+
+    /**
+     * Not public API
+     * @return the Application Context
+     */
+    public Context getApplicationContext() {
+        return applicationContext;
+    }
+
 }

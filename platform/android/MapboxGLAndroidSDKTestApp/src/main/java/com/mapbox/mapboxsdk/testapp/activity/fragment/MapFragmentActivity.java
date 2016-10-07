@@ -2,7 +2,6 @@ package com.mapbox.mapboxsdk.testapp.activity.fragment;
 
 import android.app.FragmentTransaction;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -18,7 +17,9 @@ import com.mapbox.mapboxsdk.maps.MapboxMapOptions;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
 
-public class MapFragmentActivity extends AppCompatActivity {
+public class MapFragmentActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+    private MapboxMap mapboxMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,9 +48,6 @@ public class MapFragmentActivity extends AppCompatActivity {
             options.rotateGesturesEnabled(false);
 
             options.debugActive(false);
-//            options.compassEnabled(false);
-//            options.attributionEnabled(false);
-//            options.logoEnabled(false);
 
             LatLng dc = new LatLng(38.90252, -77.02291);
 
@@ -68,12 +66,14 @@ public class MapFragmentActivity extends AppCompatActivity {
             mapFragment = (MapFragment) getFragmentManager().findFragmentByTag("com.mapbox.map");
         }
 
-        mapFragment.getMapAsync(new OnMapReadyCallback() {
-            @Override
-            public void onMapReady(@NonNull MapboxMap mapboxMap) {
-                mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder().tilt(45.0).build()), 10000);
-            }
-        });
+        mapFragment.getMapAsync(this);
+    }
+
+    @Override
+    public void onMapReady(MapboxMap map) {
+        mapboxMap = map;
+        mapboxMap.animateCamera(
+            CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder().tilt(45.0).build()), 10000);
     }
 
     @Override

@@ -26,25 +26,32 @@ public:
 
     // Paint properties
 
-    PropertyValue<bool> getFillAntialias() const;
+    static PropertyValue<bool> getDefaultFillAntialias();
+    PropertyValue<bool> getFillAntialias(const optional<std::string>& klass = {}) const;
     void setFillAntialias(PropertyValue<bool>, const optional<std::string>& klass = {});
 
-    PropertyValue<float> getFillOpacity() const;
+    static PropertyValue<float> getDefaultFillOpacity();
+    PropertyValue<float> getFillOpacity(const optional<std::string>& klass = {}) const;
     void setFillOpacity(PropertyValue<float>, const optional<std::string>& klass = {});
 
-    PropertyValue<Color> getFillColor() const;
+    static PropertyValue<Color> getDefaultFillColor();
+    PropertyValue<Color> getFillColor(const optional<std::string>& klass = {}) const;
     void setFillColor(PropertyValue<Color>, const optional<std::string>& klass = {});
 
-    PropertyValue<Color> getFillOutlineColor() const;
+    static PropertyValue<Color> getDefaultFillOutlineColor();
+    PropertyValue<Color> getFillOutlineColor(const optional<std::string>& klass = {}) const;
     void setFillOutlineColor(PropertyValue<Color>, const optional<std::string>& klass = {});
 
-    PropertyValue<std::array<float, 2>> getFillTranslate() const;
+    static PropertyValue<std::array<float, 2>> getDefaultFillTranslate();
+    PropertyValue<std::array<float, 2>> getFillTranslate(const optional<std::string>& klass = {}) const;
     void setFillTranslate(PropertyValue<std::array<float, 2>>, const optional<std::string>& klass = {});
 
-    PropertyValue<TranslateAnchorType> getFillTranslateAnchor() const;
+    static PropertyValue<TranslateAnchorType> getDefaultFillTranslateAnchor();
+    PropertyValue<TranslateAnchorType> getFillTranslateAnchor(const optional<std::string>& klass = {}) const;
     void setFillTranslateAnchor(PropertyValue<TranslateAnchorType>, const optional<std::string>& klass = {});
 
-    PropertyValue<std::string> getFillPattern() const;
+    static PropertyValue<std::string> getDefaultFillPattern();
+    PropertyValue<std::string> getFillPattern(const optional<std::string>& klass = {}) const;
     void setFillPattern(PropertyValue<std::string>, const optional<std::string>& klass = {});
 
     // Private implementation
