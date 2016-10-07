@@ -26,6 +26,9 @@ enum class BufferType : uint32_t {
     Vertex = 0x8892,
     Element = 0x8893
 };
+    
+enum class TextureMipMap : bool { No = false, Yes = true };
+enum class TextureFilter : bool { Nearest = false, Linear = true };
 
 enum class StencilTestFunction : uint32_t {
     Never = 0x0200,
