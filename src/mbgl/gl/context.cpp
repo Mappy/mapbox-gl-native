@@ -123,7 +123,7 @@ UniqueFramebuffer Context::createFramebuffer() {
 void Context::uploadBuffer(BufferType type, size_t size, void* data) {
     MBGL_CHECK_ERROR(glBufferData(static_cast<GLenum>(type), size, data, GL_STATIC_DRAW));
 }
-    
+
 UniqueTexture
 Context::createTexture(uint16_t width, uint16_t height, const void* data, TextureUnit unit) {
     auto obj = createTexture();
@@ -134,7 +134,7 @@ Context::createTexture(uint16_t width, uint16_t height, const void* data, Textur
     MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
     MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
     MBGL_CHECK_ERROR(
-                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data));
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data));
     return obj;
 }
 
@@ -146,10 +146,10 @@ void Context::bindTexture(Texture& obj,
         activeTexture = unit;
         texture[unit] = obj.texture;
         MBGL_CHECK_ERROR(glTexParameteri(
-                                         GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                                         filter == TextureFilter::Linear
-                                         ? (mipmap == TextureMipMap::Yes ? GL_LINEAR_MIPMAP_NEAREST : GL_LINEAR)
-                                         : (mipmap == TextureMipMap::Yes ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST)));
+            GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+            filter == TextureFilter::Linear
+                ? (mipmap == TextureMipMap::Yes ? GL_LINEAR_MIPMAP_NEAREST : GL_LINEAR)
+                : (mipmap == TextureMipMap::Yes ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST)));
         MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
                                          filter == TextureFilter::Linear ? GL_LINEAR : GL_NEAREST));
         obj.filter = filter;

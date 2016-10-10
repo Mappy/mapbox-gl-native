@@ -18,20 +18,6 @@ class Supercluster;
 
 } // namespace mapbox
 
-#include <mapbox/geojson.hpp>
-
-namespace mapbox {
-
-namespace geojsonvt {
-class GeoJSONVT;
-} // namespace geojsonvt
-
-namespace supercluster {
-class Supercluster;
-} // namespace supercluster
-
-} // namespace mapbox
-
 namespace mbgl {
 namespace style {
 
