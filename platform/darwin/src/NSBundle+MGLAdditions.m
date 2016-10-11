@@ -12,6 +12,9 @@
         bundle = [NSBundle bundleWithPath:[bundle.privateFrameworksPath
                                            stringByAppendingPathComponent:@"Mapbox.framework"]];
     }
+    if (!bundle) {
+        bundle = [NSBundle mainBundle];
+    }
     return bundle;
 }
 
