@@ -118,7 +118,7 @@ static NSURL *MGLStyleURL_emerald;
     
     MGLSource *source = [[clazz alloc] init];
     source.sourceIdentifier = identifier;
-    source.source = s;
+    //source.source = s;
     
     return source;
 }
