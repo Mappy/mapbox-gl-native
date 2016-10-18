@@ -4287,7 +4287,15 @@ public:
     if (headingDirection >= 0 && self.userTrackingMode == MGLUserTrackingModeFollowWithHeading
         && self.userTrackingState != MGLUserTrackingStateBegan)
     {
-        [self _setDirection:headingDirection animated:YES];
+        if (self.isRotateEnabled)
+        {
+            [self _setDirection:headingDirection animated:YES];
+        }
+        else
+        {
+            NSTimeInterval duration = MGLAnimationDuration;
+            [self updateUserLocationAnnotationViewAnimatedWithDuration:duration];
+        }
     }
 }
 
