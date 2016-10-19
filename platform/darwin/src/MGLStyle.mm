@@ -160,7 +160,7 @@ static NSURL *MGLStyleURL_emerald;
         return nil;
     }
 
-    source.source = mbglSource;
+    //source.source = mbglSource;
 
     return source;
 }
