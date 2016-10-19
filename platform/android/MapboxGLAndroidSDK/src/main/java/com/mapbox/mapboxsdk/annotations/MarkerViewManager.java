@@ -15,7 +15,6 @@ import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.Projection;
 import com.mapbox.mapboxsdk.utils.AnimatorUtils;
 
 import java.util.ArrayList;
@@ -68,6 +67,19 @@ public class MarkerViewManager {
         View convertView = markerViewMap.get(marker);
         if (convertView != null) {
             AnimatorUtils.rotate(convertView, rotation);
+        }
+    }
+
+    /**
+     * Animate a MarkerView with a given rotation.
+     *
+     * @param marker   the MarkerView to rotate by
+     * @param rotation the rotation by value
+     */
+    public void animateRotationBy(@NonNull MarkerView marker, float rotation) {
+        View convertView = markerViewMap.get(marker);
+        if (convertView != null) {
+            AnimatorUtils.rotateBy(convertView, rotation);
         }
     }
 
@@ -305,6 +317,7 @@ public class MarkerViewManager {
                 }
             }
         }
+        marker.setMapboxMap(null);
         markerViewMap.remove(marker);
     }
 
@@ -378,14 +391,15 @@ public class MarkerViewManager {
         // remove old markers
         Iterator<MarkerView> iterator = markerViewMap.keySet().iterator();
         while (iterator.hasNext()) {
-            MarkerView m = iterator.next();
-            if (!markers.contains(m)) {
+            MarkerView marker = iterator.next();
+            if (!markers.contains(marker)) {
                 // remove marker
-                convertView = markerViewMap.get(m);
+                convertView = markerViewMap.get(marker);
                 for (MapboxMap.MarkerViewAdapter adapter : markerViewAdapters) {
-                    if (adapter.getMarkerClass().equals(m.getClass())) {
-                        adapter.prepareViewForReuse(m, convertView);
+                    if (adapter.getMarkerClass().equals(marker.getClass())) {
+                        adapter.prepareViewForReuse(marker, convertView);
                         adapter.releaseView(convertView);
+                        marker.setMapboxMap(null);
                         iterator.remove();
                     }
                 }
@@ -397,20 +411,14 @@ public class MarkerViewManager {
             if (!markerViewMap.containsKey(marker)) {
                 for (final MapboxMap.MarkerViewAdapter adapter : markerViewAdapters) {
                     if (adapter.getMarkerClass().equals(marker.getClass())) {
+
+                        // Inflate View
                         convertView = (View) adapter.getViewReusePool().acquire();
                         final View adaptedView = adapter.getView(marker, convertView, mapView);
                         if (adaptedView != null) {
-
-                            // tilt
                             adaptedView.setRotationX(marker.getTilt());
-
-                            // rotation
                             adaptedView.setRotation(marker.getRotation());
-
-                            // alpha
                             adaptedView.setAlpha(marker.getAlpha());
-
-                            // visible
                             adaptedView.setVisibility(View.GONE);
 
                             if (mapboxMap.getSelectedMarkers().contains(marker)) {
@@ -436,6 +444,7 @@ public class MarkerViewManager {
                                 }
                             });
 
+                            marker.setMapboxMap(mapboxMap);
                             markerViewMap.put(marker, adaptedView);
                             if (convertView == null) {
                                 adaptedView.setVisibility(View.GONE);

@@ -8,8 +8,12 @@
 // This file is generated. 
 // Edit platform/darwin/scripts/generate-style-code.js, then run `make style-code-darwin`.
 
-#import "MGLStyleAttributeValue.h"
-#import "MGLBaseStyleLayer.h"
+#import "MGLStyleValue.h"
+#import "MGL<%-
+(type === 'background' ? '' :
+ (type === 'raster' ? 'Foreground' :
+  'Vector'))
+%>StyleLayer.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -17,13 +21,15 @@ NS_ASSUME_NONNULL_BEGIN
 <% if (property.type == "enum") { -%>
 /**
  <%- propertyDoc(property.name, property, type) %>
+ 
+ Values of this type are used in the `<%- camelizeWithLeadingLowercase(property.name) %>` property of `MGL<%- camelize(type) %>StyleLayer`.
  */
-typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %>) {
+typedef NS_ENUM(NSUInteger, MGL<%- camelize(property.name) %>) {
 <% for (const value in property.values) { -%>
     /**
      <%- propertyDoc(property.name, property.values[value], type) %>
      */
-    MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %><%- camelize(value) %>,
+    MGL<%- camelize(property.name) %><%- camelize(value) %>,
 <% } -%>
 };
 
@@ -33,13 +39,15 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(prope
 <% if (property.type == "enum") { -%>
 /**
  <%- propertyDoc(property.name, property, type) %>
+ 
+ Values of this type are used in the `<%- camelizeWithLeadingLowercase(property.name) %>` property of `MGL<%- camelize(type) %>StyleLayer`.
  */
-typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %>) {
+typedef NS_ENUM(NSUInteger, MGL<%- camelize(property.name) %>) {
 <% for (const value in property.values) { -%>
     /**
      <%- propertyDoc(property.name, property.values[value], type) %>
      */
-    MGL<%- camelize(type) %>StyleLayer<%- camelize(property.name) %><%- camelize(value) %>,
+    MGL<%- camelize(property.name) %><%- camelize(value) %>,
 <% } -%>
 };
 
@@ -60,28 +68,16 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(prope
  `-[MGLStyle layerWithIdentifier:]` method. 
  */
 <% } -%>
-@interface MGL<%- camelize(type) %>StyleLayer : MGLBaseStyleLayer <MGLStyleLayer>
-<% if (type == 'background') { -%>
+@interface MGL<%- camelize(type) %>StyleLayer : MGL<%-
+(type === 'background' ? '' :
+ (type === 'raster' ? 'Foreground' :
+  'Vector'))
+%>StyleLayer
+<% if (type === 'background') { -%>
 
-- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier;
+- (instancetype)initWithIdentifier:(NSString *)identifier NS_DESIGNATED_INITIALIZER;
 <% } -%>
 
-- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier source:(MGLSource *)source;
-
-<% if (type !== 'background' && type !== 'raster') { -%>
-- (instancetype)initWithLayerIdentifier:(NSString *)layerIdentifier source:(MGLSource *)source sourceLayer:(NSString *)sourceLayer;
-<% } -%>
-
-<% if (type !== 'background' && type !== 'raster') { -%>
-/**
- A predicate that corresponds to the layer's <a href='https://www.mapbox.com/mapbox-gl-style-spec/#types-filter'>filter</a>.
- 
- The predicate's left expression must be a string that identifies a feature
- property, or one of the special keys.
- */
-@property (nonatomic, nullable) NSPredicate *predicate;
-
-<% } -%>
 <% if (layoutProperties.length) { -%>
 #pragma mark - Accessing the Layout Attributes
 
@@ -96,7 +92,7 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(prope
  <%- propertyReqs(property, layoutPropertiesByName, type) %>
 <% } -%>
  */
-@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) <%- propertyType(property, false, type) %> <%- camelizeWithLeadingLowercase(property.name) %>;
+@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) MGLStyleValue<<%- propertyType(property, true) %>> *<%- camelizeWithLeadingLowercase(property.name) %>;
 
 <% } -%>
 <% } -%>
@@ -114,7 +110,7 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(type) %>StyleLayer<%- camelize(prope
  <%- propertyReqs(property, paintPropertiesByName, type) %>
 <% } -%>
  */
-@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) <%- propertyType(property, false, type) %> <%- camelizeWithLeadingLowercase(property.name) %>;
+@property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) MGLStyleValue<<%- propertyType(property, true) %>> *<%- camelizeWithLeadingLowercase(property.name) %>;
 
 <% } -%>
 <% } -%>

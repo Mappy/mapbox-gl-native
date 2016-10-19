@@ -1,19 +1,21 @@
 #pragma once
 
 #include <mbgl/renderer/bucket.hpp>
+#include <mbgl/renderer/element_group.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/geometry/elements_buffer.hpp>
-#include <mbgl/geometry/fill_buffer.hpp>
+#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/shader/fill_vertex.hpp>
 
 #include <vector>
 #include <memory>
 
 namespace mbgl {
 
-class OutlinePatternShader;
-class PlainShader;
-class PatternShader;
-class OutlineShader;
+class FillShader;
+class FillPatternShader;
+class FillOutlineShader;
+class FillOutlinePatternShader;
 
 class FillBucket : public Bucket {
 public:
@@ -27,21 +29,22 @@ public:
 
     void addGeometry(const GeometryCollection&);
 
-    void drawElements(PlainShader&, gl::Context&, PaintMode);
-    void drawElements(PatternShader&, gl::Context&, PaintMode);
-    void drawVertices(OutlineShader&, gl::Context&, PaintMode);
-    void drawVertices(OutlinePatternShader&, gl::Context&, PaintMode);
+    void drawElements(FillShader&, gl::Context&, PaintMode);
+    void drawElements(FillPatternShader&, gl::Context&, PaintMode);
+    void drawVertices(FillOutlineShader&, gl::Context&, PaintMode);
+    void drawVertices(FillOutlinePatternShader&, gl::Context&, PaintMode);
 
 private:
-    FillVertexBuffer vertexBuffer;
-    TriangleElementsBuffer triangleElementsBuffer;
-    LineElementsBuffer lineElementsBuffer;
+    std::vector<FillVertex> vertices;
+    std::vector<gl::Line> lines;
+    std::vector<gl::Triangle> triangles;
 
-    typedef ElementGroup<4> TriangleGroup;
-    typedef ElementGroup<4> LineGroup;
+    std::vector<ElementGroup<FillOutlineShader, FillOutlinePatternShader>> lineGroups;
+    std::vector<ElementGroup<FillShader, FillPatternShader>> triangleGroups;
 
-    std::vector<std::unique_ptr<TriangleGroup>> triangleGroups;
-    std::vector<std::unique_ptr<LineGroup>> lineGroups;
+    optional<gl::VertexBuffer<FillVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Line>> lineIndexBuffer;
+    optional<gl::IndexBuffer<gl::Triangle>> triangleIndexBuffer;
 };
 
 } // namespace mbgl

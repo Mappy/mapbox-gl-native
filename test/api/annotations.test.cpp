@@ -43,9 +43,19 @@ TEST(Annotations, SymbolAnnotation) {
     test.map.addAnnotation(SymbolAnnotation { Point<double>(0, 0), "default_marker" });
     test.checkRendering("point_annotation");
 
+    auto size = test.view.getSize();
+    auto screenBox = ScreenBox { {}, { double(size[0]), double(size[1]) } };
+    auto features = test.map.queryPointAnnotations(screenBox);
+    EXPECT_EQ(features.size(), 1u);
+
+    test.map.setZoom(test.map.getMaxZoom());
     // FIXME: https://github.com/mapbox/mapbox-gl-native/issues/5419
     //test.map.setZoom(test.map.getMaxZoom());
     //test.checkRendering("point_annotation");
+    test::render(test.map);
+
+    features = test.map.queryPointAnnotations(screenBox);
+    EXPECT_EQ(features.size(), 1u);
 }
 
 TEST(Annotations, LineAnnotation) {
@@ -340,4 +350,61 @@ TEST(Annotations, QueryRenderedFeatures) {
     EXPECT_EQ(features2.size(), 1u);
     EXPECT_TRUE(!!features2[0].id);
     EXPECT_EQ(*features2[0].id, 1);
+}
+
+TEST(Annotations, QueryFractionalZoomLevels) {
+    AnnotationTest test;
+
+    auto viewSize = test.view.getSize();
+    auto box = ScreenBox { {}, { double(viewSize[0]), double(viewSize[1]) } };
+
+    test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
+    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+
+    std::vector<mbgl::AnnotationID> ids;
+    for (int longitude = 0; longitude < 10; ++longitude) {
+        for (int latitude = 0; latitude < 10; ++latitude) {
+            ids.push_back(test.map.addAnnotation(SymbolAnnotation { { double(latitude), double(longitude) }, "default_marker" }));
+        }
+    }
+
+    test.map.setLatLngZoom({ 5, 5 }, 0);
+    for (uint16_t zoomSteps = 0; zoomSteps <= 20; ++zoomSteps) {
+        test.map.setZoom(zoomSteps / 10.0);
+        test::render(test.map);
+        auto features = test.map.queryRenderedFeatures(box);
+        EXPECT_EQ(features.size(), ids.size());
+    }
+}
+
+TEST(Annotations, VisibleFeatures) {
+    AnnotationTest test;
+
+    auto viewSize = test.view.getSize();
+    auto box = ScreenBox { {}, { double(viewSize[0]), double(viewSize[1]) } };
+
+    test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
+    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.setZoom(3);
+
+    std::vector<mbgl::AnnotationID> ids;
+    for (int longitude = -5; longitude <= 5; ++longitude) {
+        for (int latitude = -5; latitude <= 5; ++latitude) {
+            ids.push_back(test.map.addAnnotation(SymbolAnnotation { { double(latitude), double(longitude) }, "default_marker" }));
+        }
+    }
+
+    // Change bearing *after* adding annotations cause them to be reordered,
+    // and some annotations become occluded by others.
+    test.map.setBearing(45);
+    test::render(test.map);
+
+    auto features = test.map.queryRenderedFeatures(box);
+    EXPECT_EQ(features.size(), ids.size());
+
+    test.map.setBearing(0);
+    test.map.setZoom(4);
+    test::render(test.map);
+    features = test.map.queryRenderedFeatures(box);
+    EXPECT_EQ(features.size(), ids.size());
 }

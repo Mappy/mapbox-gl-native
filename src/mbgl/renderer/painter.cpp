@@ -39,14 +39,35 @@ namespace mbgl {
 using namespace style;
 
 Painter::Painter(const TransformState& state_)
-    : state(state_) {
+    : state(state_),
+      tileTriangleVertexBuffer(context.createVertexBuffer(std::vector<FillVertex> {{
+            { 0,            0 },
+            { util::EXTENT, 0 },
+            { 0, util::EXTENT },
+            { util::EXTENT, 0 },
+            { 0, util::EXTENT },
+            { util::EXTENT, util::EXTENT }
+      }})),
+      tileLineStripVertexBuffer(context.createVertexBuffer(std::vector<FillVertex> {{
+            { 0, 0 },
+            { util::EXTENT, 0 },
+            { util::EXTENT, util::EXTENT },
+            { 0, util::EXTENT },
+            { 0, 0 }
+      }})),
+      rasterVertexBuffer(context.createVertexBuffer(std::vector<RasterVertex> {{
+            { 0, 0, 0, 0 },
+            { util::EXTENT, 0, 32767, 0 },
+            { 0, util::EXTENT, 0, 32767 },
+            { util::EXTENT, util::EXTENT, 32767, 32767 }
+      }})) {
 #ifndef NDEBUG
     gl::debugging::enable();
 #endif
 
     shaders = std::make_unique<Shaders>(context);
 #ifndef NDEBUG
-    overdrawShaders = std::make_unique<Shaders>(context, Shader::Overdraw);
+    overdrawShaders = std::make_unique<Shaders>(context, gl::Shader::Overdraw);
 #endif
 
     // Reset GL values
@@ -109,9 +130,6 @@ void Painter::render(const Style& style, const FrameData& frame_, SpriteAtlas& a
     {
         MBGL_DEBUG_GROUP("upload");
 
-        tileStencilBuffer.upload(context);
-        rasterBoundsBuffer.upload(context);
-        tileBorderBuffer.upload(context);
         spriteAtlas->upload(context, 0);
         lineAtlas->upload(context, 0);
         glyphAtlas->upload(context, 0);

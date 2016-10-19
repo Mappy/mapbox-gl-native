@@ -1,24 +1,22 @@
 #pragma once
 
 #include <mbgl/renderer/bucket.hpp>
+#include <mbgl/renderer/element_group.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/geometry/vao.hpp>
-#include <mbgl/geometry/elements_buffer.hpp>
-#include <mbgl/geometry/line_buffer.hpp>
+#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/shader/line_vertex.hpp>
 #include <mbgl/style/layers/line_layer_properties.hpp>
 
 #include <vector>
 
 namespace mbgl {
 
-class LineVertexBuffer;
-class TriangleElementsBuffer;
 class LineShader;
 class LineSDFShader;
-class LinepatternShader;
+class LinePatternShader;
 
 class LineBucket : public Bucket {
-    using TriangleGroup = ElementGroup<6>;
 
 public:
     LineBucket(uint32_t overscaling);
@@ -34,7 +32,7 @@ public:
 
     void drawLines(LineShader&, gl::Context&, PaintMode);
     void drawLineSDF(LineSDFShader&, gl::Context&, PaintMode);
-    void drawLinePatterns(LinepatternShader&, gl::Context&, PaintMode);
+    void drawLinePatterns(LinePatternShader&, gl::Context&, PaintMode);
 
 private:
     struct TriangleElement {
@@ -43,23 +41,26 @@ private:
     };
     void addCurrentVertex(const GeometryCoordinate& currentVertex, double& distance,
             const Point<double>& normal, double endLeft, double endRight, bool round,
-            int32_t startVertex, std::vector<LineBucket::TriangleElement>& triangleStore);
+            std::size_t startVertex, std::vector<LineBucket::TriangleElement>& triangleStore);
     void addPieSliceVertex(const GeometryCoordinate& currentVertex, double distance,
-            const Point<double>& extrude, bool lineTurnsLeft, int32_t startVertex,
+            const Point<double>& extrude, bool lineTurnsLeft, std::size_t startVertex,
             std::vector<TriangleElement>& triangleStore);
 
 public:
     style::LineLayoutProperties layout;
 
 private:
-    LineVertexBuffer vertexBuffer;
-    TriangleElementsBuffer triangleElementsBuffer;
+    std::vector<LineVertex> vertices;
+    std::vector<gl::Triangle> triangles;
 
-    int32_t e1;
-    int32_t e2;
-    int32_t e3;
+    std::vector<ElementGroup<LineShader, LineSDFShader, LinePatternShader>> groups;
 
-    std::vector<std::unique_ptr<TriangleGroup>> triangleGroups;
+    optional<gl::VertexBuffer<LineVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Triangle>> indexBuffer;
+
+    std::ptrdiff_t e1;
+    std::ptrdiff_t e2;
+    std::ptrdiff_t e3;
 
     const uint32_t overscaling;
 };

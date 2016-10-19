@@ -22,6 +22,7 @@
 #include <mbgl/util/mapbox.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
 #include <mbgl/actor/thread_pool.hpp>
+#include <mbgl/platform/log.hpp>
 
 namespace mbgl {
 
@@ -421,7 +422,7 @@ void Map::moveBy(const ScreenCoordinate& point, const Duration& duration) {
 }
 
 void Map::setLatLng(const LatLng& latLng, const Duration& duration) {
-    setLatLng(latLng, ScreenCoordinate {}, duration);
+    setLatLng(latLng, optional<ScreenCoordinate> {}, duration);
 }
 
 void Map::setLatLng(const LatLng& latLng, optional<EdgeInsets> padding, const Duration& duration) {
@@ -749,13 +750,15 @@ std::vector<Feature> Map::queryRenderedFeatures(const ScreenBox& box, const opti
 
 AnnotationIDs Map::queryPointAnnotations(const ScreenBox& box) {
     auto features = queryRenderedFeatures(box, {{ AnnotationManager::PointLayerID }});
-    AnnotationIDs ids;
-    ids.reserve(features.size());
+    std::set<AnnotationID> set;
     for (auto &feature : features) {
         assert(feature.id);
         assert(*feature.id <= std::numeric_limits<AnnotationID>::max());
-        ids.push_back(static_cast<AnnotationID>(feature.id->get<uint64_t>()));
+        set.insert(static_cast<AnnotationID>(feature.id->get<uint64_t>()));
     }
+    AnnotationIDs ids;
+    ids.reserve(set.size());
+    std::move(set.begin(), set.end(), std::back_inserter(ids));
     return ids;
 }
 

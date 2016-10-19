@@ -61,6 +61,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsRuntimeStylingRows) {
     MBXSettingsRuntimeStylingFilteredFill,
     MBXSettingsRuntimeStylingFilteredLines,
     MBXSettingsRuntimeStylingNumericFilteredFill,
+    MBXSettingsRuntimeStylingStyleQuery,
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
@@ -304,6 +305,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 @"Style Fill With Filter",
                 @"Style Lines With Filter",
                 @"Style Fill With Numeric Filter",
+                @"Style Query For GeoJSON",
             ]];
             break;
         case MBXSettingsMiscellaneous:
@@ -428,6 +430,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                     break;
                 case MBXSettingsRuntimeStylingNumericFilteredFill:
                     [self styleNumericFilteredFills];
+                    break;
+                case MBXSettingsRuntimeStylingStyleQuery:
+                    [self styleQuery];
                     break;
                 default:
                     NSAssert(NO, @"All runtime styling setting rows should be implemented");
@@ -638,33 +643,36 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 - (void)styleWaterLayer
 {
     MGLFillStyleLayer *waterLayer = (MGLFillStyleLayer *)[self.mapView.style layerWithIdentifier:@"water"];
-    MGLStyleAttributeFunction *waterColorFunction = [[MGLStyleAttributeFunction alloc] init];
-    waterColorFunction.stops = @{@6.0f: [UIColor yellowColor],
-                                 @8.0f: [UIColor blueColor],
-                                 @10.0f: [UIColor redColor],
-                                 @12.0f: [UIColor greenColor],
-                                 @14.0f: [UIColor blueColor]};
+    MGLStyleValue *waterColorFunction = [MGLStyleValue<UIColor *> valueWithStops:@{
+        @6.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor yellowColor]],
+        @8.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]],
+        @10.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]],
+        @12.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor greenColor]],
+        @14.0f: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]],
+    }];
     waterLayer.fillColor = waterColorFunction;
 
-    MGLStyleAttributeFunction *fillAntialias = [[MGLStyleAttributeFunction alloc] init];
-    fillAntialias.stops = @{@11: @YES,
-                            @12: @NO,
-                            @13: @YES,
-                            @14: @NO,
-                            @15: @YES};
+    MGLStyleValue *fillAntialias = [MGLStyleValue<NSNumber *> valueWithStops:@{
+        @11: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES],
+        @12: [MGLStyleValue<NSNumber *> valueWithRawValue:@NO],
+        @13: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES],
+        @14: [MGLStyleValue<NSNumber *> valueWithRawValue:@NO],
+        @15: [MGLStyleValue<NSNumber *> valueWithRawValue:@YES],
+    }];
     waterLayer.fillAntialias = fillAntialias;
 }
 
 - (void)styleRoadLayer
 {
     MGLLineStyleLayer *roadLayer = (MGLLineStyleLayer *)[self.mapView.style layerWithIdentifier:@"road-primary"];
-    roadLayer.lineColor = [UIColor blackColor];
-    MGLStyleAttributeFunction *lineWidthFunction = [[MGLStyleAttributeFunction alloc] init];
+    roadLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blackColor]];
+    MGLStyleValue *lineWidthFunction = [MGLStyleValue<NSNumber *> valueWithStops:@{}];
 
-    MGLStyleAttributeFunction *roadLineColor = [[MGLStyleAttributeFunction alloc] init];
-    roadLineColor.stops = @{@10: [UIColor purpleColor],
-                            @13: [UIColor yellowColor],
-                            @16: [UIColor cyanColor]};
+    MGLStyleValue *roadLineColor = [MGLStyleValue<UIColor *> valueWithStops:@{
+        @10: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor purpleColor]],
+        @13: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor yellowColor]],
+        @16: [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor cyanColor]],
+    }];
     roadLayer.lineColor = roadLineColor;
     roadLayer.lineWidth = lineWidthFunction;
     roadLayer.lineGapWidth = lineWidthFunction;
@@ -677,13 +685,14 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 - (void)styleRasterLayer
 {
     NSURL *rasterURL = [NSURL URLWithString:@"mapbox://mapbox.satellite"];
-    MGLRasterSource *rasterSource = [[MGLRasterSource alloc] initWithSourceIdentifier:@"my-raster-source" URL:rasterURL tileSize:512];
+    MGLRasterSource *rasterSource = [[MGLRasterSource alloc] initWithIdentifier:@"my-raster-source" URL:rasterURL tileSize:512];
     [self.mapView.style addSource:rasterSource];
 
-    MGLRasterStyleLayer *rasterLayer = [[MGLRasterStyleLayer alloc] initWithLayerIdentifier:@"my-raster-layer" source:rasterSource];
-    MGLStyleAttributeFunction *opacityFunction = [[MGLStyleAttributeFunction alloc] init];
-    opacityFunction.stops = @{@20.0f: @1.0f,
-                              @5.0f: @0.0f};
+    MGLRasterStyleLayer *rasterLayer = [[MGLRasterStyleLayer alloc] initWithIdentifier:@"my-raster-layer" source:rasterSource];
+    MGLStyleValue *opacityFunction = [MGLStyleValue<NSNumber *> valueWithStops:@{
+        @20.0f: [MGLStyleValue<NSNumber *> valueWithRawValue:@1.0f],
+        @5.0f: [MGLStyleValue<NSNumber *> valueWithRawValue:@0.0f],
+    }];
     rasterLayer.rasterOpacity = opacityFunction;
     [self.mapView.style addLayer:rasterLayer];
 }
@@ -692,30 +701,30 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 {
     NSString *filePath = [[NSBundle bundleForClass:self.class] pathForResource:@"amsterdam" ofType:@"geojson"];
     NSURL *geoJSONURL = [NSURL fileURLWithPath:filePath];
-    MGLGeoJSONSource *source = [[MGLGeoJSONSource alloc] initWithSourceIdentifier:@"ams" URL:geoJSONURL];
+    MGLGeoJSONSource *source = [[MGLGeoJSONSource alloc] initWithIdentifier:@"ams" URL:geoJSONURL options:nil];
     [self.mapView.style addSource:source];
 
-    MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithLayerIdentifier:@"test" source:source];
-    fillLayer.fillColor = [UIColor purpleColor];
+    MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:@"test" source:source];
+    fillLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor purpleColor]];
     [self.mapView.style addLayer:fillLayer];
 }
 
 - (void)styleSymbolLayer
 {
     MGLSymbolStyleLayer *stateLayer = (MGLSymbolStyleLayer *)[self.mapView.style layerWithIdentifier:@"state-label-lg"];
-    stateLayer.textColor = [UIColor redColor];
+    stateLayer.textColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
 }
 
 - (void)styleBuildingLayer
 {
     MGLFillStyleLayer *buildingLayer = (MGLFillStyleLayer *)[self.mapView.style layerWithIdentifier:@"building"];
-    buildingLayer.fillColor = [UIColor blackColor];
+    buildingLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blackColor]];
 }
 
 - (void)styleFerryLayer
 {
     MGLLineStyleLayer *ferryLineLayer = (MGLLineStyleLayer *)[self.mapView.style layerWithIdentifier:@"ferry"];
-    ferryLineLayer.lineColor = [UIColor redColor];
+    ferryLineLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
 }
 
 - (void)removeParkLayer
@@ -739,8 +748,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         statesLayer.predicate = [NSPredicate predicateWithFormat:@"name == 'Texas'"];
 
         // paint properties
-        statesLayer.fillColor = [UIColor redColor];
-        statesLayer.fillOpacity = @(0.25);
+        statesLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
+        statesLayer.fillOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.25];
     });
 }
 
@@ -759,9 +768,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         countiesLayer.predicate = [NSPredicate predicateWithFormat:@"NAME10 == 'Washington'"];
 
         // paint properties
-        countiesLayer.lineColor = [UIColor redColor];
-        countiesLayer.lineOpacity = @(0.75);
-        countiesLayer.lineWidth = @(5);
+        countiesLayer.lineColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor redColor]];
+        countiesLayer.lineOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.75];
+        countiesLayer.lineWidth = [MGLStyleValue<NSNumber *> valueWithRawValue:@5];
     });
 }
 
@@ -780,8 +789,42 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         regionsLayer.predicate = [NSPredicate predicateWithFormat:@"HRRNUM >= %@ AND HRRNUM < 300", @(200)];
 
         // paint properties
-        regionsLayer.fillColor = [UIColor blueColor];
-        regionsLayer.fillOpacity = @(0.5);
+        regionsLayer.fillColor = [MGLStyleValue<UIColor *> valueWithRawValue:[UIColor blueColor]];
+        regionsLayer.fillOpacity = [MGLStyleValue<NSNumber *> valueWithRawValue:@0.5];
+    });
+}
+
+
+- (void)styleQuery
+{
+    CGRect queryRect = CGRectInset(self.mapView.bounds, 100, 200);
+    NSArray *features = [self.mapView visibleFeaturesInRect:queryRect];
+    
+    NSString *querySourceID = @"query-source-id";
+    NSString *queryLayerID = @"query-layer-id";
+    
+    // RTE if you don't remove the layer first
+    // RTE if you pass a nill layer to remove layer
+    MGLStyleLayer *layer = [self.mapView.style layerWithIdentifier:queryLayerID];
+    if (layer) {
+        [self.mapView.style removeLayer:layer];
+    }
+    
+    // RTE if you pass a nill source to remove source
+    MGLSource *source = [self.mapView.style sourceWithIdentifier:querySourceID];
+    if (source) {
+        [self.mapView.style removeSource:source];
+    }
+    
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        MGLGeoJSONSource *source = [[MGLGeoJSONSource alloc] initWithIdentifier:querySourceID features:features options:nil];
+        [self.mapView.style addSource:source];
+        
+        MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:queryLayerID source:source];
+        fillLayer.fillColor = [MGLStyleConstantValue<UIColor *> valueWithRawValue:[UIColor blueColor]];
+        fillLayer.fillOpacity = [MGLStyleConstantValue<NSNumber *> valueWithRawValue:@0.5];
+        [self.mapView.style addLayer:fillLayer];
     });
 }
 
@@ -1084,11 +1127,6 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     return YES;
 }
 
-- (CGFloat)mapView:(__unused MGLMapView *)mapView alphaForShapeAnnotation:(MGLShape *)annotation
-{
-    return ([annotation isKindOfClass:[MGLPolygon class]] ? 0.5 : 1.0);
-}
-
 - (UIColor *)mapView:(__unused MGLMapView *)mapView strokeColorForShapeAnnotation:(MGLShape *)annotation
 {
     return ([annotation isKindOfClass:[MGLPolyline class]] ? [UIColor purpleColor] : [UIColor blackColor]);
@@ -1096,7 +1134,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
 - (UIColor *)mapView:(__unused MGLMapView *)mapView fillColorForPolygonAnnotation:(__unused MGLPolygon *)annotation
 {
-    return (annotation.pointCount > 3 ? [UIColor greenColor] : [UIColor redColor]);
+    UIColor *color = annotation.pointCount > 3 ? [UIColor greenColor] : [UIColor redColor];
+    return [color colorWithAlphaComponent:0.5];
 }
 
 - (void)mapView:(__unused MGLMapView *)mapView didChangeUserTrackingMode:(MGLUserTrackingMode)mode animated:(__unused BOOL)animated

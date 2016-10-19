@@ -35,10 +35,10 @@ void Painter::renderDebugText(Tile& tile, const mat4 &matrix) {
         tile.debugBucket->debugMode != frame.debugOptions) {
         tile.debugBucket = std::make_unique<DebugBucket>(
             tile.id, tile.isRenderable(), tile.isComplete(), tile.modified,
-            tile.expires, frame.debugOptions);
+            tile.expires, frame.debugOptions, context);
     }
 
-    auto& plainShader = shaders->plain;
+    auto& plainShader = shaders->fill;
     context.program = plainShader.getID();
     plainShader.u_matrix = matrix;
     plainShader.u_opacity = 1.0f;
@@ -74,16 +74,16 @@ void Painter::renderDebugFrame(const mat4 &matrix) {
                           gl::StencilTestOperation::Replace };
     context.stencilTest = true;
 
-    auto& plainShader = shaders->plain;
+    auto& plainShader = shaders->fill;
     context.program = plainShader.getID();
     plainShader.u_matrix = matrix;
     plainShader.u_opacity = 1.0f;
 
     // draw tile outline
-    tileBorderArray.bind(plainShader, tileBorderBuffer, BUFFER_OFFSET_0, context);
+    tileBorderArray.bind(plainShader, tileLineStripVertexBuffer, BUFFER_OFFSET_0, context);
     plainShader.u_color = { 1.0f, 0.0f, 0.0f, 1.0f };
     context.lineWidth = 4.0f * frame.pixelRatio;
-    MBGL_CHECK_ERROR(glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)tileBorderBuffer.index()));
+    MBGL_CHECK_ERROR(glDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(tileLineStripVertexBuffer.vertexCount)));
 }
 
 #ifndef NDEBUG

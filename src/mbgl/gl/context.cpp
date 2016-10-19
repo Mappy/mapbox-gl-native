@@ -91,10 +91,32 @@ UniqueShader Context::createFragmentShader() {
     return UniqueShader{ MBGL_CHECK_ERROR(glCreateShader(GL_FRAGMENT_SHADER)), { this } };
 }
 
-UniqueBuffer Context::createBuffer() {
+UniqueBuffer Context::createVertexBuffer(const void* data, std::size_t size) {
     BufferID id = 0;
     MBGL_CHECK_ERROR(glGenBuffers(1, &id));
-    return UniqueBuffer{ std::move(id), { this } };
+    UniqueBuffer result { std::move(id), { this } };
+    vertexBuffer = result;
+    MBGL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW));
+    return result;
+}
+
+UniqueBuffer Context::createIndexBuffer(const void* data, std::size_t size) {
+    BufferID id = 0;
+    MBGL_CHECK_ERROR(glGenBuffers(1, &id));
+    UniqueBuffer result { std::move(id), { this } };
+    elementBuffer = result;
+    MBGL_CHECK_ERROR(glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, data, GL_STATIC_DRAW));
+    return result;
+}
+
+void Context::bindAttribute(const AttributeBinding& binding, std::size_t stride, const int8_t* offset) {
+    MBGL_CHECK_ERROR(glEnableVertexAttribArray(binding.location));
+    MBGL_CHECK_ERROR(glVertexAttribPointer(binding.location,
+                                           binding.count,
+                                           static_cast<GLenum>(binding.type),
+                                           false,
+                                           static_cast<GLsizei>(stride),
+                                           offset + binding.offset));
 }
 
 UniqueTexture Context::createTexture() {
@@ -120,8 +142,42 @@ UniqueFramebuffer Context::createFramebuffer() {
     return UniqueFramebuffer{ std::move(id), { this } };
 }
 
-void Context::uploadBuffer(BufferType type, size_t size, void* data) {
-    MBGL_CHECK_ERROR(glBufferData(static_cast<GLenum>(type), size, data, GL_STATIC_DRAW));
+UniqueTexture
+Context::createTexture(uint16_t width, uint16_t height, const void* data, TextureUnit unit) {
+    auto obj = createTexture();
+    activeTexture = unit;
+    texture[unit] = obj;
+    MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+    MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    MBGL_CHECK_ERROR(
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data));
+    return obj;
+}
+
+void Context::bindTexture(Texture& obj,
+                          TextureUnit unit,
+                          TextureFilter filter,
+                          TextureMipMap mipmap) {
+    if (filter != obj.filter || mipmap != obj.mipmap) {
+        activeTexture = unit;
+        texture[unit] = obj.texture;
+        MBGL_CHECK_ERROR(glTexParameteri(
+            GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+            filter == TextureFilter::Linear
+                ? (mipmap == TextureMipMap::Yes ? GL_LINEAR_MIPMAP_NEAREST : GL_LINEAR)
+                : (mipmap == TextureMipMap::Yes ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST)));
+        MBGL_CHECK_ERROR(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                                         filter == TextureFilter::Linear ? GL_LINEAR : GL_NEAREST));
+        obj.filter = filter;
+        obj.mipmap = mipmap;
+    } else if (texture[unit] != obj.texture) {
+        // We are checking first to avoid setting the active texture without a subsequent
+        // texture bind.
+        activeTexture = unit;
+        texture[unit] = obj.texture;
+    }
 }
 
 UniqueTexture

@@ -25,10 +25,12 @@ Mapbox welcomes participation and contributions from everyone. Please read [CONT
 * The `circle-pitch-scale` property is now supported in stylesheets, allowing circle features in a tilted base map to scale or remain the same size as the viewing distance changes. ([#5576](https://github.com/mapbox/mapbox-gl-native/pull/5576))
 * The `identifier` property of an MGLFeature may now be either a number or string. ([#5514](https://github.com/mapbox/mapbox-gl-native/pull/5514))
 * If MGLMapView is unable to obtain or parse a style, it now calls its delegate’s `-mapViewDidFailLoadingMap:withError:` method. ([#6145](https://github.com/mapbox/mapbox-gl-native/pull/6145))
+* Added the `-[MGLMapViewDelegate mapView:didFinishLoadingStyle:]` delegate method, which offers the earliest opportunity to modify the layout or appearance of the current style before the map view is displayed to the user. ([#6636](https://github.com/mapbox/mapbox-gl-native/pull/6636))
 * Fixed crashes that could occur when loading a malformed stylesheet. ([#5736](https://github.com/mapbox/mapbox-gl-native/pull/5736))
 * Fixed an issue causing stepwise zoom functions to be misinterpreted. ([#6328](https://github.com/mapbox/mapbox-gl-native/pull/6328))
 * A source’s tiles are no longer rendered when the map is outside the source’s supported zoom levels. ([#6345](https://github.com/mapbox/mapbox-gl-native/pull/6345))
 * Improved style parsing performance. ([#6170](https://github.com/mapbox/mapbox-gl-native/pull/6170))
+* Improved feature querying performance. ([#6514](https://github.com/mapbox/mapbox-gl-native/pull/6514))
 
 ### User location
 
@@ -40,6 +42,7 @@ Mapbox welcomes participation and contributions from everyone. Please read [CONT
 
 ### Annotations
 
+* MGLPolyline annotations and the exterior coordinates of MGLPolygon annotations are now able to be mutated, part or all, and changes are displayed immediately. ([#6565](https://github.com/mapbox/mapbox-gl-native/pull/6565))
 * Fixed an issue preventing MGLAnnotationView from animating when its coordinate changes. ([#6215](https://github.com/mapbox/mapbox-gl-native/pull/6215))
 * Fixed an issue causing the wrong annotation view to be selected when tapping an annotation view with a center offset applied. ([#5931](https://github.com/mapbox/mapbox-gl-native/pull/5931))
 * Fixed an issue that assigned annotation views to polyline and polygon annotations. ([#5770](https://github.com/mapbox/mapbox-gl-native/pull/5770))
@@ -49,6 +52,7 @@ Mapbox welcomes participation and contributions from everyone. Please read [CONT
 * Improved the precision of annotations at zoom levels greater than 18. ([#5517](https://github.com/mapbox/mapbox-gl-native/pull/5517))
 * Fixed an issue that could reset user-added transformations on annotation views. ([#6166](https://github.com/mapbox/mapbox-gl-native/pull/6166))
 * Fixed an issue that caused an annotation view to disappear if it isn’t created using the annotation view reuse queue. ([#6485](https://github.com/mapbox/mapbox-gl-native/pull/6485))
+* Deprecated `-[MGLMapViewDelegate mapView:alphaForShapeAnnotation:]` in favor of specifying an alpha component via `-[MGLMapViewDelegate mapView:strokeColorForShapeAnnotation:]` or `-[MGLMapViewDelegate mapView:fillColorForPolygonAnnotation:]`. ([#6706](https://github.com/mapbox/mapbox-gl-native/pull/6706))
 
 ### Networking and offline maps
 

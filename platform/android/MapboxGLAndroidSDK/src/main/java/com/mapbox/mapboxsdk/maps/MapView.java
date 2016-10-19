@@ -132,6 +132,8 @@ public class MapView extends FrameLayout {
     private MyLocationView myLocationView;
     private LocationListener myLocationListener;
 
+    private Projection projection;
+
     private CopyOnWriteArrayList<OnMapChangedListener> onMapChangedListener;
     private ZoomButtonsController zoomButtonsController;
     private ConnectivityReceiver connectivityReceiver;
@@ -155,8 +157,8 @@ public class MapView extends FrameLayout {
 
     private PointF focalPoint;
 
-    private String styleUrl;
-    private String initalStyle;
+    private String styleUrl = Style.MAPBOX_STREETS;
+    private boolean styleWasSet = false;
 
     private List<OnMapReadyCallback> onMapReadyCallbackList;
     private SnapshotRequest snapshotRequest;
@@ -196,6 +198,8 @@ public class MapView extends FrameLayout {
         onMapReadyCallbackList = new ArrayList<>();
         onMapChangedListener = new CopyOnWriteArrayList<>();
         mapboxMap = new MapboxMap(this);
+        projection = mapboxMap.getProjection();
+
         icons = new ArrayList<>();
         View view = LayoutInflater.from(context).inflate(R.layout.mapview_internal, this);
         setWillNotDraw(false);
@@ -212,13 +216,15 @@ public class MapView extends FrameLayout {
 
         nativeMapView = new NativeMapView(this);
 
+        // load transparent icon for MarkerView to trace actual markers, see #6352
+        loadIcon(IconFactory.recreate(IconFactory.ICON_MARKERVIEW_ID, IconFactory.ICON_MARKERVIEW_BITMAP));
+
         // Ensure this view is interactable
         setClickable(true);
         setLongClickable(true);
         setFocusable(true);
         setFocusableInTouchMode(true);
         requestFocus();
-
 
         // Touch gesture detectors
         gestureDetector = new GestureDetectorCompat(context, new GestureListener());
@@ -283,16 +289,16 @@ public class MapView extends FrameLayout {
         // style url
         String style = options.getStyle();
         if (!TextUtils.isEmpty(style)) {
-            initalStyle = style;
+            styleUrl = style;
         }
 
         // MyLocationView
         MyLocationViewSettings myLocationViewSettings = mapboxMap.getMyLocationViewSettings();
         myLocationViewSettings.setForegroundDrawable(
-            options.getMyLocationForegroundDrawable(), options.getMyLocationForegroundBearingDrawable());
+                options.getMyLocationForegroundDrawable(), options.getMyLocationForegroundBearingDrawable());
         myLocationViewSettings.setForegroundTintColor(options.getMyLocationForegroundTintColor());
         myLocationViewSettings.setBackgroundDrawable(
-            options.getMyLocationBackgroundDrawable(), options.getMyLocationBackgroundPadding());
+                options.getMyLocationBackgroundDrawable(), options.getMyLocationBackgroundPadding());
         myLocationViewSettings.setBackgroundTintColor(options.getMyLocationBackgroundTintColor());
         myLocationViewSettings.setAccuracyAlpha(options.getMyLocationAccuracyAlpha());
         myLocationViewSettings.setAccuracyTintColor(options.getMyLocationAccuracyTintColor());
@@ -353,7 +359,7 @@ public class MapView extends FrameLayout {
 
         int attributionTintColor = options.getAttributionTintColor();
         uiSettings.setAttributionTintColor(attributionTintColor != -1
-            ? attributionTintColor : ColorUtils.getPrimaryColor(getContext()));
+                ? attributionTintColor : ColorUtils.getPrimaryColor(getContext()));
     }
 
     //
@@ -408,9 +414,9 @@ public class MapView extends FrameLayout {
             uiSettings.setCompassEnabled(savedInstanceState.getBoolean(MapboxConstants.STATE_COMPASS_ENABLED));
             uiSettings.setCompassGravity(savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_GRAVITY));
             uiSettings.setCompassMargins(savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_LEFT),
-                      savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_TOP),
-                      savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_RIGHT),
-                      savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_BOTTOM));
+                    savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_TOP),
+                    savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_RIGHT),
+                    savedInstanceState.getInt(MapboxConstants.STATE_COMPASS_MARGIN_BOTTOM));
 
             // Logo
             uiSettings.setLogoEnabled(savedInstanceState.getBoolean(MapboxConstants.STATE_LOGO_ENABLED));
@@ -429,7 +435,7 @@ public class MapView extends FrameLayout {
                     , savedInstanceState.getInt(MapboxConstants.STATE_ATTRIBUTION_MARGIN_BOTTOM));
 
             mapboxMap.setDebugActive(savedInstanceState.getBoolean(MapboxConstants.STATE_DEBUG_ACTIVE));
-            mapboxMap.setStyleUrl(savedInstanceState.getString(MapboxConstants.STATE_STYLE_URL));
+            styleUrl = savedInstanceState.getString(MapboxConstants.STATE_STYLE_URL);
 
             // User location
             try {
@@ -441,10 +447,14 @@ public class MapView extends FrameLayout {
             TrackingSettings trackingSettings = mapboxMap.getTrackingSettings();
             //noinspection ResourceType
             trackingSettings.setMyLocationTrackingMode(
-              savedInstanceState.getInt(MapboxConstants.STATE_MY_LOCATION_TRACKING_MODE, MyLocationTracking.TRACKING_NONE));
+                    savedInstanceState.getInt(MapboxConstants.STATE_MY_LOCATION_TRACKING_MODE, MyLocationTracking.TRACKING_NONE));
             //noinspection ResourceType
             trackingSettings.setMyBearingTrackingMode(
-              savedInstanceState.getInt(MapboxConstants.STATE_MY_BEARING_TRACKING_MODE, MyBearingTracking.NONE));
+                    savedInstanceState.getInt(MapboxConstants.STATE_MY_BEARING_TRACKING_MODE, MyBearingTracking.NONE));
+            trackingSettings.setDismissLocationTrackingOnGesture(
+                    savedInstanceState.getBoolean(MapboxConstants.STATE_MY_LOCATION_TRACKING_DISMISS, true));
+            trackingSettings.setDismissBearingTrackingOnGesture(
+                    savedInstanceState.getBoolean(MapboxConstants.STATE_MY_BEARING_TRACKING_DISMISS, true));
         } else if (savedInstanceState == null) {
             // Start Telemetry (authorization determined in initial MapboxEventManager constructor)
             Log.i(MapView.class.getCanonicalName(), "MapView start Telemetry...");
@@ -465,6 +475,8 @@ public class MapView extends FrameLayout {
                     reloadIcons();
                     reloadMarkers();
                     adjustTopOffsetPixels();
+
+                    // Notify listeners the map is ready
                     if (onMapReadyCallbackList.size() > 0) {
                         Iterator<OnMapReadyCallback> iterator = onMapReadyCallbackList.iterator();
                         while (iterator.hasNext()) {
@@ -472,8 +484,11 @@ public class MapView extends FrameLayout {
                             callback.onMapReady(mapboxMap);
                             iterator.remove();
                         }
-                        mapboxMap.getMarkerViewManager().scheduleViewMarkerInvalidation();
                     }
+
+                    // invalidate camera to update overlain views with correct tilt value
+                    invalidateCameraPosition();
+
                 } else if (change == REGION_IS_CHANGING || change == REGION_DID_CHANGE || change == DID_FINISH_LOADING_MAP) {
                     mapboxMap.getMarkerViewManager().scheduleViewMarkerInvalidation();
 
@@ -517,6 +532,8 @@ public class MapView extends FrameLayout {
         TrackingSettings trackingSettings = mapboxMap.getTrackingSettings();
         outState.putInt(MapboxConstants.STATE_MY_LOCATION_TRACKING_MODE, trackingSettings.getMyLocationTrackingMode());
         outState.putInt(MapboxConstants.STATE_MY_BEARING_TRACKING_MODE, trackingSettings.getMyBearingTrackingMode());
+        outState.putBoolean(MapboxConstants.STATE_MY_LOCATION_TRACKING_DISMISS, trackingSettings.isDismissLocationTrackingOnGesture());
+        outState.putBoolean(MapboxConstants.STATE_MY_BEARING_TRACKING_DISMISS, trackingSettings.isDismissBearingTrackingOnGesture());
 
         // UiSettings
         UiSettings uiSettings = mapboxMap.getUiSettings();
@@ -573,7 +590,7 @@ public class MapView extends FrameLayout {
      */
     @UiThread
     public void onPause() {
-        // Register for connectivity changes
+        // Unregister for connectivity changes
         if (connectivityReceiver != null) {
             getContext().unregisterReceiver(connectivityReceiver);
             connectivityReceiver = null;
@@ -594,10 +611,9 @@ public class MapView extends FrameLayout {
         nativeMapView.update();
         myLocationView.onResume();
 
-        if (styleUrl == null) {
-            // user supplied style through xml
-            // user has failed to supply a style url
-            setStyleUrl(initalStyle == null ? Style.MAPBOX_STREETS : initalStyle);
+        // In case that no style was set or was loaded through MapboxMapOptions
+        if (!styleWasSet) {
+            setStyleUrl(styleUrl);
         }
     }
 
@@ -653,6 +669,7 @@ public class MapView extends FrameLayout {
     }
 
     void setTilt(Double pitch) {
+        mapboxMap.getMarkerViewManager().setTilt(pitch.floatValue());
         myLocationView.setTilt(pitch);
         nativeMapView.setPitch(pitch, 0);
     }
@@ -860,6 +877,7 @@ public class MapView extends FrameLayout {
 
         styleUrl = url;
         nativeMapView.setStyleUrl(url);
+        styleWasSet = true;
     }
 
     /**
@@ -963,21 +981,24 @@ public class MapView extends FrameLayout {
     // Projection
     //
 
-    LatLng fromScreenLocation(@NonNull PointF point) {
+    /*
+     * Internal use only, use Projection#fromScreenLocation instead
+     */
+    LatLng fromNativeScreenLocation(@NonNull PointF point) {
         if (destroyed) {
             return new LatLng();
         }
-        point.set(point.x / screenDensity, point.y / screenDensity);
         return nativeMapView.latLngForPixel(point);
     }
 
-    PointF toScreenLocation(@NonNull LatLng location) {
+    /*
+     * Internal use only, use Projection#toScreenLocation instead.
+     */
+    PointF toNativeScreenLocation(@NonNull LatLng location) {
         if (destroyed || location == null) {
             return new PointF();
         }
-        PointF pointF = nativeMapView.pixelForLatLng(location);
-        pointF.set(pointF.x * screenDensity, pointF.y * screenDensity);
-        return pointF;
+        return nativeMapView.pixelForLatLng(location);
     }
 
     //
@@ -1277,6 +1298,12 @@ public class MapView extends FrameLayout {
 
     public void invalidateContentPadding() {
         setContentPadding(contentPaddingLeft, contentPaddingTop, contentPaddingRight, contentPaddingBottom);
+
+        if (!mapboxMap.getTrackingSettings().isLocationTrackingDisabled()) {
+            setFocalPoint(new PointF(myLocationView.getCenterX(), myLocationView.getCenterY()));
+        } else {
+            setFocalPoint(null);
+        }
     }
 
     double getMetersPerPixelAtLatitude(@FloatRange(from = -180, to = 180) double latitude) {
@@ -1296,7 +1323,7 @@ public class MapView extends FrameLayout {
             return;
         }
         nativeMapView.cancelTransitions();
-        nativeMapView.jumpTo(bearing, center, pitch, zoom);
+        nativeMapView.jumpTo(Math.toRadians(-bearing), center, Math.toRadians(pitch), zoom);
     }
 
     void easeTo(double bearing, LatLng center, long duration, double pitch, double zoom, boolean easingInterpolator, @Nullable final MapboxMap.CancelableCallback cancelableCallback) {
@@ -1320,7 +1347,7 @@ public class MapView extends FrameLayout {
             });
         }
 
-        nativeMapView.easeTo(bearing, center, duration, pitch, zoom, easingInterpolator);
+        nativeMapView.easeTo(Math.toRadians(-bearing), center, duration, Math.toRadians(pitch), zoom, easingInterpolator);
     }
 
     void flyTo(double bearing, LatLng center, long duration, double pitch, double zoom, @Nullable final MapboxMap.CancelableCallback cancelableCallback) {
@@ -1344,7 +1371,7 @@ public class MapView extends FrameLayout {
             });
         }
 
-        nativeMapView.flyTo(bearing, center, duration, pitch, zoom);
+        nativeMapView.flyTo(Math.toRadians(-bearing), center, duration, Math.toRadians(pitch), zoom);
     }
 
     private void adjustTopOffsetPixels() {
@@ -1521,6 +1548,7 @@ public class MapView extends FrameLayout {
         }
         CameraPosition position = new CameraPosition.Builder(nativeMapView.getCameraValues()).build();
         myLocationView.setCameraPosition(position);
+        mapboxMap.getMarkerViewManager().setTilt((float) position.tilt);
         return position;
     }
 
@@ -1619,7 +1647,7 @@ public class MapView extends FrameLayout {
      * @param yCoordinate Original y screen cooridnate at start of gesture
      */
     private void trackGestureEvent(@NonNull String gestureId, @NonNull float xCoordinate, @NonNull float yCoordinate) {
-        LatLng tapLatLng = fromScreenLocation(new PointF(xCoordinate, yCoordinate));
+        LatLng tapLatLng = projection.fromScreenLocation(new PointF(xCoordinate, yCoordinate));
 
         // NaN and Infinite checks to prevent JSON errors at send to server time
         if (Double.isNaN(tapLatLng.getLatitude()) || Double.isNaN(tapLatLng.getLongitude())) {
@@ -1651,7 +1679,7 @@ public class MapView extends FrameLayout {
      * @param yCoordinate Orginal y screen coordinate at end of drag
      */
     private void trackGestureDragEndEvent(@NonNull float xCoordinate, @NonNull float yCoordinate) {
-        LatLng tapLatLng = fromScreenLocation(new PointF(xCoordinate, yCoordinate));
+        LatLng tapLatLng = projection.fromScreenLocation(new PointF(xCoordinate, yCoordinate));
 
         // NaN and Infinite checks to prevent JSON errors at send to server time
         if (Double.isNaN(tapLatLng.getLatitude()) || Double.isNaN(tapLatLng.getLongitude())) {
@@ -1722,7 +1750,7 @@ public class MapView extends FrameLayout {
 
                 if (twoTap && isTap && !inProgress) {
                     if (focalPoint != null) {
-                        zoom(false, focalPoint.x / screenDensity, focalPoint.y / screenDensity);
+                        zoom(false, focalPoint.x, focalPoint.y);
                     } else {
                         PointF focalPoint = TwoFingerGestureDetector.determineFocalPoint(event);
                         zoom(false, focalPoint.x, focalPoint.y);
@@ -1822,7 +1850,7 @@ public class MapView extends FrameLayout {
                     (tapPoint.y - averageIconHeight / 2 - toleranceTopBottom) / screenDensity,
                     (tapPoint.x + averageIconWidth / 2 + toleranceSides) / screenDensity,
                     (tapPoint.y + averageIconHeight / 2 + toleranceTopBottom) / screenDensity);
-            
+
             List<Marker> nearbyMarkers = getMarkersInRect(tapRect);
             long newSelectedMarkerId = -1;
 
@@ -1868,7 +1896,7 @@ public class MapView extends FrameLayout {
                 // notify app of map click
                 MapboxMap.OnMapClickListener listener = mapboxMap.getOnMapClickListener();
                 if (listener != null) {
-                    LatLng point = fromScreenLocation(tapPoint);
+                    LatLng point = projection.fromScreenLocation(tapPoint);
                     listener.onMapClick(point);
                 }
             }
@@ -1882,7 +1910,7 @@ public class MapView extends FrameLayout {
         public void onLongPress(MotionEvent motionEvent) {
             MapboxMap.OnMapLongClickListener listener = mapboxMap.getOnMapLongClickListener();
             if (listener != null && !quickZoom) {
-                LatLng point = fromScreenLocation(new PointF(motionEvent.getX(), motionEvent.getY()));
+                LatLng point = projection.fromScreenLocation(new PointF(motionEvent.getX(), motionEvent.getY()));
                 listener.onMapLongClick(point);
             }
         }
@@ -1890,12 +1918,11 @@ public class MapView extends FrameLayout {
         // Called for flings
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            if (destroyed || !mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+            if (destroyed || !mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                 return false;
             }
 
-            // reset tracking modes if gesture occurs
-            resetTrackingModesIfRequired();
+            resetTrackingModesIfRequired(true, false);
 
             // Fling the map
             float ease = 0.25f;
@@ -1927,7 +1954,7 @@ public class MapView extends FrameLayout {
             if (!scrollInProgress) {
                 scrollInProgress = true;
             }
-            if (destroyed || !mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+            if (destroyed || !mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                 return false;
             }
 
@@ -1937,9 +1964,8 @@ public class MapView extends FrameLayout {
 
             requestDisallowInterceptTouchEvent(true);
 
-            // reset tracking modes if gesture occurs
-            resetTrackingModesIfRequired();
-
+            // reset tracking if needed
+            resetTrackingModesIfRequired(true, false);
             // Cancel any animation
             nativeMapView.cancelTransitions();
 
@@ -1966,9 +1992,6 @@ public class MapView extends FrameLayout {
             if (destroyed || !mapboxMap.getUiSettings().isZoomGesturesEnabled()) {
                 return false;
             }
-
-            // reset tracking modes if gesture occurs
-            resetTrackingModesIfRequired();
 
             beginTime = detector.getEventTime();
             trackGestureEvent(MapboxEvent.GESTURE_PINCH_START, detector.getFocusX(), detector.getFocusY());
@@ -2020,6 +2043,11 @@ public class MapView extends FrameLayout {
             // Gesture is a quickzoom if there aren't two fingers
             quickZoom = !twoTap;
 
+            // make an assumption here; if the zoom center is specified by the gesture, it's NOT going
+            // to be in the center of the map. Therefore the zoom will translate the map center, so tracking
+            // should be disabled.
+
+            resetTrackingModesIfRequired(!quickZoom, false);
             // Scale the map
             if (focalPoint != null) {
                 // arround user provided focal point
@@ -2046,12 +2074,9 @@ public class MapView extends FrameLayout {
         // Called when two fingers first touch the screen
         @Override
         public boolean onRotateBegin(RotateGestureDetector detector) {
-            if (destroyed || !mapboxMap.getUiSettings().isRotateGesturesEnabled()) {
+            if (destroyed || !mapboxMap.getTrackingSettings().isRotateGestureCurrentlyEnabled()) {
                 return false;
             }
-
-            // reset tracking modes if gesture occurs
-            resetTrackingModesIfRequired();
 
             beginTime = detector.getEventTime();
             trackGestureEvent(MapboxEvent.GESTURE_ROTATION_START, detector.getFocusX(), detector.getFocusY());
@@ -2070,11 +2095,7 @@ public class MapView extends FrameLayout {
         // Called for rotation
         @Override
         public boolean onRotate(RotateGestureDetector detector) {
-            if (destroyed || !mapboxMap.getUiSettings().isRotateGesturesEnabled()) {
-                return false;
-            }
-
-            if (dragStarted) {
+            if (destroyed || !mapboxMap.getTrackingSettings().isRotateGestureCurrentlyEnabled() || dragStarted) {
                 return false;
             }
 
@@ -2099,6 +2120,11 @@ public class MapView extends FrameLayout {
 
             // Cancel any animation
             nativeMapView.cancelTransitions();
+
+            // rotation constitutes translation of anything except the center of
+            // rotation, so cancel both location and bearing tracking if required
+
+            resetTrackingModesIfRequired(true, true);
 
             // Get rotate value
             double bearing = nativeMapView.getBearing();
@@ -2129,9 +2155,6 @@ public class MapView extends FrameLayout {
             if (!mapboxMap.getUiSettings().isTiltGesturesEnabled()) {
                 return false;
             }
-
-            // reset tracking modes if gesture occurs
-            resetTrackingModesIfRequired();
 
             beginTime = detector.getEventTime();
             trackGestureEvent(MapboxEvent.GESTURE_PITCH_START, detector.getFocusX(), detector.getFocusY());
@@ -2234,7 +2257,7 @@ public class MapView extends FrameLayout {
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (!mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+                if (!mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                     return false;
                 }
 
@@ -2246,7 +2269,7 @@ public class MapView extends FrameLayout {
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (!mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+                if (!mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                     return false;
                 }
 
@@ -2258,7 +2281,7 @@ public class MapView extends FrameLayout {
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_UP:
-                if (!mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+                if (!mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                     return false;
                 }
 
@@ -2270,7 +2293,7 @@ public class MapView extends FrameLayout {
                 return true;
 
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                if (!mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+                if (!mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                     return false;
                 }
 
@@ -2350,7 +2373,7 @@ public class MapView extends FrameLayout {
         switch (event.getActionMasked()) {
             // The trackball was rotated
             case MotionEvent.ACTION_MOVE:
-                if (!mapboxMap.getUiSettings().isScrollGesturesEnabled()) {
+                if (!mapboxMap.getTrackingSettings().isScrollGestureCurrentlyEnabled()) {
                     return false;
                 }
 
@@ -2489,6 +2512,7 @@ public class MapView extends FrameLayout {
                 if (mapboxMap.getUiSettings().isZoomControlsEnabled()) {
                     zoomButtonsController.setVisible(false);
                 }
+                return true;
 
             default:
                 // We are not interested in this event
@@ -2634,14 +2658,29 @@ public class MapView extends FrameLayout {
                 ContextCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    void resetTrackingModesIfRequired() {
+    /**
+     * Reset the tracking modes as necessary. Location tracking is reset if the map center is changed,
+     * bearing tracking if there is a rotation.
+     *
+     * @param translate
+     * @param rotate
+     */
+    void resetTrackingModesIfRequired(boolean translate, boolean rotate) {
         TrackingSettings trackingSettings = mapboxMap.getTrackingSettings();
-        if (trackingSettings.isDismissLocationTrackingOnGesture()) {
+
+        // if tracking is on, and we should dismiss tracking with gestures, and this is a scroll action, turn tracking off
+        if (translate && !trackingSettings.isLocationTrackingDisabled() && trackingSettings.isDismissLocationTrackingOnGesture()) {
             resetLocationTrackingMode();
         }
-        if (trackingSettings.isDismissBearingTrackingOnGesture()) {
+
+        // reset bearing tracking only on rotate
+        if (rotate && !trackingSettings.isBearingTrackingDisabled() && trackingSettings.isDismissBearingTrackingOnGesture()) {
             resetBearingTrackingMode();
         }
+    }
+
+    void resetTrackingModesIfRequired(CameraPosition cameraPosition) {
+        resetTrackingModesIfRequired(cameraPosition.target != null, cameraPosition.bearing != -1);
     }
 
     private void resetLocationTrackingMode() {
