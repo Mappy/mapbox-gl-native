@@ -17,6 +17,8 @@ import java.net.NoRouteToHostException;
 import java.net.ProtocolException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.net.ssl.SSLException;
@@ -25,13 +27,18 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.internal.Util;
+import okio.Timeout;
 
 class HTTPRequest implements Callback {
 
-    private static OkHttpClient mClient = new OkHttpClient();
+    private static OkHttpClient mClient =  new OkHttpClient();
+    //.newBuilder()
+    //.protocols(Arrays.asList(Protocol.HTTP_1_1))
+    //        .build();;
     private static final String LOG_TAG = HTTPRequest.class.getName();
     private String USER_AGENT_STRING = null;
 
@@ -81,6 +88,7 @@ class HTTPRequest implements Callback {
             } else if (modified.length() > 0) {
                 builder = builder.addHeader("If-Modified-Since", modified);
             }
+            Log.w(LOG_TAG, "Create httprequest " + httpUrl);
             mRequest = builder.build();
             mCall = mClient.newCall(mRequest);
             mCall.enqueue(this);
@@ -94,6 +102,8 @@ class HTTPRequest implements Callback {
         if (mCall != null) {
             mCall.cancel();
         }
+
+        Log.w(LOG_TAG, "cancel " + mCall.request().url());
 
         // TODO: We need a lock here because we can try
         // to cancel at the same time the request is getting

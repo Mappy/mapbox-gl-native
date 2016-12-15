@@ -94,6 +94,9 @@ HTTPRequest::HTTPRequest(jni::JNIEnv& env, const Resource& resource_, FileSource
 
 HTTPRequest::~HTTPRequest() {
     android::UniqueEnv env = android::AttachEnv();
+    
+    
+    mbgl::Log::Error(mbgl::Event::OpenGL, "cancel %s",this->resource.url.c_str());
 
     static auto cancel = javaClass.GetMethod<void ()>(*env, "cancel");
 
@@ -161,6 +164,7 @@ void HTTPRequest::onFailure(jni::JNIEnv& env, int type, jni::String message) {
     std::string messageStr = jni::Make<std::string>(env, message);
 
     using Error = Response::Error;
+  
 
     switch (type) {
         case connectionError:
@@ -172,6 +176,8 @@ void HTTPRequest::onFailure(jni::JNIEnv& env, int type, jni::String message) {
         default:
             response.error = std::make_unique<Error>(Error::Reason::Other, messageStr);
     }
+    
+    mbgl::Log::Error(mbgl::Event::OpenGL, "HTTPRequest::onFailure %p , tyoe %i",this,type);
 
     async.send();
 }
@@ -187,7 +193,7 @@ std::unique_ptr<AsyncRequest> HTTPFileSource::request(const Resource& resource, 
 }
 
 uint32_t HTTPFileSource::maximumConcurrentRequests() {
-    return 20;
+    return 40;
 }
 
 } // namespace mbgl
