@@ -269,5 +269,5 @@ sed -i '' \
     "${README}"
 cp ${README} "${OUTPUT}"
 
-step "Generating API documentation…"
-make idocument OUTPUT="${OUTPUT}/documentation"
+#step "Generating API documentation…"
+#make idocument OUTPUT="${OUTPUT}/documentation"
