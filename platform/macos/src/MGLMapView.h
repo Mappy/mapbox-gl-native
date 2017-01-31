@@ -44,6 +44,21 @@ NS_ASSUME_NONNULL_BEGIN
  your Mapbox account. They also deter other developers from using your styles
  without your permission.
  
+ Adding your own gesture recognizer to `MGLMapView` will block the corresponding
+ gesture recognizer built into `MGLMapView`. To avoid conflicts, define which
+ gesture recognizer takes precedence. For example, you can subclass
+ `NSClickGestureRecognizer` and override `-[NSGestureRecognizer shouldRequireFailureOfGestureRecognizer:]`,
+ so that your subclass will be invoked only if the default `MGLMapView` click
+ gesture recognizer fails:
+ 
+ ```swift
+ class MapClickGestureRecognizer: NSClickGestureRecognizer {
+     override func shouldRequireFailure(of otherGestureRecognizer: NSGestureRecognizer) -> Bool {
+         return otherGestureRecognizer is NSClickGestureRecognizer
+     }
+ }
+ ```
+ 
  @note You are responsible for getting permission to use the map data and for
     ensuring that your use adheres to the relevant terms of use.
  */
@@ -89,6 +104,28 @@ IB_DESIGNABLE
 #pragma mark Configuring the Map’s Appearance
 
 /**
+ The style currently displayed in the receiver.
+ 
+ Unlike the `styleURL` property, this property is set to an object that allows
+ you to manipulate every aspect of the style locally.
+ 
+ If the style is loading, this property is set to `nil` until the style finishes
+ loading. If the style has failed to load, this property is set to `nil`.
+ Because the style loads asynchronously, you should manipulate it in the
+ `-[MGLMapViewDelegate mapView:didFinishLoadingStyle:]` or
+ `-[MGLMapViewDelegate mapViewDidFinishLoadingMap:]` method. It is not possible
+ to manipulate the style before it has finished loading.
+ 
+ @note The default styles provided by Mapbox contain sources and layers with
+    identifiers that will change over time. Applications that use APIs that
+    manipulate a style's sources and layers must first set the style URL to an
+    explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`.
+ */
+@property (nonatomic, readonly, nullable) MGLStyle *style;
+
+/**
  URL of the style currently displayed in the receiver.
  
  The URL may be a full HTTP or HTTPS URL, a Mapbox URL indicating the style’s
@@ -97,6 +134,9 @@ IB_DESIGNABLE
  
  If you set this property to `nil`, the receiver will use the default style and
  this property will automatically be set to that style’s URL.
+ 
+ If you want to modify the current style without replacing it outright, or if
+ you want to introspect individual style attributes, use the `style` property.
  */
 @property (nonatomic, null_resettable) NSURL *styleURL;
 
@@ -569,6 +609,16 @@ IB_DESIGNABLE
 - (void)addAnnotations:(NS_ARRAY_OF(id <MGLAnnotation>) *)annotations;
 
 /**
+ The complete list of annotations associated with the receiver that are
+ currently visible.
+ 
+ The objects in this array must adopt the `MGLAnnotation` protocol. If no
+ annotations are associated with the map view or if no annotations associated
+ with the map view are currently visible, the value of this property is `nil`.
+ */
+@property (nonatomic, readonly, nullable) NS_ARRAY_OF(id <MGLAnnotation>) *visibleAnnotations;
+
+/**
  Removes an annotation from the map view, deselecting it if it is selected.
  
  Removing an annotation object dissociates it from the map view entirely,
@@ -607,6 +657,17 @@ IB_DESIGNABLE
     such object exists in the reuse queue.
  */
 - (nullable MGLAnnotationImage *)dequeueReusableAnnotationImageWithIdentifier:(NSString *)identifier;
+
+/**
+ Returns the list of annotations associated with the receiver that intersect with
+ the given rectangle.
+ 
+ @param rect A rectangle expressed in the map view’s coordinate system.
+ @return An array of objects that adopt the `MGLAnnotation` protocol or `nil` if
+ no annotations associated with the map view are currently visible in the
+ rectangle.
+ */
+- (nullable NS_ARRAY_OF(id <MGLAnnotation>) *)visibleAnnotationsInRect:(CGRect)rect;
 
 #pragma mark Managing Annotation Selections
 
@@ -761,6 +822,14 @@ IB_DESIGNABLE
  To find out the layer names in a particular style, view the style in
  <a href="https://www.mapbox.com/studio/">Mapbox Studio</a>.
  
+ @note Layer identifiers are not guaranteed to exist across styles or different
+    versions of the same style. Applications that use this API must first set the
+    style URL to an explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`. This
+    approach also avoids layer identifer name changes that will occur in the default
+    style’s layers over time.
+
  @param point A point expressed in the map view’s coordinate system.
  @param styleLayerIdentifiers A set of strings that correspond to the names of
     layers defined in the current style. Only the features contained in these
@@ -824,6 +893,14 @@ IB_DESIGNABLE
  To find out the layer names in a particular style, view the style in
  <a href="https://www.mapbox.com/studio/">Mapbox Studio</a>.
  
+ @note Layer identifiers are not guaranteed to exist across styles or different
+    versions of the same style. Applications that use this API must first set the
+    style URL to an explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`. This
+    approach also avoids layer identifer name changes that will occur in the default
+    style’s layers over time.
+
  @param rect A rectangle expressed in the map view’s coordinate system.
  @param styleLayerIdentifiers A set of strings that correspond to the names of
     layers defined in the current style. Only the features contained in these
@@ -895,6 +972,25 @@ IB_DESIGNABLE
  */
 - (CLLocationDistance)metersPerPointAtLatitude:(CLLocationDegrees)latitude;
 
+#pragma mark Giving Feedback to Improve the Map
+
+/**
+ Opens one or more webpages in the default Web browser in which the user can
+ provide feedback about the map data.
+ 
+ You should add a menu item to the Help menu of your application that invokes
+ this method. Title it “Improve This Map” or similar. Set its target to the
+ first responder and its action to `giveFeedback:`.
+ 
+ This map view searches the current style’s sources for webpages to open.
+ Specifically, each source’s tile set has an `attribution` property containing
+ HTML code; if an <code>&lt;a></code> tag (link) within that code has an
+ <code>class</code> attribute set to <code>mapbox-improve-map</code>, its
+ <code>href</code> attribute defines the URL to open. Such links are omitted
+ from the attribution view.
+ */
+- (IBAction)giveFeedback:(id)sender;
+
 #pragma mark Debugging the Map
 
 /**
@@ -904,10 +1000,6 @@ IB_DESIGNABLE
  released software for performance and aesthetic reasons.
  */
 @property (nonatomic) MGLMapDebugMaskOptions debugMask;
-
-#pragma mark Runtime styling API
-
-- (MGLStyle *)style;
 
 @end
 

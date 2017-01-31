@@ -17,7 +17,7 @@ public:
     ~Impl() final;
 
     void setURL(std::string);
-    optional<std::string> getURL();
+    optional<std::string> getURL() const;
 
     void setGeoJSON(const GeoJSON&);
     void setTileData(GeoJSONTile&, const OverscaledTileID& tileID);
@@ -29,6 +29,8 @@ public:
     }
 
 private:
+    void _setGeoJSON(const GeoJSON&);
+
     Range<uint8_t> getZoomRange() final;
     std::unique_ptr<Tile> createTile(const OverscaledTileID&, const UpdateParameters&) final;
 

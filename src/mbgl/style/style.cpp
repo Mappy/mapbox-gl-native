@@ -51,6 +51,12 @@ Style::~Style() {
         source->baseImpl->setObserver(nullptr);
     }
 
+    for (const auto& layer : layers) {
+        if (CustomLayer* customLayer = layer->as<CustomLayer>()) {
+            customLayer->impl->deinitialize();
+        }
+    }
+
     glyphAtlas->setObserver(nullptr);
     spriteAtlas->setObserver(nullptr);
 }
@@ -130,11 +136,21 @@ void Style::setJSON(const std::string& json) {
 }
 
 void Style::addSource(std::unique_ptr<Source> source) {
+    //Guard against duplicate source ids
+    auto it = std::find_if(sources.begin(), sources.end(), [&](const auto& existing) {
+        return existing->getID() == source->getID();
+    });
+
+    if (it != sources.end()) {
+        std::string msg = "Source " + source->getID() + " already exists";
+        throw std::runtime_error(msg.c_str());
+    }
+
     source->baseImpl->setObserver(this);
     sources.emplace_back(std::move(source));
 }
 
-void Style::removeSource(const std::string& id) {
+std::unique_ptr<Source> Style::removeSource(const std::string& id) {
     auto it = std::find_if(sources.begin(), sources.end(), [&](const auto& source) {
         return source->getID() == id;
     });
@@ -143,14 +159,26 @@ void Style::removeSource(const std::string& id) {
         throw std::runtime_error("no such source");
     }
 
+    auto source = std::move(*it);
     sources.erase(it);
     updateBatch.sourceIDs.erase(id);
+
+    return source;
 }
 
 std::vector<const Layer*> Style::getLayers() const {
     std::vector<const Layer*> result;
     result.reserve(layers.size());
     for (const auto& layer : layers) {
+        result.push_back(layer.get());
+    }
+    return result;
+}
+
+std::vector<Layer*> Style::getLayers() {
+    std::vector<Layer*> result;
+    result.reserve(layers.size());
+    for (auto& layer : layers) {
         result.push_back(layer.get());
     }
     return result;
@@ -170,6 +198,15 @@ Layer* Style::getLayer(const std::string& id) const {
 Layer* Style::addLayer(std::unique_ptr<Layer> layer, optional<std::string> before) {
     // TODO: verify source
 
+    // Guard against duplicate layer ids
+    auto it = std::find_if(layers.begin(), layers.end(), [&](const auto& existing) {
+        return existing->getID() == layer->getID();
+    });
+
+    if (it != layers.end()) {
+        throw std::runtime_error(std::string{"Layer "} + layer->getID() + " already exists");
+    }
+
     if (SymbolLayer* symbolLayer = layer->as<SymbolLayer>()) {
         if (!symbolLayer->impl->spriteAtlas) {
             symbolLayer->impl->spriteAtlas = spriteAtlas.get();
@@ -185,11 +222,22 @@ Layer* Style::addLayer(std::unique_ptr<Layer> layer, optional<std::string> befor
     return layers.emplace(before ? findLayer(*before) : layers.end(), std::move(layer))->get();
 }
 
-void Style::removeLayer(const std::string& id) {
-    auto it = findLayer(id);
+std::unique_ptr<Layer> Style::removeLayer(const std::string& id) {
+    auto it = std::find_if(layers.begin(), layers.end(), [&](const auto& layer) {
+        return layer->baseImpl->id == id;
+    });
+
     if (it == layers.end())
         throw std::runtime_error("no such layer");
+
+    auto layer = std::move(*it);
+
+    if (CustomLayer* customLayer = layer->as<CustomLayer>()) {
+        customLayer->impl->deinitialize();
+    }
+
     layers.erase(it);
+    return layer;
 }
 
 std::string Style::getName() const {
@@ -215,6 +263,12 @@ double Style::getDefaultPitch() const {
 void Style::updateTiles(const UpdateParameters& parameters) {
     for (const auto& source : sources) {
         source->baseImpl->updateTiles(parameters);
+    }
+}
+
+void Style::updateSymbolDependentTiles() {
+    for (const auto& source : sources) {
+        source->baseImpl->updateSymbolDependentTiles();
     }
 }
 
@@ -284,6 +338,24 @@ void Style::recalculate(float z, const TimePoint& timePoint, MapMode mode) {
             }
         }
     }
+}
+
+std::vector<const Source*> Style::getSources() const {
+    std::vector<const Source*> result;
+    result.reserve(sources.size());
+    for (const auto& source : sources) {
+        result.push_back(source.get());
+    }
+    return result;
+}
+
+std::vector<Source*> Style::getSources() {
+    std::vector<Source*> result;
+    result.reserve(sources.size());
+    for (auto& source : sources) {
+        result.push_back(source.get());
+    }
+    return result;
 }
 
 Source* Style::getSource(const std::string& id) const {
@@ -463,7 +535,7 @@ void Style::setObserver(style::Observer* observer_) {
 
 void Style::onGlyphsLoaded(const FontStack& fontStack, const GlyphRange& glyphRange) {
     observer->onGlyphsLoaded(fontStack, glyphRange);
-    observer->onUpdate(Update::Repaint);
+    updateSymbolDependentTiles();
 }
 
 void Style::onGlyphsError(const FontStack& fontStack, const GlyphRange& glyphRange, std::exception_ptr error) {
@@ -491,6 +563,13 @@ void Style::onSourceError(Source& source, std::exception_ptr error) {
     observer->onResourceError(error);
 }
 
+void Style::onSourceDescriptionChanged(Source& source) {
+    observer->onSourceDescriptionChanged(source);
+    if (!source.baseImpl->loaded) {
+        source.baseImpl->loadDescription(fileSource);
+    }
+}
+
 void Style::onTileChanged(Source& source, const OverscaledTileID& tileID) {
     observer->onTileChanged(source, tileID);
     observer->onUpdate(Update::Repaint);
@@ -506,7 +585,8 @@ void Style::onTileError(Source& source, const OverscaledTileID& tileID, std::exc
 
 void Style::onSpriteLoaded() {
     observer->onSpriteLoaded();
-    observer->onUpdate(Update::Repaint);
+    observer->onUpdate(Update::Repaint); // For *-pattern properties.
+    updateSymbolDependentTiles();
 }
 
 void Style::onSpriteError(std::exception_ptr error) {
@@ -545,9 +625,17 @@ void Style::onLayerPaintPropertyChanged(Layer&) {
     observer->onUpdate(Update::RecalculateStyle | Update::Classes);
 }
 
-void Style::onLayerLayoutPropertyChanged(Layer& layer) {
+void Style::onLayerLayoutPropertyChanged(Layer& layer, const char * property) {
     layer.accept(QueueSourceReloadVisitor { updateBatch });
-    observer->onUpdate(Update::Layout);
+
+    auto update = Update::Layout;
+
+    //Recalculate the style for certain properties
+    bool needsRecalculation = strcmp(property, "icon-size") == 0 || strcmp(property, "text-size") == 0;
+    if (needsRecalculation) {
+        update |= Update::RecalculateStyle;
+    }
+    observer->onUpdate(update);
 }
 
 void Style::dumpDebugLogs() const {

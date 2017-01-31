@@ -20,8 +20,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+#ifndef NS_STRING_ENUM
+    #define NS_STRING_ENUM
+    #define NS_EXTENSIBLE_STRING_ENUM
+    typedef NSString *NSErrorDomain;
+    typedef NSString *NSNotificationName;
+#endif
+
 /** Indicates an error occurred in the Mapbox SDK. */
-extern NSString * const MGLErrorDomain;
+extern NSErrorDomain const MGLErrorDomain;
 
 /** Error constants for the Mapbox SDK. */
 typedef NS_ENUM(NSInteger, MGLErrorCode) {

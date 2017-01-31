@@ -4,25 +4,47 @@
 
 @interface MGLSource ()
 
-@property (nonatomic) mbgl::style::Source *source;
+// Even though this class is abstract, MGLStyle uses it to represent some
+// special internal source types like mbgl::AnnotationSource.
+@property (nonatomic) mbgl::style::Source *rawSource;
 
 @end
 
 @implementation MGLSource
 
-- (instancetype)initWithIdentifier:(NSString *)identifier {
+- (instancetype)initWithIdentifier:(NSString *)identifier
+{
     if (self = [super init]) {
         _identifier = identifier;
     }
     return self;
 }
 
-- (std::unique_ptr<mbgl::style::Source>)mbglSource {
-    [NSException raise:@"MGLAbstractClassException" format:
+- (instancetype)initWithRawSource:(mbgl::style::Source *)rawSource {
+    NSString *identifier = @(rawSource->getID().c_str());
+    if (self = [self initWithIdentifier:identifier]) {
+        _rawSource = rawSource;
+    }
+    return self;
+}
+
+- (void)addToMapView:(MGLMapView *)mapView {
+    [NSException raise:NSInvalidArgumentException format:
      @"The source %@ cannot be added to the style. "
      @"Make sure the source was created as a member of a concrete subclass of MGLSource.",
-     NSStringFromClass(self)];
-    return nil;
+     self];
+}
+
+- (void)removeFromMapView:(MGLMapView *)mapView {
+    [NSException raise:NSInvalidArgumentException format:
+     @"The source %@ cannot be removed from the style. "
+     @"Make sure the source was created as a member of a concrete subclass of MGLSource.",
+     self];
+}
+
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<%@: %p; identifier = %@>",
+            NSStringFromClass([self class]), (void *)self, self.identifier];
 }
 
 @end

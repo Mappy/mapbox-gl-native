@@ -28,7 +28,7 @@ extern const CGFloat MGLMapViewDecelerationRateNormal;
 /** A fast deceleration rate for a map view. */
 extern const CGFloat MGLMapViewDecelerationRateFast;
 
-/** Disables decleration in a map view. */
+/** Disables deceleration in a map view. */
 extern const CGFloat MGLMapViewDecelerationRateImmediate;
 
 /**
@@ -73,8 +73,23 @@ typedef NS_ENUM(NSUInteger, MGLAnnotationVerticalAlignment) {
  your Mapbox account. They also deter other developers from using your styles
  without your permission.
  
+ Adding your own gesture recognizer to `MGLMapView` will block the corresponding
+ gesture recognizer built into `MGLMapView`. To avoid conflicts, define which
+ gesture takes precedence. For example, you can create your own
+ `UITapGestureRecognizer` that will be invoked only if the default `MGLMapView`
+ tap gesture fails:
+ 
+ ```swift
+ let mapTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(myCustomFunction))
+ for recognizer in mapView.gestureRecognizers! where recognizer is UITapGestureRecognizer {
+     mapTapGestureRecognizer.require(toFail: recognizer)
+ }
+ mapView.addGestureRecognizer(mapTapGestureRecognizer)
+ ```
+ 
  @note You are responsible for getting permission to use the map data and for
  ensuring that your use adheres to the relevant terms of use.
+
  */
 IB_DESIGNABLE
 @interface MGLMapView : UIView
@@ -118,6 +133,28 @@ IB_DESIGNABLE
 #pragma mark Configuring the Map’s Appearance
 
 /**
+ The style currently displayed in the receiver.
+ 
+ Unlike the `styleURL` property, this property is set to an object that allows
+ you to manipulate every aspect of the style locally.
+ 
+ If the style is loading, this property is set to `nil` until the style finishes
+ loading. If the style has failed to load, this property is set to `nil`.
+ Because the style loads asynchronously, you should manipulate it in the
+ `-[MGLMapViewDelegate mapView:didFinishLoadingStyle:]` or
+ `-[MGLMapViewDelegate mapViewDidFinishLoadingMap:]` method. It is not possible
+ to manipulate the style before it has finished loading.
+ 
+ @note The default styles provided by Mapbox contain sources and layers with
+    identifiers that will change over time. Applications that use APIs that
+    manipulate a style's sources and layers must first set the style URL to an
+    explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`.
+ */
+@property (nonatomic, readonly, nullable) MGLStyle *style;
+
+/**
  URLs of the styles bundled with the library.
  
  @deprecated Call the relevant class method of `MGLStyle` for the URL of a
@@ -134,6 +171,9 @@ IB_DESIGNABLE
  
  If you set this property to `nil`, the receiver will use the default style
  and this property will automatically be set to that style’s URL.
+ 
+ If you want to modify the current style without replacing it outright, or if
+ you want to introspect individual style attributes, use the `style` property.
  */
 @property (nonatomic, null_resettable) NSURL *styleURL;
 
@@ -590,7 +630,7 @@ IB_DESIGNABLE
  @param animated Specify `YES` to animate the change by smoothly scrolling and
     zooming or `NO` to immediately display the given bounds.
  */
-- (void)setVisibleCoordinates:(CLLocationCoordinate2D *)coordinates count:(NSUInteger)count edgePadding:(UIEdgeInsets)insets animated:(BOOL)animated;
+- (void)setVisibleCoordinates:(const CLLocationCoordinate2D *)coordinates count:(NSUInteger)count edgePadding:(UIEdgeInsets)insets animated:(BOOL)animated;
 
 /**
  Changes the receiver’s viewport to fit all of the given coordinates and
@@ -607,7 +647,7 @@ IB_DESIGNABLE
  @param function The timing function to animate the change.
  @param completion The block executed after the animation finishes.
  */
-- (void)setVisibleCoordinates:(CLLocationCoordinate2D *)coordinates count:(NSUInteger)count edgePadding:(UIEdgeInsets)insets direction:(CLLocationDirection)direction duration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion;
+- (void)setVisibleCoordinates:(const CLLocationCoordinate2D *)coordinates count:(NSUInteger)count edgePadding:(UIEdgeInsets)insets direction:(CLLocationDirection)direction duration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion;
 
 /**
  Sets the visible region so that the map displays the specified annotations.
@@ -893,13 +933,22 @@ IB_DESIGNABLE
 @property (nonatomic, readonly, nullable) NS_ARRAY_OF(id <MGLAnnotation>) *annotations;
 
 /**
+ The complete list of annotations associated with the receiver that are 
+ currently visible.
+ 
+ The objects in this array must adopt the `MGLAnnotation` protocol. If no
+ annotations are associated with the map view or if no annotations associated
+ with the map view are currently visible, the value of this property is `nil`.
+ */
+@property (nonatomic, readonly, nullable) NS_ARRAY_OF(id <MGLAnnotation>) *visibleAnnotations;
+
+/**
  Adds an annotation to the map view.
  
- @note `MGLMultiPolyline`, `MGLMultiPolygon`, and `MGLShapeCollection` objects
-    cannot be added to the map view at this time. Nor can `MGLMultiPoint`
-    objects that are not instances of `MGLPolyline` or `MGLPolygon`. Any
-    multipoint, multipolyline, multipolygon, or shape collection object that is
-    specified is silently ignored.
+ @note `MGLMultiPolyline`, `MGLMultiPolygon`, `MGLShapeCollection`, and 
+    `MGLPointCollection` objects cannot be added to the map view at this time. 
+    Any multipoint, multipolyline, multipolygon, shape or point collection 
+    object that is specified is silently ignored.
  
  @param annotation The annotation object to add to the receiver. This object
     must conform to the `MGLAnnotation` protocol. The map view retains the
@@ -987,6 +1036,17 @@ IB_DESIGNABLE
  */
 - (nullable __kindof MGLAnnotationView *)dequeueReusableAnnotationViewWithIdentifier:(NSString *)identifier;
 
+/**
+ Returns the list of annotations associated with the receiver that intersect with 
+ the given rectangle.
+ 
+ @param rect A rectangle expressed in the map view’s coordinate system.
+ @return An array of objects that adopt the `MGLAnnotation` protocol or `nil` if
+    no annotations associated with the map view are currently visible in the 
+    rectangle.
+ */
+- (nullable NS_ARRAY_OF(id <MGLAnnotation>) *)visibleAnnotationsInRect:(CGRect)rect;
+
 #pragma mark Managing Annotation Selections
 
 /**
@@ -1057,10 +1117,6 @@ IB_DESIGNABLE
  */
 - (void)removeOverlays:(NS_ARRAY_OF(id <MGLOverlay>) *)overlays;
 
-#pragma mark - Runtime styling API
-
-- (MGLStyle *)style;
-
 #pragma mark Accessing the Underlying Map Data
 
 /**
@@ -1114,6 +1170,14 @@ IB_DESIGNABLE
  
  To find out the layer names in a particular style, view the style in
  <a href="https://www.mapbox.com/studio/">Mapbox Studio</a>.
+ 
+ @note Layer identifiers are not guaranteed to exist across styles or different
+    versions of the same style. Applications that use this API must first set the
+    style URL to an explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`. This
+    approach also avoids layer identifer name changes that will occur in the default
+    style’s layers over time.
  
  @param point A point expressed in the map view’s coordinate system.
  @param styleLayerIdentifiers A set of strings that correspond to the names of
@@ -1177,6 +1241,14 @@ IB_DESIGNABLE
  
  To find out the layer names in a particular style, view the style in
  <a href="https://www.mapbox.com/studio/">Mapbox Studio</a>.
+ 
+ @note Layer identifiers are not guaranteed to exist across styles or different
+    versions of the same style. Applications that use this API must first set the
+    style URL to an explicitly versioned style using a convenience method like
+    `+[MGLStyle outdoorsStyleURLWithVersion:]`, `MGLMapView`'s “Style URL”
+    inspectable in Interface Builder, or a manually constructed `NSURL`. This
+    approach also avoids layer identifer name changes that will occur in the default
+    style’s layers over time.
  
  @param rect A rectangle expressed in the map view’s coordinate system.
  @param styleLayerIdentifiers A set of strings that correspond to the names of
