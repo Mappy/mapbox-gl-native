@@ -14,6 +14,8 @@
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/timer.hpp>
 #include <mbgl/util/http_timeout.hpp>
+#include <mbgl/platform/log.hpp>
+#include <mbgl/platform/log.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -63,18 +65,22 @@ public:
     }
 
     void add(OnlineFileRequest* request) {
+        Log::Error(Event::Setup, "OnlineFileSource add OnlineFileRequest %p %s", request, request->resource.url.c_str());
         allRequests.insert(request);
     }
 
     void remove(OnlineFileRequest* request) {
+        Log::Error(Event::Setup, "OnlineFileSource remove OnlineFileRequest %p %s", request, request->resource.url.c_str());
         allRequests.erase(request);
         if (activeRequests.erase(request)) {
+            Log::Error(Event::Setup, "OnlineFileSource remove erased from activeRequests %i", activeRequests.size());
             activatePendingRequest();
         } else {
             auto it = pendingRequestsMap.find(request);
             if (it != pendingRequestsMap.end()) {
                 pendingRequestsList.erase(it->second);
                 pendingRequestsMap.erase(it);
+                Log::Error(Event::Setup, "OnlineFileSource remove erased from pendingRequestsMap %i", pendingRequestsList.size());
             }
         }
         assert(pendingRequestsMap.size() == pendingRequestsList.size());
@@ -85,6 +91,7 @@ public:
         assert(activeRequests.find(request) == activeRequests.end());
         assert(!request->request);
 
+        Log::Error(Event::Setup, "activateOrQueueRequest::activeRequests.size() %i", activeRequests.size());
         if (activeRequests.size() >= HTTPFileSource::maximumConcurrentRequests()) {
             queueRequest(request);
         } else {
@@ -93,19 +100,26 @@ public:
     }
 
     void queueRequest(OnlineFileRequest* request) {
+        
+        Log::Error(Event::Setup, "Ok queue %p", request);
+
         auto it = pendingRequestsList.insert(pendingRequestsList.end(), request);
         pendingRequestsMap.emplace(request, std::move(it));
         assert(pendingRequestsMap.size() == pendingRequestsList.size());
     }
 
     void activateRequest(OnlineFileRequest* request) {
+       
         activeRequests.insert(request);
         request->request = httpFileSource.request(request->resource, [=] (Response response) {
+             Log::Error(Event::Setup, "start callback %p", request);
             activeRequests.erase(request);
             activatePendingRequest();
             request->request.reset();
+             Log::Error(Event::Setup, "reponse completed");
             request->completed(response);
         });
+         Log::Error(Event::Setup, "Ok activateRequest %p", request);
         assert(pendingRequestsMap.size() == pendingRequestsList.size());
     }
 
@@ -113,11 +127,17 @@ public:
         if (pendingRequestsList.empty()) {
             return;
         }
+        
+       
 
         OnlineFileRequest* request = pendingRequestsList.front();
         pendingRequestsList.pop_front();
 
         pendingRequestsMap.erase(request);
+        
+        Log::Error(Event::Setup, "pendingRequestsList count %i", pendingRequestsMap.size());
+        
+       Log::Error(Event::Setup, "pop pending %p", request);
 
         activateRequest(request);
         assert(pendingRequestsMap.size() == pendingRequestsList.size());
@@ -166,6 +186,8 @@ OnlineFileSource::~OnlineFileSource() = default;
 
 std::unique_ptr<AsyncRequest> OnlineFileSource::request(const Resource& resource, Callback callback) {
     Resource res = resource;
+    
+    //Log::Error(Event::Setup, "Resource %i",resource.kind);
 
     switch (resource.kind) {
     case Resource::Kind::Unknown:
@@ -211,6 +233,7 @@ OnlineFileRequest::OnlineFileRequest(Resource resource_, Callback callback_, Onl
 }
 
 OnlineFileRequest::~OnlineFileRequest() {
+    Log::Error(Event::Setup, "Destructeur OnlineFileRequest %p",this);
     impl.remove(this);
 }
 
@@ -261,9 +284,26 @@ void OnlineFileRequest::schedule(optional<Timestamp> expires) {
 
     // If we're not being asked for a forced refresh, calculate a timeout that depends on how many
     // consecutive errors we've encountered, and on the expiration time, if present.
+    
+  //  Duration errorRetryTimeout = http::errorRetryTimeout(failedRequestReason, failedRequests, retryAfter);
+    
+   // Duration expirationTimeout = http::expirationTimeout(expires, expiredRequests);
+    
+   // Log::Error(Event::Setup, "errorRetryTimeout %i",std::chrono::duration_cast<std::chrono::nanoseconds>(errorRetryTimeout));
+
+     //Log::Error(Event::Setup, "expirationTimeout %i", std::chrono::duration_cast<std::chrono::nanoseconds>(expirationTimeout));
+    
+    //Log::Error(Event::Setup, "failedReq %i",failedRequests);
+    //Log::Error(Event::Setup, "expiredReq %i",expiredRequests);
+    
+   // Log::Error(Event::Setup, "expirationTimeout %i", std::chrono::duration_cast<std::chrono::nanoseconds>(expirationTimeout));
+    
     Duration timeout = std::min(
                             http::errorRetryTimeout(failedRequestReason, failedRequests, retryAfter),
                             http::expirationTimeout(expires, expiredRequests));
+    
+   // Log::Error(Event::Setup, "Duration %i" ,std::chrono::duration_cast<std::chrono::nanoseconds>(timeout));
+   // Log::Error(Event::Setup, "Duration max %i",std::chrono::duration_cast<std::chrono::nanoseconds>(Duration::max()));
 
     if (timeout == Duration::max()) {
         return;
@@ -275,11 +315,14 @@ void OnlineFileRequest::schedule(optional<Timestamp> expires) {
     if (NetworkStatus::Get() == NetworkStatus::Status::Offline) {
         failedRequestReason = Response::Error::Reason::Connection;
         failedRequests = 1;
+         Log::Error(Event::Setup, "offline");
         timeout = Duration::max();
     }
 
+   // Log::Error(Event::Setup, "timer start %i", std::chrono::duration_cast<std::chrono::nanoseconds>(timeout));
     timer.start(timeout, Duration::zero(), [&] {
-        impl.activateOrQueueRequest(this);
+     //   Log::Error(Event::Setup, "Queue Request");
+            impl.activateOrQueueRequest(this);
     });
 }
 
@@ -321,6 +364,8 @@ void OnlineFileRequest::completed(Response response) {
         failedRequests = 0;
         failedRequestReason = Response::Error::Reason::Success;
     }
+    
+    Log::Error(Event::Setup, "OnlineFileReques::completed: error %i , failed % i , expiredRequests %i", failedRequestReason,failedRequests,expiredRequests);
 
     schedule(response.expires);
 
