@@ -167,8 +167,13 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     Where applicable, local variable documentation begins with the associated
     variable or function in van Wijk (2003). */
 void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &animation) {
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto start ");
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto start zoom = %lf", getZoom());
+
     const LatLng latLng = camera.center.value_or(getLatLng()).wrapped();
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto start latLng %lf-%lf", latLng.latitude, latLng.longitude);
     double zoom = camera.zoom.value_or(getZoom());
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto start 2");
     double angle = camera.angle.value_or(getAngle());
     double pitch = camera.pitch.value_or(getPitch());
 
@@ -179,11 +184,20 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     // Determine endpoints.
     EdgeInsets padding;
     if (camera.padding) padding = *camera.padding;
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto  padding %lf, %lf, %lf, %lf ",padding.left, padding.right, padding.top, padding.bottom);
     LatLng startLatLng = getLatLng(padding).wrapped();
     startLatLng.unwrapForShortestPath(latLng);
 
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto startLatLng %lf-%lf", startLatLng.latitude, startLatLng.longitude);
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto endLatLng %lf-%lf", latLng.latitude, latLng.longitude);
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto a state.size wxh %lf x %lf", state.size.width, state.size.height);
+
     const Point<double> startPoint = Projection::project(startLatLng, state.scale);
     const Point<double> endPoint = Projection::project(latLng, state.scale);
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto state.scale = %lf ",state.scale);
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto startPoint = %lf,%lf ",startPoint.x, startPoint.y);
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto endPoint = %lf,%lf ",endPoint.x, endPoint.y);
 
     ScreenCoordinate center = getScreenCoordinate(padding);
     center.y = state.size.height - center.y;
@@ -199,18 +213,31 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     const double startZoom = state.scaleZoom(state.scale);
     const double startAngle = state.angle;
     const double startPitch = state.pitch;
+    
+     mbgl::Log::Error(mbgl::Event::OpenGL, "flyto angle=%lf, startAngle=%lf", angle, startAngle);
 
     /// w₀: Initial visible span, measured in pixels at the initial scale.
     /// Known henceforth as a <i>screenful</i>.
     double w0 = padding ? std::max(state.size.width, state.size.height)
                         : std::max(state.size.width - padding.left - padding.right,
                                    state.size.height - padding.top - padding.bottom);
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto state.size wxh %lf x %lf", state.size.width, state.size.height);
+
     /// w₁: Final visible span, measured in pixels with respect to the initial
     /// scale.
     double w1 = w0 / state.zoomScale(zoom - startZoom);
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto zoom=%lf, startZoom=%lf zoomScale=%lf, w0=%lf, w1=%lf", zoom, startZoom,state.zoomScale(zoom - startZoom), w0, w1);
+
     /// Length of the flight path as projected onto the ground plane, measured
     /// in pixels from the world image origin at the initial scale.
-    double u1 = ::hypot((endPoint - startPoint).x, (endPoint - startPoint).y);
+    double deltaEndStartX = (endPoint - startPoint).x;
+    double deltaEndStartY = (endPoint - startPoint).y;
+    double u1 = ::hypot(deltaEndStartX<1?1:deltaEndStartX, deltaEndStartY<1?1:deltaEndStartY);
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto ::hypot de x y =%lf %lf",(endPoint - startPoint).x, (endPoint - startPoint).y);
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto d u1=%lf",u1);
+
 
     /** ρ: The relative amount of zooming that takes place along the flight
         path. A high value maximizes zooming for an exaggerated animation, while
@@ -231,6 +258,10 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     }
     /// ρ²
     double rho2 = rho * rho;
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto d rho=%lf",rho);
+
+     mbgl::Log::Error(mbgl::Event::OpenGL, "flyto next");
+
 
     /** rᵢ: Returns the zoom-out factor at one end of the animation.
 
@@ -238,12 +269,21 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     auto r = [=](double i) {
         /// bᵢ
         double b = (w1 * w1 - w0 * w0 + (i ? -1 : 1) * rho2 * rho2 * u1 * u1) / (2 * (i ? w1 : w0) * rho2 * u1);
-        return std::log(std::sqrt(b * b + 1) - b);
+        mbgl::Log::Error(mbgl::Event::OpenGL, "flyto d b=%lf",b);
+         double toto =  std::log(std::sqrt(b * b + 1) - b);
+         mbgl::Log::Error(mbgl::Event::OpenGL, "flyto (std::sqrt(b * b + 1) - b)=%0.60lf",(std::sqrt(b * b + 1) - b));
+           mbgl::Log::Error(mbgl::Event::OpenGL, "flyto r(%lf)=%lf",i,toto);
+        return toto;
     };
+
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto d rho2=%lf, u1=%lf",rho2,u1);
+
 
     // When u₀ = u₁, the optimal path doesn’t require both ascent and descent.
     bool isClose = std::abs(u1) < 0.000001;
     // Perform a more or less instantaneous transition if the path is too short.
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto d w0=%lf, w1=%lf",w0,w1);
+
     if (isClose && std::abs(w0 - w1) < 0.000001) {
         easeTo(camera, animation);
         return;
@@ -255,6 +295,7 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         respect to the initial scale.
 
         Assumes an angular field of view of 2 arctan ½ ≈ 53°. */
+
     auto w = [=](double s) {
         return (isClose ? std::exp((w1 < w0 ? -1 : 1) * rho * s)
                 : (std::cosh(r0) / std::cosh(r0 + rho * s)));
@@ -262,13 +303,23 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
     /// u(s): Returns the distance along the flight path as projected onto the
     /// ground plane, measured in pixels from the world image origin at the
     /// initial scale.
+
     auto u = [=](double s) {
         return (isClose ? 0.
                 : (w0 * (std::cosh(r0) * std::tanh(r0 + rho * s) - std::sinh(r0)) / rho2 / u1));
     };
+
     /// S: Total length of the flight path, measured in ρ-screenfuls.
     double S = (isClose ? (std::abs(std::log(w1 / w0)) / rho)
                 : ((r(1) - r0) / rho));
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto S1 =%lf",(std::abs(std::log(w1 / w0)) / rho));
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto r(1)=%lf r0=%lf S2 =%lf",r(1),r0,((r(1) - r0) / rho));
+
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto  rho=%lf, w0=%lf, w1=%lf, S = %lf ", rho,w0,w1, S);
+
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto g w0=%lf, w1=%lf",w0,w1);
 
     Duration duration;
     if (animation.duration) {
@@ -287,24 +338,32 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         return;
     }
 
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto animation.duration = %lf ",std::chrono::duration_cast<std::chrono::nanoseconds>(*animation.duration));
+
     const double startScale = state.scale;
     state.panning = true;
     state.scaling = true;
     state.rotating = angle != startAngle;
-
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto state rotating = %i ", state.rotating?1:0);
+mbgl::Log::Error(mbgl::Event::OpenGL, "flyto startTransition padding %lf, %lf, %lf, %lf",padding.left, padding.right, padding.top, padding.bottom);
     startTransition(camera, animation, [=](double k) {
         /// s: The distance traveled along the flight path, measured in
         /// ρ-screenfuls.
         double s = k * S;
         double us = u(s);
+//mbgl::Log::Error(mbgl::Event::OpenGL, "flyto startTransition >> s= %f x %f = %f",k,S,s);
 
         // Calculate the current point and zoom level along the flight path.
         Point<double> framePoint = util::interpolate(startPoint, endPoint, us);
-        double frameZoom = startZoom + state.scaleZoom(1 / w(s));
+        double scaleZoom = state.scaleZoom(1 / w(s));
+        double frameZoom = startZoom + scaleZoom;
 
+//mbgl::Log::Error(mbgl::Event::OpenGL, "flyto frameZoom %f + %f = %f", startZoom, scaleZoom, frameZoom);
         // Convert to geographic coordinates and set the new viewpoint.
         LatLng frameLatLng = Projection::unproject(framePoint, startScale);
         state.setLatLngZoom(frameLatLng, frameZoom);
+
+//mbgl::Log::Error(mbgl::Event::OpenGL, "flyto frameLatLng %f - %f ", frameLatLng.latitude, frameLatLng.longitude);
 
         if (angle != startAngle) {
             state.angle = util::wrap(util::interpolate(startAngle, angle, k), -M_PI, M_PI);
@@ -316,8 +375,12 @@ void Transform::flyTo(const CameraOptions &camera, const AnimationOptions &anima
         if (padding) {
             state.moveLatLng(frameLatLng, center);
         }
+        //mbgl::Log::Error(mbgl::Event::OpenGL, "flyto startTransition <<");
+
         return Update::RecalculateStyle;
     }, duration);
+
+    mbgl::Log::Error(mbgl::Event::OpenGL, "flyto FIN");
 }
 
 #pragma mark - Position
