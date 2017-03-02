@@ -509,12 +509,17 @@ public:
     [self addGestureRecognizer:_rotate];
     _rotateEnabled = YES;
 
+    UILongPressGestureRecognizer *mappyLongPressGestureRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:nil];
+    [self addGestureRecognizer:mappyLongPressGestureRecognizer];
+    
     UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTapGesture:)];
     doubleTap.numberOfTapsRequired = 2;
+    [doubleTap requireGestureRecognizerToFail:mappyLongPressGestureRecognizer];
     [self addGestureRecognizer:doubleTap];
 
     _singleTapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTapGesture:)];
     [_singleTapGestureRecognizer requireGestureRecognizerToFail:doubleTap];
+    [_singleTapGestureRecognizer requireGestureRecognizerToFail:mappyLongPressGestureRecognizer];
     _singleTapGestureRecognizer.delegate = self;
     [self addGestureRecognizer:_singleTapGestureRecognizer];
 
