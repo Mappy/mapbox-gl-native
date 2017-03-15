@@ -157,5 +157,9 @@ void FeatureIndex::addBucketLayerName(const std::string& bucketName, const std::
 void FeatureIndex::setCollisionTile(std::unique_ptr<CollisionTile> collisionTile_) {
     collisionTile = std::move(collisionTile_);
 }
+    
+void FeatureIndex::resetCollisionTile() {
+    collisionTile.reset();
+}
 
 } // namespace mbgl

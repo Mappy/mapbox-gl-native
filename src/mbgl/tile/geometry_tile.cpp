@@ -102,6 +102,7 @@ void GeometryTile::onLayout(LayoutResult result) {
     buckets = std::move(result.buckets);
     featureIndex = std::move(result.featureIndex);
     data = std::move(result.tileData);
+    featureIndex->resetCollisionTile();
     observer->onTileChanged(*this);
 }
 
