@@ -4,7 +4,9 @@
 
 #import <mbgl/gl/gl.hpp>
 
-@implementation MGLOpenGLLayer
+@implementation MGLOpenGLLayer {
+    NSOpenGLContext *_context;
+}
 
 - (MGLMapView *)mapView {
     return (MGLMapView *)super.view;
@@ -22,8 +24,16 @@
     return self.view.bounds;
 }
 
+- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat {
+    if (!_context) {
+        _context = [[NSOpenGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
+    }
+    return _context;
+}
+
 - (NSOpenGLPixelFormat *)openGLPixelFormatForDisplayMask:(uint32_t)mask {
     NSOpenGLPixelFormatAttribute pfas[] = {
+        NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersionLegacy,
         NSOpenGLPFAAccelerated,
         NSOpenGLPFAClosestPolicy,
         NSOpenGLPFAAccumSize, 32,
@@ -32,6 +42,7 @@
         NSOpenGLPFADepthSize, 16,
         NSOpenGLPFAStencilSize, 8,
         NSOpenGLPFAScreenMask, mask,
+        NSOpenGLPFAAllowOfflineRenderers, // Allows using the integrated GPU
         0
     };
     return [[NSOpenGLPixelFormat alloc] initWithAttributes:pfas];
