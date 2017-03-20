@@ -1165,9 +1165,18 @@ public:
 
 - (void)touchesBegan:(__unused NS_SET_OF(UITouch *) *)touches withEvent:(__unused UIEvent *)event
 {
-    _changeDelimiterSuppressionDepth = 0;
-    _mbglMap->setGestureInProgress(false);
-    _mbglMap->cancelTransitions();
+	UITouch *touch = touches.anyObject;
+	if (touch.phase == UITouchPhaseBegan
+		&& touch.tapCount == 1
+		&& touch.view == self.glView
+		&& [self.delegate respondsToSelector:@selector(mapView:didReceiveTouchDownEvent:)])
+	{
+		[self.delegate mapView:self didReceiveTouchDownEvent:event];
+	}
+
+	_changeDelimiterSuppressionDepth = 0;
+	_mbglMap->setGestureInProgress(false);
+	_mbglMap->cancelTransitions();
 }
 
 - (void)notifyGestureDidBegin {
