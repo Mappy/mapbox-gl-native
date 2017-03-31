@@ -54,7 +54,6 @@ public:
     void addBucketLayerName(const std::string& bucketName, const std::string& layerName);
 
     void setCollisionTile(std::unique_ptr<CollisionTile>);
-    void resetCollisionTile();
 
 private:
     void addFeature(
