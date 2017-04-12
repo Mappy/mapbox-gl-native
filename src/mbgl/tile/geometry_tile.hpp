@@ -21,6 +21,7 @@ namespace style {
 class Style;
 class Layer;
 class UpdateParameters;
+class SourceQueryOptions;
 } // namespace style
 
 class GeometryTile : public Tile {
@@ -44,13 +45,17 @@ public:
             std::unordered_map<std::string, std::vector<Feature>>& result,
             const GeometryCoordinates& queryGeometry,
             const TransformState&,
-            const optional<std::vector<std::string>>& layerIDs) override;
+            const RenderedQueryOptions& options) override;
+
+    void querySourceFeatures(
+        std::vector<Feature>& result,
+        const style::SourceQueryOptions&) override;
 
     void cancel() override;
 
     class LayoutResult {
     public:
-        std::unordered_map<std::string, std::unique_ptr<Bucket>> buckets;
+        std::unordered_map<std::string, std::shared_ptr<Bucket>> nonSymbolBuckets;
         std::unique_ptr<FeatureIndex> featureIndex;
         std::unique_ptr<GeometryTileData> tileData;
         uint64_t correlationID;
@@ -59,13 +64,18 @@ public:
 
     class PlacementResult {
     public:
-        std::unordered_map<std::string, std::unique_ptr<Bucket>> buckets;
+        std::unordered_map<std::string, std::shared_ptr<Bucket>> symbolBuckets;
         std::unique_ptr<CollisionTile> collisionTile;
         uint64_t correlationID;
     };
     void onPlacement(PlacementResult);
 
     void onError(std::exception_ptr);
+    
+protected:
+    const GeometryTileData* getData() {
+        return data.get();
+    }
 
 private:
     const std::string sourceID;
@@ -80,9 +90,12 @@ private:
     uint64_t correlationID = 0;
     optional<PlacementConfig> requestedConfig;
 
-    std::unordered_map<std::string, std::unique_ptr<Bucket>> buckets;
+    std::unordered_map<std::string, std::shared_ptr<Bucket>> nonSymbolBuckets;
     std::unique_ptr<FeatureIndex> featureIndex;
     std::unique_ptr<const GeometryTileData> data;
+
+    std::unordered_map<std::string, std::shared_ptr<Bucket>> symbolBuckets;
+    std::unique_ptr<CollisionTile> collisionTile;
 };
 
 } // namespace mbgl

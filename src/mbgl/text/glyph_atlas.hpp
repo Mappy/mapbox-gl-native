@@ -8,6 +8,8 @@
 #include <mbgl/util/font_stack.hpp>
 #include <mbgl/util/exclusive.hpp>
 #include <mbgl/util/work_queue.hpp>
+#include <mbgl/util/image.hpp>
+#include <mbgl/gl/texture.hpp>
 #include <mbgl/gl/object.hpp>
 
 #include <atomic>
@@ -15,8 +17,6 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <mutex>
-#include <exception>
-#include <vector>
 
 namespace mbgl {
 
@@ -30,7 +30,7 @@ class Context;
 
 class GlyphAtlas : public util::noncopyable {
 public:
-    GlyphAtlas(uint16_t width, uint16_t height, FileSource&);
+    GlyphAtlas(Size, FileSource&);
     ~GlyphAtlas();
 
     util::exclusive<GlyphSet> getGlyphSet(const FontStack&);
@@ -53,9 +53,9 @@ public:
     void setObserver(GlyphAtlasObserver* observer);
 
     void addGlyphs(uintptr_t tileUID,
-                   const std::u32string& text,
+                   const std::u16string& text,
                    const FontStack&,
-                   const GlyphSet&,
+                   const util::exclusive<GlyphSet>&,
                    GlyphPositions&);
     void removeGlyphs(uintptr_t tileUID);
 
@@ -66,8 +66,7 @@ public:
     // the texture is only bound when the data is out of date (=dirty).
     void upload(gl::Context&, gl::TextureUnit unit);
 
-    const uint16_t width;
-    const uint16_t height;
+    Size getSize() const;
 
 private:
     void requestGlyphRange(const FontStack&, const GlyphRange&);
@@ -76,19 +75,8 @@ private:
                             const FontStack&,
                             const SDFGlyph&);
 
-
     FileSource& fileSource;
     std::string glyphURL;
-
-    std::unordered_map<FontStack, std::map<GlyphRange, std::unique_ptr<GlyphPBF>>, FontStackHash> ranges;
-    std::mutex rangesMutex;
-
-    std::unordered_map<FontStack, std::unique_ptr<GlyphSet>, FontStackHash> glyphSets;
-    std::mutex glyphSetsMutex;
-
-    util::WorkQueue workQueue;
-
-    GlyphAtlasObserver* observer = nullptr;
 
     struct GlyphValue {
         GlyphValue(Rect<uint16_t> rect_, uintptr_t id)
@@ -97,12 +85,22 @@ private:
         std::unordered_set<uintptr_t> ids;
     };
 
-    std::mutex mtx;
+    struct Entry {
+        std::map<GlyphRange, GlyphPBF> ranges;
+        GlyphSet glyphSet;
+        std::map<uint32_t, GlyphValue> glyphValues;
+    };
+
+    std::unordered_map<FontStack, Entry, FontStackHash> entries;
+    std::mutex mutex;
+
+    util::WorkQueue workQueue;
+    GlyphAtlasObserver* observer = nullptr;
+
     BinPack<uint16_t> bin;
-    std::unordered_map<FontStack, std::map<uint32_t, GlyphValue>, FontStackHash> index;
-    const std::unique_ptr<uint8_t[]> data;
+    AlphaImage image;
     std::atomic<bool> dirty;
-    mbgl::optional<gl::UniqueTexture> texture;
+    mbgl::optional<gl::Texture> texture;
 };
 
 } // namespace mbgl

@@ -1,39 +1,38 @@
 #pragma once
 
 #include <mbgl/gl/object.hpp>
+#include <mbgl/gl/draw_mode.hpp>
+#include <mbgl/util/ignore.hpp>
+
+#include <vector>
 
 namespace mbgl {
 namespace gl {
 
-class Line {
+template <class DrawMode>
+class IndexVector {
 public:
-    Line(uint16_t a_, uint16_t b_)
-        : a(a_), b(b_) {}
+    static constexpr std::size_t groupSize = DrawMode::bufferGroupSize;
 
-    uint16_t a;
-    uint16_t b;
+    template <class... Args>
+    void emplace_back(Args&&... args) {
+        static_assert(sizeof...(args) == groupSize, "wrong buffer element count");
+        util::ignore({(v.emplace_back(std::forward<Args>(args)), 0)...});
+    }
 
-    static constexpr std::size_t IndexCount = 2;
+    std::size_t indexSize() const { return v.size(); }
+    std::size_t byteSize() const { return v.size() * sizeof(uint16_t); }
+
+    bool empty() const { return v.empty(); }
+    const uint16_t* data() const { return v.data(); }
+
+private:
+    std::vector<uint16_t> v;
 };
 
-class Triangle {
-public:
-    Triangle(uint16_t a_, uint16_t b_, uint16_t c_)
-        : a(a_), b(b_), c(c_) {}
-
-    uint16_t a;
-    uint16_t b;
-    uint16_t c;
-
-    static constexpr std::size_t IndexCount = 3;
-};
-
-template <class Primitive>
+template <class DrawMode>
 class IndexBuffer {
 public:
-    static_assert(std::is_same<Primitive, Line>::value || std::is_same<Primitive, Triangle>::value,
-                  "primitive must be Line or Triangle");
-    static constexpr std::size_t primitiveSize = sizeof(Primitive);
     UniqueBuffer buffer;
 };
 

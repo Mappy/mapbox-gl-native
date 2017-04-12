@@ -34,6 +34,9 @@ std::unique_ptr<Layer> CustomLayer::Impl::cloneRef(const std::string&) const {
     return std::make_unique<CustomLayer>(*this);
 }
 
+void CustomLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
+}
+
 void CustomLayer::Impl::initialize() {
     assert(initializeFn);
     initializeFn(context);
@@ -50,24 +53,25 @@ void CustomLayer::Impl::render(const TransformState& state) const {
 
     CustomLayerRenderParameters parameters;
 
-    parameters.width = state.getWidth();
-    parameters.height = state.getHeight();
+    parameters.width = state.getSize().width;
+    parameters.height = state.getSize().height;
     parameters.latitude = state.getLatLng().latitude;
     parameters.longitude = state.getLatLng().longitude;
     parameters.zoom = state.getZoom();
     parameters.bearing = -state.getAngle() * util::RAD2DEG;
     parameters.pitch = state.getPitch();
-    parameters.altitude = state.getAltitude();
+    parameters.fieldOfView = state.getFieldOfView();
 
     renderFn(context, parameters);
 }
 
-bool CustomLayer::Impl::recalculate(const CalculationParameters&) {
+bool CustomLayer::Impl::evaluate(const PropertyEvaluationParameters&) {
     passes = RenderPass::Translucent;
     return false;
 }
 
-std::unique_ptr<Bucket> CustomLayer::Impl::createBucket(BucketParameters&) const {
+std::unique_ptr<Bucket> CustomLayer::Impl::createBucket(const BucketParameters&, const std::vector<const Layer*>&) const {
+    assert(false);
     return nullptr;
 }
 

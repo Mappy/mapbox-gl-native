@@ -1,11 +1,8 @@
 #include <mbgl/renderer/debug_bucket.hpp>
 #include <mbgl/renderer/painter.hpp>
-#include <mbgl/shader/fill_shader.hpp>
-#include <mbgl/shader/fill_vertex.hpp>
+#include <mbgl/programs/fill_program.hpp>
 #include <mbgl/geometry/debug_font_data.hpp>
 #include <mbgl/util/string.hpp>
-
-#include <mbgl/gl/gl.hpp>
 
 #include <cmath>
 #include <string>
@@ -13,13 +10,21 @@
 
 namespace mbgl {
 
-std::vector<FillVertex> buildTextVertices(const OverscaledTileID& id,
-                                                     const bool renderable,
-                                                     const bool complete,
-                                                     optional<Timestamp> modified,
-                                                     optional<Timestamp> expires,
-                                                     MapDebugOptions debugMode) {
-    std::vector<FillVertex> textPoints;
+DebugBucket::DebugBucket(const OverscaledTileID& id,
+                         const bool renderable_,
+                         const bool complete_,
+                         optional<Timestamp> modified_,
+                         optional<Timestamp> expires_,
+                         MapDebugOptions debugMode_,
+                         gl::Context& context)
+    : renderable(renderable_),
+      complete(complete_),
+      modified(std::move(modified_)),
+      expires(std::move(expires_)),
+      debugMode(debugMode_) {
+
+    gl::VertexVector<FillLayoutVertex> vertices;
+    gl::IndexVector<gl::Lines> indices;
 
     auto addText = [&] (const std::string& text, double left, double baseline, double scale) {
         for (uint8_t c : text) {
@@ -38,9 +43,11 @@ std::vector<FillVertex> buildTextVertices(const OverscaledTileID& id,
                         int16_t(::round(baseline - glyph.data[j + 1] * scale))
                     };
 
+                    vertices.emplace_back(FillProgram::layoutVertex(p));
+
                     if (prev) {
-                        textPoints.emplace_back(prev->x, prev->y);
-                        textPoints.emplace_back(p.x, p.y);
+                        indices.emplace_back(vertices.vertexSize() - 2,
+                                             vertices.vertexSize() - 1);
                     }
 
                     prev = p;
@@ -67,36 +74,10 @@ std::vector<FillVertex> buildTextVertices(const OverscaledTileID& id,
         addText(expiresText, 50, baseline + 200, 5);
     }
 
-    return textPoints;
-}
+    segments.emplace_back(0, 0, vertices.vertexSize(), indices.indexSize());
 
-DebugBucket::DebugBucket(const OverscaledTileID& id,
-                         const bool renderable_,
-                         const bool complete_,
-                         optional<Timestamp> modified_,
-                         optional<Timestamp> expires_,
-                         MapDebugOptions debugMode_,
-                         gl::Context& context)
-    : renderable(renderable_),
-      complete(complete_),
-      modified(std::move(modified_)),
-      expires(std::move(expires_)),
-      debugMode(debugMode_),
-      vertexBuffer(context.createVertexBuffer(buildTextVertices(id, renderable_, complete_, modified_, expires_, debugMode_))) {
-}
-
-void DebugBucket::drawLines(FillShader& shader, gl::Context& context) {
-    if (vertexBuffer.vertexCount != 0) {
-        array.bind(shader, vertexBuffer, BUFFER_OFFSET_0, context);
-        MBGL_CHECK_ERROR(glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertexBuffer.vertexCount)));
-    }
-}
-
-void DebugBucket::drawPoints(FillShader& shader, gl::Context& context) {
-    if (vertexBuffer.vertexCount != 0) {
-        array.bind(shader, vertexBuffer, BUFFER_OFFSET_0, context);
-        MBGL_CHECK_ERROR(glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertexBuffer.vertexCount)));
-    }
+    vertexBuffer = context.createVertexBuffer(std::move(vertices));
+    indexBuffer = context.createIndexBuffer(std::move(indices));
 }
 
 } // namespace mbgl

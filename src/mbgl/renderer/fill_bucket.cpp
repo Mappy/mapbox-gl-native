@@ -1,12 +1,9 @@
 #include <mbgl/renderer/fill_bucket.hpp>
-#include <mbgl/style/layers/fill_layer.hpp>
 #include <mbgl/renderer/painter.hpp>
-#include <mbgl/shader/fill_shader.hpp>
-#include <mbgl/shader/fill_pattern_shader.hpp>
-#include <mbgl/shader/fill_outline_shader.hpp>
-#include <mbgl/shader/fill_outline_pattern_shader.hpp>
-#include <mbgl/gl/gl.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/programs/fill_program.hpp>
+#include <mbgl/style/bucket_parameters.hpp>
+#include <mbgl/style/layers/fill_layer.hpp>
+#include <mbgl/style/layers/fill_layer_impl.hpp>
 
 #include <mapbox/earcut.hpp>
 
@@ -30,12 +27,17 @@ using namespace style;
 
 struct GeometryTooLongException : std::exception {};
 
-FillBucket::FillBucket() {
+FillBucket::FillBucket(const BucketParameters& parameters, const std::vector<const Layer*>& layers) {
+    for (const auto& layer : layers) {
+        paintPropertyBinders.emplace(layer->getID(),
+            FillProgram::PaintPropertyBinders(
+                layer->as<FillLayer>()->impl->paint.evaluated,
+                parameters.tileID.overscaledZ));
+    }
 }
 
-FillBucket::~FillBucket() = default;
-
-void FillBucket::addGeometry(const GeometryCollection& geometry) {
+void FillBucket::addFeature(const GeometryTileFeature& feature,
+                            const GeometryCollection& geometry) {
     for (auto& polygon : classifyRings(geometry)) {
         // Optimize polygons with many interior rings for earcut tesselation.
         limitHoles(polygon, 500);
@@ -44,9 +46,11 @@ void FillBucket::addGeometry(const GeometryCollection& geometry) {
 
         for (const auto& ring : polygon) {
             totalVertices += ring.size();
-            if (totalVertices > 65535)
+            if (totalVertices > std::numeric_limits<uint16_t>::max())
                 throw GeometryTooLongException();
         }
+
+        std::size_t startVertices = vertices.vertexSize();
 
         for (const auto& ring : polygon) {
             std::size_t nVertices = ring.size();
@@ -54,24 +58,24 @@ void FillBucket::addGeometry(const GeometryCollection& geometry) {
             if (nVertices == 0)
                 continue;
 
-            if (lineGroups.empty() || lineGroups.back().vertexLength + nVertices > 65535)
-                lineGroups.emplace_back();
-
-            auto& lineGroup = lineGroups.back();
-            uint16_t lineIndex = lineGroup.vertexLength;
-
-            vertices.emplace_back(ring[0].x, ring[0].y);
-            lines.emplace_back(static_cast<uint16_t>(lineIndex + nVertices - 1),
-                               static_cast<uint16_t>(lineIndex));
-
-            for (uint32_t i = 1; i < nVertices; i++) {
-                vertices.emplace_back(ring[i].x, ring[i].y);
-                lines.emplace_back(static_cast<uint16_t>(lineIndex + i - 1),
-                                   static_cast<uint16_t>(lineIndex + i));
+            if (lineSegments.empty() || lineSegments.back().vertexLength + nVertices > std::numeric_limits<uint16_t>::max()) {
+                lineSegments.emplace_back(vertices.vertexSize(), lines.indexSize());
             }
 
-            lineGroup.vertexLength += nVertices;
-            lineGroup.indexLength += nVertices;
+            auto& lineSegment = lineSegments.back();
+            assert(lineSegment.vertexLength <= std::numeric_limits<uint16_t>::max());
+            uint16_t lineIndex = lineSegment.vertexLength;
+
+            vertices.emplace_back(FillProgram::layoutVertex(ring[0]));
+            lines.emplace_back(lineIndex + nVertices - 1, lineIndex);
+
+            for (uint32_t i = 1; i < nVertices; i++) {
+                vertices.emplace_back(FillProgram::layoutVertex(ring[i]));
+                lines.emplace_back(lineIndex + i - 1, lineIndex + i);
+            }
+
+            lineSegment.vertexLength += nVertices;
+            lineSegment.indexLength += nVertices * 2;
         }
 
         std::vector<uint32_t> indices = mapbox::earcut(polygon);
@@ -79,21 +83,26 @@ void FillBucket::addGeometry(const GeometryCollection& geometry) {
         std::size_t nIndicies = indices.size();
         assert(nIndicies % 3 == 0);
 
-        if (triangleGroups.empty() || triangleGroups.back().vertexLength + totalVertices > 65535) {
-            triangleGroups.emplace_back();
+        if (triangleSegments.empty() || triangleSegments.back().vertexLength + totalVertices > std::numeric_limits<uint16_t>::max()) {
+            triangleSegments.emplace_back(startVertices, triangles.indexSize());
         }
 
-        auto& triangleGroup = triangleGroups.back();
-        uint16_t triangleIndex = triangleGroup.vertexLength;
+        auto& triangleSegment = triangleSegments.back();
+        assert(triangleSegment.vertexLength <= std::numeric_limits<uint16_t>::max());
+        uint16_t triangleIndex = triangleSegment.vertexLength;
 
         for (uint32_t i = 0; i < nIndicies; i += 3) {
-            triangles.emplace_back(static_cast<uint16_t>(triangleIndex + indices[i]),
-                                   static_cast<uint16_t>(triangleIndex + indices[i + 1]),
-                                   static_cast<uint16_t>(triangleIndex + indices[i + 2]));
+            triangles.emplace_back(triangleIndex + indices[i],
+                                   triangleIndex + indices[i + 1],
+                                   triangleIndex + indices[i + 2]);
         }
 
-        triangleGroup.vertexLength += totalVertices;
-        triangleGroup.indexLength += nIndicies / 3;
+        triangleSegment.vertexLength += totalVertices;
+        triangleSegment.indexLength += nIndicies;
+    }
+
+    for (auto& pair : paintPropertyBinders) {
+        pair.second.populateVertexVectors(feature, vertices.vertexSize());
     }
 }
 
@@ -102,7 +111,10 @@ void FillBucket::upload(gl::Context& context) {
     lineIndexBuffer = context.createIndexBuffer(std::move(lines));
     triangleIndexBuffer = context.createIndexBuffer(std::move(triangles));
 
-    // From now on, we're going to render during the opaque and translucent pass.
+    for (auto& pair : paintPropertyBinders) {
+        pair.second.upload(context);
+    }
+
     uploaded = true;
 }
 
@@ -114,71 +126,7 @@ void FillBucket::render(Painter& painter,
 }
 
 bool FillBucket::hasData() const {
-    return !triangleGroups.empty() || !lineGroups.empty();
-}
-
-bool FillBucket::needsClipping() const {
-    return true;
-}
-
-void FillBucket::drawElements(FillShader& shader,
-                              gl::Context& context,
-                              PaintMode paintMode) {
-    GLbyte* vertex_index = BUFFER_OFFSET(0);
-    GLbyte* elements_index = BUFFER_OFFSET(0);
-    for (auto& group : triangleGroups) {
-        group.getVAO(shader, paintMode).bind(
-            shader, *vertexBuffer, *triangleIndexBuffer, vertex_index, context);
-        MBGL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(group.indexLength * 3), GL_UNSIGNED_SHORT,
-                                        elements_index));
-        vertex_index += group.vertexLength * vertexBuffer->vertexSize;
-        elements_index += group.indexLength * triangleIndexBuffer->primitiveSize;
-    }
-}
-
-void FillBucket::drawElements(FillPatternShader& shader,
-                              gl::Context& context,
-                              PaintMode paintMode) {
-    GLbyte* vertex_index = BUFFER_OFFSET(0);
-    GLbyte* elements_index = BUFFER_OFFSET(0);
-    for (auto& group : triangleGroups) {
-        group.getVAO(shader, paintMode).bind(
-            shader, *vertexBuffer, *triangleIndexBuffer, vertex_index, context);
-        MBGL_CHECK_ERROR(glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(group.indexLength * 3), GL_UNSIGNED_SHORT,
-                                        elements_index));
-        vertex_index += group.vertexLength * vertexBuffer->vertexSize;
-        elements_index += group.indexLength * triangleIndexBuffer->primitiveSize;
-    }
-}
-
-void FillBucket::drawVertices(FillOutlineShader& shader,
-                              gl::Context& context,
-                              PaintMode paintMode) {
-    GLbyte* vertex_index = BUFFER_OFFSET(0);
-    GLbyte* elements_index = BUFFER_OFFSET(0);
-    for (auto& group : lineGroups) {
-        group.getVAO(shader, paintMode).bind(
-            shader, *vertexBuffer, *lineIndexBuffer, vertex_index, context);
-        MBGL_CHECK_ERROR(glDrawElements(GL_LINES, static_cast<GLsizei>(group.indexLength * 2), GL_UNSIGNED_SHORT,
-                                        elements_index));
-        vertex_index += group.vertexLength * vertexBuffer->vertexSize;
-        elements_index += group.indexLength * lineIndexBuffer->primitiveSize;
-    }
-}
-
-void FillBucket::drawVertices(FillOutlinePatternShader& shader,
-                              gl::Context& context,
-                              PaintMode paintMode) {
-    GLbyte* vertex_index = BUFFER_OFFSET(0);
-    GLbyte* elements_index = BUFFER_OFFSET(0);
-    for (auto& group : lineGroups) {
-        group.getVAO(shader, paintMode).bind(
-            shader, *vertexBuffer, *lineIndexBuffer, vertex_index, context);
-        MBGL_CHECK_ERROR(glDrawElements(GL_LINES, static_cast<GLsizei>(group.indexLength * 2), GL_UNSIGNED_SHORT,
-                                        elements_index));
-        vertex_index += group.vertexLength * vertexBuffer->vertexSize;
-        elements_index += group.indexLength * lineIndexBuffer->primitiveSize;
-    }
+    return !triangleSegments.empty() || !lineSegments.empty();
 }
 
 } // namespace mbgl

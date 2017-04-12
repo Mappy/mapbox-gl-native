@@ -6,6 +6,7 @@
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/projection.hpp>
 #include <mbgl/util/mat4.hpp>
+#include <mbgl/util/size.hpp>
 
 #include <cstdint>
 #include <array>
@@ -26,8 +27,7 @@ public:
     void getProjMatrix(mat4& matrix) const;
 
     // Dimensions
-    uint16_t getWidth() const;
-    uint16_t getHeight() const;
+    Size getSize() const;
 
     // North Orientation
     NorthOrientation getNorthOrientation() const;
@@ -56,7 +56,8 @@ public:
 
     // Rotation
     float getAngle() const;
-    float getAltitude() const;
+    float getFieldOfView() const;
+    float getCameraToCenterDistance() const;
     float getPitch() const;
 
     // State
@@ -84,7 +85,7 @@ private:
     NorthOrientation orientation = NorthOrientation::Upwards;
 
     // logical dimensions
-    uint16_t width = 0, height = 0;
+    Size size;
 
     mat4 coordinatePointMatrix(double z) const;
     mat4 getPixelMatrix() const;
@@ -109,7 +110,11 @@ private:
     double x = 0, y = 0;
     double angle = 0;
     double scale = 1;
-    double altitude = 1.5;
+    // This fov value is somewhat arbitrary. The altitude of the camera used
+    // to be defined as 1.5 screen heights above the ground, which was an
+    // arbitrary choice. This is the fov equivalent to that value calculated with:
+    // `fov = 2 * arctan((height / 2) / (height * 1.5))`
+    double fov = 0.6435011087932844;
     double pitch = 0.0;
 
     // cache values for spherical mercator math

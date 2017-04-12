@@ -1,37 +1,21 @@
 apply plugin: 'com.android.application'
 
-task accessToken {
-    def tokenFile = new File("MapboxGLAndroidSDKWearTestApp/src/main/res/values/developer-config.xml")
-    if (!tokenFile.exists()) {
-        String tokenFileContents = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-                "<resources>\n" +
-                "    <string name=\"mapbox_access_token\">" + "$System.env.MAPBOX_ACCESS_TOKEN" + "</string>\n" +
-                "</resources>"
-
-        if (tokenFileContents == null) {
-            throw new InvalidUserDataException("You must set the MAPBOX_ACCESS_TOKEN environment variable.")
-        }
-        tokenFile.write(tokenFileContents)
-    }
-}
-
-gradle.projectsEvaluated {
-    preBuild.dependsOn('accessToken')
-}
-
 android {
-    compileSdkVersion 25
-    buildToolsVersion "25.0.2"
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
         applicationId "com.mapbox.mapboxsdk.testapp"
-        minSdkVersion 21
-        targetSdkVersion 24
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionName
     }
 
     buildTypes {
+        debug {
+            testCoverageEnabled = true
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -44,14 +28,19 @@ dependencies {
         transitive = true
     }
 
-    // Leak Canary
-    androidTestCompile 'com.squareup.leakcanary:leakcanary-android-no-op:1.4-beta2'
-    debugCompile 'com.squareup.leakcanary:leakcanary-android:1.4-beta2'
-    releaseCompile 'com.squareup.leakcanary:leakcanary-android-no-op:1.4-beta2'
+    // Wear
+    compile rootProject.ext.dep.wearCompile
+    provided rootProject.ext.dep.wearProvided
 
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    compile 'com.google.android.support:wearable:2.0.0-alpha3'
-    provided 'com.google.android.wearable:wearable:2.0.0-alpha3'
+    // Leak Canary
+    debugCompile rootProject.ext.dep.leakCanaryDebug
+    releaseCompile rootProject.ext.dep.leakCanaryRelease
+    testCompile rootProject.ext.dep.leakCanaryTest
+
+    // Testing dependencies
+    testCompile rootProject.ext.dep.junit
+    testCompile rootProject.ext.dep.mockito
 }
 
-apply from: '../checkstyle.gradle'
+apply from: 'gradle-config.gradle'
+apply from: 'gradle-checkstyle.gradle'

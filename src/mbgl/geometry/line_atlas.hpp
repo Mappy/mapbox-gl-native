@@ -1,6 +1,8 @@
 #pragma once
 
+#include <mbgl/gl/texture.hpp>
 #include <mbgl/gl/object.hpp>
+#include <mbgl/util/image.hpp>
 #include <mbgl/util/optional.hpp>
 
 #include <vector>
@@ -13,11 +15,12 @@ namespace gl {
 class Context;
 } // namespace gl
 
-typedef struct {
+class LinePatternPos {
+public:
     float width;
     float height;
     float y;
-} LinePatternPos;
+};
 
 enum class LinePatternCap : bool {
     Square = false,
@@ -26,7 +29,7 @@ enum class LinePatternCap : bool {
 
 class LineAtlas {
 public:
-    LineAtlas(uint16_t width, uint16_t height);
+    LineAtlas(Size);
     ~LineAtlas();
 
     // Binds the atlas texture to the GPU, and uploads data if it is out of date.
@@ -39,14 +42,13 @@ public:
     LinePatternPos getDashPosition(const std::vector<float>&, LinePatternCap);
     LinePatternPos addDash(const std::vector<float>& dasharray, LinePatternCap);
 
-    const uint16_t width;
-    const uint16_t height;
+    Size getSize() const;
 
 private:
-    const std::unique_ptr<char[]> data;
+    const AlphaImage image;
     bool dirty;
-    mbgl::optional<gl::UniqueTexture> texture;
-    int nextRow = 0;
+    mbgl::optional<gl::Texture> texture;
+    uint32_t nextRow = 0;
     std::unordered_map<size_t, LinePatternPos> positions;
 };
 

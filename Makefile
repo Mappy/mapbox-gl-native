@@ -9,12 +9,12 @@ endif
 ifeq ($(shell uname -s), Darwin)
   HOST_PLATFORM = macos
   HOST_PLATFORM_VERSION = $(shell uname -m)
-  NINJA ?= platform/macos/ninja
+  export NINJA = platform/macos/ninja
   export JOBS ?= $(shell sysctl -n hw.ncpu)
 else ifeq ($(shell uname -s), Linux)
   HOST_PLATFORM = linux
   HOST_PLATFORM_VERSION = $(shell uname -m)
-  NINJA ?= platform/linux/ninja
+  export NINJA = platform/linux/ninja
   export JOBS ?= $(shell grep --count processor /proc/cpuinfo)
 else
   $(error Cannot determine host platform)
@@ -32,6 +32,10 @@ else
   BUILD_PLATFORM_VERSION = $(MASON_PLATFORM_VERSION)
 endif
 
+ifeq ($(MASON_PLATFORM),macos)
+	MASON_PLATFORM=osx
+endif
+
 ifeq ($(V), 1)
   export XCPRETTY
   NINJA_ARGS ?= -v
@@ -43,20 +47,7 @@ endif
 .PHONY: default
 default: test
 
-ifneq (,$(wildcard .git/.))
-.mason/mason:
-	git submodule update --init
-else
-.mason/mason: ;
-endif
-
-.NOTPARALLEL: node_modules
-node_modules: package.json
-	npm update # Install dependencies but don't run our own install script.
-
-BUILD_DEPS += .mason/mason
 BUILD_DEPS += Makefile
-BUILD_DEPS += node_modules
 BUILD_DEPS += CMakeLists.txt
 
 #### macOS targets ##############################################################
@@ -190,18 +181,12 @@ $(MACOS_COMPDB_PATH)/Makefile:
 compdb: $(BUILD_DEPS) $(TEST_DEPS) $(MACOS_COMPDB_PATH)/Makefile
 	@$(MAKE) -C $(MACOS_COMPDB_PATH) cmake_check_build_system
 
-.PHONY: clang-tools
-clang-tools: compdb
-	if test -z $(CLANG_TIDY); then .mason/mason install clang-tidy 3.8.0; fi
-	if test -z $(CLANG_FORMAT); then .mason/mason install clang-format 3.8.0; fi
-	$(MAKE) -C $(MACOS_COMPDB_PATH) mbgl-headers
-
 .PHONY: tidy
-tidy: clang-tools
+tidy: compdb
 	scripts/clang-tools.sh $(MACOS_COMPDB_PATH)
 
 .PHONY: check
-check: clang-tools
+check: compdb
 	scripts/clang-tools.sh $(MACOS_COMPDB_PATH) --diff
 
 endif
@@ -226,7 +211,9 @@ $(IOS_PROJ_PATH): $(IOS_USER_DATA_PATH)/WorkspaceSettings.xcsettings $(BUILD_DEP
 	mkdir -p $(IOS_OUTPUT_PATH)
 	(cd $(IOS_OUTPUT_PATH) && cmake -G Xcode ../.. \
 		-DCMAKE_TOOLCHAIN_FILE=../../platform/ios/toolchain.cmake \
-		-DMBGL_PLATFORM=ios)
+		-DMBGL_PLATFORM=ios \
+		-DMASON_PLATFORM=ios \
+		-DMASON_PLATFORM_VERSION=8.0)
 
 $(IOS_USER_DATA_PATH)/WorkspaceSettings.xcsettings: platform/ios/WorkspaceSettings.xcsettings
 	mkdir -p "$(IOS_USER_DATA_PATH)"
@@ -277,12 +264,19 @@ ideploy:
 idocument:
 	OUTPUT=$(OUTPUT) ./platform/ios/scripts/document.sh
 
-style-code-darwin:
+.PHONY: darwin-style-code
+darwin-style-code:
 	node platform/darwin/scripts/generate-style-code.js
 	node platform/darwin/scripts/update-examples.js
+style-code: darwin-style-code
 
+.PHONY: darwin-update-examples
 darwin-update-examples:
 	node platform/darwin/scripts/update-examples.js
+
+.PHONY: check-public-symbols
+check-public-symbols:
+	node platform/darwin/scripts/check-public-symbols.js macOS
 endif
 
 #### Linux targets #####################################################
@@ -300,7 +294,8 @@ $(LINUX_BUILD): $(BUILD_DEPS)
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
 		-DWITH_COVERAGE=${WITH_COVERAGE} \
-		-DWITH_OSMESA=${WITH_OSMESA})
+		-DWITH_OSMESA=${WITH_OSMESA} \
+		-DWITH_EGL=${WITH_EGL})
 
 .PHONY: linux
 linux: glfw-app render offline
@@ -353,18 +348,12 @@ node: $(LINUX_BUILD)
 compdb: $(LINUX_BUILD)
 	# Ninja generator already outputs the file at the right location
 
-.PHONY: clang-tools
-clang-tools: compdb
-	if test -z $(CLANG_TIDY); then .mason/mason install clang-tidy 3.8.0; fi
-	if test -z $(CLANG_FORMAT); then .mason/mason install clang-format 3.8.0; fi
-	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-headers
-
 .PHONY: tidy
-tidy: clang-tools
+tidy: compdb
 	scripts/clang-tools.sh $(LINUX_OUTPUT_PATH)
 
 .PHONY: check
-check: clang-tools
+check: compdb
 	scripts/clang-tools.sh $(LINUX_OUTPUT_PATH) --diff
 
 endif
@@ -390,9 +379,10 @@ $(QT_BUILD): $(BUILD_DEPS)
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DMBGL_PLATFORM=qt \
-		-DMASON_PLATFORM=$(BUILD_PLATFORM) \
-		-DMASON_PLATFORM_VERSION=$(BUILD_PLATFORM_VERSION) \
+		-DMASON_PLATFORM=$(MASON_PLATFORM) \
+		-DMASON_PLATFORM_VERSION=$(MASON_PLATFORM_VERSION) \
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
+		-DWITH_QT_I18N=${WITH_QT_I18N} \
 		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
 		-DWITH_COVERAGE=${WITH_COVERAGE})
@@ -404,9 +394,10 @@ $(MACOS_QT_PROJ_PATH): $(BUILD_DEPS)
 	mkdir -p $(QT_ROOT_PATH)/xcode
 	(cd $(QT_ROOT_PATH)/xcode && cmake -G Xcode ../../.. \
 		-DMBGL_PLATFORM=qt \
-		-DMASON_PLATFORM=$(BUILD_PLATFORM) \
-		-DMASON_PLATFORM_VERSION=$(BUILD_PLATFORM_VERSION) \
+		-DMASON_PLATFORM=$(MASON_PLATFORM) \
+		-DMASON_PLATFORM_VERSION=$(MASON_PLATFORM_VERSION) \
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
+		-DWITH_QT_I18N=${WITH_QT_I18N} \
 		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
 		-DWITH_COVERAGE=${WITH_COVERAGE})
@@ -414,7 +405,6 @@ $(MACOS_QT_PROJ_PATH): $(BUILD_DEPS)
 	@# Create Xcode schemes so that we can use xcodebuild from the command line. CMake doesn't
 	@# create these automatically.
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-qt SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
-	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-qt-qml SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-test SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-benchmark SCHEME_TYPE=executable platform/macos/scripts/create_scheme.sh
 	XCODEPROJ=$(MACOS_QT_PROJ_PATH) SCHEME_NAME=mbgl-core SCHEME_TYPE=library BUILDABLE_NAME=libmbgl-core.a BLUEPRINT_NAME=mbgl-core platform/macos/scripts/create_scheme.sh
@@ -438,14 +428,6 @@ qt-app: $(QT_BUILD)
 run-qt-app: qt-app
 	$(QT_OUTPUT_PATH)/mbgl-qt
 
-.PHONY: qt-qml-app
-qt-qml-app: $(QT_BUILD)
-	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(QT_OUTPUT_PATH) mbgl-qt-qml
-
-.PHONY: run-qt-qml-app
-run-qt-qml-app: qt-qml-app
-	$(QT_OUTPUT_PATH)/mbgl-qt-qml
-
 .PHONY: qt-test
 qt-test: $(QT_BUILD)
 	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(QT_OUTPUT_PATH) mbgl-test
@@ -458,7 +440,7 @@ run-qt-test: run-qt-test-*
 
 .PHONY: qt-docs
 qt-docs:
-	qdoc $(shell pwd)/platform/qt/config.qdocconf --outputdir $(shell pwd)/$(QT_OUTPUT_PATH)/docs
+	qdoc $(shell pwd)/platform/qt/config.qdocconf -outputdir $(shell pwd)/$(QT_OUTPUT_PATH)/docs
 
 #### Node targets ##############################################################
 
@@ -469,71 +451,218 @@ test-node: node
 
 #### Android targets ###########################################################
 
-ANDROID_ENV = platform/android/scripts/toolchain.sh
-ANDROID_ABIS = arm-v5 arm-v7 arm-v8 x86 x86-64 mips
+MBGL_ANDROID_ABIS  = arm-v5;armeabi;9
+MBGL_ANDROID_ABIS += arm-v7;armeabi-v7a;9
+MBGL_ANDROID_ABIS += arm-v8;arm64-v8a;21
+MBGL_ANDROID_ABIS += x86;x86;9
+MBGL_ANDROID_ABIS += x86-64;x86_64;21
+MBGL_ANDROID_ABIS += mips;mips;9
 
-.PHONY: style-code-android
-style-code-android: $(BUILD_DEPS)
+MBGL_ANDROID_BUILD_DIR = build/android-$1-$3/$(BUILDTYPE)
+MBGL_ANDROID_LOCAL_WORK_DIR = /data/local/tmp/core-tests
+MBGL_ANDROID_LIBDIR = lib$(if $(filter arm-v8 x86-64,$1),64)
+MBGL_ANDROID_DALVIKVM = dalvikvm$(if $(filter arm-v8 x86-64,$1),64,32)
+MBGL_ANDROID_APK_SUFFIX = $(if $(filter Release,$(BUILDTYPE)),release-unsigned,debug)
+MBGL_ANDROID_CORE_TEST_DIR = $(MBGL_ANDROID_BUILD_DIR)/core-tests
+
+.PHONY: android-help
+android-help:
+	@echo
+	@echo "Available Android architecture targets:"
+	@echo
+	@echo "    make android-arm-v5-9"
+	@echo "        (android-arm-v5)"
+	@echo "    make android-arm-v7-9"
+	@echo "        (android, android-arm-v7)"
+	@echo "    make android-arm-v8-21"
+	@echo "        (android-arm-v8)"
+	@echo "    make android-mips-9"
+	@echo "        (android-mips)"
+	@echo "    make android-mips-64-21"
+	@echo "        (android-mips-64)"
+	@echo "    make android-x86-9"
+	@echo "        (android-x86)"
+	@echo "    make android-x86-64-21"
+	@echo "        (android-x86-64)"
+	@echo "    make apackage"
+	@echo
+
+.PHONY: android-style-code
+android-style-code:
 	node platform/android/scripts/generate-style-code.js
+style-code: android-style-code
 
 define ANDROID_RULES
+# $1 = arm-v7 (short arch)
+# $2 = armeabi-v7a (internal arch)
+# $3 = 9 (platform version)
 
-build/android-$1/$(BUILDTYPE): style-code-android
-	mkdir -p build/android-$1/$(BUILDTYPE)
+$(MBGL_ANDROID_BUILD_DIR)/env.sh: $(BUILD_DEPS) platform/android/scripts/ndk.sh
+	@mkdir -p $(MBGL_ANDROID_BUILD_DIR)
+	platform/android/scripts/ndk.sh $1 $2 $3 > $(MBGL_ANDROID_BUILD_DIR)/env.sh.tmp && \
+		mv $(MBGL_ANDROID_BUILD_DIR)/env.sh.tmp $(MBGL_ANDROID_BUILD_DIR)/env.sh
 
-build/android-$1/$(BUILDTYPE)/toolchain.cmake: platform/android/scripts/toolchain.sh build/android-$1/$(BUILDTYPE)
-	$(ANDROID_ENV) $1 > build/android-$1/$(BUILDTYPE)/toolchain.cmake
+$(MBGL_ANDROID_BUILD_DIR)/build.ninja: $(MBGL_ANDROID_BUILD_DIR)/env.sh platform/android/config.cmake
+	# Invoke CMake twice to fix issues from double inclusion of toolchain.cmake on the first run.
+	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && \
+	([ -f $(MBGL_ANDROID_BUILD_DIR)/build.ninja ] || $$$${CMAKE} \
+	    -H. \
+	    -B"$(MBGL_ANDROID_BUILD_DIR)" \
+	    -G"$$$${CMAKE_GENERATOR}" \
+	    $$$${CMAKE_ARGS} \
+	    -DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
+	    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+	    -DMBGL_PLATFORM=android \
+	    -DMASON_PLATFORM=android \
+	    -DMASON_PLATFORM_VERSION=$1-$3) && \
+	$$$${CMAKE} \
+	    -H. \
+	    -B"$(MBGL_ANDROID_BUILD_DIR)"
 
-build/android-$1/$(BUILDTYPE)/Makefile: build/android-$1/$(BUILDTYPE)/toolchain.cmake platform/android/config.cmake
-	cd build/android-$1/$(BUILDTYPE) && cmake ../../.. -G Ninja \
-		-DCMAKE_TOOLCHAIN_FILE=build/android-$1/$(BUILDTYPE)/toolchain.cmake \
-		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-		-DMBGL_PLATFORM=android
+.PHONY: android-test-lib-$1
+android-test-lib-$1: $(MBGL_ANDROID_BUILD_DIR)/build.ninja
+	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && $$$${CMAKE} --build $(MBGL_ANDROID_BUILD_DIR) -- $(NINJA_ARGS) -j$(JOBS) mbgl-test
 
 .PHONY: android-lib-$1
-android-lib-$1: build/android-$1/$(BUILDTYPE)/Makefile
-	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C build/android-$1/$(BUILDTYPE) all
+android-lib-$1: $(MBGL_ANDROID_BUILD_DIR)/build.ninja
+	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && $$$${CMAKE} --build $(MBGL_ANDROID_BUILD_DIR) -- $(NINJA_ARGS) -j$(JOBS) mapbox-gl example-custom-layer
 
 .PHONY: android-$1
 android-$1: android-lib-$1
-	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
+	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
+
+.PHONY: android-core-test-$1
+android-core-test-$1: android-test-lib-$1
+	mkdir -p $(MBGL_ANDROID_CORE_TEST_DIR)
+
+	# Compile main sources and extract the classes (using the test app to get all transitive dependencies in one place)
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
+	unzip -o platform/android/MapboxGLAndroidSDKTestApp/build/outputs/apk/MapboxGLAndroidSDKTestApp-$(MBGL_ANDROID_APK_SUFFIX).apk classes.dex -d $(MBGL_ANDROID_CORE_TEST_DIR)
+
+	# Compile Test runner
+	find platform/android/src/test -name "*.java" > $(MBGL_ANDROID_CORE_TEST_DIR)/java-sources.txt
+	javac -sourcepath platform/android/src/test -d $(MBGL_ANDROID_CORE_TEST_DIR) -source 1.7 -target 1.7 @$(MBGL_ANDROID_CORE_TEST_DIR)/java-sources.txt
+
+	# Combine and dex
+	cd $(MBGL_ANDROID_CORE_TEST_DIR) && $(ANDROID_HOME)/build-tools/25.0.0/dx --dex --output=test.jar *.class classes.dex
+
+run-android-core-test-$1-%: android-core-test-$1
+	# Ensure clean state on the device
+	adb shell "rm -Rf $(MBGL_ANDROID_LOCAL_WORK_DIR) && mkdir -p $(MBGL_ANDROID_LOCAL_WORK_DIR)/test"
+
+	# Generate zipped asset files
+	cd test/fixtures/api && zip -r assets.zip assets && cd -
+	cd test/fixtures/storage && zip -r assets.zip assets && cd -
+
+	# Push all needed files to the device
+	adb push $(MBGL_ANDROID_CORE_TEST_DIR)/test.jar $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
+	adb push test/fixtures $(MBGL_ANDROID_LOCAL_WORK_DIR)/test > /dev/null 2>&1
+	adb push $(MBGL_ANDROID_BUILD_DIR)/stripped/libmapbox-gl.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
+	adb push $(MBGL_ANDROID_BUILD_DIR)/stripped/libmbgl-test.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
+
+	# Kick off the tests
+	adb shell "export LD_LIBRARY_PATH=/system/$(MBGL_ANDROID_LIBDIR):$(MBGL_ANDROID_LOCAL_WORK_DIR) && cd $(MBGL_ANDROID_LOCAL_WORK_DIR) && $(MBGL_ANDROID_DALVIKVM) -cp $(MBGL_ANDROID_LOCAL_WORK_DIR)/test.jar Main --gtest_filter=$$*"
+
+	# Gather the results and unpack them
+	adb shell "cd $(MBGL_ANDROID_LOCAL_WORK_DIR) && tar -cvzf results.tgz test/fixtures/*  > /dev/null 2>&1"
+	adb pull $(MBGL_ANDROID_LOCAL_WORK_DIR)/results.tgz $(MBGL_ANDROID_CORE_TEST_DIR)/ > /dev/null 2>&1
+	rm -rf $(MBGL_ANDROID_CORE_TEST_DIR)/results && mkdir -p $(MBGL_ANDROID_CORE_TEST_DIR)/results
+	tar -xzf $(MBGL_ANDROID_CORE_TEST_DIR)/results.tgz --strip-components=2 -C $(MBGL_ANDROID_CORE_TEST_DIR)/results
+
+.PHONY: run-android-core-test-$1
+run-android-core-test-$1: run-android-core-test-$1-*
+
+.PHONY: run-android-$1
+run-android-$1: android-$1
+	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:install$(BUILDTYPE) && adb shell am start -n com.mapbox.mapboxsdk.testapp/.activity.FeatureOverviewActivity
 
 apackage: android-lib-$1
 endef
 
-$(foreach abi,$(ANDROID_ABIS),$(eval $(call ANDROID_RULES,$(abi))))
+# Explodes the arguments into individual variables
+define ANDROID_RULES_INVOKER
+$(call ANDROID_RULES,$(word 1,$1),$(word 2,$1),$(word 3,$1))
+endef
+
+$(foreach abi,$(MBGL_ANDROID_ABIS),$(eval $(call ANDROID_RULES_INVOKER,$(subst ;, ,$(abi)))))
 
 .PHONY: android
 android: android-arm-v7
 
-.PHONY: android-test
-android-test:
-	cd platform/android && ./gradlew testDebugUnitTest --continue
+.PHONY: run-android
+run-android: run-android-arm-v7
 
-.PHONY: android-test-apk
-android-test-apk:
-	cd platform/android && ./gradlew assembleDebug --continue && ./gradlew assembleAndroidTest --continue
+.PHONY: run-android-unit-test
+run-android-unit-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:testDebugUnitTest --continue
+
+run-android-unit-test-%:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:testDebugUnitTest --tests "$*"
+
+.PHONY: run-android-wear-unit-test
+run-android-wear-unit-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKWearTestApp:testDebugUnitTest --continue
+
+.PHONY: android-ui-test
+android-ui-test:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:assembleDebug --continue && ./gradlew :MapboxGLAndroidSDKTestApp:assembleAndroidTest --continue
+
+.PHONY: run-android-ui-test
+run-android-ui-test:
+	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:connectedAndroidTest -i
+
+run-android-ui-test-%:
+	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
+	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$*"
+
+.PHONY: run-android-ui-test-aws
+run-android-ui-test-aws:
+	cd platform/android && ./gradlew devicefarmUpload
+
+.PHONY: run-android-ui-test-spoon
+run-android-ui-test-spoon:
+	cd platform/android && ./gradlew spoon
 
 .PHONY: apackage
 apackage:
-	cd platform/android && ./gradlew --parallel-threads=$(JOBS) assemble$(BUILDTYPE)
+	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
 
-.PHONY: android-generate-test
-android-generate-test:
+.PHONY: test-code-android
+test-code-android:
 	node platform/android/scripts/generate-test-code.js
+
+.PHONY: android-ndk-stack
+android-ndk-stack:
+	adb logcat | ndk-stack -sym build/android-arm-v7-9/Debug
+
+.PHONY: android-checkstyle
+android-checkstyle:
+	cd platform/android && ./gradlew checkstyle
+
+.PHONY: android-javadoc
+android-javadoc:
+	cd platform/android && ./gradlew :MapboxGLAndroidSDK:javadocrelease
 
 #### Miscellaneous targets #####################################################
 
 .PHONY: style-code
 style-code:
 	node scripts/generate-style-code.js
+	node scripts/generate-shaders.js
+
+.PHONY: codestyle
+codestyle:
+	scripts/codestyle.sh
 
 .PHONY: clean
 clean:
 	-rm -rf ./build \
 	        ./platform/android/MapboxGLAndroidSDK/build \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/build \
+	        ./platform/android/MapboxGLAndroidSDKWearTestApp/build \
+	        ./platform/android/MapboxGLAndroidSDKTestApp/src/androidTest/java/com/mapbox/mapboxsdk/testapp/activity/gen \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/assets

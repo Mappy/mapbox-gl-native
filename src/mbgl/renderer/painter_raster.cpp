@@ -1,57 +1,17 @@
 #include <mbgl/renderer/painter.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/render_tile.hpp>
-#include <mbgl/gl/gl.hpp>
 #include <mbgl/renderer/raster_bucket.hpp>
 #include <mbgl/style/layers/raster_layer.hpp>
 #include <mbgl/style/layers/raster_layer_impl.hpp>
-#include <mbgl/shader/shaders.hpp>
+#include <mbgl/programs/programs.hpp>
+#include <mbgl/programs/raster_program.hpp>
 
 namespace mbgl {
 
 using namespace style;
 
-void Painter::renderRaster(PaintParameters& parameters,
-                           RasterBucket& bucket,
-                           const RasterLayer& layer,
-                           const RenderTile& tile) {
-    if (pass != RenderPass::Translucent) return;
-
-    const RasterPaintProperties& properties = layer.impl->paint;
-
-    if (bucket.hasData()) {
-        auto& rasterShader = parameters.shaders.raster;
-        auto& rasterVAO = parameters.shaders.coveringRasterArray;
-
-        context.program = rasterShader.getID();
-        rasterShader.u_matrix = tile.matrix;
-        rasterShader.u_buffer_scale = 1.0f;
-        rasterShader.u_opacity0 = properties.rasterOpacity;
-        rasterShader.u_opacity1 = 0;
-
-        rasterShader.u_brightness_low = properties.rasterBrightnessMin;
-        rasterShader.u_brightness_high = properties.rasterBrightnessMax;
-        rasterShader.u_saturation_factor = saturationFactor(properties.rasterSaturation);
-        rasterShader.u_contrast_factor = contrastFactor(properties.rasterContrast);
-        rasterShader.u_spin_weights = spinWeights(properties.rasterHueRotate);
-
-        context.stencilTest = false;
-
-        rasterShader.u_image0 = 0; // GL_TEXTURE0
-        rasterShader.u_image1 = 1; // GL_TEXTURE1
-        rasterShader.u_tl_parent = {{ 0.0f, 0.0f }};
-        rasterShader.u_scale_parent = 1.0f;
-
-        context.depthFunc = gl::DepthTestFunction::LessEqual;
-        context.depthTest = true;
-        context.depthMask = false;
-        setDepthSublayer(0);
-
-        bucket.drawRaster(rasterShader, rasterVertexBuffer, rasterVAO, context);
-    }
-}
-
-float Painter::saturationFactor(float saturation) {
+static float saturationFactor(float saturation) {
     if (saturation > 0) {
         return 1 - 1 / (1.001 - saturation);
     } else {
@@ -59,7 +19,7 @@ float Painter::saturationFactor(float saturation) {
     }
 }
 
-float Painter::contrastFactor(float contrast) {
+static float contrastFactor(float contrast) {
     if (contrast > 0) {
         return 1 / (1 - contrast);
     } else {
@@ -67,7 +27,7 @@ float Painter::contrastFactor(float contrast) {
     }
 }
 
-std::array<float, 3> Painter::spinWeights(float spin) {
+static std::array<float, 3> spinWeights(float spin) {
     spin *= util::DEG2RAD;
     float s = std::sin(spin);
     float c = std::cos(spin);
@@ -77,6 +37,52 @@ std::array<float, 3> Painter::spinWeights(float spin) {
         (std::sqrt(3.0f) * s - c + 1) / 3
     }};
     return spin_weights;
+}
+
+void Painter::renderRaster(PaintParameters& parameters,
+                           RasterBucket& bucket,
+                           const RasterLayer& layer,
+                           const RenderTile& tile) {
+    if (pass != RenderPass::Translucent)
+        return;
+    if (!bucket.hasData())
+        return;
+
+    const RasterPaintProperties::Evaluated& properties = layer.impl->paint.evaluated;
+    const RasterProgram::PaintPropertyBinders paintAttributeData(properties, 0);
+
+    assert(bucket.texture);
+    context.bindTexture(*bucket.texture, 0, gl::TextureFilter::Linear);
+    context.bindTexture(*bucket.texture, 1, gl::TextureFilter::Linear);
+
+    parameters.programs.raster.draw(
+        context,
+        gl::Triangles(),
+        depthModeForSublayer(0, gl::DepthMode::ReadOnly),
+        gl::StencilMode::disabled(),
+        colorModeForRenderPass(),
+        RasterProgram::UniformValues {
+            uniforms::u_matrix::Value{ tile.matrix },
+            uniforms::u_image0::Value{ 0 },
+            uniforms::u_image1::Value{ 1 },
+            uniforms::u_opacity::Value{ properties.get<RasterOpacity>() },
+            uniforms::u_fade_t::Value{ 1 },
+            uniforms::u_brightness_low::Value{ properties.get<RasterBrightnessMin>() },
+            uniforms::u_brightness_high::Value{ properties.get<RasterBrightnessMax>() },
+            uniforms::u_saturation_factor::Value{ saturationFactor(properties.get<RasterSaturation>()) },
+            uniforms::u_contrast_factor::Value{ contrastFactor(properties.get<RasterContrast>()) },
+            uniforms::u_spin_weights::Value{ spinWeights(properties.get<RasterHueRotate>()) },
+            uniforms::u_buffer_scale::Value{ 1.0f },
+            uniforms::u_scale_parent::Value{ 1.0f },
+            uniforms::u_tl_parent::Value{ std::array<float, 2> {{ 0.0f, 0.0f }} },
+        },
+        rasterVertexBuffer,
+        tileTriangleIndexBuffer,
+        rasterSegments,
+        paintAttributeData,
+        properties,
+        state.getZoom()
+    );
 }
 
 } // namespace mbgl

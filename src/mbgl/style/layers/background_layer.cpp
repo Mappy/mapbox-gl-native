@@ -2,6 +2,7 @@
 
 #include <mbgl/style/layers/background_layer.hpp>
 #include <mbgl/style/layers/background_layer_impl.hpp>
+#include <mbgl/style/conversion/stringify.hpp>
 
 namespace mbgl {
 namespace style {
@@ -26,9 +27,11 @@ std::unique_ptr<Layer> BackgroundLayer::Impl::clone() const {
 std::unique_ptr<Layer> BackgroundLayer::Impl::cloneRef(const std::string& id_) const {
     auto result = std::make_unique<BackgroundLayer>(*this);
     result->impl->id = id_;
-    result->impl->ref = this->id;
     result->impl->paint = BackgroundPaintProperties();
     return std::move(result);
+}
+
+void BackgroundLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
 }
 
 
@@ -42,14 +45,22 @@ PropertyValue<Color> BackgroundLayer::getDefaultBackgroundColor() {
 }
 
 PropertyValue<Color> BackgroundLayer::getBackgroundColor(const optional<std::string>& klass) const {
-    return impl->paint.backgroundColor.get(klass);
+    return impl->paint.get<BackgroundColor>(klass);
 }
 
 void BackgroundLayer::setBackgroundColor(PropertyValue<Color> value, const optional<std::string>& klass) {
     if (value == getBackgroundColor(klass))
         return;
-    impl->paint.backgroundColor.set(value, klass);
+    impl->paint.set<BackgroundColor>(value, klass);
     impl->observer->onLayerPaintPropertyChanged(*this);
+}
+
+void BackgroundLayer::setBackgroundColorTransition(const TransitionOptions& value, const optional<std::string>& klass) {
+    impl->paint.setTransition<BackgroundColor>(value, klass);
+}
+
+TransitionOptions BackgroundLayer::getBackgroundColorTransition(const optional<std::string>& klass) const {
+    return impl->paint.getTransition<BackgroundColor>(klass);
 }
 
 PropertyValue<std::string> BackgroundLayer::getDefaultBackgroundPattern() {
@@ -57,14 +68,22 @@ PropertyValue<std::string> BackgroundLayer::getDefaultBackgroundPattern() {
 }
 
 PropertyValue<std::string> BackgroundLayer::getBackgroundPattern(const optional<std::string>& klass) const {
-    return impl->paint.backgroundPattern.get(klass);
+    return impl->paint.get<BackgroundPattern>(klass);
 }
 
 void BackgroundLayer::setBackgroundPattern(PropertyValue<std::string> value, const optional<std::string>& klass) {
     if (value == getBackgroundPattern(klass))
         return;
-    impl->paint.backgroundPattern.set(value, klass);
+    impl->paint.set<BackgroundPattern>(value, klass);
     impl->observer->onLayerPaintPropertyChanged(*this);
+}
+
+void BackgroundLayer::setBackgroundPatternTransition(const TransitionOptions& value, const optional<std::string>& klass) {
+    impl->paint.setTransition<BackgroundPattern>(value, klass);
+}
+
+TransitionOptions BackgroundLayer::getBackgroundPatternTransition(const optional<std::string>& klass) const {
+    return impl->paint.getTransition<BackgroundPattern>(klass);
 }
 
 PropertyValue<float> BackgroundLayer::getDefaultBackgroundOpacity() {
@@ -72,14 +91,22 @@ PropertyValue<float> BackgroundLayer::getDefaultBackgroundOpacity() {
 }
 
 PropertyValue<float> BackgroundLayer::getBackgroundOpacity(const optional<std::string>& klass) const {
-    return impl->paint.backgroundOpacity.get(klass);
+    return impl->paint.get<BackgroundOpacity>(klass);
 }
 
 void BackgroundLayer::setBackgroundOpacity(PropertyValue<float> value, const optional<std::string>& klass) {
     if (value == getBackgroundOpacity(klass))
         return;
-    impl->paint.backgroundOpacity.set(value, klass);
+    impl->paint.set<BackgroundOpacity>(value, klass);
     impl->observer->onLayerPaintPropertyChanged(*this);
+}
+
+void BackgroundLayer::setBackgroundOpacityTransition(const TransitionOptions& value, const optional<std::string>& klass) {
+    impl->paint.setTransition<BackgroundOpacity>(value, klass);
+}
+
+TransitionOptions BackgroundLayer::getBackgroundOpacityTransition(const optional<std::string>& klass) const {
+    return impl->paint.getTransition<BackgroundOpacity>(klass);
 }
 
 } // namespace style

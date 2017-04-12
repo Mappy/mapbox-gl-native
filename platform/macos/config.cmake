@@ -1,9 +1,10 @@
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.10)
 
-mason_use(glfw VERSION 3.2.1)
-mason_use(boost_libprogram_options VERSION 1.60.0)
-mason_use(gtest VERSION 1.7.0${MASON_CXXABI_SUFFIX})
-mason_use(benchmark VERSION 1.0.0)
+mason_use(glfw VERSION 2017-02-09-77a8f10)
+mason_use(boost_libprogram_options VERSION 1.62.0)
+mason_use(gtest VERSION 1.8.0)
+mason_use(benchmark VERSION 1.0.0-1)
+mason_use(icu VERSION 58.1-min-size)
 
 include(cmake/loop-darwin.cmake)
 
@@ -16,6 +17,10 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/local_file_source.cpp
         PRIVATE platform/default/online_file_source.cpp
 
+        # Default styles
+        PRIVATE platform/default/mbgl/util/default_styles.hpp
+        PRIVATE platform/default/mbgl/util/default_styles.cpp
+
         # Offline
         PRIVATE platform/default/mbgl/storage/offline.cpp
         PRIVATE platform/default/mbgl/storage/offline_database.cpp
@@ -26,32 +31,46 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/sqlite3.hpp
 
         # Misc
-        PRIVATE platform/darwin/src/log_nslog.mm
+        PRIVATE platform/darwin/mbgl/storage/reachability.h
+        PRIVATE platform/darwin/mbgl/storage/reachability.m
+        PRIVATE platform/darwin/src/logging_nslog.mm
         PRIVATE platform/darwin/src/nsthread.mm
-        PRIVATE platform/darwin/src/reachability.m
         PRIVATE platform/darwin/src/string_nsstring.mm
+        PRIVATE platform/default/bidi.cpp
+        PRIVATE platform/default/utf.cpp
 
         # Image handling
+        PRIVATE platform/darwin/mbgl/util/image+MGLAdditions.hpp
         PRIVATE platform/darwin/src/image.mm
+        PRIVATE platform/default/png_writer.cpp
 
         # Headless view
+        PRIVATE platform/default/mbgl/gl/headless_backend.cpp
+        PRIVATE platform/default/mbgl/gl/headless_backend.hpp
         PRIVATE platform/darwin/src/headless_backend_cgl.cpp
-        PRIVATE platform/default/headless_backend.cpp
-        PRIVATE platform/default/headless_display.cpp
-        PRIVATE platform/default/offscreen_view.cpp
+        PRIVATE platform/default/mbgl/gl/headless_display.hpp
+        PRIVATE platform/darwin/src/headless_display_cgl.cpp
+        PRIVATE platform/default/mbgl/gl/offscreen_view.cpp
+        PRIVATE platform/default/mbgl/gl/offscreen_view.hpp
 
         # Thread pool
-        PRIVATE platform/default/thread_pool.cpp
+        PRIVATE platform/default/mbgl/util/shared_thread_pool.cpp
+        PRIVATE platform/default/mbgl/util/shared_thread_pool.hpp
+        PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
+        PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
     )
 
     target_add_mason_package(mbgl-core PUBLIC geojson)
+    target_add_mason_package(mbgl-core PUBLIC icu)
 
     target_compile_options(mbgl-core
         PRIVATE -fobjc-arc
+        PRIVATE -fvisibility=hidden
     )
 
     target_include_directories(mbgl-core
-        PRIVATE platform/default
+        PUBLIC platform/darwin
+        PUBLIC platform/default
     )
 
     target_link_libraries(mbgl-core
@@ -97,13 +116,17 @@ endmacro()
 
 macro(mbgl_platform_test)
     target_sources(mbgl-test
-        PRIVATE test/src/main.cpp
+        PRIVATE platform/default/mbgl/test/main.cpp
     )
 
     set_source_files_properties(
-        test/src/main.cpp
+        platform/default/mbgl/test/main.cpp
             PROPERTIES
         COMPILE_FLAGS -DWORK_DIRECTORY="${CMAKE_SOURCE_DIR}"
+    )
+
+    target_compile_options(mbgl-test
+        PRIVATE -fvisibility=hidden
     )
 
     target_link_libraries(mbgl-test
@@ -118,6 +141,10 @@ macro(mbgl_platform_test)
 endmacro()
 
 macro(mbgl_platform_benchmark)
+    target_compile_options(mbgl-benchmark
+        PRIVATE -fvisibility=hidden
+    )
+
     target_sources(mbgl-benchmark
         PRIVATE benchmark/src/main.cpp
     )
@@ -140,8 +167,13 @@ macro(mbgl_platform_benchmark)
 endmacro()
 
 macro(mbgl_platform_node)
+    target_compile_options(mbgl-node
+        PRIVATE -fvisibility=hidden
+    )
+
     target_link_libraries(mbgl-node
         PRIVATE "-framework Foundation"
         PRIVATE "-framework OpenGL"
+        PRIVATE "-Wl,-bind_at_load"
     )
 endmacro()

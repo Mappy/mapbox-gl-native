@@ -1,4 +1,4 @@
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/style/conversion/geojson.hpp>
 #include <mbgl/style/source_observer.hpp>
@@ -39,7 +39,7 @@ GeoJSONSource::Impl::~Impl() = default;
 void GeoJSONSource::Impl::setURL(std::string url_) {
     url = std::move(url_);
 
-    //Signal that the source description needs a reload
+    // Signal that the source description needs a reload
     if (loaded || req) {
         loaded = false;
         req.reset();
@@ -57,7 +57,7 @@ void GeoJSONSource::Impl::setGeoJSON(const GeoJSON& geoJSON) {
     _setGeoJSON(geoJSON);
 }
 
-//Private implementation
+// Private implementation
 void GeoJSONSource::Impl::_setGeoJSON(const GeoJSON& geoJSON) {
     double scale = util::EXTENT / util::tileSize;
 

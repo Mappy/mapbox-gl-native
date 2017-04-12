@@ -6,7 +6,7 @@
 #include <mbgl/style/conversion.hpp>
 #include <mbgl/style/conversion/geojson.hpp>
 #include <mbgl/util/rapidjson.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 #include <jni/jni.hpp>
 
 #include <sstream>
@@ -19,7 +19,7 @@ namespace conversion {
 template <>
 Result<GeoJSON> convertGeoJSON(const mbgl::android::Value& value) {
 
-    //Value should be a string wrapped in an object
+    // Value should be a string wrapped in an object
     mbgl::android::Value jsonValue = value.get("data");
     if(value.isNull()) {
         return Error { "no json data found" };

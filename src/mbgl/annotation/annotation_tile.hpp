@@ -31,7 +31,7 @@ public:
 
     FeatureType getType() const override { return type; }
     optional<Value> getValue(const std::string&) const override;
-    optional<FeatureIdentifier> getID() const override { return { id }; }
+    optional<FeatureIdentifier> getID() const override { return { static_cast<uint64_t>(id) }; }
     GeometryCollection getGeometries() const override { return geometries; }
 
     const AnnotationID id;
@@ -45,7 +45,11 @@ public:
     AnnotationTileLayer(std::string);
 
     std::size_t featureCount() const override { return features.size(); }
-    std::unique_ptr<GeometryTileFeature> getFeature(std::size_t i) const override { return std::make_unique<AnnotationTileFeature>(features[i]); }
+
+    std::unique_ptr<GeometryTileFeature> getFeature(std::size_t i) const override {
+        return std::make_unique<AnnotationTileFeature>(features.at(i));
+    }
+
     std::string getName() const override { return name; };
 
     std::vector<AnnotationTileFeature> features;

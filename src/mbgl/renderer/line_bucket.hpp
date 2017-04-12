@@ -1,40 +1,48 @@
 #pragma once
 
 #include <mbgl/renderer/bucket.hpp>
-#include <mbgl/renderer/element_group.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/gl/vertex_buffer.hpp>
 #include <mbgl/gl/index_buffer.hpp>
-#include <mbgl/shader/line_vertex.hpp>
+#include <mbgl/gl/segment.hpp>
+#include <mbgl/programs/line_program.hpp>
 #include <mbgl/style/layers/line_layer_properties.hpp>
 
 #include <vector>
 
 namespace mbgl {
 
-class LineShader;
-class LineSDFShader;
-class LinePatternShader;
+namespace style {
+class BucketParameters;
+} // namespace style
 
 class LineBucket : public Bucket {
-
 public:
-    LineBucket(uint32_t overscaling);
-    ~LineBucket() override;
+    LineBucket(const style::BucketParameters&,
+               const std::vector<const style::Layer*>&,
+               const style::LineLayoutProperties&);
+
+    void addFeature(const GeometryTileFeature&,
+                    const GeometryCollection&) override;
+    bool hasData() const override;
 
     void upload(gl::Context&) override;
     void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
-    bool hasData() const override;
-    bool needsClipping() const override;
 
-    void addGeometry(const GeometryCollection&);
-    void addGeometry(const GeometryCoordinates& line);
+    style::LineLayoutProperties::Evaluated layout;
 
-    void drawLines(LineShader&, gl::Context&, PaintMode);
-    void drawLineSDF(LineSDFShader&, gl::Context&, PaintMode);
-    void drawLinePatterns(LinePatternShader&, gl::Context&, PaintMode);
+    gl::VertexVector<LineLayoutVertex> vertices;
+    gl::IndexVector<gl::Triangles> triangles;
+    gl::SegmentVector<LineAttributes> segments;
+
+    optional<gl::VertexBuffer<LineLayoutVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+
+    std::unordered_map<std::string, LineProgram::PaintPropertyBinders> paintPropertyBinders;
 
 private:
+    void addGeometry(const GeometryCoordinates& line);
+
     struct TriangleElement {
         TriangleElement(uint16_t a_, uint16_t b_, uint16_t c_) : a(a_), b(b_), c(c_) {}
         uint16_t a, b, c;
@@ -45,18 +53,6 @@ private:
     void addPieSliceVertex(const GeometryCoordinate& currentVertex, double distance,
             const Point<double>& extrude, bool lineTurnsLeft, std::size_t startVertex,
             std::vector<TriangleElement>& triangleStore);
-
-public:
-    style::LineLayoutProperties layout;
-
-private:
-    std::vector<LineVertex> vertices;
-    std::vector<gl::Triangle> triangles;
-
-    std::vector<ElementGroup<LineShader, LineSDFShader, LinePatternShader>> groups;
-
-    optional<gl::VertexBuffer<LineVertex>> vertexBuffer;
-    optional<gl::IndexBuffer<gl::Triangle>> indexBuffer;
 
     std::ptrdiff_t e1;
     std::ptrdiff_t e2;

@@ -1,11 +1,28 @@
 #import "NSImage+MGLAdditions.h"
 
+#include <mbgl/util/image+MGLAdditions.hpp>
+
 @implementation NSImage (MGLAdditions)
 
+- (nullable instancetype)initWithMGLPremultipliedImage:(mbgl::PremultipliedImage&&)src {
+    CGImageRef image = CGImageFromMGLPremultipliedImage(std::move(src));
+    if (!image) {
+        return nil;
+    }
+
+    self = [self initWithCGImage:image size:NSZeroSize];
+    CGImageRelease(image);
+    return self;
+}
+
 - (nullable instancetype)initWithMGLSpriteImage:(const mbgl::SpriteImage *)spriteImage {
-    std::string png = encodePNG(spriteImage->image);
-    NSData *data = [[NSData alloc] initWithBytes:png.data() length:png.size()];
-    NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:data];
+    CGImageRef image = CGImageFromMGLPremultipliedImage(spriteImage->image.clone());
+    if (!image) {
+        return nil;
+    }
+
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
     if (self = [self initWithSize:NSMakeSize(spriteImage->getWidth(), spriteImage->getHeight())]) {
         [self addRepresentation:rep];
         [self setTemplate:spriteImage->sdf];
@@ -21,8 +38,8 @@
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithFocusedViewRect:{ NSZeroPoint, self.size }];
     [self unlockFocus];
 
-    mbgl::PremultipliedImage cPremultipliedImage(rep.pixelsWide, rep.pixelsHigh);
-    std::copy(rep.bitmapData, rep.bitmapData + cPremultipliedImage.size(), cPremultipliedImage.data.get());
+    mbgl::PremultipliedImage cPremultipliedImage({ static_cast<uint32_t>(rep.pixelsWide), static_cast<uint32_t>(rep.pixelsHigh) });
+    std::copy(rep.bitmapData, rep.bitmapData + cPremultipliedImage.bytes(), cPremultipliedImage.data.get());
     return std::make_unique<mbgl::SpriteImage>(std::move(cPremultipliedImage),
                                                (float)(rep.pixelsWide / self.size.width),
                                                [self isTemplate]);

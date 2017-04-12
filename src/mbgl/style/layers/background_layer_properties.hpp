@@ -5,22 +5,28 @@
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/layout_property.hpp>
 #include <mbgl/style/paint_property.hpp>
+#include <mbgl/programs/attributes.hpp>
 
 namespace mbgl {
 namespace style {
 
-class CascadeParameters;
-class CalculationParameters;
-
-class BackgroundPaintProperties {
-public:
-    void cascade(const CascadeParameters&);
-    bool recalculate(const CalculationParameters&);
-
-    PaintProperty<Color> backgroundColor { Color::black() };
-    PaintProperty<std::string, CrossFadedPropertyEvaluator> backgroundPattern { "" };
-    PaintProperty<float> backgroundOpacity { 1 };
+struct BackgroundColor : PaintProperty<Color> {
+    static Color defaultValue() { return Color::black(); }
 };
+
+struct BackgroundPattern : CrossFadedPaintProperty<std::string> {
+    static std::string defaultValue() { return ""; }
+};
+
+struct BackgroundOpacity : PaintProperty<float> {
+    static float defaultValue() { return 1; }
+};
+
+class BackgroundPaintProperties : public PaintProperties<
+    BackgroundColor,
+    BackgroundPattern,
+    BackgroundOpacity
+> {};
 
 } // namespace style
 } // namespace mbgl

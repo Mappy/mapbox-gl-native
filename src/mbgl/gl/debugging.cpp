@@ -1,9 +1,8 @@
-#ifndef NDEBUG
 #include <mbgl/gl/debugging.hpp>
 #include <mbgl/gl/gl.hpp>
 #include <mbgl/gl/extension.hpp>
-#include <mbgl/platform/event.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/event.hpp>
+#include <mbgl/util/logging.hpp>
 
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
 #define GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH 0x8243
@@ -81,34 +80,6 @@ static ExtensionFunction<
         {"GL_ARB_debug_output", "glDebugMessageCallbackARB"}
     });
 
-static ExtensionFunction<
-    void (GLenum source,
-          GLuint id,
-          GLsizei length,
-          const GLchar *message)>
-    PushDebugGroup({
-        {"GL_KHR_debug", "glPushDebugGroup"}
-    });
-
-static ExtensionFunction<
-    void ()>
-    PopDebugGroup({
-        {"GL_KHR_debug", "glPopDebugGroup"}
-    });
-
-static ExtensionFunction<
-    void (GLsizei length,
-          const GLchar *marker)>
-    PushGroupMarkerEXT({
-      {"GL_EXT_debug_marker", "glPushGroupMarkerEXT"}
-    });
-
-static ExtensionFunction<
-    void ()>
-    PopGroupMarkerEXT({
-      {"GL_EXT_debug_marker", "glPopGroupMarkerEXT"}
-    });
-
 void debugCallback(GLenum source,
                    GLenum type,
                    GLuint id,
@@ -161,7 +132,7 @@ void enable() {
     }
 
     // This will enable all messages including performance hints
-    //MBGL_CHECK_ERROR(DebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE));
+    // MBGL_CHECK_ERROR(DebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE));
 
     // This will only enable high and medium severity messages
     MBGL_CHECK_ERROR(DebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_HIGH, 0, nullptr, GL_TRUE));
@@ -170,6 +141,35 @@ void enable() {
 
     MBGL_CHECK_ERROR(DebugMessageCallback(debugCallback, nullptr));
 }
+
+#ifndef NDEBUG
+static ExtensionFunction<
+    void (GLenum source,
+          GLuint id,
+          GLsizei length,
+          const GLchar *message)>
+    PushDebugGroup({
+        {"GL_KHR_debug", "glPushDebugGroup"}
+    });
+
+static ExtensionFunction<
+    void ()>
+    PopDebugGroup({
+        {"GL_KHR_debug", "glPopDebugGroup"}
+    });
+
+static ExtensionFunction<
+    void (GLsizei length,
+          const GLchar *marker)>
+    PushGroupMarkerEXT({
+      {"GL_EXT_debug_marker", "glPushGroupMarkerEXT"}
+    });
+
+static ExtensionFunction<
+    void ()>
+    PopGroupMarkerEXT({
+      {"GL_EXT_debug_marker", "glPopGroupMarkerEXT"}
+    });
 
 group::group(const std::string& str) {
     if (PushDebugGroup) {
@@ -186,9 +186,8 @@ group::~group() {
         PopGroupMarkerEXT();
     }
 }
+#endif
 
 } // namespace debugging
 } // namespace gl
 } // namespace mbgl
-
-#endif

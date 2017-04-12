@@ -1,48 +1,69 @@
-#include <mbgl/util/offscreen_texture.hpp>
 #include <mbgl/gl/context.hpp>
-#include <mbgl/gl/gl.hpp>
+#include <mbgl/util/offscreen_texture.hpp>
 
-#include <cstring>
 #include <cassert>
+#include <cstring>
 
 namespace mbgl {
 
-OffscreenTexture::OffscreenTexture(gl::Context& context_, std::array<uint16_t, 2> size_)
-    : context(context_), size(std::move(size_)) {
-    assert(size[0] > 0 && size[1] > 0);
-}
-
-void OffscreenTexture::bind() {
-    if (!framebuffer) {
-        texture = context.createTexture(size);
-        framebuffer = context.createFramebuffer(*texture);
-    } else {
-        context.bindFramebuffer = framebuffer->framebuffer;
+class OffscreenTexture::Impl {
+public:
+    Impl(gl::Context& context_, const Size size_) : context(context_), size(std::move(size_)) {
+        assert(size);
     }
 
-    context.viewport = { 0, 0, size[0], size[1] };
+    void bind() {
+        if (!framebuffer) {
+            texture = context.createTexture(size);
+            framebuffer = context.createFramebuffer(*texture);
+        } else {
+            context.bindFramebuffer = framebuffer->framebuffer;
+        }
+
+        context.viewport = { 0, 0, size };
+    }
+
+    PremultipliedImage readStillImage() {
+        return context.readFramebuffer<PremultipliedImage>(size);
+    }
+
+    gl::Texture& getTexture() {
+        assert(texture);
+        return *texture;
+    }
+
+    const Size& getSize() const {
+        return size;
+    }
+
+private:
+    gl::Context& context;
+    const Size size;
+    optional<gl::Framebuffer> framebuffer;
+    optional<gl::Texture> texture;
+};
+
+OffscreenTexture::OffscreenTexture(gl::Context& context, const Size size)
+    : impl(std::make_unique<Impl>(context, std::move(size))) {
+    assert(size);
 }
 
-gl::Texture& OffscreenTexture::getTexture() {
-    assert(texture);
-    return *texture;
+OffscreenTexture::~OffscreenTexture() = default;
+
+void OffscreenTexture::bind() {
+    impl->bind();
 }
 
 PremultipliedImage OffscreenTexture::readStillImage() {
-    PremultipliedImage image { size[0], size[1] };
-    MBGL_CHECK_ERROR(glReadPixels(0, 0, size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE, image.data.get()));
-
-    const auto stride = image.stride();
-    auto tmp = std::make_unique<uint8_t[]>(stride);
-    uint8_t* rgba = image.data.get();
-    for (int i = 0, j = size[1] - 1; i < j; i++, j--) {
-        std::memcpy(tmp.get(), rgba + i * stride, stride);
-        std::memcpy(rgba + i * stride, rgba + j * stride, stride);
-        std::memcpy(rgba + j * stride, tmp.get(), stride);
-    }
-
-    return image;
+    return impl->readStillImage();
 }
 
+gl::Texture& OffscreenTexture::getTexture() {
+    return impl->getTexture();
+}
+
+const Size& OffscreenTexture::getSize() const {
+    return impl->getSize();
+}
 
 } // namespace mbgl

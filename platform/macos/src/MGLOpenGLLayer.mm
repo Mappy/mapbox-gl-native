@@ -2,8 +2,6 @@
 
 #import "MGLMapView_Private.h"
 
-#import <mbgl/gl/gl.hpp>
-
 @implementation MGLOpenGLLayer {
     NSOpenGLContext *_context;
 }
@@ -12,9 +10,9 @@
     return (MGLMapView *)super.view;
 }
 
-//- (BOOL)isAsynchronous {
+// - (BOOL)isAsynchronous {
 //    return YES;
-//}
+// }
 
 - (BOOL)needsDisplayOnBoundsChange {
     return YES;

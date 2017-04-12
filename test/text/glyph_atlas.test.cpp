@@ -7,7 +7,7 @@
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/util/io.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
 using namespace mbgl;
 
@@ -16,7 +16,7 @@ public:
     util::RunLoop loop;
     StubFileSource fileSource;
     StubStyleObserver observer;
-    GlyphAtlas glyphAtlas { 32, 32, fileSource };
+    GlyphAtlas glyphAtlas{ { 32, 32 }, fileSource };
 
     void run(const std::string& url, const FontStack& fontStack, const GlyphRangeSet& glyphRanges) {
         // Squelch logging.
@@ -83,8 +83,7 @@ TEST(GlyphAtlas, LoadingFail) {
         EXPECT_TRUE(error != nullptr);
         EXPECT_EQ(util::toString(error), "Failed by the test case");
 
-        auto glyphSet = test.glyphAtlas.getGlyphSet({{"Test Stack"}});
-        ASSERT_TRUE(glyphSet->getSDFs().empty());
+        ASSERT_TRUE(test.glyphAtlas.getGlyphSet({{"Test Stack"}})->getSDFs().empty());
         ASSERT_FALSE(test.glyphAtlas.hasGlyphRanges({{"Test Stack"}}, {{0, 255}}));
 
         test.end();
@@ -112,8 +111,7 @@ TEST(GlyphAtlas, LoadingCorrupted) {
         EXPECT_TRUE(error != nullptr);
         EXPECT_EQ(util::toString(error), "unknown pbf field type exception");
 
-        auto glyphSet = test.glyphAtlas.getGlyphSet({{"Test Stack"}});
-        ASSERT_TRUE(glyphSet->getSDFs().empty());
+        ASSERT_TRUE(test.glyphAtlas.getGlyphSet({{"Test Stack"}})->getSDFs().empty());
         ASSERT_FALSE(test.glyphAtlas.hasGlyphRanges({{"Test Stack"}}, {{0, 255}}));
 
         test.end();
@@ -141,4 +139,39 @@ TEST(GlyphAtlas, LoadingCancel) {
         "test/fixtures/resources/glyphs.pbf",
         {{"Test Stack"}},
         {{0, 255}});
+}
+
+TEST(GlyphAtlas, InvalidSDFGlyph) {
+    const FontStack fontStack{ "Mock Font" };
+
+    GlyphAtlasTest test;
+    GlyphPositions positions;
+
+    auto glyphSet = test.glyphAtlas.getGlyphSet(fontStack);
+    glyphSet->insert(66, SDFGlyph{ 66 /* ASCII 'B' */,
+                                  AlphaImage({7, 7}), /* correct */
+                                  { 1 /* width */, 1 /* height */, 0 /* left */, 0 /* top */,
+                                    0 /* advance */ } });
+    glyphSet->insert(67, SDFGlyph{ 67 /* ASCII 'C' */,
+                                  AlphaImage({518, 8}), /* correct */
+                                  { 512 /* width */, 2 /* height */, 0 /* left */, 0 /* top */,
+                                    0 /* advance */ } });
+
+    test.glyphAtlas.addGlyphs(1, std::u16string{u"ABC"}, fontStack, glyphSet, positions);
+
+    ASSERT_EQ(2u, positions.size());
+
+    // 'A' was not placed because not in the glyph set.
+    ASSERT_EQ(positions.end(), positions.find(65));
+
+    // 'B' was placed at the top left.
+    ASSERT_NE(positions.end(), positions.find(66));
+    // Width is 12 because actual dimensions are 1+6 pixels, with 1px border added, rounded up to
+    // the next multiple of 4.
+    ASSERT_EQ((Rect<uint16_t>{ 0, 0, 12, 12 }), positions[66].rect);
+
+    // 'C' was not placed because the width is too big.
+    ASSERT_NE(positions.end(), positions.find(67));
+    ASSERT_EQ((Rect<uint16_t>{ 0, 0, 0, 0 }), positions[67].rect);
+
 }

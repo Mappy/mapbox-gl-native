@@ -1,12 +1,14 @@
 #include <mbgl/test/util.hpp>
 
-#include <mbgl/platform/default/headless_backend.hpp>
-#include <mbgl/platform/default/offscreen_view.hpp>
+#include <mbgl/map/backend_scope.hpp>
+#include <mbgl/gl/headless_backend.hpp>
+#include <mbgl/gl/offscreen_view.hpp>
 
-#include <mbgl/gl/gl.hpp>
 #include <mbgl/gl/context.hpp>
 
 #include <memory>
+
+using namespace mbgl;
 
 namespace {
 
@@ -28,7 +30,7 @@ TEST(GLObject, PreserveState) {
     getFlag = false;
     setFlag = false;
 
-    auto object = std::make_unique<mbgl::gl::PreserveState<MockGLObject>>();
+    auto object = std::make_unique<gl::PreserveState<MockGLObject>>();
     EXPECT_TRUE(getFlag);
     EXPECT_FALSE(setFlag);
 
@@ -41,7 +43,7 @@ TEST(GLObject, PreserveState) {
 TEST(GLObject, Value) {
     setFlag = false;
 
-    auto object = std::make_unique<mbgl::gl::State<MockGLObject>>();
+    auto object = std::make_unique<gl::State<MockGLObject>>();
     EXPECT_EQ(object->getCurrentValue(), false);
     EXPECT_TRUE(object->isDirty());
     EXPECT_FALSE(setFlag);
@@ -59,27 +61,14 @@ TEST(GLObject, Value) {
 }
 
 TEST(GLObject, Store) {
-    mbgl::HeadlessBackend backend;
-    mbgl::OffscreenView view(backend.getContext());
+    HeadlessBackend backend { test::sharedDisplay() };
+    OffscreenView view(backend.getContext());
+    BackendScope scope { backend };
 
-    mbgl::gl::Context context;
+    gl::Context context;
     EXPECT_TRUE(context.empty());
 
-    mbgl::gl::UniqueProgram program = context.createProgram();
-    EXPECT_NE(program.get(), 0u);
-    program.reset();
-    EXPECT_FALSE(context.empty());
-    context.performCleanup();
-    EXPECT_TRUE(context.empty());
-
-    mbgl::gl::UniqueShader shader = context.createVertexShader();
-    EXPECT_NE(shader.get(), 0u);
-    shader.reset();
-    EXPECT_FALSE(context.empty());
-    context.performCleanup();
-    EXPECT_TRUE(context.empty());
-
-    mbgl::gl::UniqueTexture texture = context.createTexture();
+    gl::UniqueTexture texture = context.createTexture();
     EXPECT_NE(texture.get(), 0u);
     texture.reset();
     EXPECT_FALSE(context.empty());
@@ -88,15 +77,6 @@ TEST(GLObject, Store) {
     context.reset();
     EXPECT_TRUE(context.empty());
 
-    mbgl::gl::UniqueVertexArray vao = context.createVertexArray();
-    EXPECT_NE(vao.get(), 0u);
-    vao.reset();
-    EXPECT_FALSE(context.empty());
-    context.performCleanup();
-    EXPECT_TRUE(context.empty());
-
     context.reset();
     EXPECT_TRUE(context.empty());
-
-    backend.deactivate();
 }

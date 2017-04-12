@@ -8,10 +8,11 @@
 #include <mbgl/renderer/render_item.hpp>
 #include <mbgl/renderer/bucket.hpp>
 
-#include <mbgl/gl/vao.hpp>
 #include <mbgl/gl/context.hpp>
-#include <mbgl/shader/fill_vertex.hpp>
-#include <mbgl/shader/raster_vertex.hpp>
+#include <mbgl/programs/debug_program.hpp>
+#include <mbgl/programs/program_parameters.hpp>
+#include <mbgl/programs/fill_program.hpp>
+#include <mbgl/programs/raster_program.hpp>
 
 #include <mbgl/style/style.hpp>
 
@@ -41,8 +42,7 @@ class CircleBucket;
 class SymbolBucket;
 class RasterBucket;
 
-class Shaders;
-class SymbolSDFShader;
+class Programs;
 class PaintParameters;
 
 struct ClipID;
@@ -68,7 +68,7 @@ struct FrameData {
 
 class Painter : private util::noncopyable {
 public:
-    Painter(gl::Context&, const TransformState&);
+    Painter(gl::Context&, const TransformState&, float pixelRatio, const std::string& programCacheDir);
     ~Painter();
 
     void render(const style::Style&,
@@ -78,20 +78,8 @@ public:
 
     void cleanup();
 
-    // Renders debug information for a tile.
+    void renderClippingMask(const UnwrappedTileID&, const ClipID&);
     void renderTileDebug(const RenderTile&);
-
-    // Renders the red debug frame around a tile, visualizing its perimeter.
-    void renderDebugFrame(const mat4 &matrix);
-
-#ifndef NDEBUG
-    // Renders tile clip boundaries, using stencil buffer to calculate fill color.
-    void renderClipMasks(PaintParameters&);
-    // Renders the depth buffer.
-    void renderDepthBuffer(PaintParameters&);
-#endif
-
-    void renderDebugText(Tile&, const mat4&);
     void renderFill(PaintParameters&, FillBucket&, const style::FillLayer&, const RenderTile&);
     void renderLine(PaintParameters&, LineBucket&, const style::LineLayer&, const RenderTile&);
     void renderCircle(PaintParameters&, CircleBucket&, const style::CircleLayer&, const RenderTile&);
@@ -99,11 +87,12 @@ public:
     void renderRaster(PaintParameters&, RasterBucket&, const style::RasterLayer&, const RenderTile&);
     void renderBackground(PaintParameters&, const style::BackgroundLayer&);
 
-    float saturationFactor(float saturation);
-    float contrastFactor(float contrast);
-    std::array<float, 3> spinWeights(float spin_value);
-
-    void drawClippingMasks(PaintParameters&, const std::map<UnwrappedTileID, ClipID>&);
+#ifndef NDEBUG
+    // Renders tile clip boundaries, using stencil buffer to calculate fill color.
+    void renderClipMasks(PaintParameters&);
+    // Renders the depth buffer.
+    void renderDepthBuffer(PaintParameters&);
+#endif
 
     bool needsAnimation() const;
 
@@ -116,31 +105,10 @@ private:
                     Iterator it, Iterator end,
                     uint32_t i, int8_t increment);
 
-    void setClipping(const ClipID&);
-
-    void renderSDF(SymbolBucket&,
-                   const RenderTile&,
-                   float scaleDivisor,
-                   std::array<float, 2> texsize,
-                   SymbolSDFShader& sdfShader,
-                   void (SymbolBucket::*drawSDF)(SymbolSDFShader&, gl::Context&, PaintMode),
-
-                   // Layout
-                   style::AlignmentType rotationAlignment,
-                   style::AlignmentType pitchAlignment,
-                   float layoutSize,
-
-                   // Paint
-                   float opacity,
-                   Color color,
-                   Color haloColor,
-                   float haloWidth,
-                   float haloBlur,
-                   std::array<float, 2> translate,
-                   style::TranslateAnchorType translateAnchor,
-                   float paintSize);
-
-    void setDepthSublayer(int n);
+    mat4 matrixForTile(const UnwrappedTileID&);
+    gl::DepthMode depthModeForSublayer(uint8_t n, gl::DepthMode::Mask) const;
+    gl::StencilMode stencilModeForClipping(const ClipID&) const;
+    gl::ColorMode colorModeForRenderPass() const;
 
 #ifndef NDEBUG
     PaintMode paintMode() const {
@@ -185,16 +153,20 @@ private:
 
     FrameHistory frameHistory;
 
-    std::unique_ptr<Shaders> shaders;
+    std::unique_ptr<Programs> programs;
 #ifndef NDEBUG
-    std::unique_ptr<Shaders> overdrawShaders;
+    std::unique_ptr<Programs> overdrawPrograms;
 #endif
 
-    gl::VertexBuffer<FillVertex> tileTriangleVertexBuffer;
-    gl::VertexBuffer<FillVertex> tileLineStripVertexBuffer;
-    gl::VertexBuffer<RasterVertex> rasterVertexBuffer;
+    gl::VertexBuffer<FillLayoutVertex> tileVertexBuffer;
+    gl::VertexBuffer<RasterLayoutVertex> rasterVertexBuffer;
 
-    gl::VertexArrayObject tileBorderArray;
+    gl::IndexBuffer<gl::Triangles> tileTriangleIndexBuffer;
+    gl::IndexBuffer<gl::LineStrip> tileBorderIndexBuffer;
+
+    gl::SegmentVector<FillAttributes> tileTriangleSegments;
+    gl::SegmentVector<DebugAttributes> tileBorderSegments;
+    gl::SegmentVector<RasterAttributes> rasterSegments;
 };
 
 } // namespace mbgl

@@ -1,3 +1,4 @@
+#import "MGLFoundation.h"
 #import "MGLFeature.h"
 #import "MGLShape.h"
 
@@ -11,6 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
  Returns an array of `MGLFeature` objects converted from the given vector of
  vector tile features.
  */
+MGL_EXPORT
 NS_ARRAY_OF(MGLShape <MGLFeature> *) *MGLFeaturesFromMBGLFeatures(const std::vector<mbgl::Feature> &features);
 
 /**
@@ -26,7 +28,7 @@ MGLShape* MGLShapeFromGeoJSON(const mapbox::geojson::geojson &geojson);
 
 /**
  Takes an `mbgl::Feature` object, an identifer, and attributes dictionary and
- returns the feature object with converted `mbgl::FeatureIdentifier` and 
+ returns the feature object with converted `mbgl::FeatureIdentifier` and
  `mbgl::PropertyMap` properties.
  */
 mbgl::Feature mbglFeature(mbgl::Feature feature, id identifier, NSDictionary *attributes);

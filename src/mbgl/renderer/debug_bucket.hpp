@@ -6,13 +6,12 @@
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/gl/vertex_buffer.hpp>
-#include <mbgl/gl/vao.hpp>
-#include <mbgl/shader/fill_vertex.hpp>
+#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/programs/debug_program.hpp>
 
 namespace mbgl {
 
 class OverscaledTileID;
-class FillShader;
 
 namespace gl {
 class Context;
@@ -28,18 +27,15 @@ public:
                 MapDebugOptions,
                 gl::Context&);
 
-    void drawLines(FillShader&, gl::Context&);
-    void drawPoints(FillShader&, gl::Context&);
-
     const bool renderable;
     const bool complete;
     const optional<Timestamp> modified;
     const optional<Timestamp> expires;
     const MapDebugOptions debugMode;
 
-private:
-    gl::VertexBuffer<FillVertex> vertexBuffer;
-    gl::VertexArrayObject array;
+    gl::SegmentVector<DebugAttributes> segments;
+    optional<gl::VertexBuffer<DebugLayoutVertex>> vertexBuffer;
+    optional<gl::IndexBuffer<gl::Lines>> indexBuffer;
 };
 
 } // namespace mbgl

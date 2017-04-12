@@ -7,6 +7,7 @@
 #include <mbgl/tile/tile.hpp>
 #include <mbgl/tile/tile_cache.hpp>
 #include <mbgl/style/types.hpp>
+#include <mbgl/style/query.hpp>
 
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/mat4.hpp>
@@ -24,6 +25,7 @@ class Painter;
 class FileSource;
 class TransformState;
 class RenderTile;
+class RenderedQueryOptions;
 
 namespace algorithm {
 class ClipIDGenerator;
@@ -32,7 +34,6 @@ class ClipIDGenerator;
 namespace style {
 
 class UpdateParameters;
-class QueryParameters;
 class SourceObserver;
 
 class Source::Impl : public TileObserver, private util::noncopyable {
@@ -63,10 +64,14 @@ public:
                      const TransformState&);
     void finishRender(Painter&);
 
-    const std::map<UnwrappedTileID, RenderTile>& getRenderTiles() const;
+    std::map<UnwrappedTileID, RenderTile>& getRenderTiles();
 
     std::unordered_map<std::string, std::vector<Feature>>
-    queryRenderedFeatures(const QueryParameters&) const;
+    queryRenderedFeatures(const ScreenLineString& geometry,
+                          const TransformState& transformState,
+                          const RenderedQueryOptions& options) const;
+
+    std::vector<Feature> querySourceFeatures(const SourceQueryOptions&);
 
     void setCacheSize(size_t);
     void onLowMemory();
@@ -85,9 +90,13 @@ public:
     // be initialized to true so that Style::isLoaded() does not produce false positives if
     // called before Style::recalculate().
     bool enabled = true;
+    
+    // Detaches from the style
+    void detach();
 
 protected:
     void invalidateTiles();
+    void removeStaleTiles(const std::set<OverscaledTileID>&);
 
     Source& base;
     SourceObserver* observer = nullptr;

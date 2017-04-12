@@ -2,29 +2,23 @@
 
 const fs = require('fs');
 const ejs = require('ejs');
-const spec = require('mapbox-gl-style-spec').latest;
-var colorParser = require('csscolorparser');
+const spec = require('../mapbox-gl-js/src/style-spec/reference/v8');
+const colorParser = require('csscolorparser');
+
+require('./style-code');
 
 function parseCSSColor(str) {
-  var color = colorParser.parseCSSColor(str);
+  const color = colorParser.parseCSSColor(str);
   return [
       color[0] / 255 * color[3], color[1] / 255 * color[3], color[2] / 255 * color[3], color[3]
   ];
 }
 
-global.camelize = function (str) {
-  return str.replace(/(?:^|-)(.)/g, function (_, x) {
-    return x.toUpperCase();
-  });
-}
+global.isDataDriven = function (property) {
+  return property['property-function'] === true;
+};
 
-global.camelizeWithLeadingLowercase = function (str) {
-  return str.replace(/-(.)/g, function (_, x) {
-    return x.toUpperCase();
-  });
-}
-
-global.propertyType = function (property) {
+global.evaluatedType = function (property) {
   if (/-translate-anchor$/.test(property.name)) {
     return 'TranslateAnchorType';
   }
@@ -44,13 +38,57 @@ global.propertyType = function (property) {
     return `Color`;
   case 'array':
     if (property.length) {
-      return `std::array<${propertyType({type: property.value})}, ${property.length}>`;
+      return `std::array<${evaluatedType({type: property.value})}, ${property.length}>`;
     } else {
-      return `std::vector<${propertyType({type: property.value})}>`;
+      return `std::vector<${evaluatedType({type: property.value})}>`;
     }
   default: throw new Error(`unknown type for ${property.name}`)
   }
+};
+
+function attributeType(property, type) {
+    const attributeNameExceptions = {
+      'text-opacity': 'opacity',
+      'icon-opacity': 'opacity',
+      'text-color': 'fill_color',
+      'icon-color': 'fill_color',
+      'text-halo-color': 'halo_color',
+      'icon-halo-color': 'halo_color',
+      'text-halo-blur': 'halo_blur',
+      'icon-halo-blur': 'halo_blur',
+      'text-halo-width': 'halo_width',
+      'icon-halo-width': 'halo_width'
+    }
+    const name = attributeNameExceptions[property.name] ||
+        property.name.replace(type + '-', '').replace(/-/g, '_');
+    return `attributes::a_${name}${name === 'offset' ? '<1>' : ''}`;
 }
+
+global.layoutPropertyType = function (property) {
+  if (isDataDriven(property)) {
+    return `DataDrivenLayoutProperty<${evaluatedType(property)}>`;
+  } else {
+    return `LayoutProperty<${evaluatedType(property)}>`;
+  }
+};
+
+global.paintPropertyType = function (property, type) {
+  if (isDataDriven(property)) {
+    return `DataDrivenPaintProperty<${evaluatedType(property)}, ${attributeType(property, type)}>`;
+  } else if (/-pattern$/.test(property.name) || property.name === 'line-dasharray') {
+    return `CrossFadedPaintProperty<${evaluatedType(property)}>`;
+  } else {
+    return `PaintProperty<${evaluatedType(property)}>`;
+  }
+};
+
+global.propertyValueType = function (property) {
+  if (isDataDriven(property)) {
+    return `DataDrivenPropertyValue<${evaluatedType(property)}>`;
+  } else {
+    return `PropertyValue<${evaluatedType(property)}>`;
+  }
+};
 
 global.defaultValue = function (property) {
   // https://github.com/mapbox/mapbox-gl-native/issues/5258
@@ -69,12 +107,12 @@ global.defaultValue = function (property) {
     return JSON.stringify(property.default || "");
   case 'enum':
     if (property.default === undefined) {
-      return `${propertyType(property)}::Undefined`;
+      return `${evaluatedType(property)}::Undefined`;
     } else {
-      return `${propertyType(property)}::${camelize(property.default)}`;
+      return `${evaluatedType(property)}::${camelize(property.default)}`;
     }
   case 'color':
-    var color = parseCSSColor(property.default).join(', ');
+    const color = parseCSSColor(property.default).join(', ');
     switch (color) {
     case '0, 0, 0, 0':
       return '{}';
@@ -95,7 +133,7 @@ global.defaultValue = function (property) {
   default:
     return property.default;
   }
-}
+};
 
 const layerHpp = ejs.compile(fs.readFileSync('include/mbgl/style/layers/layer.hpp.ejs', 'utf8'), {strict: true});
 const layerCpp = ejs.compile(fs.readFileSync('src/mbgl/style/layers/layer.cpp.ejs', 'utf8'), {strict: true});
@@ -121,16 +159,21 @@ const layers = Object.keys(spec.layer.type.values).map((type) => {
     type: type,
     layoutProperties: layoutProperties,
     paintProperties: paintProperties,
+    doc: spec.layer.type.values[type].doc,
+    layoutPropertiesByName: spec[`layout_${type}`],
+    paintPropertiesByName: spec[`paint_${type}`],
   };
 });
 
 for (const layer of layers) {
-  fs.writeFileSync(`include/mbgl/style/layers/${layer.type}_layer.hpp`, layerHpp(layer));
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer.cpp`, layerCpp(layer));
+  const layerFileName = layer.type.replace('-', '_');
 
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer_properties.hpp`, propertiesHpp(layer));
-  fs.writeFileSync(`src/mbgl/style/layers/${layer.type}_layer_properties.cpp`, propertiesCpp(layer));
+  writeIfModified(`include/mbgl/style/layers/${layerFileName}_layer.hpp`, layerHpp(layer));
+  writeIfModified(`src/mbgl/style/layers/${layerFileName}_layer.cpp`, layerCpp(layer));
+
+  writeIfModified(`src/mbgl/style/layers/${layerFileName}_layer_properties.hpp`, propertiesHpp(layer));
+  writeIfModified(`src/mbgl/style/layers/${layerFileName}_layer_properties.cpp`, propertiesCpp(layer));
 }
 
 const propertySettersHpp = ejs.compile(fs.readFileSync('include/mbgl/style/conversion/make_property_setters.hpp.ejs', 'utf8'), {strict: true});
-fs.writeFileSync('include/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));
+writeIfModified('include/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));

@@ -1,4 +1,5 @@
 .DS_Store
+.transifexrc
 *.pyc
 *.gcno
 *.gcda
@@ -30,3 +31,5 @@ xcuserdata
 /platform/macos/macos.xcworkspace/xcshareddata/macos.xcscmblueprint
 /platform/ios/ios.xcworkspace/xcshareddata/ios.xcscmblueprint
 /documentation
+test/fixtures/api/assets.zip
+test/fixtures/storage/assets.zip

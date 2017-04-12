@@ -54,31 +54,42 @@ set(MBGL_CORE_FILES
 
     # gl
     include/mbgl/gl/gl.hpp
-    include/mbgl/gl/implementation.hpp
+    src/mbgl/gl/attribute.cpp
     src/mbgl/gl/attribute.hpp
+    src/mbgl/gl/color_mode.cpp
+    src/mbgl/gl/color_mode.hpp
     src/mbgl/gl/context.cpp
     src/mbgl/gl/context.hpp
     src/mbgl/gl/debugging.cpp
     src/mbgl/gl/debugging.hpp
+    src/mbgl/gl/depth_mode.cpp
+    src/mbgl/gl/depth_mode.hpp
+    src/mbgl/gl/draw_mode.hpp
     src/mbgl/gl/extension.cpp
     src/mbgl/gl/extension.hpp
+    src/mbgl/gl/features.hpp
     src/mbgl/gl/framebuffer.hpp
     src/mbgl/gl/gl.cpp
     src/mbgl/gl/index_buffer.hpp
+    src/mbgl/gl/normalization.hpp
     src/mbgl/gl/object.cpp
     src/mbgl/gl/object.hpp
+    src/mbgl/gl/primitives.hpp
+    src/mbgl/gl/program.hpp
+    src/mbgl/gl/program_binary.cpp
+    src/mbgl/gl/program_binary.hpp
     src/mbgl/gl/renderbuffer.hpp
-    src/mbgl/gl/shader.cpp
-    src/mbgl/gl/shader.hpp
+    src/mbgl/gl/segment.cpp
+    src/mbgl/gl/segment.hpp
     src/mbgl/gl/state.hpp
+    src/mbgl/gl/stencil_mode.cpp
+    src/mbgl/gl/stencil_mode.hpp
     src/mbgl/gl/texture.hpp
     src/mbgl/gl/types.hpp
     src/mbgl/gl/uniform.cpp
     src/mbgl/gl/uniform.hpp
     src/mbgl/gl/value.cpp
     src/mbgl/gl/value.hpp
-    src/mbgl/gl/vao.cpp
-    src/mbgl/gl/vao.hpp
     src/mbgl/gl/vertex_array.cpp
     src/mbgl/gl/vertex_array.hpp
     src/mbgl/gl/vertex_buffer.hpp
@@ -96,11 +107,14 @@ set(MBGL_CORE_FILES
 
     # map
     include/mbgl/map/backend.hpp
+    include/mbgl/map/backend_scope.hpp
     include/mbgl/map/camera.hpp
     include/mbgl/map/map.hpp
     include/mbgl/map/mode.hpp
+    include/mbgl/map/query.hpp
     include/mbgl/map/view.hpp
     src/mbgl/map/backend.cpp
+    src/mbgl/map/backend_scope.cpp
     src/mbgl/map/change.hpp
     src/mbgl/map/map.cpp
     src/mbgl/map/transform.cpp
@@ -112,33 +126,36 @@ set(MBGL_CORE_FILES
 
     # math
     include/mbgl/math/clamp.hpp
+    include/mbgl/math/log2.hpp
     include/mbgl/math/minmax.hpp
     include/mbgl/math/wrap.hpp
-
-    # mbgl
-    include/mbgl/mbgl.hpp
+    src/mbgl/math/log2.cpp
 
     # parsedate
     src/parsedate/parsedate.c
     src/parsedate/parsedate.h
 
-    # platform
-    include/mbgl/platform/event.hpp
-    include/mbgl/platform/log.hpp
-    include/mbgl/platform/platform.hpp
-    src/mbgl/platform/event.cpp
-    src/mbgl/platform/log.cpp
-
-    # platform/darwin
-    include/mbgl/platform/darwin/reachability.h
-
-    # platform/default
-    include/mbgl/platform/default/glfw_view.hpp
-    include/mbgl/platform/default/headless_backend.hpp
-    include/mbgl/platform/default/headless_display.hpp
-    include/mbgl/platform/default/offscreen_view.hpp
-    include/mbgl/platform/default/settings_json.hpp
-    include/mbgl/platform/default/thread_pool.hpp
+    # programs
+    src/mbgl/programs/attributes.hpp
+    src/mbgl/programs/binary_program.cpp
+    src/mbgl/programs/binary_program.hpp
+    src/mbgl/programs/circle_program.cpp
+    src/mbgl/programs/circle_program.hpp
+    src/mbgl/programs/collision_box_program.cpp
+    src/mbgl/programs/collision_box_program.hpp
+    src/mbgl/programs/debug_program.hpp
+    src/mbgl/programs/fill_program.cpp
+    src/mbgl/programs/fill_program.hpp
+    src/mbgl/programs/line_program.cpp
+    src/mbgl/programs/line_program.hpp
+    src/mbgl/programs/program.hpp
+    src/mbgl/programs/program_parameters.hpp
+    src/mbgl/programs/programs.hpp
+    src/mbgl/programs/raster_program.cpp
+    src/mbgl/programs/raster_program.hpp
+    src/mbgl/programs/symbol_program.cpp
+    src/mbgl/programs/symbol_program.hpp
+    src/mbgl/programs/uniforms.hpp
 
     # renderer
     src/mbgl/renderer/bucket.hpp
@@ -146,7 +163,6 @@ set(MBGL_CORE_FILES
     src/mbgl/renderer/circle_bucket.hpp
     src/mbgl/renderer/debug_bucket.cpp
     src/mbgl/renderer/debug_bucket.hpp
-    src/mbgl/renderer/element_group.hpp
     src/mbgl/renderer/fill_bucket.cpp
     src/mbgl/renderer/fill_bucket.hpp
     src/mbgl/renderer/frame_history.cpp
@@ -173,44 +189,37 @@ set(MBGL_CORE_FILES
     src/mbgl/renderer/symbol_bucket.cpp
     src/mbgl/renderer/symbol_bucket.hpp
 
-    # shader
-    src/mbgl/shader/circle_shader.cpp
-    src/mbgl/shader/circle_shader.hpp
-    src/mbgl/shader/circle_vertex.cpp
-    src/mbgl/shader/circle_vertex.hpp
-    src/mbgl/shader/collision_box_shader.cpp
-    src/mbgl/shader/collision_box_shader.hpp
-    src/mbgl/shader/collision_box_vertex.cpp
-    src/mbgl/shader/collision_box_vertex.hpp
-    src/mbgl/shader/fill_outline_pattern_shader.cpp
-    src/mbgl/shader/fill_outline_pattern_shader.hpp
-    src/mbgl/shader/fill_outline_shader.cpp
-    src/mbgl/shader/fill_outline_shader.hpp
-    src/mbgl/shader/fill_pattern_shader.cpp
-    src/mbgl/shader/fill_pattern_shader.hpp
-    src/mbgl/shader/fill_shader.cpp
-    src/mbgl/shader/fill_shader.hpp
-    src/mbgl/shader/fill_vertex.cpp
-    src/mbgl/shader/fill_vertex.hpp
-    src/mbgl/shader/line_pattern_shader.cpp
-    src/mbgl/shader/line_pattern_shader.hpp
-    src/mbgl/shader/line_sdf_shader.cpp
-    src/mbgl/shader/line_sdf_shader.hpp
-    src/mbgl/shader/line_shader.cpp
-    src/mbgl/shader/line_shader.hpp
-    src/mbgl/shader/line_vertex.cpp
-    src/mbgl/shader/line_vertex.hpp
-    src/mbgl/shader/raster_shader.cpp
-    src/mbgl/shader/raster_shader.hpp
-    src/mbgl/shader/raster_vertex.cpp
-    src/mbgl/shader/raster_vertex.hpp
-    src/mbgl/shader/shaders.hpp
-    src/mbgl/shader/symbol_icon_shader.cpp
-    src/mbgl/shader/symbol_icon_shader.hpp
-    src/mbgl/shader/symbol_sdf_shader.cpp
-    src/mbgl/shader/symbol_sdf_shader.hpp
-    src/mbgl/shader/symbol_vertex.cpp
-    src/mbgl/shader/symbol_vertex.hpp
+    # shaders
+    src/mbgl/shaders/circle.cpp
+    src/mbgl/shaders/circle.hpp
+    src/mbgl/shaders/collision_box.cpp
+    src/mbgl/shaders/collision_box.hpp
+    src/mbgl/shaders/debug.cpp
+    src/mbgl/shaders/debug.hpp
+    src/mbgl/shaders/fill.cpp
+    src/mbgl/shaders/fill.hpp
+    src/mbgl/shaders/fill_outline.cpp
+    src/mbgl/shaders/fill_outline.hpp
+    src/mbgl/shaders/fill_outline_pattern.cpp
+    src/mbgl/shaders/fill_outline_pattern.hpp
+    src/mbgl/shaders/fill_pattern.cpp
+    src/mbgl/shaders/fill_pattern.hpp
+    src/mbgl/shaders/line.cpp
+    src/mbgl/shaders/line.hpp
+    src/mbgl/shaders/line_pattern.cpp
+    src/mbgl/shaders/line_pattern.hpp
+    src/mbgl/shaders/line_sdf.cpp
+    src/mbgl/shaders/line_sdf.hpp
+    src/mbgl/shaders/preludes.cpp
+    src/mbgl/shaders/preludes.hpp
+    src/mbgl/shaders/raster.cpp
+    src/mbgl/shaders/raster.hpp
+    src/mbgl/shaders/shaders.cpp
+    src/mbgl/shaders/shaders.hpp
+    src/mbgl/shaders/symbol_icon.cpp
+    src/mbgl/shaders/symbol_icon.hpp
+    src/mbgl/shaders/symbol_sdf.cpp
+    src/mbgl/shaders/symbol_sdf.hpp
 
     # sprite
     include/mbgl/sprite/sprite_image.hpp
@@ -238,20 +247,26 @@ set(MBGL_CORE_FILES
 
     # style
     include/mbgl/style/conversion.hpp
+    include/mbgl/style/data_driven_property_value.hpp
     include/mbgl/style/filter.hpp
     include/mbgl/style/filter_evaluator.hpp
-    include/mbgl/style/function.hpp
     include/mbgl/style/layer.hpp
     include/mbgl/style/property_value.hpp
+    include/mbgl/style/query.hpp
     include/mbgl/style/source.hpp
     include/mbgl/style/transition_options.hpp
     include/mbgl/style/types.hpp
+    include/mbgl/style/undefined.hpp
     src/mbgl/style/bucket_parameters.cpp
     src/mbgl/style/bucket_parameters.hpp
-    src/mbgl/style/calculation_parameters.hpp
     src/mbgl/style/cascade_parameters.hpp
     src/mbgl/style/class_dictionary.cpp
     src/mbgl/style/class_dictionary.hpp
+    src/mbgl/style/cross_faded_property_evaluator.cpp
+    src/mbgl/style/cross_faded_property_evaluator.hpp
+    src/mbgl/style/data_driven_property_evaluator.hpp
+    src/mbgl/style/group_by_layout.cpp
+    src/mbgl/style/group_by_layout.hpp
     src/mbgl/style/layer.cpp
     src/mbgl/style/layer_impl.cpp
     src/mbgl/style/layer_impl.hpp
@@ -259,13 +274,14 @@ set(MBGL_CORE_FILES
     src/mbgl/style/layout_property.hpp
     src/mbgl/style/observer.hpp
     src/mbgl/style/paint_property.hpp
+    src/mbgl/style/paint_property_binder.hpp
     src/mbgl/style/parser.cpp
     src/mbgl/style/parser.hpp
-    src/mbgl/style/property_evaluator.cpp
+    src/mbgl/style/possibly_evaluated_property_value.hpp
+    src/mbgl/style/property_evaluation_parameters.hpp
     src/mbgl/style/property_evaluator.hpp
     src/mbgl/style/property_parsing.cpp
     src/mbgl/style/property_parsing.hpp
-    src/mbgl/style/query_parameters.hpp
     src/mbgl/style/rapidjson_conversion.hpp
     src/mbgl/style/source.cpp
     src/mbgl/style/source_impl.cpp
@@ -281,6 +297,7 @@ set(MBGL_CORE_FILES
 
     # style/conversion
     include/mbgl/style/conversion/constant.hpp
+    include/mbgl/style/conversion/data_driven_property_value.hpp
     include/mbgl/style/conversion/filter.hpp
     include/mbgl/style/conversion/function.hpp
     include/mbgl/style/conversion/geojson.hpp
@@ -291,11 +308,28 @@ set(MBGL_CORE_FILES
     include/mbgl/style/conversion/property_value.hpp
     include/mbgl/style/conversion/source.hpp
     include/mbgl/style/conversion/tileset.hpp
+    include/mbgl/style/conversion/transition_options.hpp
+    src/mbgl/style/conversion/stringify.hpp
+
+    # style/function
+    include/mbgl/style/function/camera_function.hpp
+    include/mbgl/style/function/categorical_stops.hpp
+    include/mbgl/style/function/composite_categorical_stops.hpp
+    include/mbgl/style/function/composite_exponential_stops.hpp
+    include/mbgl/style/function/composite_function.hpp
+    include/mbgl/style/function/composite_interval_stops.hpp
+    include/mbgl/style/function/exponential_stops.hpp
+    include/mbgl/style/function/identity_stops.hpp
+    include/mbgl/style/function/interval_stops.hpp
+    include/mbgl/style/function/source_function.hpp
+    src/mbgl/style/function/categorical_stops.cpp
+    src/mbgl/style/function/identity_stops.cpp
 
     # style/layers
     include/mbgl/style/layers/background_layer.hpp
     include/mbgl/style/layers/circle_layer.hpp
     include/mbgl/style/layers/custom_layer.hpp
+    include/mbgl/style/layers/fill_extrusion_layer.hpp
     include/mbgl/style/layers/fill_layer.hpp
     include/mbgl/style/layers/line_layer.hpp
     include/mbgl/style/layers/raster_layer.hpp
@@ -313,6 +347,11 @@ set(MBGL_CORE_FILES
     src/mbgl/style/layers/custom_layer.cpp
     src/mbgl/style/layers/custom_layer_impl.cpp
     src/mbgl/style/layers/custom_layer_impl.hpp
+    src/mbgl/style/layers/fill_extrusion_layer.cpp
+    src/mbgl/style/layers/fill_extrusion_layer_impl.cpp
+    src/mbgl/style/layers/fill_extrusion_layer_impl.hpp
+    src/mbgl/style/layers/fill_extrusion_layer_properties.cpp
+    src/mbgl/style/layers/fill_extrusion_layer_properties.hpp
     src/mbgl/style/layers/fill_layer.cpp
     src/mbgl/style/layers/fill_layer_impl.cpp
     src/mbgl/style/layers/fill_layer_impl.hpp
@@ -349,6 +388,7 @@ set(MBGL_CORE_FILES
     src/mbgl/style/sources/vector_source_impl.hpp
 
     # text
+    src/mbgl/text/bidi.hpp
     src/mbgl/text/check_max_angle.cpp
     src/mbgl/text/check_max_angle.hpp
     src/mbgl/text/collision_feature.cpp
@@ -406,8 +446,8 @@ set(MBGL_CORE_FILES
     include/mbgl/util/compression.hpp
     include/mbgl/util/constants.hpp
     include/mbgl/util/convert.hpp
-    include/mbgl/util/default_styles.hpp
     include/mbgl/util/enum.hpp
+    include/mbgl/util/event.hpp
     include/mbgl/util/exception.hpp
     include/mbgl/util/feature.hpp
     include/mbgl/util/font_stack.hpp
@@ -415,11 +455,14 @@ set(MBGL_CORE_FILES
     include/mbgl/util/geojson.hpp
     include/mbgl/util/geometry.hpp
     include/mbgl/util/image.hpp
+    include/mbgl/util/logging.hpp
     include/mbgl/util/noncopyable.hpp
     include/mbgl/util/optional.hpp
+    include/mbgl/util/platform.hpp
     include/mbgl/util/projection.hpp
     include/mbgl/util/range.hpp
     include/mbgl/util/run_loop.hpp
+    include/mbgl/util/size.hpp
     include/mbgl/util/string.hpp
     include/mbgl/util/tileset.hpp
     include/mbgl/util/timer.hpp
@@ -438,9 +481,9 @@ set(MBGL_CORE_FILES
     src/mbgl/util/compression.cpp
     src/mbgl/util/constants.cpp
     src/mbgl/util/convert.cpp
-    src/mbgl/util/default_styles.cpp
     src/mbgl/util/dtoa.cpp
     src/mbgl/util/dtoa.hpp
+    src/mbgl/util/event.cpp
     src/mbgl/util/exclusive.hpp
     src/mbgl/util/font_stack.cpp
     src/mbgl/util/geo.cpp
@@ -451,11 +494,17 @@ set(MBGL_CORE_FILES
     src/mbgl/util/http_header.hpp
     src/mbgl/util/http_timeout.cpp
     src/mbgl/util/http_timeout.hpp
+    src/mbgl/util/i18n.cpp
+    src/mbgl/util/i18n.hpp
+    src/mbgl/util/ignore.hpp
+    src/mbgl/util/indexed_tuple.hpp
+    src/mbgl/util/interpolate.cpp
     src/mbgl/util/interpolate.hpp
     src/mbgl/util/intersection_tests.cpp
     src/mbgl/util/intersection_tests.hpp
     src/mbgl/util/io.cpp
     src/mbgl/util/io.hpp
+    src/mbgl/util/logging.cpp
     src/mbgl/util/mapbox.cpp
     src/mbgl/util/mapbox.hpp
     src/mbgl/util/mat2.cpp
@@ -464,7 +513,6 @@ set(MBGL_CORE_FILES
     src/mbgl/util/mat3.hpp
     src/mbgl/util/mat4.cpp
     src/mbgl/util/mat4.hpp
-    src/mbgl/util/math.cpp
     src/mbgl/util/math.hpp
     src/mbgl/util/offscreen_texture.cpp
     src/mbgl/util/offscreen_texture.hpp
@@ -483,10 +531,12 @@ set(MBGL_CORE_FILES
     src/mbgl/util/tile_cover.cpp
     src/mbgl/util/tile_cover.hpp
     src/mbgl/util/token.hpp
+    src/mbgl/util/type_list.hpp
     src/mbgl/util/url.cpp
     src/mbgl/util/url.hpp
     src/mbgl/util/utf.hpp
-    src/mbgl/util/version_info.cpp
+    src/mbgl/util/version.cpp
+    src/mbgl/util/version.hpp
     src/mbgl/util/work_queue.cpp
     src/mbgl/util/work_queue.hpp
     src/mbgl/util/work_request.cpp

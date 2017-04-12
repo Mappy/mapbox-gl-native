@@ -4,11 +4,13 @@
 #include "node_conversion.hpp"
 #include "node_geojson.hpp"
 
-#include <mbgl/platform/default/headless_display.hpp>
+#include <mbgl/gl/headless_display.hpp>
 #include <mbgl/util/exception.hpp>
 #include <mbgl/style/conversion/source.hpp>
 #include <mbgl/style/conversion/layer.hpp>
 #include <mbgl/style/conversion/filter.hpp>
+#include <mbgl/sprite/sprite_image.cpp>
+#include <mbgl/map/query.hpp>
 
 #include <unistd.h>
 
@@ -58,11 +60,15 @@ void NodeMap::Init(v8::Local<v8::Object> target) {
     Nan::SetPrototypeMethod(tpl, "addSource", AddSource);
     Nan::SetPrototypeMethod(tpl, "addLayer", AddLayer);
     Nan::SetPrototypeMethod(tpl, "removeLayer", RemoveLayer);
+    Nan::SetPrototypeMethod(tpl, "addImage", AddImage);
+    Nan::SetPrototypeMethod(tpl, "removeImage", RemoveLayer);
     Nan::SetPrototypeMethod(tpl, "setLayoutProperty", SetLayoutProperty);
     Nan::SetPrototypeMethod(tpl, "setPaintProperty", SetPaintProperty);
     Nan::SetPrototypeMethod(tpl, "setFilter", SetFilter);
     Nan::SetPrototypeMethod(tpl, "setCenter", SetCenter);
+    Nan::SetPrototypeMethod(tpl, "setZoom", SetZoom);
     Nan::SetPrototypeMethod(tpl, "setBearing", SetBearing);
+    Nan::SetPrototypeMethod(tpl, "setPitch", SetPitch);
 
     Nan::SetPrototypeMethod(tpl, "dumpDebugLogs", DumpDebugLogs);
     Nan::SetPrototypeMethod(tpl, "queryRenderedFeatures", QueryRenderedFeatures);
@@ -356,20 +362,39 @@ void NodeMap::Render(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 void NodeMap::startRender(NodeMap::RenderOptions options) {
-    map->setSize(std::array<uint16_t, 2>{{ static_cast<uint16_t>(options.width),
-                                           static_cast<uint16_t>(options.height) }});
+    map->setSize({ options.width, options.height });
 
-    const std::array<uint16_t, 2> fbSize{{ static_cast<uint16_t>(options.width * pixelRatio),
-                                           static_cast<uint16_t>(options.height * pixelRatio) }};
+    const mbgl::Size fbSize{ static_cast<uint32_t>(options.width * pixelRatio),
+                             static_cast<uint32_t>(options.height * pixelRatio) };
     if (!view || view->getSize() != fbSize) {
         view.reset();
         view = std::make_unique<mbgl::OffscreenView>(backend.getContext(), fbSize);
     }
-    map->setClasses(options.classes);
-    map->setLatLngZoom(mbgl::LatLng(options.latitude, options.longitude), options.zoom);
-    map->setBearing(options.bearing);
-    map->setPitch(options.pitch);
-    map->setDebug(options.debugOptions);
+
+    if (map->getClasses() != options.classes) {
+        map->setClasses(options.classes);
+    }
+
+    if (map->getZoom() != options.zoom) {
+        map->setZoom(options.zoom);
+    }
+
+    mbgl::LatLng latLng(options.latitude, options.longitude);
+    if (map->getLatLng() != latLng) {
+        map->setLatLng(latLng);
+    }
+
+    if (map->getBearing() != options.bearing) {
+        map->setBearing(options.bearing);
+    }
+
+    if (map->getPitch() != options.pitch) {
+        map->setPitch(options.pitch);
+    }
+
+    if (map->getDebug() != options.debugOptions) {
+        map->setDebug(options.debugOptions);
+    }
 
     map->renderStill(*view, [this](const std::exception_ptr eptr) {
         if (eptr) {
@@ -430,7 +455,7 @@ void NodeMap::renderFinished() {
         cb->Call(1, argv);
     } else if (img.data) {
         v8::Local<v8::Object> pixels = Nan::NewBuffer(
-            reinterpret_cast<char *>(img.data.get()), img.size(),
+            reinterpret_cast<char *>(img.data.get()), img.bytes(),
             // Retain the data until the buffer is deleted.
             [](char *, void * hint) {
                 delete [] reinterpret_cast<uint8_t*>(hint);
@@ -557,6 +582,82 @@ void NodeMap::RemoveLayer(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     nodeMap->map->removeLayer(*Nan::Utf8String(info[0]));
+}
+
+void NodeMap::AddImage(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    using namespace mbgl::style;
+    using namespace mbgl::style::conversion;
+
+    auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
+    if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
+
+    if (info.Length() != 3) {
+        return Nan::ThrowTypeError("Three arguments required");
+    }
+
+    if (!info[0]->IsString()) {
+        return Nan::ThrowTypeError("First argument must be a string");
+    }
+
+    if (!info[1]->IsObject()) {
+        return Nan::ThrowTypeError("Second argument must be an object");
+    }
+
+    if (!info[2]->IsObject()) {
+        return Nan::ThrowTypeError("Third argument must be an object");
+    }
+
+    auto optionObject = Nan::To<v8::Object>(info[2]).ToLocalChecked();
+
+    if (!Nan::Get(optionObject, Nan::New("height").ToLocalChecked()).ToLocalChecked()->IsUint32()) {
+        return Nan::ThrowTypeError("height parameter required");
+    }
+
+    if (!Nan::Get(optionObject, Nan::New("width").ToLocalChecked()).ToLocalChecked()->IsUint32()) {
+        return Nan::ThrowTypeError("width parameter required");
+    }
+
+    if (!Nan::Get(optionObject, Nan::New("pixelRatio").ToLocalChecked()).ToLocalChecked()->IsUint32()) {
+        return Nan::ThrowTypeError("pixelRatio parameter required");
+    }
+
+    uint32_t imageHeight = Nan::Get(optionObject, Nan::New("height").ToLocalChecked()).ToLocalChecked()->Uint32Value();
+    uint32_t imageWidth = Nan::Get(optionObject, Nan::New("width").ToLocalChecked()).ToLocalChecked()->Uint32Value();
+
+    if (imageWidth > 1024 || imageHeight > 1024) {
+        return Nan::ThrowTypeError("Max height and width is 1024");
+    }
+
+    uint32_t pixelRatio = Nan::Get(optionObject, Nan::New("pixelRatio").ToLocalChecked()).ToLocalChecked()->Uint32Value();
+    auto imageBuffer = Nan::To<v8::Object>(info[1]).ToLocalChecked()->ToObject();
+
+    if (node::Buffer::Length(imageBuffer) != imageHeight * imageWidth * 4) {
+        return Nan::ThrowTypeError("Image size does not match buffer size");
+    }
+
+    std::unique_ptr<uint8_t[]> data = std::make_unique<uint8_t[]>(node::Buffer::Length(imageBuffer));
+    std::copy(node::Buffer::Data(imageBuffer), node::Buffer::Data(imageBuffer) + node::Buffer::Length(imageBuffer), data.get());
+    mbgl::PremultipliedImage cPremultipliedImage({ imageWidth, imageHeight}, std::move(data));
+
+    nodeMap->map->addImage(*Nan::Utf8String(info[0]), std::make_unique<mbgl::SpriteImage>(std::move(cPremultipliedImage), pixelRatio));
+}
+
+void NodeMap::RemoveImage(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    using namespace mbgl::style;
+    using namespace mbgl::style::conversion;
+
+    auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
+    if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
+
+    if (info.Length() != 1) {
+        return Nan::ThrowTypeError("One argument required");
+    }
+
+    if (!info[0]->IsString()) {
+        return Nan::ThrowTypeError("First argument must be a string");
+    }
+
+    nodeMap->map->removeImage(*Nan::Utf8String(info[0]));
 }
 
 void NodeMap::SetLayoutProperty(const Nan::FunctionCallbackInfo<v8::Value>& info) {
@@ -706,6 +807,23 @@ void NodeMap::SetCenter(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     info.GetReturnValue().SetUndefined();
 }
 
+void NodeMap::SetZoom(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
+    if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
+
+    if (info.Length() <= 0 || !info[0]->IsNumber()) {
+        return Nan::ThrowTypeError("First argument must be a number");
+    }
+
+    try {
+        nodeMap->map->setZoom(info[0]->NumberValue());
+    } catch (const std::exception &ex) {
+        return Nan::ThrowError(ex.what());
+    }
+
+    info.GetReturnValue().SetUndefined();
+}
+
 void NodeMap::SetBearing(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
     if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
@@ -723,6 +841,23 @@ void NodeMap::SetBearing(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     info.GetReturnValue().SetUndefined();
 }
 
+void NodeMap::SetPitch(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
+    if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
+
+    if (info.Length() <= 0 || !info[0]->IsNumber()) {
+        return Nan::ThrowTypeError("First argument must be a number");
+    }
+
+    try {
+        nodeMap->map->setPitch(info[0]->NumberValue());
+    } catch (const std::exception &ex) {
+        return Nan::ThrowError(ex.what());
+    }
+
+    info.GetReturnValue().SetUndefined();
+}
+
 void NodeMap::DumpDebugLogs(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
     if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
@@ -732,6 +867,9 @@ void NodeMap::DumpDebugLogs(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 void NodeMap::QueryRenderedFeatures(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+    using namespace mbgl::style;
+    using namespace mbgl::style::conversion;
+
     auto nodeMap = Nan::ObjectWrap::Unwrap<NodeMap>(info.Holder());
     if (!nodeMap->map) return Nan::ThrowError(releasedMessage());
 
@@ -742,6 +880,39 @@ void NodeMap::QueryRenderedFeatures(const Nan::FunctionCallbackInfo<v8::Value>& 
     auto posOrBox = info[0].As<v8::Array>();
     if (posOrBox->Length() != 2) {
         return Nan::ThrowTypeError("First argument must have two components");
+    }
+
+    mbgl::RenderedQueryOptions queryOptions;
+    if (!info[1]->IsNull() && !info[1]->IsUndefined()) {
+        if (!info[1]->IsObject()) {
+            return Nan::ThrowTypeError("options argument must be an object");
+        }
+        
+        auto options = Nan::To<v8::Object>(info[1]).ToLocalChecked();
+        
+        //Check if layers is set. If provided, it must be an array of strings
+        if (Nan::Has(options, Nan::New("layers").ToLocalChecked()).FromJust()) {
+            auto layersOption = Nan::Get(options, Nan::New("layers").ToLocalChecked()).ToLocalChecked();
+            if (!layersOption->IsArray()) {
+                return Nan::ThrowTypeError("Requires options.layers property to be an array");
+            }
+            auto layers = layersOption.As<v8::Array>();
+            std::vector<std::string> layersVec;
+            for (uint32_t i=0; i < layers->Length(); i++) {
+                layersVec.push_back(*Nan::Utf8String(Nan::Get(layers,i).ToLocalChecked()));
+            }
+            queryOptions.layerIDs = layersVec;
+        }
+        
+        //Check if filter is provided. If set it must be a valid Filter object
+        if (Nan::Has(options, Nan::New("filter").ToLocalChecked()).FromJust()) {
+            auto filterOption = Nan::Get(options, Nan::New("filter").ToLocalChecked()).ToLocalChecked();
+            Result<Filter> converted = convert<Filter>(filterOption);
+            if (!converted) {
+                return Nan::ThrowTypeError(converted.error().message.c_str());
+            }
+            queryOptions.filter = std::move(*converted);
+        }
     }
 
     try {
@@ -760,13 +931,13 @@ void NodeMap::QueryRenderedFeatures(const Nan::FunctionCallbackInfo<v8::Value>& 
                     Nan::Get(pos1, 0).ToLocalChecked()->NumberValue(),
                     Nan::Get(pos1, 1).ToLocalChecked()->NumberValue()
                 }
-            });
+            },  queryOptions);
 
         } else {
             result = nodeMap->map->queryRenderedFeatures(mbgl::ScreenCoordinate {
                 Nan::Get(posOrBox, 0).ToLocalChecked()->NumberValue(),
                 Nan::Get(posOrBox, 1).ToLocalChecked()->NumberValue()
-            });
+            }, queryOptions);
         }
 
         auto array = Nan::New<v8::Array>();
@@ -790,7 +961,7 @@ NodeMap::NodeMap(v8::Local<v8::Object> options)
       }()),
       backend(sharedDisplay()),
       map(std::make_unique<mbgl::Map>(backend,
-                                      std::array<uint16_t, 2>{{ 256, 256 }},
+                                      mbgl::Size{ 256, 256 },
                                       pixelRatio,
                                       *this,
                                       threadpool,

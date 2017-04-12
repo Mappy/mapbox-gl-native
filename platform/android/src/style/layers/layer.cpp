@@ -3,14 +3,14 @@
 
 #include <jni/jni.hpp>
 
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
-//Java -> C++ conversion
+// Java -> C++ conversion
 #include <mbgl/style/conversion.hpp>
 #include <mbgl/style/conversion/layer.hpp>
 #include <mbgl/style/conversion/source.hpp>
 
-//C++ -> Java conversion
+// C++ -> Java conversion
 #include "../conversion/property_value.hpp"
 
 #include <string>
@@ -26,14 +26,40 @@ namespace android {
         , layer(*ownedLayer) {
     }
 
+    /**
+     * Takes a non-owning reference. For lookup methods
+     */
     Layer::Layer(mbgl::Map& coreMap, mbgl::style::Layer& coreLayer) : layer(coreLayer) , map(&coreMap) {
+    }
+
+    /**
+     * Takes a owning reference. Ownership is transfered to this peer, eg after removing
+     * from the map
+     */
+    Layer::Layer(mbgl::Map& coreMap, std::unique_ptr<mbgl::style::Layer> coreLayer)
+        : ownedLayer(std::move(coreLayer))
+        , layer(*ownedLayer)
+        , map(&coreMap) {
     }
 
     Layer::~Layer() {
     }
 
-    jni::String Layer::getId(jni::JNIEnv& env) {
-        return jni::Make<jni::String>(env, layer.getID());
+    void Layer::addToMap(mbgl::Map& _map, mbgl::optional<std::string> before) {
+        // Check to see if we own the layer first
+        if (!ownedLayer) {
+            throw std::runtime_error("Cannot add layer twice");
+        }
+
+        // Add layer to map
+        _map.addLayer(releaseCoreLayer(), before);
+
+        // Save pointer to the map
+        this->map = &_map;
+    }
+
+    void Layer::setLayer(std::unique_ptr<mbgl::style::Layer> sourceLayer) {
+        this->ownedLayer = std::move(sourceLayer);
     }
 
     std::unique_ptr<mbgl::style::Layer> Layer::releaseCoreLayer() {
@@ -41,10 +67,18 @@ namespace android {
         return std::move(ownedLayer);
     }
 
+    jni::String Layer::getId(jni::JNIEnv& env) {
+        return jni::Make<jni::String>(env, layer.getID());
+    }
+
+    style::Layer& Layer::get() {
+        return layer;
+    }
+
     void Layer::setLayoutProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
         Value value(env, jvalue);
 
-        //Convert and set property
+        // Convert and set property
         optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setLayoutProperty(layer, jni::Make<std::string>(env, jname), value);
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
@@ -55,7 +89,7 @@ namespace android {
     void Layer::setPaintProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
         Value value(env, jvalue);
 
-        //Convert and set property
+        // Convert and set property
         optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setPaintProperty(layer, jni::Make<std::string>(env, jname), value, mbgl::optional<std::string>());
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
@@ -132,12 +166,12 @@ namespace android {
     jni::Class<Layer> Layer::javaClass;
 
     void Layer::registerNative(jni::JNIEnv& env) {
-        //Lookup the class
+        // Lookup the class
         Layer::javaClass = *jni::Class<Layer>::Find(env).NewGlobalRef(env).release();
 
         #define METHOD(MethodPtr, name) jni::MakeNativePeerMethod<decltype(MethodPtr), (MethodPtr)>(name)
 
-        //Register the peer
+        // Register the peer
         jni::RegisterNativePeer<Layer>(env, Layer::javaClass, "nativePtr",
             METHOD(&Layer::getId, "nativeGetId"),
             METHOD(&Layer::setLayoutProperty, "nativeSetLayoutProperty"),
@@ -153,5 +187,5 @@ namespace android {
 
     }
 
-} //android
-} //mbgl
+} // namespace android
+} // namespace mbgl

@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
 namespace mbgl {
 namespace android {
@@ -40,12 +40,12 @@ namespace android {
     }
 
     void CustomLayer::registerNative(jni::JNIEnv& env) {
-        //Lookup the class
+        // Lookup the class
         CustomLayer::javaClass = *jni::Class<CustomLayer>::Find(env).NewGlobalRef(env).release();
 
         #define METHOD(MethodPtr, name) jni::MakeNativePeerMethod<decltype(MethodPtr), (MethodPtr)>(name)
 
-        //Register the peer
+        // Register the peer
         jni::RegisterNativePeer<CustomLayer>(
             env, CustomLayer::javaClass, "nativePtr",
             std::make_unique<CustomLayer, JNIEnv&, jni::String, jni::jlong, jni::jlong, jni::jlong, jni::jlong>,

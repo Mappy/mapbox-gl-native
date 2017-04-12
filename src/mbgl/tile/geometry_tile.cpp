@@ -6,12 +6,17 @@
 #include <mbgl/style/layer_impl.hpp>
 #include <mbgl/style/layers/background_layer.hpp>
 #include <mbgl/style/layers/custom_layer.hpp>
+#include <mbgl/style/layers/symbol_layer.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/text/collision_tile.hpp>
 #include <mbgl/map/transform_state.hpp>
+#include <mbgl/map/query.hpp>
 #include <mbgl/util/run_loop.hpp>
+#include <mbgl/style/filter_evaluator.hpp>
+#include <mbgl/style/query.hpp>
+#include <mbgl/util/logging.hpp>
 
 namespace mbgl {
 
@@ -61,6 +66,12 @@ void GeometryTile::setPlacementConfig(const PlacementConfig& desiredConfig) {
         return;
     }
 
+    // Mark the tile as pending again if it was complete before to prevent signaling a complete
+    // state despite pending parse operations.
+    if (availableData == DataAvailability::All) {
+        availableData = DataAvailability::Some;
+    }
+
     ++correlationID;
     requestedConfig = desiredConfig;
     worker.invoke(&GeometryTileWorker::setPlacementConfig, desiredConfig, correlationID);
@@ -99,9 +110,10 @@ void GeometryTile::redoLayout() {
 
 void GeometryTile::onLayout(LayoutResult result) {
     availableData = DataAvailability::Some;
-    buckets = std::move(result.buckets);
+    nonSymbolBuckets = std::move(result.nonSymbolBuckets);
     featureIndex = std::move(result.featureIndex);
     data = std::move(result.tileData);
+    collisionTile.reset();
     observer->onTileChanged(*this);
 }
 
@@ -109,10 +121,8 @@ void GeometryTile::onPlacement(PlacementResult result) {
     if (result.correlationID == correlationID) {
         availableData = DataAvailability::All;
     }
-    for (auto& bucket : result.buckets) {
-        buckets[bucket.first] = std::move(bucket.second);
-    }
-    featureIndex->setCollisionTile(std::move(result.collisionTile));
+    symbolBuckets = std::move(result.symbolBuckets);
+    collisionTile = std::move(result.collisionTile);
     observer->onTileChanged(*this);
 }
 
@@ -122,7 +132,8 @@ void GeometryTile::onError(std::exception_ptr err) {
 }
 
 Bucket* GeometryTile::getBucket(const Layer& layer) {
-    const auto it = buckets.find(layer.baseImpl->bucketName());
+    const auto& buckets = layer.is<SymbolLayer>() ? symbolBuckets : nonSymbolBuckets;
+    const auto it = buckets.find(layer.baseImpl->id);
     if (it == buckets.end()) {
         return nullptr;
     }
@@ -135,7 +146,7 @@ void GeometryTile::queryRenderedFeatures(
     std::unordered_map<std::string, std::vector<Feature>>& result,
     const GeometryCoordinates& queryGeometry,
     const TransformState& transformState,
-    const optional<std::vector<std::string>>& layerIDs) {
+    const RenderedQueryOptions& options) {
 
     if (!featureIndex || !data) return;
 
@@ -144,10 +155,47 @@ void GeometryTile::queryRenderedFeatures(
                         transformState.getAngle(),
                         util::tileSize * id.overscaleFactor(),
                         std::pow(2, transformState.getZoom() - id.overscaledZ),
-                        layerIDs,
+                        options,
                         *data,
                         id.canonical,
-                        style);
+                        style,
+                        collisionTile.get());
+}
+
+void GeometryTile::querySourceFeatures(
+    std::vector<Feature>& result,
+    const style::SourceQueryOptions& options) {
+
+    // Data not yet available
+    if (!data) {
+        return;
+    }
+    
+    // No source layers, specified, nothing to do
+    if (!options.sourceLayers) {
+        Log::Warning(Event::General, "At least one sourceLayer required");
+        return;
+    }
+
+    for (auto sourceLayer : *options.sourceLayers) {
+        // Go throught all sourceLayers, if any
+        // to gather all the features
+        auto layer = data->getLayer(sourceLayer);
+        
+        if (layer) {
+            auto featureCount = layer->featureCount();
+            for (std::size_t i = 0; i < featureCount; i++) {
+                auto feature = layer->getFeature(i);
+
+                // Apply filter, if any
+                if (options.filter && !(*options.filter)(*feature)) {
+                    continue;
+                }
+
+                result.push_back(convertFeature(*feature, id.canonical));
+            }
+        }
+    }
 }
 
 } // namespace mbgl

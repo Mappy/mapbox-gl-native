@@ -4,10 +4,19 @@ const fs = require('fs');
 const ejs = require('ejs');
 const _ = require('lodash');
 const colorParser = require('csscolorparser');
+
+require('../../../scripts/style-code');
+
 const cocoaConventions = require('./style-spec-cocoa-conventions-v8.json');
-let spec = _.merge(require('mapbox-gl-style-spec').latest, require('./style-spec-overrides-v8.json'));
 const prefix = 'MGL';
 const suffix = 'StyleLayer';
+
+let spec = _.merge(require('../../../mapbox-gl-js/src/style-spec/reference/v8'), require('./style-spec-overrides-v8.json'));
+
+///
+// Temporarily IGNORE layers that are in the spec yet still not supported in mbgl core
+///
+delete spec.layer.type.values['fill-extrusion'];
 
 // Rename properties and keep `original` for use with setters and getters
 _.forOwn(cocoaConventions, function (properties, kind) {
@@ -22,7 +31,7 @@ _.forOwn(cocoaConventions, function (properties, kind) {
         }
         delete spec[kind][oldName];
         spec[kind][newName] = property;
-        
+
         // Update requirements in other properties.
         let updateRequirements = function (property, name) {
             let requires = property.requires || [];
@@ -148,7 +157,7 @@ global.mbglTestValue = function (property, layerType) {
             return `mbgl::style::${type}Type::${value}`;
         }
         case 'color':
-            return '{ .r = 1, .g = 0, .b = 0, .a = 1 }';
+            return '{ 1, 0, 0, 1 }';
         case 'array':
             switch (arrayType(property)) {
                 case 'dasharray':
@@ -175,7 +184,7 @@ global.testGetterImplementation = function (property, layerType, isFunction) {
         if (isFunction) {
             return `XCTAssertEqualObjects(gLayer.${objCName(property)}, ${value});`;
         }
-        return `XCTAssert([gLayer.${objCName(property)} isKindOfClass:[MGLStyleConstantValue class]]);
+        return `XCTAssert([gLayer.${objCName(property)} isKindOfClass:[MGLConstantStyleValue class]]);
     XCTAssertEqualObjects(gLayer.${objCName(property)}, ${value});`;
     }
     return `XCTAssertEqualObjects(gLayer.${objCName(property)}, ${value});`;
@@ -216,7 +225,7 @@ global.testHelperMessage = function (property, layerType, isFunction) {
 };
 
 global.propertyDoc = function (propertyName, property, layerType, kind) {
-    // Match references to other property names & values. 
+    // Match references to other property names & values.
     // Requires the format 'When `foo` is set to `bar`,'.
     let doc = property.doc.replace(/`([^`]+?)` is set to `([^`]+?)`/g, function (m, peerPropertyName, propertyValue, offset, str) {
         let otherProperty = camelizeWithLeadingLowercase(peerPropertyName);
@@ -270,6 +279,30 @@ global.propertyDoc = function (propertyName, property, layerType, kind) {
                     break;
             }
             doc += `\n\nThis attribute corresponds to the <a href="https://www.mapbox.com/mapbox-gl-style-spec/#${anchor}"><code>${property.original}</code></a> layout property in the Mapbox Style Specification.`;
+        }
+        doc += '\n\nYou can set this property to an instance of:\n\n' +
+            '* `MGLConstantStyleValue`\n';
+        if (property["property-function"]) {
+            doc += '* `MGLCameraStyleFunction` with an interpolation mode of:\n' +
+                '  * `MGLInterpolationModeExponential`\n' +
+                '  * `MGLInterpolationModeInterval`\n' +
+                '* `MGLSourceStyleFunction` with an interpolation mode of:\n' +
+                '  * `MGLInterpolationModeExponential`\n' +
+                '  * `MGLInterpolationModeInterval`\n' +
+                '  * `MGLInterpolationModeCategorical`\n' +
+                '  * `MGLInterpolationModeIdentity`\n' +
+                '* `MGLCompositeStyleFunction` with an interpolation mode of:\n' +
+                '  * `MGLInterpolationModeExponential`\n' +
+                '  * `MGLInterpolationModeInterval`\n' +
+                '  * `MGLInterpolationModeCategorical`\n';
+        } else {
+            if (property.function === "interpolated") {
+                doc += '* `MGLCameraStyleFunction` with an interpolation mode of:\n' +
+                    '  * `MGLInterpolationModeExponential`\n' +
+                    '  * `MGLInterpolationModeInterval`\n';
+            } else {
+                doc += '* `MGLCameraStyleFunction` with an interpolation mode of `MGLInterpolationModeInterval`\n';
+            }
         }
     }
     return doc;
@@ -401,6 +434,13 @@ global.propertyType = function (property) {
     }
 };
 
+global.isInterpolatable = function (property) {
+    const type = property.type === 'array' ? property.value : property.type;
+    return type !== 'boolean' &&
+        type !== 'enum' &&
+        type !== 'string';
+};
+
 global.valueTransformerArguments = function (property) {
     let objCType = propertyType(property);
     switch (property.type) {
@@ -411,7 +451,7 @@ global.valueTransformerArguments = function (property) {
         case 'string':
             return ['std::string', objCType];
         case 'enum':
-            return [`mbgl::style::${mbglType(property)}`, objCType];
+            return [mbglType(property), 'NSValue *', mbglType(property), `MGL${camelize(property.name)}`];
         case 'color':
             return ['mbgl::Color', objCType];
         case 'array':
@@ -488,6 +528,7 @@ const layerH = ejs.compile(fs.readFileSync('platform/darwin/src/MGLStyleLayer.h.
 const layerM = ejs.compile(fs.readFileSync('platform/darwin/src/MGLStyleLayer.mm.ejs', 'utf8'), { strict: true});
 const testLayers = ejs.compile(fs.readFileSync('platform/darwin/test/MGLStyleLayerTests.mm.ejs', 'utf8'), { strict: true});
 const guideMD = ejs.compile(fs.readFileSync('platform/darwin/docs/guides/For Style Authors.md.ejs', 'utf8'), { strict: true });
+const ddsGuideMD = ejs.compile(fs.readFileSync('platform/darwin/docs/guides/Using Style Functions at Runtime.md.ejs', 'utf8'), { strict: true });
 
 const layers = _(spec.layer.type.values).map((value, layerType) => {
     const layoutProperties = Object.keys(spec[`layout_${layerType}`]).reduce((memo, name) => {
@@ -552,7 +593,7 @@ for (var layer of layers) {
     if (enumProperties.length) {
         layer.enumProperties = enumProperties;
     }
-    
+
     let renamedProperties = {};
     _.assign(renamedProperties, _.filter(layer.properties, prop => 'original' in prop || 'getter' in prop));
     if (!_.isEmpty(renamedProperties)) {
@@ -573,4 +614,10 @@ fs.writeFileSync(`platform/macos/docs/guides/For Style Authors.md`, guideMD({
     os: 'macOS',
     renamedProperties: renamedPropertiesByLayerType,
     layers: layers,
+}));
+fs.writeFileSync(`platform/ios/docs/guides/Using Style Functions at Runtime.md`, ddsGuideMD({
+    os: 'iOS',
+}));
+fs.writeFileSync(`platform/macos/docs/guides/Using Style Functions at Runtime.md`, ddsGuideMD({
+    os: 'macOS',
 }));

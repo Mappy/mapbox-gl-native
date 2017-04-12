@@ -1,7 +1,7 @@
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/premultiply.hpp>
 #include <mbgl/util/char_array_buffer.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
 #include <istream>
 #include <sstream>
@@ -10,6 +10,24 @@ extern "C"
 {
 #include <png.h>
 }
+
+template<size_t max, typename... Args>
+static std::string sprintf(const char *msg, Args... args) {
+    char res[max];
+    int len = snprintf(res, sizeof(res), msg, args...);
+    return std::string(res, len);
+}
+
+const static bool png_version_check __attribute__((unused)) = []() {
+    const png_uint_32 version = png_access_version_number();
+    if (version != PNG_LIBPNG_VER) {
+        throw std::runtime_error(sprintf<96>(
+            "libpng version mismatch: headers report %d.%d.%d, but library reports %d.%d.%d",
+            PNG_LIBPNG_VER / 10000, (PNG_LIBPNG_VER / 100) % 100, PNG_LIBPNG_VER % 100,
+            version / 10000, (version / 100) % 100, version % 100));
+    }
+    return true;
+}();
 
 namespace mbgl {
 
@@ -80,7 +98,7 @@ PremultipliedImage decodePNG(const uint8_t* data, size_t size) {
     int color_type = 0;
     png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, nullptr, nullptr, nullptr);
 
-    UnassociatedImage image { static_cast<uint16_t>(width), static_cast<uint16_t>(height) };
+    UnassociatedImage image({ width, height });
 
     if (color_type == PNG_COLOR_TYPE_PALETTE)
         png_set_expand(png_ptr);

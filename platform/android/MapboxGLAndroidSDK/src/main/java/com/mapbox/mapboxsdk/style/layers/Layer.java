@@ -2,106 +2,90 @@ package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.NonNull;
 
+import com.mapbox.mapboxsdk.style.functions.Function;
+
 /**
  * Base class for the different Layer types
  */
 public abstract class Layer {
 
-    private long nativePtr;
-    private boolean invalidated;
+  private long nativePtr;
+  private boolean invalidated;
 
-    public Layer(long nativePtr) {
-        this.nativePtr = nativePtr;
+  public Layer(long nativePtr) {
+    this.nativePtr = nativePtr;
+  }
+
+  public Layer() {
+  }
+
+  public void setProperties(@NonNull PropertyValue<?>... properties) {
+    if (properties.length == 0) {
+      return;
     }
 
-    public Layer() {
+    for (PropertyValue<?> property : properties) {
+      Object converted = convertValue(property.value);
+      if (property instanceof PaintPropertyValue) {
+        nativeSetPaintProperty(property.name, converted);
+      } else {
+        nativeSetLayoutProperty(property.name, converted);
+      }
     }
+  }
 
-    public void setProperties(@NonNull Property<?>... properties) {
-        checkValidity();
+  public String getId() {
+    return nativeGetId();
+  }
 
-        if (properties.length == 0) {
-            return;
-        }
+  public PropertyValue<String> getVisibility() {
+    return new PaintPropertyValue<>("visibility", (String) nativeGetVisibility());
+  }
 
-        for (Property<?> property : properties) {
-            Object converted = convertValue(property.value);
-            if (property instanceof PaintProperty) {
-                nativeSetPaintProperty(property.name, converted);
-            } else {
-                nativeSetLayoutProperty(property.name, converted);
-            }
-        }
-    }
+  public float getMinZoom() {
+    return nativeGetMinZoom();
+  }
 
-    public String getId() {
-        checkValidity();
-        return nativeGetId();
-    }
+  public float getMaxZoom() {
+    return nativeGetMaxZoom();
+  }
 
-    public PropertyValue<String> getVisibility() {
-        checkValidity();
-        return new PropertyValue<>(nativeGetVisibility());
-    }
+  public void setMinZoom(float zoom) {
+    nativeSetMinZoom(zoom);
+  }
 
-    public float getMinZoom() {
-        checkValidity();
-        return nativeGetMinZoom();
-    }
+  public void setMaxZoom(float zoom) {
+    nativeSetMaxZoom(zoom);
+  }
 
-    public float getMaxZoom() {
-        checkValidity();
-        return nativeGetMaxZoom();
-    }
+  @Override
+  protected native void finalize() throws Throwable;
 
-    public void setMinZoom(float zoom) {
-        checkValidity();
-        nativeSetMinZoom(zoom);
-    }
+  protected native String nativeGetId();
 
-    public void setMaxZoom(float zoom) {
-        checkValidity();
-        nativeSetMaxZoom(zoom);
-    }
+  protected native Object nativeGetVisibility();
 
-    @Override
-    protected native void finalize() throws Throwable;
+  protected native void nativeSetLayoutProperty(String name, Object value);
 
-    protected native String nativeGetId();
+  protected native void nativeSetPaintProperty(String name, Object value);
 
-    protected native Object nativeGetVisibility();
+  protected native void nativeSetFilter(Object[] filter);
 
-    protected native void nativeSetLayoutProperty(String name, Object value);
+  protected native void nativeSetSourceLayer(String sourceLayer);
 
-    protected native void nativeSetPaintProperty(String name, Object value);
+  protected native float nativeGetMinZoom();
 
-    protected native void nativeSetFilter(Object[] filter);
+  protected native float nativeGetMaxZoom();
 
-    protected native void nativeSetSourceLayer(String sourceLayer);
+  protected native void nativeSetMinZoom(float zoom);
 
-    protected native float nativeGetMinZoom();
+  protected native void nativeSetMaxZoom(float zoom);
 
-    protected native float nativeGetMaxZoom();
+  public long getNativePtr() {
+    return nativePtr;
+  }
 
-    protected native void nativeSetMinZoom(float zoom);
-
-    protected native void nativeSetMaxZoom(float zoom);
-
-    public long getNativePtr() {
-        return nativePtr;
-    }
-
-    private Object convertValue(Object value) {
-        return value != null && value instanceof Function ? ((Function) value).toValueObject() : value;
-    }
-
-    protected void checkValidity() {
-        if (invalidated) {
-            throw new RuntimeException("Layer has been invalidated. Request a new reference after adding");
-        }
-    }
-
-    public final void invalidate() {
-        this.invalidated = true;
-    }
+  private Object convertValue(Object value) {
+    return value != null && value instanceof Function ? ((Function) value).toValueObject() : value;
+  }
 }

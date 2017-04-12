@@ -54,6 +54,7 @@ To add any Objective-C type, constant, or member to the iOS SDK’s public inter
 
 To add an Objective-C class, protocol, category, typedef, enumeration, or global constant to the macOS SDK’s public interface:
 
+1. _(Optional.)_ Add the macro `MGL_EXPORT` prior to the declaration for classes and global constants. To use this macro, include `MGLFoundation.h`. You can check whether all public symbols are exported correctly by running `make check-public-symbols`.
 1. _(Optional.)_ Add the type or constant’s name to the relevant category in the `custom_categories` section of [the jazzy configuration file](./jazzy.yml). This is required for classes and protocols and also recommended for any other type that is strongly associated with a particular class or protocol. If you leave out this step, the symbol will appear in an “Other” section in the generated HTML documentation’s table of contents.
 1. _(Optional.)_ If the symbol would also be publicly exposed in the iOS SDK, consult [the companion iOS document](../ios/DEVELOPING.md#making-a-type-or-constant-public) for further instructions.
 
@@ -88,12 +89,25 @@ To add or update text that the user may see in the macOS SDK:
 
 ### Adding a localization
 
-To add a localization to the macOS SDK:
+Translations of all the Mapbox GL Native SDKs are managed [in Transifex](https://www.transifex.com/mapbox/mapbox-gl-native/). If your language already has a translation, feel free to complete or proofread it. Otherwise, please [request your language](https://www.transifex.com/mapbox/mapbox-gl-native/languages/). Note that we’re primarily interested in languages that macOS supports as system languages.
+
+Once you’ve finished translating the SDK into a new language in Transifex, perform these steps to make Xcode aware of the translation:
 
 1. In macos.xcworkspace, open the project editor for macos.xcodeproj. Using the project editor’s sidebar or tab bar dropdown, go to the “macos” project; under the Localizations section of the Info tab, click the + button to add your language to the project.
-1. In the sheet that appears, select all the .strings and .stringsdict files but no .xib file. (Most of the XIBs are part of the macosapp example application, which is not localized, while MGLAnnotationCallout.xib contains no localizable strings.)
-1. In the Project navigator, expand each .strings and .stringsdict file in the project. An additional version for your localization should be listed; translate it. Translate everything on the right side of the equals sign. Leave the left side and any comments unmodified. See Apple’s documentation on the [.strings](https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/LoadingResources/Strings/Strings.html) and [.stringsdict](https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPInternational/StringsdictFileFormat/StringsdictFileFormat.html) formats.
-1. You’re already most of the way towards localizing the iOS SDK too – consider [completing that localization](../ios/DEVELOPING.md#adding-a-localization).
+1. In the sheet that appears, select all the .strings and .stringsdict files but no .xib file. (Most of the XIBs are part of the macosapp example application, which is not localized, while MGLAnnotationCallout.xib contains no localizable strings.) If your language lacks declension and pluralization, as in the case of Chinese, omit the .stringsdict files.
+1. In the Project navigator, expand each .stringsdict file in the project. An additional version for your localization should be listed; translate it. See Apple’s documentation on the [.stringsdict format](https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPInternational/StringsdictFileFormat/StringsdictFileFormat.html).
+1. In the Project navigator, select Demo App/Localizable.strings and then, in the File Inspector, check the box for your new localization.
+1. Repeat the steps above in ios.xcworkspace.
+
+The .strings files should still be in the original English – that’s expected. Now you can pull your translations into this repository:
+
+1. _(First time only.)_ Download the [`tx` command line tool](https://docs.transifex.com/client/installing-the-client) and [configure your .transifexrc](https://docs.transifex.com/client/client-configuration).
+1. Run `tx pull -a`.
+1. Convert any added .strings files from UTF-16 encoding to UTF-8 encoding to facilitate diffing and merging. You can convert the file encoding using Xcode’s File inspector or the following command (substituting _MYLANG_ for the locale code):
+
+```
+find platform/{darwin,ios}/resources platform/macos/sdk -path '*/MYLANG.lproj/*.strings' -exec textutil -convert txt -extension strings -inputencoding UTF-16 -encoding UTF-8 {} -output {} \;
+```
 
 ### Adding a code example
 

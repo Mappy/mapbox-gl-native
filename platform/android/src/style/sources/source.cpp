@@ -3,13 +3,13 @@
 
 #include <jni/jni.hpp>
 
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/logging.hpp>
 
-//Java -> C++ conversion
+// Java -> C++ conversion
 #include <mbgl/style/conversion.hpp>
 #include <mbgl/style/conversion/source.hpp>
 
-//C++ -> Java conversion
+// C++ -> Java conversion
 #include "../conversion/property_value.hpp"
 
 #include <string>
@@ -31,8 +31,29 @@ namespace android {
     Source::~Source() {
     }
 
+    style::Source& Source::get() {
+        return source;
+    }
+
+    void Source::setSource(std::unique_ptr<style::Source> coreSource) {
+        this->ownedSource = std::move(coreSource);
+    }
+
     jni::String Source::getId(jni::JNIEnv& env) {
         return jni::Make<jni::String>(env, source.getID());
+    }
+
+    void Source::addToMap(mbgl::Map& _map) {
+        // Check to see if we own the source first
+        if (!ownedSource) {
+            throw std::runtime_error("Cannot add source twice");
+        }
+
+        // Add source to map
+        _map.addSource(releaseCoreSource());
+
+        // Save pointer to the map
+        this->map = &_map;
     }
 
     std::unique_ptr<mbgl::style::Source> Source::releaseCoreSource() {
@@ -43,17 +64,17 @@ namespace android {
     jni::Class<Source> Source::javaClass;
 
     void Source::registerNative(jni::JNIEnv& env) {
-        //Lookup the class
+        // Lookup the class
         Source::javaClass = *jni::Class<Source>::Find(env).NewGlobalRef(env).release();
 
         #define METHOD(MethodPtr, name) jni::MakeNativePeerMethod<decltype(MethodPtr), (MethodPtr)>(name)
 
-        //Register the peer
+        // Register the peer
         jni::RegisterNativePeer<Source>(env, Source::javaClass, "nativePtr",
             METHOD(&Source::getId, "nativeGetId")
         );
 
     }
 
-} //android
-} //mbgl
+} // namespace android
+} // namespace mbgl

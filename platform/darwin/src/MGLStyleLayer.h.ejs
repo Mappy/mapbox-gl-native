@@ -5,9 +5,10 @@
   const paintProperties = locals.paintProperties;
   const enumProperties = locals.enumProperties;
 -%>
-// This file is generated. 
-// Edit platform/darwin/scripts/generate-style-code.js, then run `make style-code-darwin`.
+// This file is generated.
+// Edit platform/darwin/scripts/generate-style-code.js, then run `make darwin-style-code`.
 
+#import "MGLFoundation.h"
 #import "MGLStyleValue.h"
 #import "MGL<%-
 (type === 'background' ? '' :
@@ -21,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 <% if (property.type == "enum") { -%>
 /**
 <%- propertyDoc(property.name, property, type, 'enum').wrap(80, 1) %>
- 
+
  Values of this type are used in the `MGL<%- camelize(type) %>StyleLayer.<%- camelizeWithLeadingLowercase(property.name) %>`
  property.
  */
@@ -40,7 +41,7 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(property.name) %>) {
 <% if (property.type == "enum") { -%>
 /**
 <%- propertyDoc(property.name, property, type, 'enum').wrap(80, 1) %>
- 
+
  Values of this type are used in the `MGL<%- camelize(type) %>StyleLayer.<%- camelizeWithLeadingLowercase(property.name) %>`
  property.
  */
@@ -62,19 +63,20 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(property.name) %>) {
 <% } else { -%>
 /**
 <%- doc.wrap(80, 1) %>
- 
+
  You can access an existing <%- type %> style layer using the
  `-[MGLStyle layerWithIdentifier:]` method if you know its identifier;
  otherwise, find it using the `MGLStyle.layers` property. You can also create a
  new <%- type %> style layer and add it to the style using a method such as
  `-[MGLStyle addLayer:]`.
- 
+
  ### Example
- 
+
  ```swift
  ```
  */
 <% } -%>
+MGL_EXPORT
 @interface MGL<%- camelize(type) %>StyleLayer : MGL<%-
 (type === 'background' ? '' :
  (type === 'raster' ? 'Foreground' :
@@ -109,6 +111,15 @@ typedef NS_ENUM(NSUInteger, MGL<%- camelize(property.name) %>) {
  */
 @property (nonatomic<% if (!property.required) { %>, null_resettable<% } if (property.getter) { %>, getter=<%- objCGetter(property) -%><% } %>) MGLStyleValue<<%- propertyType(property, true) %>> *<%- camelizeWithLeadingLowercase(property.name) %>;
 
+<% if (property["transition"]) { -%>
+/**
+ The transition affecting any changes to this layer’s `<%- camelizeWithLeadingLowercase(property.name) %>` property.
+
+ This property corresponds to the `<%- originalPropertyName(property) %>-transition` property in the style JSON file format.
+*/
+@property (nonatomic) MGLTransition <%- camelizeWithLeadingLowercase(property.name) %>Transition;
+
+<% } -%>
 <% if (property.original) { -%>
 @property (nonatomic<% if (!property.required) { %>, null_resettable<% } %>) MGLStyleValue<<%- propertyType(property, true) %>> *<%- camelizeWithLeadingLowercase(originalPropertyName(property)) %> __attribute__((unavailable("Use <%- camelizeWithLeadingLowercase(property.name) %> instead.")));
 

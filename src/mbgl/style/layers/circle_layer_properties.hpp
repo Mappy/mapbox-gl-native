@@ -5,26 +5,63 @@
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/layout_property.hpp>
 #include <mbgl/style/paint_property.hpp>
+#include <mbgl/programs/attributes.hpp>
 
 namespace mbgl {
 namespace style {
 
-class CascadeParameters;
-class CalculationParameters;
-
-class CirclePaintProperties {
-public:
-    void cascade(const CascadeParameters&);
-    bool recalculate(const CalculationParameters&);
-
-    PaintProperty<float> circleRadius { 5 };
-    PaintProperty<Color> circleColor { Color::black() };
-    PaintProperty<float> circleBlur { 0 };
-    PaintProperty<float> circleOpacity { 1 };
-    PaintProperty<std::array<float, 2>> circleTranslate { {{ 0, 0 }} };
-    PaintProperty<TranslateAnchorType> circleTranslateAnchor { TranslateAnchorType::Map };
-    PaintProperty<CirclePitchScaleType> circlePitchScale { CirclePitchScaleType::Map };
+struct CircleRadius : DataDrivenPaintProperty<float, attributes::a_radius> {
+    static float defaultValue() { return 5; }
 };
+
+struct CircleColor : DataDrivenPaintProperty<Color, attributes::a_color> {
+    static Color defaultValue() { return Color::black(); }
+};
+
+struct CircleBlur : DataDrivenPaintProperty<float, attributes::a_blur> {
+    static float defaultValue() { return 0; }
+};
+
+struct CircleOpacity : DataDrivenPaintProperty<float, attributes::a_opacity> {
+    static float defaultValue() { return 1; }
+};
+
+struct CircleTranslate : PaintProperty<std::array<float, 2>> {
+    static std::array<float, 2> defaultValue() { return {{ 0, 0 }}; }
+};
+
+struct CircleTranslateAnchor : PaintProperty<TranslateAnchorType> {
+    static TranslateAnchorType defaultValue() { return TranslateAnchorType::Map; }
+};
+
+struct CirclePitchScale : PaintProperty<CirclePitchScaleType> {
+    static CirclePitchScaleType defaultValue() { return CirclePitchScaleType::Map; }
+};
+
+struct CircleStrokeWidth : DataDrivenPaintProperty<float, attributes::a_stroke_width> {
+    static float defaultValue() { return 0; }
+};
+
+struct CircleStrokeColor : DataDrivenPaintProperty<Color, attributes::a_stroke_color> {
+    static Color defaultValue() { return Color::black(); }
+};
+
+struct CircleStrokeOpacity : DataDrivenPaintProperty<float, attributes::a_stroke_opacity> {
+    static float defaultValue() { return 1; }
+};
+
+class CirclePaintProperties : public PaintProperties<
+    CircleRadius,
+    CircleColor,
+    CircleBlur,
+    CircleOpacity,
+    CircleTranslate,
+    CircleTranslateAnchor,
+    CirclePitchScale,
+    CircleStrokeWidth,
+    CircleStrokeColor,
+    CircleStrokeOpacity
+> {};
 
 } // namespace style
 } // namespace mbgl

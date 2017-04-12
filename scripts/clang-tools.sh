@@ -3,10 +3,8 @@
 set -e
 set -o pipefail
 
-export PATH="`pwd`/.mason:${PATH}" MASON_DIR="`pwd`/.mason"
-
-CLANG_TIDY=${CLANG_TIDY:-$(mason prefix clang-tidy 3.8.0)/bin/clang-tidy}
-CLANG_FORMAT=${CLANG_FORMAT:-$(mason prefix clang-format 3.8.0)/bin/clang-format}
+CLANG_TIDY=${CLANG_TIDY:-$(scripts/mason.sh PREFIX clang-tidy VERSION 3.9.1)/bin/clang-tidy}
+CLANG_FORMAT=${CLANG_FORMAT:-$(scripts/mason.sh PREFIX clang-format VERSION 3.9.1)/bin/clang-format}
 
 command -v ${CLANG_TIDY} >/dev/null 2>&1 || {
     echo "Can't find ${CLANG_TIDY} in PATH."
@@ -45,17 +43,12 @@ export -f check_tidy check_format
 echo "Running clang checks... (this might take a while)"
 
 if [[ -n $2 ]] && [[ $2 == "--diff" ]]; then
-    git diff-index --quiet HEAD || {
-        echo "Your repository contains unstaged and/or uncommitted changes."
-        echo "Please commit all changes before proceeding."
-        exit 1
-    }
-    DIFF_FILES=$(for file in `git diff origin/master..HEAD --name-only | grep "pp$"`; do echo $file; done)
+    DIFF_FILES=$(for file in `git diff origin/master --name-only | grep "pp$"`; do echo $file; done)
     if [[ -n $DIFF_FILES ]]; then
         echo "${DIFF_FILES}" | xargs -I{} -P ${JOBS} bash -c 'check_tidy --fix' {}
         # XXX disabled until we run clang-format over the entire codebase.
         #echo "${DIFF_FILES}" | xargs -I{} -P ${JOBS} bash -c 'check_format' {}
-        git diff-index --quiet HEAD || {
+        git diff --quiet || {
             echo "Changes were made to source files - please review them before committing."
             exit 1
         }

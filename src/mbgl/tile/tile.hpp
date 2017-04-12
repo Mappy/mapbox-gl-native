@@ -21,9 +21,11 @@ class DebugBucket;
 class TransformState;
 class TileObserver;
 class PlacementConfig;
+class RenderedQueryOptions;
 
 namespace style {
 class Layer;
+class SourceQueryOptions;
 } // namespace style
 
 class Tile : private util::noncopyable {
@@ -55,7 +57,11 @@ public:
             std::unordered_map<std::string, std::vector<Feature>>& result,
             const GeometryCoordinates& queryGeometry,
             const TransformState&,
-            const optional<std::vector<std::string>>& layerIDs);
+            const RenderedQueryOptions& options);
+
+    virtual void querySourceFeatures(
+            std::vector<Feature>& result,
+            const style::SourceQueryOptions&);
 
     void setTriedOptional();
 
@@ -74,9 +80,6 @@ public:
 
     bool isComplete() const {
         return availableData == DataAvailability::All;
-    }
-    bool isIncomplete() const {
-        return availableData == DataAvailability::Some;
     }
 
     void dumpDebugLogs() const;

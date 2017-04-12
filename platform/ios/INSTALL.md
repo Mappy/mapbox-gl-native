@@ -4,7 +4,7 @@ This document explains how to build a development version of Mapbox iOS SDK for 
 
 ### Requirements
 
-The Mapbox iOS SDK builds against the iOS 7.0 SDK. It is intended to run on iOS 7.0 and above on the following devices and their simulators:
+The Mapbox iOS SDK is intended to run on iOS 8.0 and above on the following devices and their simulators:
 
 * iPhone 4S and above (5, 5c, 5s, 6, 6 Plus)
 * iPad 2 and above (3, 4, Mini, Air, Mini 2, Air 2)
@@ -36,7 +36,7 @@ There are several ways to install custom builds of the Mapbox iOS SDK:
 
 #### Dynamic framework
 
-This is the recommended workflow for manually integrating custom builds of the SDK into an application targeting iOS 8 and above:
+This is the recommended workflow for manually integrating custom builds of the SDK into an application:
 
 1. Build from source manually, per above.
 
@@ -52,7 +52,7 @@ bash "${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/Mapbox.framework/strip-fra
 
 #### Static framework
 
-If your application targets iOS 7.x, you’ll need to install the static framework instead:
+You can alternatively install the SDK as a static framework:
 
 1. Build from source manually, per above.
 
@@ -98,6 +98,18 @@ pod 'Mapbox-iOS-SDK', podspec: 'https://raw.githubusercontent.com/mapbox/mapbox-
 1. Run `pod update` to grab the newly-built library.
 
 If using the static framework, add `$(inherited)` to your target’s Other Linker Flags in the Build Settings tab.
+
+#### Carthage
+
+For instructions on installing stable release versions of the Mapbox iOS SDK with Carthage, see [our website](https://www.mapbox.com/ios-sdk/). If you require a build without symbols pre-stripped, use [this feed URL](https://www.mapbox.com/ios-sdk/Mapbox-iOS-SDK-symbols.json) with Carthage.
+
+##### Testing pre-releases with Carthage
+
+Carthage currently does not support pre-release versions of binaries.
+
+##### Using your own build with Carthage
+
+This project does not support being compiled as a local repository by Carthage.
 
 ### Configuration
 

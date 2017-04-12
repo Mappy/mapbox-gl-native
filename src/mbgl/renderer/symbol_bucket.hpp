@@ -1,28 +1,24 @@
 #pragma once
 
 #include <mbgl/renderer/bucket.hpp>
-#include <mbgl/renderer/element_group.hpp>
 #include <mbgl/map/mode.hpp>
 #include <mbgl/gl/vertex_buffer.hpp>
 #include <mbgl/gl/index_buffer.hpp>
-#include <mbgl/shader/symbol_vertex.hpp>
-#include <mbgl/shader/collision_box_vertex.hpp>
+#include <mbgl/gl/segment.hpp>
+#include <mbgl/programs/symbol_program.hpp>
+#include <mbgl/programs/collision_box_program.hpp>
 #include <mbgl/text/glyph_range.hpp>
 #include <mbgl/style/layers/symbol_layer_properties.hpp>
 
-#include <memory>
 #include <vector>
 
 namespace mbgl {
 
-class SymbolSDFShader;
-class SymbolIconShader;
-class CollisionBoxShader;
-
 class SymbolBucket : public Bucket {
 public:
-    SymbolBucket(const MapMode,
-                 style::SymbolLayoutProperties,
+    SymbolBucket(style::SymbolLayoutProperties::Evaluated,
+                 const std::unordered_map<std::string, std::pair<style::IconPaintProperties::Evaluated, style::TextPaintProperties::Evaluated>>&,
+                 float zoom,
                  bool sdfIcons,
                  bool iconsNeedLinear);
 
@@ -32,46 +28,40 @@ public:
     bool hasTextData() const;
     bool hasIconData() const;
     bool hasCollisionBoxData() const;
-    bool needsClipping() const override;
 
-    void drawGlyphs(SymbolSDFShader&, gl::Context&, PaintMode);
-    void drawIcons(SymbolSDFShader&, gl::Context&, PaintMode);
-    void drawIcons(SymbolIconShader&, gl::Context&, PaintMode);
-    void drawCollisionBoxes(CollisionBoxShader&, gl::Context&);
-
-    const MapMode mode;
-    const style::SymbolLayoutProperties layout;
+    const style::SymbolLayoutProperties::Evaluated layout;
     const bool sdfIcons;
     const bool iconsNeedLinear;
 
-private:
-    friend class SymbolLayout;
+    std::unordered_map<std::string, std::pair<
+        SymbolIconProgram::PaintPropertyBinders,
+        SymbolSDFTextProgram::PaintPropertyBinders>> paintPropertyBinders;
 
     struct TextBuffer {
-        std::vector<SymbolVertex> vertices;
-        std::vector<gl::Triangle> triangles;
-        std::vector<ElementGroup<SymbolSDFShader>> groups;
+        gl::VertexVector<SymbolLayoutVertex> vertices;
+        gl::IndexVector<gl::Triangles> triangles;
+        gl::SegmentVector<SymbolTextAttributes> segments;
 
-        optional<gl::VertexBuffer<SymbolVertex>> vertexBuffer;
-        optional<gl::IndexBuffer<gl::Triangle>> indexBuffer;
+        optional<gl::VertexBuffer<SymbolLayoutVertex>> vertexBuffer;
+        optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
     } text;
 
     struct IconBuffer {
-        std::vector<SymbolVertex> vertices;
-        std::vector<gl::Triangle> triangles;
-        std::vector<ElementGroup<SymbolSDFShader, SymbolIconShader>> groups;
+        gl::VertexVector<SymbolLayoutVertex> vertices;
+        gl::IndexVector<gl::Triangles> triangles;
+        gl::SegmentVector<SymbolIconAttributes> segments;
 
-        optional<gl::VertexBuffer<SymbolVertex>> vertexBuffer;
-        optional<gl::IndexBuffer<gl::Triangle>> indexBuffer;
+        optional<gl::VertexBuffer<SymbolLayoutVertex>> vertexBuffer;
+        optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
     } icon;
 
     struct CollisionBoxBuffer {
-        std::vector<CollisionBoxVertex> vertices;
-        std::vector<gl::Line> lines;
-        std::vector<ElementGroup<CollisionBoxShader>> groups;
+        gl::VertexVector<CollisionBoxVertex> vertices;
+        gl::IndexVector<gl::Lines> lines;
+        gl::SegmentVector<CollisionBoxAttributes> segments;
 
         optional<gl::VertexBuffer<CollisionBoxVertex>> vertexBuffer;
-        optional<gl::IndexBuffer<gl::Line>> indexBuffer;
+        optional<gl::IndexBuffer<gl::Lines>> indexBuffer;
     } collisionBox;
 };
 

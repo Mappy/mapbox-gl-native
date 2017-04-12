@@ -11,8 +11,8 @@
 #include <mbgl/util/string.hpp>
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/tileset.hpp>
-#include <mbgl/platform/default/thread_pool.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/util/default_thread_pool.hpp>
+#include <mbgl/util/logging.hpp>
 
 #include <mbgl/map/transform.hpp>
 #include <mbgl/style/style.hpp>
@@ -50,7 +50,7 @@ public:
         // Squelch logging.
         Log::setObserver(std::make_unique<Log::NullObserver>());
 
-        transform.resize({{ 512, 512 }});
+        transform.resize({ 512, 512 });
         transform.setLatLngZoom({0, 0}, 0);
 
         transformState = transform.getState();
@@ -393,7 +393,7 @@ TEST(Source, GeoJSonSourceUrlUpdate) {
     };
 
     test.observer.sourceDescriptionChanged = [&] (Source&) {
-        //Should be called (test will hang if it doesn't)
+        // Should be called (test will hang if it doesn't)
         test.end();
     };
 
@@ -404,12 +404,12 @@ TEST(Source, GeoJSonSourceUrlUpdate) {
     GeoJSONSource source("source");
     source.baseImpl->setObserver(&test.observer);
 
-    //Load initial, so the source state will be loaded=true
+    // Load initial, so the source state will be loaded=true
     source.baseImpl->loadDescription(test.fileSource);
 
-    //Schedule an update
+    // Schedule an update
     test.loop.invoke([&] () {
-        //Update the url
+        // Update the url
         source.setURL(std::string("http://source-url.ext"));
     });
 

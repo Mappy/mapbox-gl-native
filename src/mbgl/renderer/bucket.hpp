@@ -2,11 +2,9 @@
 
 #include <mbgl/renderer/render_pass.hpp>
 #include <mbgl/util/noncopyable.hpp>
+#include <mbgl/tile/geometry_tile_data.hpp>
 
 #include <atomic>
-
-#define BUFFER_OFFSET_0  ((int8_t*)nullptr)
-#define BUFFER_OFFSET(i) ((BUFFER_OFFSET_0) + (i))
 
 namespace mbgl {
 
@@ -25,6 +23,10 @@ class Layer;
 class Bucket : private util::noncopyable {
 public:
     Bucket() = default;
+    virtual ~Bucket() = default;
+
+    virtual void addFeature(const GeometryTileFeature&,
+                            const GeometryCollection&) {};
 
     // As long as this bucket has a Prepare render pass, this function is getting called. Typically,
     // this only happens once when the bucket is being rendered for the first time.
@@ -34,11 +36,7 @@ public:
     // once or twice (for Opaque and Transparent render passes).
     virtual void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) = 0;
 
-    virtual ~Bucket() = default;
-
     virtual bool hasData() const = 0;
-
-    virtual bool needsClipping() const = 0;
 
     bool needsUpload() const {
         return !uploaded;

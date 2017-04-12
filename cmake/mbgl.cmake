@@ -6,22 +6,67 @@ if (NOT MBGL_PLATFORM)
     endif()
 endif()
 
-if (NOT MASON_PLATFORM)
-    set(MASON_PLATFORM "${MBGL_PLATFORM}")
+find_program(NodeJS_EXECUTABLE NAMES nodejs node)
+if (NOT NodeJS_EXECUTABLE)
+    message(FATAL_ERROR "Could not find Node.js")
 endif()
 
-set(MBGL_GENERATED ${CMAKE_BINARY_DIR}/generated/${CMAKE_CFG_INTDIR})
-
-if(NOT EXISTS ${CMAKE_SOURCE_DIR}/node_modules/node-cmake/FindNodeJS.cmake)
-    message(FATAL_ERROR "Can't find node-cmake")
+find_program(npm_EXECUTABLE NAMES npm)
+if (NOT npm_EXECUTABLE)
+    message(FATAL_ERROR "Could not find npm")
 endif()
 
-# Load Node.js
-set(NodeJS_CXX_STANDARD 14 CACHE INTERNAL "Use C++14" FORCE)
-set(NodeJS_DOWNLOAD ON CACHE INTERNAL "Download node.js sources" FORCE)
-set(NodeJS_USE_CLANG_STDLIB OFF CACHE BOOL "Don't use libc++ by default" FORCE)
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/node_modules/node-cmake)
-find_package(NodeJS)
+function(_npm_install DIRECTORY NAME ADDITIONAL_DEPS)
+    SET(NPM_INSTALL_FAILED FALSE)
+    if("${DIRECTORY}/package.json" IS_NEWER_THAN "${DIRECTORY}/node_modules/.${NAME}.stamp")
+        message(STATUS "Running 'npm install' for ${NAME}...")
+        execute_process(
+            COMMAND ${NodeJS_EXECUTABLE} ${npm_EXECUTABLE} install --ignore-scripts
+            WORKING_DIRECTORY "${DIRECTORY}"
+            RESULT_VARIABLE NPM_INSTALL_FAILED)
+        if(NOT NPM_INSTALL_FAILED)
+            execute_process(COMMAND ${CMAKE_COMMAND} -E touch "${DIRECTORY}/node_modules/.${NAME}.stamp")
+        endif()
+    endif()
+
+    add_custom_command(
+        OUTPUT "${DIRECTORY}/node_modules/.${NAME}.stamp"
+        COMMAND ${NodeJS_EXECUTABLE} ${npm_EXECUTABLE} install --ignore-scripts
+        COMMAND ${CMAKE_COMMAND} -E touch "${DIRECTORY}/node_modules/.${NAME}.stamp"
+        WORKING_DIRECTORY "${DIRECTORY}"
+        DEPENDS ${ADDITIONAL_DEPS} "${DIRECTORY}/package.json"
+        COMMENT "Running 'npm install' for ${NAME}...")
+endfunction()
+
+# Run submodule update
+message(STATUS "Updating submodules...")
+execute_process(
+    COMMAND git submodule update --init mapbox-gl-js
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/mapbox-gl-js/node_modules")
+    # Symlink mapbox-gl-js/node_modules so that the modules that are
+    # about to be installed get cached between CI runs.
+    execute_process(
+         COMMAND ln -sF ../node_modules .
+         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/mapbox-gl-js")
+endif()
+
+# Add target for running submodule update during builds
+add_custom_target(
+    update-submodules ALL
+    COMMAND git submodule update --init mapbox-gl-js
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Updating submodules..."
+)
+
+# Run npm install for both directories, and add custom commands, and a target that depends on them.
+_npm_install("${CMAKE_SOURCE_DIR}" mapbox-gl-native update-submodules)
+_npm_install("${CMAKE_SOURCE_DIR}/mapbox-gl-js/test/integration" mapbox-gl-js "${CMAKE_SOURCE_DIR}/node_modules/.mapbox-gl-native.stamp")
+add_custom_target(
+    npm-install ALL
+    DEPENDS "${CMAKE_SOURCE_DIR}/node_modules/.mapbox-gl-js.stamp"
+)
 
 # Generate source groups so the files are properly sorted in IDEs like Xcode.
 function(create_source_groups target)
@@ -34,6 +79,11 @@ function(create_source_groups target)
         source_group("${group}" FILES "${file}")
     endforeach()
 endfunction()
+
+# This little macro lets you set any XCode specific property
+macro(set_xcode_property TARGET XCODE_PROPERTY XCODE_VALUE)
+    set_property(TARGET ${TARGET} PROPERTY XCODE_ATTRIBUTE_${XCODE_PROPERTY} ${XCODE_VALUE})
+endmacro (set_xcode_property)
 
 function(_write_xcconfig_var target var)
     get_property(result TARGET ${target} PROPERTY INTERFACE_${var} SET)

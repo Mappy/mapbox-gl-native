@@ -24,6 +24,7 @@
 
 #import "MGLAttributionInfo_Private.h"
 
+#include <mbgl/map/map.hpp>
 #include <mbgl/util/default_styles.hpp>
 #include <mbgl/sprite/sprite_image.hpp>
 #include <mbgl/style/layers/fill_layer.hpp>
@@ -36,7 +37,6 @@
 #include <mbgl/style/sources/geojson_source.hpp>
 #include <mbgl/style/sources/vector_source.hpp>
 #include <mbgl/style/sources/raster_source.hpp>
-#include <mbgl/mbgl.hpp>
 
 #if TARGET_OS_IPHONE
     #import "UIImage+MGLAdditions.h"
@@ -71,7 +71,11 @@ static_assert(mbgl::util::default_styles::currentVersion == MGLStyleDefaultVersi
     } \
     \
     + (NSURL *)name##StyleURL##WithVersion:(NSInteger)version { \
-        return [NSURL URLWithString:[@"mapbox://styles/mapbox/" #fileName "-v" stringByAppendingFormat:@"%li", (long)version]]; \
+        if (mbgl::util::default_styles::currentVersion == version) { \
+            return [NSURL URLWithString:@(mbgl::util::default_styles::name.url)]; \
+        } else { \
+            return [NSURL URLWithString:[@"mapbox://styles/mapbox/" #fileName "-v" stringByAppendingFormat:@"%li", (long)version]]; \
+        } \
     }
 
 MGL_DEFINE_STYLE(streets, streets)
@@ -213,7 +217,7 @@ static NSURL *MGLStyleURL_emerald;
         if (![source isKindOfClass:[MGLTileSource class]]) {
             continue;
         }
-        
+
         NSArray *tileSetInfos = [source attributionInfosWithFontSize:fontSize linkColor:linkColor];
         [infos growArrayByAddingAttributionInfosFromArray:tileSetInfos];
     }
@@ -317,7 +321,7 @@ static NSURL *MGLStyleURL_emerald;
 - (MGLStyleLayer *)layerFromMBGLLayer:(mbgl::style::Layer *)mbglLayer
 {
     NSParameterAssert(mbglLayer);
-    
+
     NSString *identifier = @(mbglLayer->getID().c_str());
     MGLStyleLayer *styleLayer;
     if (auto fillLayer = mbglLayer->as<mbgl::style::FillLayer>()) {
@@ -337,10 +341,10 @@ static NSURL *MGLStyleURL_emerald;
         styleLayer = [[MGLCircleStyleLayer alloc] initWithIdentifier:identifier source:source];
     } else if (mbglLayer->is<mbgl::style::BackgroundLayer>()) {
         styleLayer = [[MGLBackgroundStyleLayer alloc] initWithIdentifier:identifier];
-    } else if (auto customLayer = mbglLayer->as<mbgl::style::CustomLayer>()) {
+    } else if (mbglLayer->is<mbgl::style::CustomLayer>()) {
         styleLayer = self.openGLLayers[identifier];
         if (styleLayer) {
-            NSAssert(styleLayer.rawLayer == customLayer, @"%@ wraps a CustomLayer that differs from the one associated with the underlying style.", styleLayer);
+            NSAssert(styleLayer.rawLayer == mbglLayer->as<mbgl::style::CustomLayer>(), @"%@ wraps a CustomLayer that differs from the one associated with the underlying style.", styleLayer);
             return styleLayer;
         }
         styleLayer = [[MGLOpenGLStyleLayer alloc] initWithIdentifier:identifier];
@@ -434,7 +438,7 @@ static NSURL *MGLStyleURL_emerald;
          @"Make sure sibling was obtained using -[MGLStyle layerWithIdentifier:].",
          sibling];
     }
-    
+
     auto layers = self.mapView.mbglMap->getLayers();
     std::string siblingIdentifier = sibling.identifier.UTF8String;
     NSUInteger index = 0;
@@ -444,7 +448,7 @@ static NSURL *MGLStyleURL_emerald;
         }
         index++;
     }
-    
+
     [self willChangeValueForKey:@"layers"];
     if (index + 1 > layers.size()) {
         [NSException raise:NSInvalidArgumentException
@@ -498,7 +502,7 @@ static NSURL *MGLStyleURL_emerald;
         newAppliedClasses.push_back([appliedClass UTF8String]);
     }
 
-    mbgl::style::TransitionOptions transition { { MGLDurationInSeconds(transitionDuration) } };
+    mbgl::style::TransitionOptions transition { { MGLDurationFromTimeInterval(transitionDuration) } };
     self.mapView.mbglMap->setTransitionOptions(transition);
     self.mapView.mbglMap->setClasses(newAppliedClasses);
 }
@@ -564,6 +568,28 @@ static NSURL *MGLStyleURL_emerald;
 
     auto spriteImage = self.mapView.mbglMap->getImage([name UTF8String]);
     return spriteImage ? [[MGLImage alloc] initWithMGLSpriteImage:spriteImage] : nil;
+}
+
+#pragma mark Style transitions
+
+- (void)setTransition:(MGLTransition)transition
+{
+    auto transitionOptions = self.mapView.mbglMap->getTransitionOptions();
+    transitionOptions.duration = MGLDurationFromTimeInterval(transition.duration);
+    transitionOptions.delay = MGLDurationFromTimeInterval(transition.delay);
+    
+    self.mapView.mbglMap->setTransitionOptions(transitionOptions);
+}
+
+- (MGLTransition)transition
+{
+    MGLTransition transition;
+    const mbgl::style::TransitionOptions transitionOptions = self.mapView.mbglMap->getTransitionOptions();
+
+    transition.delay = MGLTimeIntervalFromDuration(transitionOptions.delay.value_or(mbgl::Duration::zero()));
+    transition.duration = MGLTimeIntervalFromDuration(transitionOptions.duration.value_or(mbgl::Duration::zero()));
+    
+    return transition;
 }
 
 - (NSString *)description

@@ -4,6 +4,8 @@
 #include <mbgl/util/feature.hpp>
 #include <mbgl/util/optional.hpp>
 
+#include <QMapbox>
+
 #include <QColor>
 #include <QVariant>
 
@@ -28,7 +30,13 @@ inline QVariant arrayMember(const QVariant& value, std::size_t i) {
 }
 
 inline bool isObject(const QVariant& value) {
-    return value.canConvert(QVariant::Map) || value.type() == QVariant::ByteArray;
+    return value.canConvert(QVariant::Map)
+        || value.type() == QVariant::ByteArray
+#if QT_VERSION >= 0x050000
+        || QString(value.typeName()) == QStringLiteral("QMapbox::Feature");
+#else
+        || QString(value.typeName()) == QString("QMapbox::Feature");
+#endif
 }
 
 inline optional<QVariant> objectMember(const QVariant& value, const char* key) {
@@ -94,9 +102,9 @@ inline optional<Value> toValue(const QVariant& value) {
     } else if (value.type() == QVariant::Color) {
         return { value.value<QColor>().name().toStdString() };
     } else if (value.type() == QVariant::Int) {
-        return { value.toInt() };
+        return { int64_t(value.toInt()) };
     } else if (value.canConvert(QVariant::Double)) {
-        return { value.toFloat() };
+        return { value.toDouble() };
     } else {
         return {};
     }

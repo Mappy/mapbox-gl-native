@@ -5,8 +5,9 @@
 -%>
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
-#include <mbgl/style/layers/<%- type %>_layer.hpp>
-#include <mbgl/style/layers/<%- type %>_layer_impl.hpp>
+#include <mbgl/style/layers/<%- type.replace('-', '_') %>_layer.hpp>
+#include <mbgl/style/layers/<%- type.replace('-', '_') %>_layer_impl.hpp>
+#include <mbgl/style/conversion/stringify.hpp>
 
 namespace mbgl {
 namespace style {
@@ -40,10 +41,18 @@ std::unique_ptr<Layer> <%- camelize(type) %>Layer::Impl::clone() const {
 std::unique_ptr<Layer> <%- camelize(type) %>Layer::Impl::cloneRef(const std::string& id_) const {
     auto result = std::make_unique<<%- camelize(type) %>Layer>(*this);
     result->impl->id = id_;
-    result->impl->ref = this->id;
     result->impl->paint = <%- camelize(type) %>PaintProperties();
     return std::move(result);
 }
+
+<% if (layoutProperties.length) { -%>
+void <%- camelize(type) %>Layer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>& writer) const {
+    conversion::stringify(writer, layout);
+}
+<% } else { -%>
+void <%- camelize(type) %>Layer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
+}
+<% } -%>
 
 <% if (type !== 'background') { -%>
 // Source
@@ -77,37 +86,53 @@ const Filter& <%- camelize(type) %>Layer::getFilter() const {
 // Layout properties
 
 <% for (const property of layoutProperties) { -%>
-PropertyValue<<%- propertyType(property) %>> <%- camelize(type) %>Layer::getDefault<%- camelize(property.name) %>() {
-    return { <%- defaultValue(property) %> };
+<%- propertyValueType(property) %> <%- camelize(type) %>Layer::getDefault<%- camelize(property.name) %>() {
+    return <%- camelize(property.name) %>::defaultValue();
 }
 
-PropertyValue<<%- propertyType(property) %>> <%- camelize(type) %>Layer::get<%- camelize(property.name) %>() const {
-    return impl->layout.<%- camelizeWithLeadingLowercase(property.name) %>.get();
+<%- propertyValueType(property) %> <%- camelize(type) %>Layer::get<%- camelize(property.name) %>() const {
+    return impl->layout.unevaluated.get<<%- camelize(property.name) %>>();
 }
 
-void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>(PropertyValue<<%- propertyType(property) %>> value) {
+void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>(<%- propertyValueType(property) %> value) {
     if (value == get<%- camelize(property.name) %>())
         return;
-    impl->layout.<%- camelizeWithLeadingLowercase(property.name) %>.set(value);
+    impl->layout.unevaluated.get<<%- camelize(property.name) %>>() = value;
     impl->observer->onLayerLayoutPropertyChanged(*this, "<%- property.name %>");
 }
 <% } -%>
 
 // Paint properties
 <% for (const property of paintProperties) { %>
-PropertyValue<<%- propertyType(property) %>> <%- camelize(type) %>Layer::getDefault<%- camelize(property.name) %>() {
+<%- propertyValueType(property) %> <%- camelize(type) %>Layer::getDefault<%- camelize(property.name) %>() {
     return { <%- defaultValue(property) %> };
 }
 
-PropertyValue<<%- propertyType(property) %>> <%- camelize(type) %>Layer::get<%- camelize(property.name) %>(const optional<std::string>& klass) const {
-    return impl->paint.<%- camelizeWithLeadingLowercase(property.name) %>.get(klass);
+<%- propertyValueType(property) %> <%- camelize(type) %>Layer::get<%- camelize(property.name) %>(const optional<std::string>& klass) const {
+    return impl->paint.get<<%- camelize(property.name) %>>(klass);
 }
 
-void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>(PropertyValue<<%- propertyType(property) %>> value, const optional<std::string>& klass) {
+void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>(<%- propertyValueType(property) %> value, const optional<std::string>& klass) {
     if (value == get<%- camelize(property.name) %>(klass))
         return;
-    impl->paint.<%- camelizeWithLeadingLowercase(property.name) %>.set(value, klass);
+    impl->paint.set<<%- camelize(property.name) %>>(value, klass);
+<% if (isDataDriven(property)) { -%>
+    if (value.isDataDriven()) {
+        impl->observer->onLayerDataDrivenPaintPropertyChanged(*this);
+    } else {
+        impl->observer->onLayerPaintPropertyChanged(*this);
+    }
+<% } else { -%>
     impl->observer->onLayerPaintPropertyChanged(*this);
+<% } -%>
+}
+
+void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>Transition(const TransitionOptions& value, const optional<std::string>& klass) {
+    impl->paint.setTransition<<%- camelize(property.name) %>>(value, klass);
+}
+
+TransitionOptions <%- camelize(type) %>Layer::get<%- camelize(property.name) %>Transition(const optional<std::string>& klass) const {
+    return impl->paint.getTransition<<%- camelize(property.name) %>>(klass);
 }
 <% } -%>
 

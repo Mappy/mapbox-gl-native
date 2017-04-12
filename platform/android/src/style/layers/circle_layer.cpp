@@ -1,4 +1,4 @@
-// This file is generated. Edit android/platform/scripts/generate-style-code.js, then run `make style-code-android`.
+// This file is generated. Edit android/platform/scripts/generate-style-code.js, then run `make android-style-code`.
 
 #include "circle_layer.hpp"
 
@@ -9,12 +9,25 @@
 namespace mbgl {
 namespace android {
 
+    /**
+     * Creates an owning peer object (for layers not attached to the map) from the JVM side
+     */
     CircleLayer::CircleLayer(jni::JNIEnv& env, jni::String layerId, jni::String sourceId)
         : Layer(env, std::make_unique<mbgl::style::CircleLayer>(jni::Make<std::string>(env, layerId), jni::Make<std::string>(env, sourceId))) {
     }
 
+    /**
+     * Creates a non-owning peer object (for layers currently attached to the map)
+     */
     CircleLayer::CircleLayer(mbgl::Map& map, mbgl::style::CircleLayer& coreLayer)
         : Layer(map, coreLayer) {
+    }
+
+    /**
+     * Creates an owning peer object (for layers not attached to the map)
+     */
+    CircleLayer::CircleLayer(mbgl::Map& map, std::unique_ptr<mbgl::style::CircleLayer> coreLayer)
+        : Layer(map, std::move(coreLayer)) {
     }
 
     CircleLayer::~CircleLayer() = default;
@@ -63,6 +76,24 @@ namespace android {
         return jni::Object<jni::ObjectTag>(*converted);
     }
 
+    jni::Object<jni::ObjectTag> CircleLayer::getCircleStrokeWidth(jni::JNIEnv& env) {
+        using namespace mbgl::android::conversion;
+        Result<jni::jobject*> converted = convert<jni::jobject*>(env, layer.as<mbgl::style::CircleLayer>()->CircleLayer::getCircleStrokeWidth());
+        return jni::Object<jni::ObjectTag>(*converted);
+    }
+
+    jni::Object<jni::ObjectTag> CircleLayer::getCircleStrokeColor(jni::JNIEnv& env) {
+        using namespace mbgl::android::conversion;
+        Result<jni::jobject*> converted = convert<jni::jobject*>(env, layer.as<mbgl::style::CircleLayer>()->CircleLayer::getCircleStrokeColor());
+        return jni::Object<jni::ObjectTag>(*converted);
+    }
+
+    jni::Object<jni::ObjectTag> CircleLayer::getCircleStrokeOpacity(jni::JNIEnv& env) {
+        using namespace mbgl::android::conversion;
+        Result<jni::jobject*> converted = convert<jni::jobject*>(env, layer.as<mbgl::style::CircleLayer>()->CircleLayer::getCircleStrokeOpacity());
+        return jni::Object<jni::ObjectTag>(*converted);
+    }
+
     jni::Class<CircleLayer> CircleLayer::javaClass;
 
     jni::jobject* CircleLayer::createJavaPeer(jni::JNIEnv& env) {
@@ -71,12 +102,12 @@ namespace android {
     }
 
     void CircleLayer::registerNative(jni::JNIEnv& env) {
-        //Lookup the class
+        // Lookup the class
         CircleLayer::javaClass = *jni::Class<CircleLayer>::Find(env).NewGlobalRef(env).release();
 
         #define METHOD(MethodPtr, name) jni::MakeNativePeerMethod<decltype(MethodPtr), (MethodPtr)>(name)
 
-        //Register the peer
+        // Register the peer
         jni::RegisterNativePeer<CircleLayer>(
             env, CircleLayer::javaClass, "nativePtr",
             std::make_unique<CircleLayer, JNIEnv&, jni::String, jni::String>,
@@ -88,7 +119,10 @@ namespace android {
             METHOD(&CircleLayer::getCircleOpacity, "nativeGetCircleOpacity"),
             METHOD(&CircleLayer::getCircleTranslate, "nativeGetCircleTranslate"),
             METHOD(&CircleLayer::getCircleTranslateAnchor, "nativeGetCircleTranslateAnchor"),
-            METHOD(&CircleLayer::getCirclePitchScale, "nativeGetCirclePitchScale"));
+            METHOD(&CircleLayer::getCirclePitchScale, "nativeGetCirclePitchScale"),
+            METHOD(&CircleLayer::getCircleStrokeWidth, "nativeGetCircleStrokeWidth"),
+            METHOD(&CircleLayer::getCircleStrokeColor, "nativeGetCircleStrokeColor"),
+            METHOD(&CircleLayer::getCircleStrokeOpacity, "nativeGetCircleStrokeOpacity"));
     }
 
 } // namespace android

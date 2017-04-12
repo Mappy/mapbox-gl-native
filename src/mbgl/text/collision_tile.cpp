@@ -1,5 +1,6 @@
 #include <mbgl/text/collision_tile.hpp>
 #include <mbgl/geometry/feature_index.hpp>
+#include <mbgl/math/log2.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/math.hpp>
 #include <mbgl/math/minmax.hpp>
@@ -167,7 +168,7 @@ Box CollisionTile::getTreeBox(const Point<float>& anchor, const CollisionBox& bo
     };
 }
 
-std::vector<IndexedSubfeature> CollisionTile::queryRenderedSymbols(const GeometryCoordinates& queryGeometry, float scale) {
+std::vector<IndexedSubfeature> CollisionTile::queryRenderedSymbols(const GeometryCoordinates& queryGeometry, float scale) const {
     std::vector<IndexedSubfeature> result;
     if (queryGeometry.empty() || (tree.empty() && ignoredTree.empty())) {
         return result;

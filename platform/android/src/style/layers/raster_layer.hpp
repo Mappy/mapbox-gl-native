@@ -1,4 +1,4 @@
-// This file is generated. Edit android/platform/scripts/generate-style-code.js, then run `make style-code-android`.
+// This file is generated. Edit android/platform/scripts/generate-style-code.js, then run `make android-style-code`.
 
 #pragma once
 
@@ -21,6 +21,8 @@ public:
     RasterLayer(jni::JNIEnv&, jni::String, jni::String);
 
     RasterLayer(mbgl::Map&, mbgl::style::RasterLayer&);
+
+    RasterLayer(mbgl::Map&, std::unique_ptr<mbgl::style::RasterLayer>);
 
     ~RasterLayer();
 

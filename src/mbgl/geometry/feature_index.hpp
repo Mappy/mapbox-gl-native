@@ -11,6 +11,8 @@
 
 namespace mbgl {
 
+class RenderedQueryOptions;
+
 namespace style {
 class Style;
 } // namespace style
@@ -39,10 +41,11 @@ public:
             const float bearing,
             const double tileSize,
             const double scale,
-            const optional<std::vector<std::string>>& layerIDs,
+            const RenderedQueryOptions& options,
             const GeometryTileData&,
             const CanonicalTileID&,
-            const style::Style&) const;
+            const style::Style&,
+            const CollisionTile*) const;
 
     static optional<GeometryCoordinates> translateQueryGeometry(
             const GeometryCoordinates& queryGeometry,
@@ -51,23 +54,20 @@ public:
             const float bearing,
             const float pixelsToTileUnits);
 
-    void addBucketLayerName(const std::string& bucketName, const std::string& layerName);
-
-    void setCollisionTile(std::unique_ptr<CollisionTile>);
+    void setBucketLayerIDs(const std::string& bucketName, const std::vector<std::string>& layerIDs);
 
 private:
     void addFeature(
             std::unordered_map<std::string, std::vector<Feature>>& result,
             const IndexedSubfeature&,
             const GeometryCoordinates& queryGeometry,
-            const optional<std::vector<std::string>>& filterLayerIDs,
+            const RenderedQueryOptions& options,
             const GeometryTileData&,
             const CanonicalTileID&,
             const style::Style&,
             const float bearing,
             const float pixelsToTileUnits) const;
 
-    std::unique_ptr<CollisionTile> collisionTile;
     GridIndex<IndexedSubfeature> grid;
     unsigned int sortIndex = 0;
 

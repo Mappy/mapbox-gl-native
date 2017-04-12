@@ -5,40 +5,95 @@
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/layout_property.hpp>
 #include <mbgl/style/paint_property.hpp>
+#include <mbgl/programs/attributes.hpp>
 
 namespace mbgl {
 namespace style {
 
-class CascadeParameters;
-class CalculationParameters;
-
-class LineLayoutProperties {
-public:
-    void recalculate(const CalculationParameters&);
-
-    LayoutProperty<LineCapType> lineCap { LineCapType::Butt };
-    LayoutProperty<LineJoinType> lineJoin { LineJoinType::Miter };
-    LayoutProperty<float> lineMiterLimit { 2 };
-    LayoutProperty<float> lineRoundLimit { 1 };
+struct LineCap : LayoutProperty<LineCapType> {
+    static constexpr const char * key = "line-cap";
+    static LineCapType defaultValue() { return LineCapType::Butt; }
 };
 
-class LinePaintProperties {
-public:
-    void cascade(const CascadeParameters&);
-    bool recalculate(const CalculationParameters&);
-
-    PaintProperty<float> lineOpacity { 1 };
-    PaintProperty<Color> lineColor { Color::black() };
-	PaintProperty<bool> lineIsMappyPath { false };
-    PaintProperty<std::array<float, 2>> lineTranslate { {{ 0, 0 }} };
-    PaintProperty<TranslateAnchorType> lineTranslateAnchor { TranslateAnchorType::Map };
-    PaintProperty<float> lineWidth { 1 };
-    PaintProperty<float> lineGapWidth { 0 };
-    PaintProperty<float> lineOffset { 0 };
-    PaintProperty<float> lineBlur { 0 };
-    PaintProperty<std::vector<float>, CrossFadedPropertyEvaluator> lineDasharray { {  } };
-    PaintProperty<std::string, CrossFadedPropertyEvaluator> linePattern { "" };
+struct LineJoin : LayoutProperty<LineJoinType> {
+    static constexpr const char * key = "line-join";
+    static LineJoinType defaultValue() { return LineJoinType::Miter; }
 };
+
+struct LineMiterLimit : LayoutProperty<float> {
+    static constexpr const char * key = "line-miter-limit";
+    static float defaultValue() { return 2; }
+};
+
+struct LineRoundLimit : LayoutProperty<float> {
+    static constexpr const char * key = "line-round-limit";
+    static float defaultValue() { return 1; }
+};
+
+struct LineOpacity : DataDrivenPaintProperty<float, attributes::a_opacity> {
+    static float defaultValue() { return 1; }
+};
+
+struct LineColor : DataDrivenPaintProperty<Color, attributes::a_color> {
+    static Color defaultValue() { return Color::black(); }
+};
+
+struct LineTranslate : PaintProperty<std::array<float, 2>> {
+    static std::array<float, 2> defaultValue() { return {{ 0, 0 }}; }
+};
+
+struct LineTranslateAnchor : PaintProperty<TranslateAnchorType> {
+    static TranslateAnchorType defaultValue() { return TranslateAnchorType::Map; }
+};
+
+struct LineWidth : PaintProperty<float> {
+    static float defaultValue() { return 1; }
+};
+
+struct LineGapWidth : DataDrivenPaintProperty<float, attributes::a_gap_width> {
+    static float defaultValue() { return 0; }
+};
+
+struct LineOffset : DataDrivenPaintProperty<float, attributes::a_offset<1>> {
+    static float defaultValue() { return 0; }
+};
+
+struct LineBlur : DataDrivenPaintProperty<float, attributes::a_blur> {
+    static float defaultValue() { return 0; }
+};
+
+struct LineDasharray : CrossFadedPaintProperty<std::vector<float>> {
+    static std::vector<float> defaultValue() { return {  }; }
+};
+
+struct LinePattern : CrossFadedPaintProperty<std::string> {
+    static std::string defaultValue() { return ""; }
+};
+
+struct LineIsMappyPath : PaintProperty<bool> {
+    static float defaultValue() { return false; }
+};
+
+class LineLayoutProperties : public LayoutProperties<
+    LineCap,
+    LineJoin,
+    LineMiterLimit,
+    LineRoundLimit
+> {};
+
+class LinePaintProperties : public PaintProperties<
+    LineOpacity,
+    LineColor,
+    LineTranslate,
+    LineTranslateAnchor,
+    LineWidth,
+    LineGapWidth,
+    LineOffset,
+    LineBlur,
+    LineDasharray,
+    LinePattern,
+    LineIsMappyPath
+> {};
 
 } // namespace style
 } // namespace mbgl

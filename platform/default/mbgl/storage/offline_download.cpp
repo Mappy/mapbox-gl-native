@@ -184,7 +184,7 @@ void OfflineDownload::activateDownload() {
 
         if (!parser.glyphURL.empty()) {
             for (const auto& fontStack : parser.fontStacks()) {
-                for (uint32_t i = 0; i < GLYPH_RANGES_PER_FONT_STACK; i++) {
+                for (char16_t i = 0; i < GLYPH_RANGES_PER_FONT_STACK; i++) {
                     queueResource(Resource::glyphs(parser.glyphURL, fontStack, getGlyphRange(i * GLYPHS_PER_GLYPH_RANGE)));
                 }
             }
@@ -252,7 +252,7 @@ void OfflineDownload::ensureResource(const Resource& resource,
     auto workRequestsIt = requests.insert(requests.begin(), nullptr);
     *workRequestsIt = util::RunLoop::Get()->invokeCancellable([=]() {
         requests.erase(workRequestsIt);
-        
+
         auto getResourceSizeInDatabase = [&] () -> optional<int64_t> {
             if (!callback) {
                 return offlineDatabase.hasRegionResource(id, resource);
@@ -264,7 +264,7 @@ void OfflineDownload::ensureResource(const Resource& resource,
             callback(response->first);
             return response->second;
         };
-        
+
         optional<int64_t> offlineResponse = getResourceSizeInDatabase();
         if (offlineResponse) {
             status.completedResourceCount++;

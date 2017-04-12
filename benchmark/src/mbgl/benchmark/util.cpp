@@ -1,5 +1,5 @@
 #include <mbgl/benchmark/util.hpp>
-#include <mbgl/platform/default/offscreen_view.hpp>
+#include <mbgl/gl/offscreen_view.hpp>
 
 #include <mbgl/map/map.hpp>
 #include <mbgl/map/view.hpp>
@@ -15,7 +15,7 @@ void render(Map& map, OffscreenView& view) {
         result = view.readStillImage();
     });
 
-    while (!result.size()) {
+    while (!result.valid()) {
         util::RunLoop::Get()->runOnce();
     }
 }

@@ -1,3 +1,25 @@
+# 3.4.4 - January 10, 2017
+
+- Updates the node binary publish location on s3 to reflect new package name ([#7653](https://github.com/mapbox/mapbox-gl-native/pull/7653))
+
+# 3.4.3 - January 9, 2017
+
+- Adds `map.addImage()` and `map.removeImage()` APIs ([#7610](https://github.com/mapbox/mapbox-gl-native/pull/7610))
+
+# 3.4.2 - November 15, 2016
+
+- Switches back to publishing Linux binaries with GLX, to eliminate a runtime dependency on `libOSMesa.so.8` and enable dynamically linking against `libGL.so` provided by an alternate implementation, such as the NVIDIA proproetary drivers ([#7503](https://github.com/mapbox/mapbox-gl-native/pull/7053))
+
+# 3.4.1 - November 10, 2016
+
+- Skips assigning clip IDs to tiles that won't be rendered, mitigating a `stencil mask overflow` error ([#6871](https://github.com/mapbox/mapbox-gl-native/pull/6871))
+- Fixes camera logic to avoid unnecessary or redundant setting of camera options ([#6990](https://github.com/mapbox/mapbox-gl-native/pull/6990))
+
+# 3.4.0 - November 2, 2016
+
+- Fixes Bitrise configuration to automatically publish macOS binaries ([#6789](https://github.com/mapbox/mapbox-gl-native/pull/6789))
+- Switches from using individual thread pools for each `mbgl::Map` object to sharing the built-in Node.js thread pool for NodeMap implementations ([#6687](https://github.com/mapbox/mapbox-gl-native/pull/6687))
+
 # 3.3.3 - September 6, 2016
 
 - Switches to using a NodeRequest member function (with a JavaScript shim in front to preserve the API) instead of a new `v8::Context` to avoid a memory leak ([#5704](https://github.com/mapbox/mapbox-gl-native/pull/5704))

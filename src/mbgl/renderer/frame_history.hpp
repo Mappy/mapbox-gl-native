@@ -2,9 +2,10 @@
 
 #include <array>
 
-#include <mbgl/platform/platform.hpp>
-#include <mbgl/gl/object.hpp>
+#include <mbgl/util/platform.hpp>
+#include <mbgl/gl/texture.hpp>
 #include <mbgl/util/chrono.hpp>
+#include <mbgl/util/image.hpp>
 #include <mbgl/util/optional.hpp>
 
 namespace mbgl {
@@ -23,20 +24,17 @@ public:
     void upload(gl::Context&, uint32_t);
 
 private:
-    const int width = 256;
-    const int height = 1;
-
     std::array<TimePoint, 256> changeTimes;
     std::array<uint8_t, 256> changeOpacities;
-    std::array<uint8_t, 256> opacities;
+    AlphaImage opacities{ { 256, 1 } };
 
     int16_t previousZoomIndex = 0;
-    TimePoint previousTime = TimePoint::min();
-    TimePoint time = TimePoint::min();
+    TimePoint previousTime;
+    TimePoint time;
     bool firstFrame = true;
-    bool changed = true;
+    bool dirty = true;
 
-    mbgl::optional<gl::UniqueTexture> texture;
+    mbgl::optional<gl::Texture> texture;
 };
 
 } // namespace mbgl

@@ -3,12 +3,13 @@
 #include <mbgl/tile/raster_tile.hpp>
 #include <mbgl/tile/tile_loader_impl.hpp>
 
-#include <mbgl/platform/default/thread_pool.hpp>
+#include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/update_parameters.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
+#include <mbgl/renderer/raster_bucket.hpp>
 
 using namespace mbgl;
 
@@ -45,5 +46,19 @@ TEST(RasterTile, onError) {
     RasterTileTest test;
     RasterTile tile(OverscaledTileID(0, 0, 0), test.updateParameters, test.tileset);
     tile.onError(std::make_exception_ptr(std::runtime_error("test")));
+    EXPECT_FALSE(tile.isRenderable());
+}
+
+TEST(RasterTile, onParsed) {
+    RasterTileTest test;
+    RasterTile tile(OverscaledTileID(0, 0, 0), test.updateParameters, test.tileset);
+    tile.onParsed(std::make_unique<RasterBucket>(UnassociatedImage{}));
     EXPECT_TRUE(tile.isRenderable());
+}
+
+TEST(RasterTile, onParsedEmpty) {
+    RasterTileTest test;
+    RasterTile tile(OverscaledTileID(0, 0, 0), test.updateParameters, test.tileset);
+    tile.onParsed(nullptr);
+    EXPECT_FALSE(tile.isRenderable());
 }

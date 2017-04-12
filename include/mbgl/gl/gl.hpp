@@ -22,6 +22,9 @@
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2.h>
     #include <GLES2/gl2ext.h>
+#elif __QT_ && QT_VERSION >= 0x050000
+    #define GL_GLEXT_PROTOTYPES
+    #include <QtGui/qopengl.h>
 #else
     #define GL_GLEXT_PROTOTYPES
     #include <GL/gl.h>
@@ -38,7 +41,7 @@ struct Error : std::runtime_error {
 void checkError(const char *cmd, const char *file, int line);
 
 #ifndef NDEBUG
-#define MBGL_CHECK_ERROR(cmd) ([&]() { struct __MBGL_C_E { ~__MBGL_C_E() { ::mbgl::gl::checkError(#cmd, __FILE__, __LINE__); } } __MBGL_C_E; return cmd; }())
+#define MBGL_CHECK_ERROR(cmd) ([&]() { struct __MBGL_C_E { ~__MBGL_C_E() noexcept(false) { ::mbgl::gl::checkError(#cmd, __FILE__, __LINE__); } } __MBGL_C_E; return cmd; }())
 #else
 #define MBGL_CHECK_ERROR(cmd) (cmd)
 #endif

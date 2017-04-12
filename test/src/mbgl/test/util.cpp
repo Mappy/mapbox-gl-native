@@ -1,8 +1,9 @@
 #include <mbgl/test/util.hpp>
 
 #include <mbgl/map/map.hpp>
-#include <mbgl/platform/default/offscreen_view.hpp>
-#include <mbgl/platform/log.hpp>
+#include <mbgl/gl/offscreen_view.hpp>
+#include <mbgl/gl/headless_display.hpp>
+#include <mbgl/util/logging.hpp>
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/chrono.hpp>
@@ -98,13 +99,18 @@ Server::~Server() {
     }
 }
 
+std::shared_ptr<HeadlessDisplay> sharedDisplay() {
+    static auto display = std::make_shared<HeadlessDisplay>();
+    return display;
+}
+
 PremultipliedImage render(Map& map, OffscreenView& view) {
     PremultipliedImage result;
     map.renderStill(view, [&](std::exception_ptr) {
         result = view.readStillImage();
     });
 
-    while (!result.size()) {
+    while (!result.valid()) {
         util::RunLoop::Get()->runOnce();
     }
 
@@ -132,24 +138,23 @@ void checkImage(const std::string& base,
     }
 
     PremultipliedImage expected = decodeImage(expected_image);
-    PremultipliedImage diff { expected.width, expected.height };
+    PremultipliedImage diff { expected.size };
 
 
 #if !TEST_READ_ONLY
     util::write_file(base + "/actual.png", encodePNG(actual));
 #endif
 
-    ASSERT_EQ(expected.width, actual.width);
-    ASSERT_EQ(expected.height, actual.height);
+    ASSERT_EQ(expected.size, actual.size);
 
     double pixels = mapbox::pixelmatch(actual.data.get(),
                                        expected.data.get(),
-                                       expected.width,
-                                       expected.height,
+                                       expected.size.width,
+                                       expected.size.height,
                                        diff.data.get(),
                                        pixelThreshold);
 
-    EXPECT_LE(pixels / (expected.width * expected.height), imageThreshold);
+    EXPECT_LE(pixels / (expected.size.width * expected.size.height), imageThreshold);
 
 #if !TEST_READ_ONLY
     util::write_file(base + "/diff.png", encodePNG(diff));
