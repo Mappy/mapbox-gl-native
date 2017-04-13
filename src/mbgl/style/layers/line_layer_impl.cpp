@@ -5,13 +5,21 @@
 #include <mbgl/util/math.hpp>
 #include <mbgl/util/intersection_tests.hpp>
 
-#include <iostream>
-
 namespace mbgl {
 namespace style {
 
 void LineLayer::Impl::cascade(const CascadeParameters& parameters) {
     paint.cascade(parameters);
+    if (isMappyPath == true) {
+        const optional<std::string>& klass = {};
+        mappyPaint = paint;
+        auto widthProperty = paint.get<LineWidth>(klass);
+        float width = widthProperty.asConstant();
+        mappyPaint.set<LineWidth>(width * 3.0f / 2.0f, klass);
+        Color white = Color::white();
+        mappyPaint.set<LineColor>(white, klass);
+        mappyPaint.cascade(parameters);
+    }
 }
 
 bool LineLayer::Impl::evaluate(const PropertyEvaluationParameters& parameters) {
@@ -20,8 +28,11 @@ bool LineLayer::Impl::evaluate(const PropertyEvaluationParameters& parameters) {
     dashArrayParams.z = std::floor(dashArrayParams.z);
     dashLineWidth = paint.evaluate<LineWidth>(dashArrayParams);
 
-    std::cout << "evaluate z " << dashArrayParams.z << " " << std::endl;
     paint.evaluate(parameters);
+
+    if (isMappyPath == true) {
+        mappyPaint.evaluate(parameters);
+    }
 
     passes = (paint.evaluated.get<LineOpacity>().constantOr(1.0) > 0
            && paint.evaluated.get<LineColor>().constantOr(Color::black()).a > 0

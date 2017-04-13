@@ -31,6 +31,9 @@ public:
     // Special case
     float dashLineWidth = 1;
 
+    bool isMappyPath = false;
+    LinePaintProperties mappyPaint;
+
 private:
     float getLineWidth() const;
 };

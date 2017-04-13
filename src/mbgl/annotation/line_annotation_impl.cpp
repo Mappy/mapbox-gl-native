@@ -26,7 +26,7 @@ void LineAnnotationImpl::updateStyle(Style& style) const {
     lineLayer->setLineOpacity(annotation.opacity);
     lineLayer->setLineWidth(annotation.width);
     lineLayer->setLineColor(annotation.color);
-    lineLayer->setLineIsMappyPath(annotation.isMappyPath);
+    lineLayer->setLineIsMappyPath(annotation.isMappyPath.asConstant());
 }
 
 const ShapeAnnotationGeometry& LineAnnotationImpl::geometry() const {

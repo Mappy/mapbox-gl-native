@@ -24,7 +24,7 @@ void Painter::renderLine(PaintParameters& parameters,
 
     const LinePaintProperties::Evaluated& properties = layer.impl->paint.evaluated;
 
-    auto draw = [&] (auto& program, auto&& uniformValues) {
+    auto draw = [&] (auto& program, auto&& uniformValues, auto& lineProperties) {
         program.draw(
             context,
             gl::Triangles(),
@@ -36,7 +36,7 @@ void Painter::renderLine(PaintParameters& parameters,
             *bucket.indexBuffer,
             bucket.segments,
             bucket.paintPropertyBinders.at(layer.getID()),
-            properties,
+            lineProperties,
             state.getZoom()
         );
     };
@@ -59,7 +59,8 @@ void Painter::renderLine(PaintParameters& parameters,
                  posA,
                  posB,
                  layer.impl->dashLineWidth,
-                 lineAtlas->getSize().width));
+                 lineAtlas->getSize().width),
+             properties);
 
     } else if (!properties.get<LinePattern>().from.empty()) {
         optional<SpriteAtlasElement> posA = spriteAtlas->getPattern(properties.get<LinePattern>().from);
@@ -77,63 +78,29 @@ void Painter::renderLine(PaintParameters& parameters,
                  state,
                  pixelsToGLUnits,
                  *posA,
-                 *posB));
+                 *posB),
+             properties);
 
     } else {
 		// Mappy specific drawing on paths
-		if (properties.get<LineIsMappyPath>() == true)
-		{
-//			Color stroke_color = {1.0, 1.0, 1.0, opacity};
-//			
-//			context.program = lineShader.getID();
-//			
-//			lineShader.u_matrix = vtxMatrix;
-//			lineShader.u_linewidth = (properties.lineWidth * 3.0f) / 4.0f;
-//			lineShader.u_gapwidth = properties.lineGapWidth / 2;
-//			lineShader.u_antialiasing = antialiasing / 2;
-//			lineShader.u_ratio = ratio;
-//			lineShader.u_blur = blur;
-//			lineShader.u_extra = extra;
-//			lineShader.u_offset = -properties.lineOffset;
-//			lineShader.u_antialiasingmatrix = antialiasingMatrix;
-//			
-//			lineShader.u_color = stroke_color;
-//			lineShader.u_opacity = opacity;
-//			
-//			setDepthSublayer(0);
-//			bucket.drawLines(lineShader, context, paintMode());
-
-            LinePaintProperties::Evaluated mappyEvaluated = properties;
-            mappyEvaluated.
-
-
-//            LinePaintProperties mappyProperties = LinePaintProperties(layer.impl->paint);
-//            const optional<std::string>& klass = {};
-//
-//            auto width = properties.get<LineWidth>();
-////            PropertyValue<float> mappyWidth = { width * 30.0f };
-//            mappyProperties.set<LineWidth>(30.0, klass);
-//
-//            width = mappyProperties.evaluated.get<LineWidth>();
-//
-//            auto color = properties.get<LineColor>();
-//            DataDrivenPropertyValue<Color> mappyWhite = { Color::white() };
-//            mappyProperties.set<LineColor>(mappyWhite, klass);
-
+		if (layer.impl->isMappyPath == true) {
+            const LinePaintProperties::Evaluated& mappyProperties = layer.impl->mappyPaint.evaluated;
             draw(parameters.programs.line,
                  LineProgram::uniformValues(
-                                            mappyEvaluated,
+                                            mappyProperties,
                                             tile,
                                             state,
-                                            pixelsToGLUnits));
+                                            pixelsToGLUnits),
+                 mappyProperties);
 		}
 
-//        draw(parameters.programs.line,
-//             LineProgram::uniformValues(
-//                                        properties,
-//                                        tile,
-//                                        state,
-//                                        pixelsToGLUnits));
+        draw(parameters.programs.line,
+             LineProgram::uniformValues(
+                                        properties,
+                                        tile,
+                                        state,
+                                        pixelsToGLUnits),
+             properties);
     }
 }
 

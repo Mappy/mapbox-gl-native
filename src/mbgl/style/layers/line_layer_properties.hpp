@@ -70,10 +70,6 @@ struct LinePattern : CrossFadedPaintProperty<std::string> {
     static std::string defaultValue() { return ""; }
 };
 
-struct LineIsMappyPath : PaintProperty<bool> {
-    static float defaultValue() { return false; }
-};
-
 class LineLayoutProperties : public LayoutProperties<
     LineCap,
     LineJoin,
@@ -91,8 +87,7 @@ class LinePaintProperties : public PaintProperties<
     LineOffset,
     LineBlur,
     LineDasharray,
-    LinePattern,
-    LineIsMappyPath
+    LinePattern
 > {};
 
 } // namespace style
