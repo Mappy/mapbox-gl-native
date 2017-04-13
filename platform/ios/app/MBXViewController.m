@@ -1505,6 +1505,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         styleNames = @[
+            @"Mappy",
             @"Streets",
             @"Outdoors",
             @"Light",
@@ -1513,6 +1514,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
             @"Satellite Streets",
         ];
         styleURLs = @[
+            [NSURL URLWithString: @"https://map.mappy.net/map/1.0/vector/standard.json"],
             [MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion],
             [MGLStyle outdoorsStyleURLWithVersion:MGLStyleDefaultVersion],
             [MGLStyle lightStyleURLWithVersion:MGLStyleDefaultVersion],
@@ -1536,7 +1538,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 }
             }
         }
-        NSAssert(numStyleURLMethods == styleNames.count,
+        NSAssert(numStyleURLMethods + 1 == styleNames.count,
                  @"MGLStyle provides %u default styles but iosapp only knows about %lu of them.",
                  numStyleURLMethods, (unsigned long)styleNames.count);
     });
@@ -1809,11 +1811,6 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     if (self.showZoomLevelEnabled) {
         self.hudLabel.text = [NSString stringWithFormat:@" Zoom: %.2f", self.mapView.zoomLevel];
     }
-}
-
-- (BOOL)mapView:(MGLMapView *)mapView whiteStrokeForPolylineAnnotation:(MGLPolyline *)annotation
-{
-    return YES;
 }
 
 @end
