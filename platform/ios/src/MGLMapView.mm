@@ -1164,18 +1164,9 @@ public:
 
 - (void)touchesBegan:(__unused NS_SET_OF(UITouch *) *)touches withEvent:(__unused UIEvent *)event
 {
-	UITouch *touch = touches.anyObject;
-	if (touch.phase == UITouchPhaseBegan
-		&& touch.tapCount == 1
-		&& touch.view == self.glView
-		&& [self.delegate respondsToSelector:@selector(mapView:didReceiveTouchDownEvent:)])
-	{
-		[self.delegate mapView:self didReceiveTouchDownEvent:event];
-	}
-
-	_changeDelimiterSuppressionDepth = 0;
-	_mbglMap->setGestureInProgress(false);
-	_mbglMap->cancelTransitions();
+    _changeDelimiterSuppressionDepth = 0;
+    _mbglMap->setGestureInProgress(false);
+    _mbglMap->cancelTransitions();
 }
 
 - (void)notifyGestureDidBegin {
@@ -1883,6 +1874,24 @@ public:
         MGLEventKeyZoomLevel: @(zoom),
         MGLEventKeyGestureID: gestureID
     }];
+}
+
+- (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+{
+    if ([gestureRecognizer isMemberOfClass:[UITapGestureRecognizer class]])
+    {
+        UITapGestureRecognizer *tapGesture = (UITapGestureRecognizer *)gestureRecognizer;
+        if (tapGesture.numberOfTapsRequired == 1
+            && tapGesture.numberOfTouchesRequired == 1)
+        {
+            if ( ! [tapGesture isEqual:_singleTapGestureRecognizer])
+            {
+                [tapGesture requireGestureRecognizerToFail:_singleTapGestureRecognizer];
+            }
+        }
+    }
+
+    [super addGestureRecognizer:gestureRecognizer];
 }
 
 #pragma mark - Attribution -

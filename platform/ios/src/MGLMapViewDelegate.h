@@ -564,10 +564,6 @@ By default, the polyline doesn't have a white stroke.
  */
 - (void)mapView:(MGLMapView *)mapView tapOnCalloutForAnnotation:(id <MGLAnnotation>)annotation;
 
-#pragma mark Responding to user actions
-
-- (void)mapView:(MGLMapView *)mapView didReceiveTouchDownEvent:(UIEvent *)event;
-
 @end
 
 NS_ASSUME_NONNULL_END
