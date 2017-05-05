@@ -1164,6 +1164,14 @@ public:
 
 - (void)touchesBegan:(__unused NS_SET_OF(UITouch *) *)touches withEvent:(__unused UIEvent *)event
 {
+    if (_mbglMap->isInTransition()) {
+        for (UIGestureRecognizer *gesture in self.gestureRecognizers) {
+            if ([gesture isMemberOfClass:[UITapGestureRecognizer class]]) {
+                gesture.enabled = NO;
+                gesture.enabled = YES;
+            }
+        }
+    }
     _changeDelimiterSuppressionDepth = 0;
     _mbglMap->setGestureInProgress(false);
     _mbglMap->cancelTransitions();

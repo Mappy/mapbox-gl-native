@@ -457,6 +457,10 @@ bool Map::isPanning() const {
     return impl->transform.isPanning();
 }
 
+bool Map::isInTransition() const {
+    return impl->transform.inTransition();
+}
+
 #pragma mark -
 
 CameraOptions Map::getCameraOptions(optional<EdgeInsets> padding) const {
