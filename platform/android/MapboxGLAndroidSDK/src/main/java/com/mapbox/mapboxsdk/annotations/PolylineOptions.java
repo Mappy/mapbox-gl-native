@@ -81,6 +81,11 @@ public final class PolylineOptions implements Parcelable {
     return this;
   }
 
+  public PolylineOptions addAll(List<LatLng> points) {
+    polyline.addAllPoints(points);
+    return this;
+  }
+
   /**
    * Adds vertices to the end of the polyline being built.
    *

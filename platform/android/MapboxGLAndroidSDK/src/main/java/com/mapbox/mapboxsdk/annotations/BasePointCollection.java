@@ -48,6 +48,11 @@ public abstract class BasePointCollection extends Annotation {
     update();
   }
 
+  public void addAllPoints(List<LatLng> otherPoints) {
+    points.addAll(otherPoints);
+    update();
+  }
+
   /**
    * Value between 0 and 1 defining the polyline alpha.
    *
