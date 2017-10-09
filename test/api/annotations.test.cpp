@@ -3,8 +3,9 @@
 
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/annotation/annotation.hpp>
-#include <mbgl/sprite/sprite_image.hpp>
+#include <mbgl/style/image.hpp>
 #include <mbgl/map/map.hpp>
+#include <mbgl/map/backend_scope.hpp>
 #include <mbgl/gl/headless_backend.hpp>
 #include <mbgl/gl/offscreen_view.hpp>
 #include <mbgl/util/io.hpp>
@@ -15,15 +16,16 @@ using namespace mbgl;
 
 namespace {
 
-std::shared_ptr<SpriteImage> namedMarker(const std::string &name) {
+std::unique_ptr<style::Image> namedMarker(const std::string& name) {
     PremultipliedImage image = decodeImage(util::read_file("test/fixtures/sprites/" + name));
-    return std::make_shared<SpriteImage>(std::move(image), 1.0);
+    return std::make_unique<style::Image>(std::move(image), 1.0);
 }
 
 class AnnotationTest {
 public:
     util::RunLoop loop;
     HeadlessBackend backend { test::sharedDisplay() };
+    BackendScope scope { backend };
     OffscreenView view { backend.getContext() };
     StubFileSource fileSource;
     ThreadPool threadPool { 4 };
@@ -41,7 +43,7 @@ TEST(Annotations, SymbolAnnotation) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.addAnnotation(SymbolAnnotation { Point<double>(0, 0), "default_marker" });
     test.checkRendering("point_annotation");
 
@@ -156,7 +158,7 @@ TEST(Annotations, AddMultiple) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.addAnnotation(SymbolAnnotation { Point<double> { -10, 0 }, "default_marker" });
 
     test::render(test.map, test.view);
@@ -183,8 +185,8 @@ TEST(Annotations, UpdateSymbolAnnotationGeometry) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
-    test.map.addAnnotationIcon("flipped_marker", namedMarker("flipped_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("flipped_marker", namedMarker("flipped_marker.png"));
     AnnotationID point = test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 0 }, "default_marker" });
 
     test::render(test.map, test.view);
@@ -197,8 +199,8 @@ TEST(Annotations, UpdateSymbolAnnotationIcon) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
-    test.map.addAnnotationIcon("flipped_marker", namedMarker("flipped_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("flipped_marker", namedMarker("flipped_marker.png"));
     AnnotationID point = test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 0 }, "default_marker" });
 
     test::render(test.map, test.view);
@@ -279,7 +281,7 @@ TEST(Annotations, RemovePoint) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     AnnotationID point = test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 0 }, "default_marker" });
 
     test::render(test.map, test.view);
@@ -318,7 +320,7 @@ TEST(Annotations, SwitchStyle) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 0 }, "default_marker" });
 
     test::render(test.map, test.view);
@@ -331,7 +333,7 @@ TEST(Annotations, QueryRenderedFeatures) {
     AnnotationTest test;
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 0 }, "default_marker" });
     test.map.addAnnotation(SymbolAnnotation { Point<double> { 0, 50 }, "default_marker" });
 
@@ -355,7 +357,7 @@ TEST(Annotations, QueryFractionalZoomLevels) {
     auto box = ScreenBox { {}, { double(viewSize.width), double(viewSize.height) } };
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
 
     std::vector<mbgl::AnnotationID> ids;
     for (int longitude = 0; longitude < 10; ++longitude) {
@@ -387,7 +389,7 @@ TEST(Annotations, VisibleFeatures) {
     auto box = ScreenBox { {}, { double(viewSize.width), double(viewSize.height) } };
 
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.setLatLngZoom({ 5, 5 }, 3);
 
     std::vector<mbgl::AnnotationID> ids;
@@ -440,7 +442,7 @@ TEST(Annotations, DebugSparse) {
     test.map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
     test.map.setDebug(MapDebugOptions::TileBorders);
     test.map.setZoom(1);
-    test.map.addAnnotationIcon("default_marker", namedMarker("default_marker.png"));
+    test.map.addAnnotationImage("default_marker", namedMarker("default_marker.png"));
     test.map.addAnnotation(SymbolAnnotation { Point<double>(10, 10), "default_marker" });
 
     test.checkRendering("debug_sparse");

@@ -7,7 +7,7 @@
 // C++ -> Java conversion
 #include "../../conversion/conversion.hpp"
 #include "../../conversion/collection.hpp"
-#include "../../geometry/conversion/feature.hpp"
+#include "../../geojson/conversion/feature.hpp"
 #include "../conversion/url_or_tileset.hpp"
 
 #include <mbgl/util/variant.hpp>
@@ -23,7 +23,7 @@ namespace android {
             env,
             std::make_unique<mbgl::style::VectorSource>(
                 jni::Make<std::string>(env, sourceId),
-                *style::conversion::convert<variant<std::string, Tileset>>(Value(env, urlOrTileSet))
+                convertURLOrTileset(Value(env, urlOrTileSet))
             )
         ) {
     }
@@ -34,15 +34,21 @@ namespace android {
 
     VectorSource::~VectorSource() = default;
 
-    jni::Array<jni::Object<Feature>> VectorSource::querySourceFeatures(jni::JNIEnv& env,
+    jni::String VectorSource::getURL(jni::JNIEnv& env) {
+        optional<std::string> url = source.as<mbgl::style::VectorSource>()->VectorSource::getURL();
+        return url ? jni::Make<jni::String>(env, *url) : jni::String();
+    }
+
+    jni::Array<jni::Object<geojson::Feature>> VectorSource::querySourceFeatures(jni::JNIEnv& env,
                                                                              jni::Array<jni::String> jSourceLayerIds,
                                                                              jni::Array<jni::Object<>> jfilter) {
         using namespace mbgl::android::conversion;
-        using namespace mapbox::geometry;
+        using namespace mbgl::android::geojson;
 
-        mbgl::optional<std::vector<std::string>> sourceLayerIds = { toVector(env, jSourceLayerIds) };
-        auto filter = toFilter(env, jfilter);
-        auto features = source.querySourceFeatures({ sourceLayerIds,  filter });
+        std::vector<mbgl::Feature> features;
+        if (map) {
+            features = map->querySourceFeatures(source.getID(), { toVector(env, jSourceLayerIds), toFilter(env, jfilter) });
+        }
         return *convert<jni::Array<jni::Object<Feature>>, std::vector<mbgl::Feature>>(env, features);
     }
 
@@ -65,7 +71,8 @@ namespace android {
             std::make_unique<VectorSource, JNIEnv&, jni::String, jni::Object<>>,
             "initialize",
             "finalize",
-            METHOD(&VectorSource::querySourceFeatures, "querySourceFeatures")
+            METHOD(&VectorSource::querySourceFeatures, "querySourceFeatures"),
+            METHOD(&VectorSource::getURL, "nativeGetUrl")
         );
     }
 

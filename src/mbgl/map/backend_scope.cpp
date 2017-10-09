@@ -8,29 +8,59 @@ namespace mbgl {
 
 static util::ThreadLocal<BackendScope> currentScope;
 
-BackendScope::BackendScope(Backend& backend_)
+BackendScope::BackendScope(Backend& backend_, ScopeType scopeType_)
     : priorScope(currentScope.get()),
       nextScope(nullptr),
-      backend(backend_) {
+      backend(backend_),
+      scopeType(scopeType_) {
     if (priorScope) {
         assert(priorScope->nextScope == nullptr);
         priorScope->nextScope = this;
+        priorScope->deactivate();
     }
-    backend.activate();
+
+    activate();
+
     currentScope.set(this);
 }
 
 BackendScope::~BackendScope() {
     assert(nextScope == nullptr);
+    deactivate();
+
     if (priorScope) {
-        priorScope->backend.activate();
+        priorScope->activate();
         currentScope.set(priorScope);
         assert(priorScope->nextScope == this);
         priorScope->nextScope = nullptr;
     } else {
-        backend.deactivate();
         currentScope.set(nullptr);
     }
+}
+
+void BackendScope::activate() {
+    if (scopeType == ScopeType::Explicit &&
+            !(priorScope && this->backend == priorScope->backend) &&
+            !(nextScope && this->backend == nextScope->backend)) {
+        // Only activate when set to Explicit and
+        // only once per RenderBackend
+        backend.activate();
+        activated = true;
+    }
+}
+
+void BackendScope::deactivate() {
+    if (activated &&
+        !(nextScope && this->backend == nextScope->backend)) {
+        // Only deactivate when set to Explicit and
+        // only once per RenderBackend
+        backend.deactivate();
+        activated = false;
+    }
+}
+
+bool BackendScope::exists() {
+    return currentScope.get();
 }
 
 } // namespace mbgl

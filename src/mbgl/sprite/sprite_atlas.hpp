@@ -4,18 +4,18 @@
 #include <mbgl/gl/texture.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/optional.hpp>
-#include <mbgl/sprite/sprite_image.hpp>
+#include <mbgl/style/image.hpp>
 
-#include <atomic>
 #include <string>
 #include <map>
-#include <mutex>
+#include <set>
 #include <unordered_map>
 #include <array>
 #include <memory>
 
 namespace mbgl {
 
+class Scheduler;
 class FileSource;
 class SpriteAtlasObserver;
 
@@ -25,25 +25,40 @@ class Context;
 
 class SpriteAtlasElement {
 public:
-    SpriteAtlasElement(Rect<uint16_t>, std::shared_ptr<const SpriteImage>, Size size, float pixelRatio);
+    SpriteAtlasElement(Rect<uint16_t>, const style::Image&, Size size, float pixelRatio);
 
     Rect<uint16_t> pos;
-    std::shared_ptr<const SpriteImage> spriteImage;
+    bool sdf;
 
     float relativePixelRatio;
     std::array<float, 2> size;
     std::array<float, 2> tl;
     std::array<float, 2> br;
+    float width;
+    float height;
+};
+
+typedef std::map<std::string, SpriteAtlasElement> IconMap;
+typedef std::set<std::string> IconDependencies;
+
+class IconRequestor {
+public:
+    virtual ~IconRequestor() = default;
+    virtual void onIconsAvailable(IconMap) = 0;
 };
 
 class SpriteAtlas : public util::noncopyable {
 public:
-    using Sprites = std::map<std::string, std::shared_ptr<const SpriteImage>>;
+    using Images = std::map<std::string, std::unique_ptr<style::Image>>;
 
     SpriteAtlas(Size, float pixelRatio);
     ~SpriteAtlas();
 
-    void load(const std::string& url, FileSource&);
+    void load(const std::string& url, Scheduler&, FileSource&);
+
+    void markAsLoaded() {
+        loaded = true;
+    }
 
     bool isLoaded() const {
         return loaded;
@@ -53,10 +68,12 @@ public:
 
     void setObserver(SpriteAtlasObserver*);
 
-    void setSprite(const std::string&, std::shared_ptr<const SpriteImage>);
-    void removeSprite(const std::string&);
+    const style::Image* getImage(const std::string&) const;
+    void addImage(const std::string&, std::unique_ptr<style::Image>);
+    void removeImage(const std::string&);
 
-    std::shared_ptr<const SpriteImage> getSprite(const std::string&);
+    void getIcons(IconRequestor& requestor);
+    void removeRequestor(IconRequestor& requestor);
 
     optional<SpriteAtlasElement> getIcon(const std::string& name);
     optional<SpriteAtlasElement> getPattern(const std::string& name);
@@ -72,15 +89,17 @@ public:
     float getPixelRatio() const { return pixelRatio; }
 
     // Only for use in tests.
-    void setSprites(const Sprites& sprites);
     const PremultipliedImage& getAtlasImage() const {
         return image;
     }
 
 private:
-    void _setSprite(const std::string&, const std::shared_ptr<const SpriteImage>& = nullptr);
     void emitSpriteLoadedIfComplete();
 
+    // Invoked by SpriteAtlasWorker
+    friend class SpriteAtlasWorker;
+    void onParsed(Images&& result);
+    void onError(std::exception_ptr);
 
     const Size size;
     const float pixelRatio;
@@ -93,7 +112,7 @@ private:
     SpriteAtlasObserver* observer = nullptr;
 
     struct Entry {
-        std::shared_ptr<const SpriteImage> spriteImage;
+        std::unique_ptr<style::Image> image;
 
         // One sprite image might be used as both an icon image and a pattern image. If so,
         // it must have two distinct entries in the texture. The one for the icon image has
@@ -105,13 +124,17 @@ private:
 
     optional<SpriteAtlasElement> getImage(const std::string& name, optional<Rect<uint16_t>> Entry::*rect);
     void copy(const Entry&, optional<Rect<uint16_t>> Entry::*rect);
+    
+    IconMap buildIconMap();
 
-    std::mutex mutex;
     std::unordered_map<std::string, Entry> entries;
     BinPack<uint16_t> bin;
     PremultipliedImage image;
     mbgl::optional<gl::Texture> texture;
-    std::atomic<bool> dirty;
+    bool dirty;
+    
+    std::set<IconRequestor*> requestors;
+    IconMap icons;
 };
 
 } // namespace mbgl

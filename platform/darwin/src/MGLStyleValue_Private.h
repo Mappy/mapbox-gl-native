@@ -3,11 +3,13 @@
 #import "MGLStyleValue.h"
 
 #import "NSValue+MGLStyleAttributeAdditions.h"
+#import "NSValue+MGLAdditions.h"
 #import "MGLTypes.h"
 
 #import "MGLConversion.h"
 #include <mbgl/style/conversion/data_driven_property_value.hpp>
 #include <mbgl/style/conversion.hpp>
+#import <mbgl/style/types.hpp>
 
 #import <mbgl/util/enum.hpp>
 
@@ -123,8 +125,9 @@ public:
             return toMBGLConstantValue((MGLConstantStyleValue<ObjCType> *)value);
         } else if ([value isKindOfClass:[MGLStyleFunction class]]) {
             auto rawValue = toRawStyleSpecValue((MGLStyleFunction<ObjCType> *) value);
-            auto result = mbgl::style::conversion::convert<mbgl::style::DataDrivenPropertyValue<MBGLType>>(rawValue);
-            NSCAssert(result, @(result.error().message.c_str()));
+            mbgl::style::conversion::Error error;
+            auto result = mbgl::style::conversion::convert<mbgl::style::DataDrivenPropertyValue<MBGLType>>(rawValue, error);
+            NSCAssert(result, @(error.message.c_str()));
             return *result;
         } else {
             return {};
@@ -414,6 +417,12 @@ private: // Private utilities for converting from mgl to mbgl values
             mbglValue.push_back(mbglElement);
         }
     }
+    
+    void getMBGLValue(NSValue *rawValue, mbgl::style::Position &mbglValue) {
+        auto spherical = rawValue.mgl_lightPositionArrayValue;
+        mbgl::style::Position position(spherical);
+        mbglValue = position;
+    }
 
     // Enumerations
     template <typename MBGLEnum = MBGLType,
@@ -471,6 +480,12 @@ private: // Private utilities for converting from mbgl to mgl values
             [array addObject:toMGLRawStyleValue(mbglElement)];
         }
         return array;
+    }
+    
+    static NSValue *toMGLRawStyleValue(const mbgl::style::Position &mbglStopValue) {
+        std::array<float, 3> spherical = mbglStopValue.getSpherical();
+        MGLSphericalPosition position = MGLSphericalPositionMake(spherical[0], spherical[1], spherical[2]);
+        return [NSValue valueWithMGLSphericalPosition:position];
     }
 
     // Enumerations

@@ -28,6 +28,7 @@
     <string name="activity_user_tracking_customization">User location drawable</string>
     <string name="activity_user_dot_color">User location tint color</string>
     <string name="activity_user_location_toggle">User location toggle</string>
+    <string name="activity_custom_location_engine">Custom location engine</string>
     <string name="activity_custom_layer">Custom Layer</string>
     <string name="activity_map_padding">Map Padding</string>
     <string name="activity_debug_mode">Debug Mode</string>
@@ -54,12 +55,17 @@
     <string name="activity_simple_map">Simple Map</string>
     <string name="activity_map_in_dialog">Dialog with map</string>
     <string name="activity_marker_view_rectangle">Marker views in rectangle</string>
+    <string name="activity_url_transform">Url transform</string>
+    <string name="activity_restricted_bounds">Restrict camera to a bounds</string>
+    <string name="activity_fill_extrusion_layer">Fill extrusions</string>
+    <string name="activity_building_fill_extrusion_layer">Building layer</string>
 
     <!--Description-->
     <string name="description_user_location_tracking">Tracks the location of the user</string>
     <string name="description_user_location_customization">Customize the location of the user</string>
     <string name="description_user_location_dot_color">Customize the user location color</string>
     <string name="description_user_location_toggle">Toggle location of the user on and off</string>
+    <string name="description_custom_location_engine">Customize location engine</string>
     <string name="description_custom_layer">Overlay a custom native layer on the map</string>
     <string name="description_info_window_adapter">Learn how to create a custom InfoWindow</string>
     <string name="description_cameraposition">CameraPosition capabilities</string>
@@ -107,6 +113,10 @@
     <string name="description_map_in_dialog">Display a map inside a dialog fragment</string>
     <string name="description_marker_view_rectangle">Marker Views within a rectangle</string>
     <string name="description_circle_layer">Show bus stops and route in Singapore</string>
+    <string name="description_url_transform">Transform urls on the fly</string>
+    <string name="description_restricted_bounds">Limit viewport to Iceland</string>
+    <string name="description_fill_extrusion_layer">Shows how to add 3D extruded shapes</string>
+    <string name="description_building_fill_extrusion_layer">Shows how to show 3D extruded buildings</string>
 
     <!--Categories-->
     <string name="category">category</string>
@@ -122,6 +132,7 @@
     <string name="category_userlocation">User Location</string>
     <string name="category_style">Styling</string>
     <string name="category_features">Features</string>
+    <string name="category_storage">Storage</string>
 
     <!--Actions-->
     <string name="action_remove_polylines">Remove polylines</string>
@@ -129,6 +140,7 @@
     <string name="action_alpha_polygon">Change alpha</string>
     <string name="action_points_polygon">Change points</string>
     <string name="action_color_polygon">Change color</string>
+    <string name="action_holes_polygon">Change holes</string>
     <string name="action_width_polyline">Change width</string>
 
     <!--Menu-->
@@ -139,6 +151,9 @@
     <string name="menuitem_title_reset">Reset</string>
     <string name="menuitem_title_rotate_gesture_enabled">Enable rotate gestures</string>
     <string name="menuitem_title_scroll_gesture_enabled">Enable scroll gestures</string>
+    <string name="menuitem_title_change_location_source_lost">Change to LOST location source</string>
+    <string name="menuitem_title_change_location_source_mock">Change to mock location source</string>
+    <string name="menuitem_title_change_location_source_null">Reset location source to null</string>
 
     <!--Button-->
     <string name="button_camera_move">Move</string>

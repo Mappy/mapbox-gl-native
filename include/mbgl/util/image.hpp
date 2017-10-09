@@ -40,11 +40,14 @@ public:
 
     Image(Image&& o)
         : size(o.size),
-          data(std::move(o.data)) {}
+          data(std::move(o.data)) {
+        o.size.width = o.size.height = 0;
+    }
 
     Image& operator=(Image&& o) {
         size = o.size;
         data = std::move(o.data);
+        o.size.width = o.size.height = 0;
         return *this;
     }
 
@@ -58,7 +61,7 @@ public:
     }
 
     bool valid() const {
-        return size && data.get() != nullptr;
+        return !size.isEmpty() && data.get() != nullptr;
     }
 
     template <typename T = Image>

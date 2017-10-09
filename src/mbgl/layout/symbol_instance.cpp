@@ -8,8 +8,9 @@ using namespace style;
 SymbolInstance::SymbolInstance(Anchor& anchor,
                                const GeometryCoordinates& line,
                                const std::pair<Shaping, Shaping>& shapedTextOrientations,
-                               const PositionedIcon& shapedIcon,
+                               optional<PositionedIcon> shapedIcon,
                                const SymbolLayoutProperties::Evaluated& layout,
+                               const float layoutTextSize,
                                const bool addToBuffers,
                                const uint32_t index_,
                                const float textBoxScale,
@@ -34,7 +35,7 @@ SymbolInstance::SymbolInstance(Anchor& anchor,
     // Create the quads used for rendering the icon and glyphs.
     if (addToBuffers) {
         if (shapedIcon) {
-            iconQuad = getIconQuad(anchor, shapedIcon, line, layout, iconPlacement, shapedTextOrientations.first);
+            iconQuad = getIconQuad(anchor, *shapedIcon, line, layout, layoutTextSize, iconPlacement, shapedTextOrientations.first);
         }
         if (shapedTextOrientations.first) {
             auto quads = getGlyphQuads(anchor, shapedTextOrientations.first, textBoxScale, line, layout, textPlacement, face);

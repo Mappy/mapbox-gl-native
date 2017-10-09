@@ -2,7 +2,6 @@
 
 #include <mapbox/geojson.hpp>
 #include <mbgl/style/conversion/geojson.hpp>
-#include <mbgl/util/rapidjson.hpp>
 
 #include <QMapbox>
 
@@ -10,7 +9,6 @@
 #include <QDebug>
 #include <QVariant>
 
-#include <sstream>
 #include <string>
 
 namespace QMapbox {
@@ -180,44 +178,20 @@ namespace style {
 namespace conversion {
 
 template <>
-Result<GeoJSON> convertGeoJSON(const QMapbox::Feature& feature) {
-    return Result<GeoJSON> { GeoJSON { asMapboxGLFeature(feature) } };
-}
-
-template <>
-Result<GeoJSON> convertGeoJSON(const QVariant& value) {
+optional<GeoJSON> Converter<GeoJSON>::operator()(const QVariant& value, Error& error) const {
 #if QT_VERSION >= 0x050000
     if (value.typeName() == QStringLiteral("QMapbox::Feature")) {
 #else
     if (value.typeName() == QString("QMapbox::Feature")) {
 #endif
-        return convertGeoJSON(value.value<QMapbox::Feature>());
+        return GeoJSON { asMapboxGLFeature(value.value<QMapbox::Feature>()) };
     } else if (value.type() != QVariant::ByteArray) {
-        return Error { "JSON data must be in QByteArray" };
+        error = { "JSON data must be in QByteArray" };
+        return {};
     }
 
-    auto data = value.toByteArray();
-
-    rapidjson::GenericDocument<rapidjson::UTF8<>, rapidjson::CrtAllocator> d;
-    if (data.endsWith(char(0))) {
-        d.Parse<0>(value.toByteArray().data());
-    } else {
-        d.Parse<0>(value.toByteArray().constData());
-    }
-
-    if (d.HasParseError()) {
-        std::stringstream message;
-        message << d.GetErrorOffset() << " - " << rapidjson::GetParseError_En(d.GetParseError());
-
-        return Error { message.str() };
-    }
-
-    Result<GeoJSON> geoJSON = convertGeoJSON<JSValue>(d);
-    if (!geoJSON) {
-        return Error { geoJSON.error().message };
-    }
-
-    return geoJSON;
+    QByteArray data = value.toByteArray();
+    return convert<GeoJSON>(std::string(data.constData(), data.size()), error);
 }
 
 } // namespace conversion

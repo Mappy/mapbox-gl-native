@@ -1,50 +1,43 @@
 package com.mapbox.mapboxsdk.testapp.activity.userlocation;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.ViewGroup;
 
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.location.LocationSource;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.MapboxMapOptions;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
-import com.mapbox.services.android.telemetry.location.LocationEngineListener;
+import com.mapzen.android.lost.api.LocationListener;
+import com.mapzen.android.lost.api.LocationRequest;
+import com.mapzen.android.lost.api.LocationServices;
+import com.mapzen.android.lost.api.LostApiClient;
 
 /**
  * Test activity showcasing how to change the MyLocationView drawable.
  */
-public class MyLocationDrawableActivity extends AppCompatActivity implements LocationEngineListener {
-
-  private static final int PERMISSIONS_LOCATION = 0;
+public class MyLocationDrawableActivity extends BaseLocationActivity implements LocationListener {
 
   private MapView mapView;
   private MapboxMap mapboxMap;
+  private LostApiClient lostApiClient;
 
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_my_location_customization);
-
     findViewById(R.id.progress).setVisibility(View.GONE);
 
     MapboxMapOptions mapboxMapOptions = new MapboxMapOptions();
     mapboxMapOptions.styleUrl(Style.MAPBOX_STREETS);
-
-    // configure MyLocationView drawables
     mapboxMapOptions.myLocationForegroundDrawable(ContextCompat.getDrawable(this, R.drawable.ic_android));
     mapboxMapOptions.myLocationBackgroundDrawable(ContextCompat.getDrawable(this, R.drawable.ic_android));
     mapboxMapOptions.myLocationForegroundTintColor(Color.GREEN);
@@ -52,7 +45,6 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
     mapboxMapOptions.myLocationBackgroundPadding(new int[] {0, 0,
       (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding),
       (int) getResources().getDimension(R.dimen.locationview_background_drawable_padding)});
-
     mapboxMapOptions.myLocationAccuracyTint(Color.RED);
     mapboxMapOptions.myLocationAccuracyAlpha(155);
 
@@ -71,56 +63,23 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
     });
   }
 
-  public void toggleGps(boolean enableGps) {
-    if (enableGps) {
-      if ((ContextCompat.checkSelfPermission(this,
-        Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        || (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-        != PackageManager.PERMISSION_GRANTED)) {
-        ActivityCompat.requestPermissions(this, new String[] {
-          Manifest.permission.ACCESS_COARSE_LOCATION,
-          Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_LOCATION);
-      } else {
-        enableLocation(true);
-      }
-    } else {
-      enableLocation(false);
-    }
-  }
-
-  private void enableLocation(boolean enabled) {
-    if (enabled) {
-      mapboxMap.setMyLocationEnabled(true);
-      Location location = mapboxMap.getMyLocation();
-      if (location != null) {
-        onLocationChanged(location);
-      } else {
-        LocationSource.getLocationEngine(this).addLocationEngineListener(this);
-      }
-    } else {
-      mapboxMap.setMyLocationEnabled(false);
-    }
-  }
-
   @Override
-  public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-    if (requestCode == PERMISSIONS_LOCATION) {
-      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-        enableLocation(true);
-      }
+  protected void enableLocation(boolean enabled) {
+    mapboxMap.setMyLocationEnabled(enabled);
+    if (lostApiClient == null) {
+      lostApiClient = new LostApiClient.Builder(this).build();
+      lostApiClient.connect();
+      LocationRequest request = LocationRequest.create()
+        .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+        .setInterval(5000)
+        .setSmallestDisplacement(10);
+      LocationServices.FusedLocationApi.requestLocationUpdates(request, this);
     }
-  }
-
-  @Override
-  public void onConnected() {
-    // Nothing
   }
 
   @Override
   public void onLocationChanged(Location location) {
-    if (mapboxMap != null) {
-      mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location), 14));
-    }
+    mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location), 14));
   }
 
   @Override
@@ -145,6 +104,10 @@ public class MyLocationDrawableActivity extends AppCompatActivity implements Loc
   protected void onStop() {
     super.onStop();
     mapView.onStop();
+    if (lostApiClient.isConnected()) {
+      LocationServices.FusedLocationApi.removeLocationUpdates(this);
+      lostApiClient.disconnect();
+    }
   }
 
   @Override

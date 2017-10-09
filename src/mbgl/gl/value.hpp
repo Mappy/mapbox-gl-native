@@ -4,12 +4,16 @@
 #include <mbgl/gl/depth_mode.hpp>
 #include <mbgl/gl/stencil_mode.hpp>
 #include <mbgl/gl/color_mode.hpp>
+#include <mbgl/gl/attribute.hpp>
 #include <mbgl/util/color.hpp>
 #include <mbgl/util/size.hpp>
 #include <mbgl/util/range.hpp>
 
 namespace mbgl {
 namespace gl {
+
+class Context;
+
 namespace value {
 
 struct ClearDepth {
@@ -225,8 +229,14 @@ struct BindElementBuffer {
 struct BindVertexArray {
     using Type = gl::VertexArrayID;
     static const constexpr Type Default = 0;
-    static void Set(const Type&);
-    static Type Get();
+    static void Set(const Type&, const Context&);
+    static Type Get(const Context&);
+};
+
+struct VertexAttribute {
+    using Type = optional<gl::AttributeBinding>;
+    static const Type Default;
+    static void Set(const Type&, Context&, AttributeLocation);
 };
 
 #if not MBGL_USE_GLES2

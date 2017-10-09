@@ -4,7 +4,7 @@
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/gl/vertex_buffer.hpp>
 #include <mbgl/gl/index_buffer.hpp>
-#include <mbgl/gl/segment.hpp>
+#include <mbgl/programs/segment.hpp>
 #include <mbgl/programs/line_program.hpp>
 #include <mbgl/style/layers/line_layer_properties.hpp>
 
@@ -12,14 +12,13 @@
 
 namespace mbgl {
 
-namespace style {
 class BucketParameters;
-} // namespace style
+class RenderLineLayer;
 
 class LineBucket : public Bucket {
 public:
-    LineBucket(const style::BucketParameters&,
-               const std::vector<const style::Layer*>&,
+    LineBucket(const BucketParameters&,
+               const std::vector<const RenderLayer*>&,
                const style::LineLayoutProperties&);
 
     void addFeature(const GeometryTileFeature&,
@@ -27,21 +26,23 @@ public:
     bool hasData() const override;
 
     void upload(gl::Context&) override;
-    void render(Painter&, PaintParameters&, const style::Layer&, const RenderTile&) override;
+    void render(Painter&, PaintParameters&, const RenderLayer&, const RenderTile&) override;
 
-    style::LineLayoutProperties::Evaluated layout;
+    float getQueryRadius(const RenderLayer&) const override;
+
+    style::LineLayoutProperties::PossiblyEvaluated layout;
 
     gl::VertexVector<LineLayoutVertex> vertices;
     gl::IndexVector<gl::Triangles> triangles;
-    gl::SegmentVector<LineAttributes> segments;
+    SegmentVector<LineAttributes> segments;
 
     optional<gl::VertexBuffer<LineLayoutVertex>> vertexBuffer;
     optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
 
-    std::unordered_map<std::string, LineProgram::PaintPropertyBinders> paintPropertyBinders;
+    std::map<std::string, LineProgram::PaintPropertyBinders> paintPropertyBinders;
 
 private:
-    void addGeometry(const GeometryCoordinates& line);
+    void addGeometry(const GeometryCoordinates&, FeatureType);
 
     struct TriangleElement {
         TriangleElement(uint16_t a_, uint16_t b_, uint16_t c_) : a(a_), b(b_), c(c_) {}
@@ -59,6 +60,8 @@ private:
     std::ptrdiff_t e3;
 
     const uint32_t overscaling;
+
+    float getLineWidth(const RenderLineLayer& layer) const;
 };
 
 } // namespace mbgl

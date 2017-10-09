@@ -1,93 +1,27 @@
 #include <mbgl/test/util.hpp>
 #include <mbgl/test/stub_file_source.hpp>
+#include <mbgl/test/fixture_log_observer.hpp>
 
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/source_impl.hpp>
 #include <mbgl/style/sources/vector_source.hpp>
 #include <mbgl/style/layer.hpp>
+#include <mbgl/style/layers/line_layer.hpp>
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/run_loop.hpp>
+#include <mbgl/util/default_thread_pool.hpp>
 
 #include <memory>
 
 using namespace mbgl;
 using namespace mbgl::style;
 
-TEST(Style, UnusedSource) {
-    util::RunLoop loop;
-
-    StubFileSource fileSource;
-    Style style { fileSource, 1.0 };
-
-    auto now = Clock::now();
-
-    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
-
-    // If we haven't calculated whether the source is used, we have to assume it is used.
-    EXPECT_FALSE(style.isLoaded());
-
-    style.cascade(now, MapMode::Still);
-    style.recalculate(0, now, MapMode::Still);
-
-    Source* usedSource = style.getSource("usedsource");
-    EXPECT_TRUE(usedSource);
-    EXPECT_TRUE(usedSource->baseImpl->isLoaded());
-
-    Source* unusedSource = style.getSource("unusedsource");
-    EXPECT_TRUE(unusedSource);
-    EXPECT_FALSE(unusedSource->baseImpl->isLoaded());
-
-    Layer* unusedLayer = style.getLayer("unusedlayervisibility");
-    EXPECT_TRUE(unusedLayer);
-
-    unusedLayer->setVisibility(mbgl::style::VisibilityType::Visible);
-
-    style.relayout();
-    EXPECT_FALSE(unusedSource->baseImpl->isLoaded());
-
-    // Style loads sources upon request when recalculating style.
-    style.recalculate(0, now, MapMode::Still);
-    EXPECT_TRUE(unusedSource->baseImpl->isLoaded());
-}
-
-TEST(Style, UnusedSourceActiveViaClassUpdate) {
-    util::RunLoop loop;
-
-    StubFileSource fileSource;
-    Style style { fileSource, 1.0 };
-
-    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
-    EXPECT_TRUE(style.addClass("visible"));
-    EXPECT_TRUE(style.hasClass("visible"));
-
-    auto now = Clock::now();
-
-    style.cascade(now, MapMode::Still);
-    style.recalculate(0, now, MapMode::Still);
-
-    Source *unusedSource = style.getSource("unusedsource");
-    EXPECT_TRUE(unusedSource);
-    EXPECT_TRUE(unusedSource->baseImpl->isLoaded());
-
-    // Style classes should be cleared upon new style load.
-    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
-    EXPECT_FALSE(style.hasClass("visible"));
-
-    now = Clock::now();
-
-    style.cascade(now, MapMode::Still);
-    style.recalculate(0, now, MapMode::Still);
-
-    unusedSource = style.getSource("unusedsource");
-    EXPECT_TRUE(unusedSource);
-    EXPECT_FALSE(unusedSource->baseImpl->isLoaded());
-}
-
 TEST(Style, Properties) {
     util::RunLoop loop;
 
+    ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style style { fileSource, 1.0 };
+    Style style { threadPool, fileSource, 1.0 };
 
     style.setJSON(R"STYLE({"name": "Test"})STYLE");
     ASSERT_EQ("Test", style.getName());
@@ -120,8 +54,9 @@ TEST(Style, Properties) {
 TEST(Style, DuplicateSource) {
     util::RunLoop loop;
 
+    ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style style { fileSource, 1.0 };
+    Style style { threadPool, fileSource, 1.0 };
 
     style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
 
@@ -133,4 +68,34 @@ TEST(Style, DuplicateSource) {
     } catch (std::runtime_error) {
         // Expected
     }
+}
+
+TEST(Style, RemoveSourceInUse) {
+    util::RunLoop loop;
+
+    auto log = new FixtureLogObserver();
+    Log::setObserver(std::unique_ptr<Log::Observer>(log));
+
+    ThreadPool threadPool{ 1 };
+    StubFileSource fileSource;
+    Style style { threadPool, fileSource, 1.0 };
+
+    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
+
+    style.addSource(std::make_unique<VectorSource>("sourceId", "mapbox://mapbox.mapbox-terrain-v2"));
+    style.addLayer(std::make_unique<LineLayer>("layerId", "sourceId"));
+
+    // Should not remove the source
+    auto removed = style.removeSource("sourceId");
+    ASSERT_EQ(nullptr, removed);
+    ASSERT_NE(nullptr, style.getSource("sourceId"));
+
+    const FixtureLogObserver::LogMessage logMessage {
+            EventSeverity::Warning,
+            Event::General,
+            int64_t(-1),
+            "Source 'sourceId' is in use, cannot remove",
+    };
+
+    EXPECT_EQ(log->count(logMessage), 1u);
 }

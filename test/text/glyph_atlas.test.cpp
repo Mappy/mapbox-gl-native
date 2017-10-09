@@ -2,7 +2,6 @@
 #include <mbgl/test/stub_file_source.hpp>
 #include <mbgl/test/stub_style_observer.hpp>
 
-#include <mbgl/text/glyph_set.hpp>
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/string.hpp>
@@ -11,20 +10,30 @@
 
 using namespace mbgl;
 
+class StubGlyphRequestor : public GlyphRequestor {
+public:
+    void onGlyphsAvailable(GlyphPositionMap positions) override {
+        if (glyphsAvailable) glyphsAvailable(std::move(positions));
+    }
+
+    std::function<void (GlyphPositionMap)> glyphsAvailable;
+};
+
 class GlyphAtlasTest {
 public:
     util::RunLoop loop;
     StubFileSource fileSource;
     StubStyleObserver observer;
+    StubGlyphRequestor requestor;
     GlyphAtlas glyphAtlas{ { 32, 32 }, fileSource };
 
-    void run(const std::string& url, const FontStack& fontStack, const GlyphRangeSet& glyphRanges) {
+    void run(const std::string& url, GlyphDependencies dependencies) {
         // Squelch logging.
         Log::setObserver(std::make_unique<Log::NullObserver>());
 
-        glyphAtlas.setObserver(&observer);
         glyphAtlas.setURL(url);
-        glyphAtlas.hasGlyphRanges(fontStack, glyphRanges);
+        glyphAtlas.setObserver(&observer);
+        glyphAtlas.getGlyphs(requestor, std::move(dependencies));
 
         loop.run();
     }
@@ -49,20 +58,28 @@ TEST(GlyphAtlas, LoadingSuccess) {
         test.end();
     };
 
-    test.observer.glyphsLoaded = [&] (const FontStack&, const GlyphRange&) {
-        if (!test.glyphAtlas.hasGlyphRanges({{"Test Stack"}}, {{0, 255}, {256, 511}}))
-            return;
+    test.observer.glyphsLoaded = [&] (const FontStack& fontStack, const GlyphRange& range) {
+        ASSERT_EQ(fontStack, FontStack {{"Test Stack"}});
+        ASSERT_EQ(range, GlyphRange(0, 255));
+    };
 
-        auto glyphSet = test.glyphAtlas.getGlyphSet({{"Test Stack"}});
-        ASSERT_FALSE(glyphSet->getSDFs().empty());
+    test.requestor.glyphsAvailable = [&] (GlyphPositionMap positions) {
+        const auto& testPositions = positions.at({{"Test Stack"}});
+
+        ASSERT_EQ(testPositions.size(), 3u);
+        ASSERT_EQ(testPositions.count(u'a'), 1u);
+        ASSERT_EQ(testPositions.count(u'å'), 1u);
+        ASSERT_EQ(testPositions.count(u' '), 1u);
+        ASSERT_TRUE(bool(testPositions.at(u' ')));
 
         test.end();
     };
 
     test.run(
         "test/fixtures/resources/glyphs.pbf",
-        {{"Test Stack"}},
-        {{0, 255}, {256, 511}});
+        GlyphDependencies {
+            {{{"Test Stack"}}, {u'a', u'å', u' '}}
+        });
 }
 
 TEST(GlyphAtlas, LoadingFail) {
@@ -83,16 +100,19 @@ TEST(GlyphAtlas, LoadingFail) {
         EXPECT_TRUE(error != nullptr);
         EXPECT_EQ(util::toString(error), "Failed by the test case");
 
-        ASSERT_TRUE(test.glyphAtlas.getGlyphSet({{"Test Stack"}})->getSDFs().empty());
-        ASSERT_FALSE(test.glyphAtlas.hasGlyphRanges({{"Test Stack"}}, {{0, 255}}));
+        test.end();
+    };
 
+    test.requestor.glyphsAvailable = [&] (GlyphPositionMap) {
+        FAIL();
         test.end();
     };
 
     test.run(
         "test/fixtures/resources/glyphs.pbf",
-        {{"Test Stack"}},
-        {{0, 255}});
+        GlyphDependencies {
+            {{{"Test Stack"}}, {u'a', u'å'}}
+        });
 }
 
 TEST(GlyphAtlas, LoadingCorrupted) {
@@ -111,16 +131,19 @@ TEST(GlyphAtlas, LoadingCorrupted) {
         EXPECT_TRUE(error != nullptr);
         EXPECT_EQ(util::toString(error), "unknown pbf field type exception");
 
-        ASSERT_TRUE(test.glyphAtlas.getGlyphSet({{"Test Stack"}})->getSDFs().empty());
-        ASSERT_FALSE(test.glyphAtlas.hasGlyphRanges({{"Test Stack"}}, {{0, 255}}));
+        test.end();
+    };
 
+    test.requestor.glyphsAvailable = [&] (GlyphPositionMap) {
+        FAIL();
         test.end();
     };
 
     test.run(
         "test/fixtures/resources/glyphs.pbf",
-        {{"Test Stack"}},
-        {{0, 255}});
+        GlyphDependencies {
+            {{{"Test Stack"}}, {u'a', u'å'}}
+        });
 }
 
 TEST(GlyphAtlas, LoadingCancel) {
@@ -137,41 +160,44 @@ TEST(GlyphAtlas, LoadingCancel) {
 
     test.run(
         "test/fixtures/resources/glyphs.pbf",
-        {{"Test Stack"}},
-        {{0, 255}});
+        GlyphDependencies {
+            {{{"Test Stack"}}, {u'a', u'å'}}
+        });
 }
 
-TEST(GlyphAtlas, InvalidSDFGlyph) {
-    const FontStack fontStack{ "Mock Font" };
-
+TEST(GlyphAtlas, LoadingInvalid) {
     GlyphAtlasTest test;
-    GlyphPositions positions;
 
-    auto glyphSet = test.glyphAtlas.getGlyphSet(fontStack);
-    glyphSet->insert(66, SDFGlyph{ 66 /* ASCII 'B' */,
-                                  AlphaImage({7, 7}), /* correct */
-                                  { 1 /* width */, 1 /* height */, 0 /* left */, 0 /* top */,
-                                    0 /* advance */ } });
-    glyphSet->insert(67, SDFGlyph{ 67 /* ASCII 'C' */,
-                                  AlphaImage({518, 8}), /* correct */
-                                  { 512 /* width */, 2 /* height */, 0 /* left */, 0 /* top */,
-                                    0 /* advance */ } });
+    test.fileSource.glyphsResponse = [&] (const Resource& resource) {
+        EXPECT_EQ(Resource::Kind::Glyphs, resource.kind);
+        Response response;
+        response.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/fake_glyphs-0-255.pbf"));
+        return response;
+    };
 
-    test.glyphAtlas.addGlyphs(1, std::u16string{u"ABC"}, fontStack, glyphSet, positions);
+    test.observer.glyphsError = [&] (const FontStack&, const GlyphRange&, std::exception_ptr) {
+        FAIL();
+        test.end();
+    };
 
-    ASSERT_EQ(2u, positions.size());
+    test.observer.glyphsLoaded = [&] (const FontStack& fontStack, const GlyphRange& range) {
+        ASSERT_EQ(fontStack, FontStack {{"Test Stack"}});
+        ASSERT_EQ(range, GlyphRange(0, 255));
+    };
 
-    // 'A' was not placed because not in the glyph set.
-    ASSERT_EQ(positions.end(), positions.find(65));
+    test.requestor.glyphsAvailable = [&] (GlyphPositionMap positions) {
+        const auto& testPositions = positions.at({{"Test Stack"}});
 
-    // 'B' was placed at the top left.
-    ASSERT_NE(positions.end(), positions.find(66));
-    // Width is 12 because actual dimensions are 1+6 pixels, with 1px border added, rounded up to
-    // the next multiple of 4.
-    ASSERT_EQ((Rect<uint16_t>{ 0, 0, 12, 12 }), positions[66].rect);
+        ASSERT_EQ(testPositions.size(), 2u);
+        ASSERT_FALSE(bool(testPositions.at(u'A')));
+        ASSERT_TRUE(bool(testPositions.at(u'E')));
 
-    // 'C' was not placed because the width is too big.
-    ASSERT_NE(positions.end(), positions.find(67));
-    ASSERT_EQ((Rect<uint16_t>{ 0, 0, 0, 0 }), positions[67].rect);
+        test.end();
+    };
 
+    test.run(
+        "test/fixtures/resources/glyphs.pbf",
+        GlyphDependencies {
+            {{{"Test Stack"}}, {u'A', u'E'}}
+        });
 }

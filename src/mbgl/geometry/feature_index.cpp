@@ -1,8 +1,7 @@
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/style/style.hpp>
-#include <mbgl/style/layer.hpp>
-#include <mbgl/style/layer_impl.hpp>
-#include <mbgl/style/layers/symbol_layer.hpp>
+#include <mbgl/renderer/render_layer.hpp>
+#include <mbgl/renderer/render_symbol_layer.hpp>
 #include <mbgl/text/collision_tile.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/math.hpp>
@@ -10,6 +9,7 @@
 #include <mbgl/map/query.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/filter_evaluator.hpp>
+#include <mbgl/tile/geometry_tile.hpp>
 
 #include <mapbox/geometry/envelope.hpp>
 
@@ -53,6 +53,36 @@ static bool topDownSymbols(const IndexedSubfeature& a, const IndexedSubfeature& 
     return a.sortIndex < b.sortIndex;
 }
 
+static int16_t getAdditionalQueryRadius(const RenderedQueryOptions& queryOptions,
+                                        const style::Style& style,
+                                        const GeometryTile& tile,
+                                        const float pixelsToTileUnits) {
+
+    // Determine the additional radius needed factoring in property functions
+    float additionalRadius = 0;
+    auto getQueryRadius = [&](const RenderLayer& layer) {
+        auto bucket = tile.getBucket(layer);
+        if (bucket) {
+            additionalRadius = std::max(additionalRadius, bucket->getQueryRadius(layer) * pixelsToTileUnits);
+        }
+    };
+
+    if (queryOptions.layerIDs) {
+        for (const auto& layerID : *queryOptions.layerIDs) {
+            RenderLayer* layer = style.getRenderLayer(layerID);
+            if (layer) {
+                getQueryRadius(*layer);
+            }
+        }
+    } else {
+        for (const RenderLayer* layer : style.getRenderLayers()) {
+            getQueryRadius(*layer);
+        }
+    }
+
+    return std::min<int16_t>(util::EXTENT, additionalRadius);
+}
+
 void FeatureIndex::query(
         std::unordered_map<std::string, std::vector<Feature>>& result,
         const GeometryCoordinates& queryGeometry,
@@ -63,13 +93,17 @@ void FeatureIndex::query(
         const GeometryTileData& geometryTileData,
         const CanonicalTileID& tileID,
         const style::Style& style,
-        const CollisionTile* collisionTile) const {
+        const CollisionTile* collisionTile,
+        const GeometryTile& tile) const {
 
-    mapbox::geometry::box<int16_t> box = mapbox::geometry::envelope(queryGeometry);
-
+    // Determine query radius
     const float pixelsToTileUnits = util::EXTENT / tileSize / scale;
-    const int16_t additionalRadius = std::min<int16_t>(util::EXTENT, std::ceil(style.getQueryRadius() * pixelsToTileUnits));
+    const int16_t additionalRadius = getAdditionalQueryRadius(queryOptions, style, tile, pixelsToTileUnits);
+
+    // Query the grid index
+    mapbox::geometry::box<int16_t> box = mapbox::geometry::envelope(queryGeometry);
     std::vector<IndexedSubfeature> features = grid.query({ box.min - additionalRadius, box.max + additionalRadius });
+
 
     std::sort(features.begin(), features.end(), topDown);
     size_t previousSortIndex = std::numeric_limits<size_t>::max();
@@ -121,10 +155,10 @@ void FeatureIndex::addFeature(
             continue;
         }
 
-        auto styleLayer = style.getLayer(layerID);
-        if (!styleLayer ||
-            (!styleLayer->is<style::SymbolLayer>() &&
-             !styleLayer->baseImpl->queryIntersectsGeometry(queryGeometry, geometryTileFeature->getGeometries(), bearing, pixelsToTileUnits))) {
+        auto renderLayer = style.getRenderLayer(layerID);
+        if (!renderLayer ||
+            (!renderLayer->is<RenderSymbolLayer>() &&
+             !renderLayer->queryIntersectsFeature(queryGeometry, *geometryTileFeature, tileID.z, bearing, pixelsToTileUnits))) {
             continue;
         }
 

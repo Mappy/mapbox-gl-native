@@ -5,7 +5,6 @@ import android.graphics.PointF;
 import android.support.test.espresso.Espresso;
 import android.support.test.espresso.UiController;
 import android.support.test.espresso.ViewAction;
-import android.support.test.rule.ActivityTestRule;
 import android.support.test.runner.AndroidJUnit4;
 import android.view.View;
 
@@ -14,25 +13,28 @@ import com.mapbox.mapboxsdk.style.layers.CannotAddLayerException;
 import com.mapbox.mapboxsdk.style.layers.CircleLayer;
 import com.mapbox.mapboxsdk.style.layers.FillLayer;
 import com.mapbox.mapboxsdk.style.layers.Layer;
+import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.PropertyFactory;
 import com.mapbox.mapboxsdk.style.sources.CannotAddSourceException;
+import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
+import com.mapbox.mapboxsdk.style.sources.RasterSource;
 import com.mapbox.mapboxsdk.style.sources.Source;
 import com.mapbox.mapboxsdk.style.sources.VectorSource;
 import com.mapbox.mapboxsdk.testapp.R;
+import com.mapbox.mapboxsdk.testapp.action.MapboxMapAction;
+import com.mapbox.mapboxsdk.testapp.activity.BaseActivityTest;
 import com.mapbox.mapboxsdk.testapp.activity.style.RuntimeStyleTestActivity;
-import com.mapbox.mapboxsdk.testapp.utils.OnMapReadyIdlingResource;
-import com.mapbox.mapboxsdk.testapp.utils.ViewUtils;
 
 import junit.framework.Assert;
 
 import org.hamcrest.Matcher;
 import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 
 import timber.log.Timber;
@@ -40,6 +42,7 @@ import timber.log.Timber;
 import static android.support.test.espresso.Espresso.onView;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
+import static com.mapbox.mapboxsdk.testapp.action.MapboxMapAction.invoke;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -50,28 +53,20 @@ import static org.junit.Assert.fail;
  * Basic smoke tests for Layer and Source
  */
 @RunWith(AndroidJUnit4.class)
-public class RuntimeStyleTests {
+public class RuntimeStyleTests extends BaseActivityTest {
 
-  @Rule
-  public final ActivityTestRule<RuntimeStyleTestActivity> rule = new ActivityTestRule<>(RuntimeStyleTestActivity.class);
-
-  private OnMapReadyIdlingResource idlingResource;
-
-  @Before
-  public void registerIdlingResource() {
-    idlingResource = new OnMapReadyIdlingResource(rule.getActivity());
-    Espresso.registerIdlingResources(idlingResource);
+  @Override
+  protected Class getActivityClass() {
+    return RuntimeStyleTestActivity.class;
   }
 
   @Test
   public void testListLayers() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
 
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
         List<Layer> layers = mapboxMap.getLayers();
         assertNotNull(layers);
         assertTrue(layers.size() > 0);
@@ -85,18 +80,16 @@ public class RuntimeStyleTests {
 
   @Test
   public void testGetAddRemoveLayer() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new AddRemoveLayerAction());
   }
 
   @Test
   public void testAddLayerAbove() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
         List<Layer> layers = mapboxMap.getLayers();
         Source source = mapboxMap.getSources().get(0);
 
@@ -126,13 +119,11 @@ public class RuntimeStyleTests {
 
   @Test
   public void testRemoveLayerAt() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
 
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
         // Remove by index
         Layer firstLayer = mapboxMap.getLayers().get(0);
         Layer removed = mapboxMap.removeLayerAt(0);
@@ -148,12 +139,10 @@ public class RuntimeStyleTests {
   }
 
   public void testAddLayerAt() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
         List<Layer> layers = mapboxMap.getLayers();
         Source source = mapboxMap.getSources().get(0);
 
@@ -184,13 +173,11 @@ public class RuntimeStyleTests {
 
   @Test
   public void testListSources() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
 
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
         List<Source> sources = mapboxMap.getSources();
         assertNotNull(sources);
         assertTrue(sources.size() > 0);
@@ -204,13 +191,107 @@ public class RuntimeStyleTests {
 
   @Test
   public void testAddRemoveSource() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
+    invoke(mapboxMap, new MapboxMapAction.OnInvokeActionListener() {
+      @Override
+      public void onInvokeAction(UiController uiController, MapboxMap mapboxMap) {
+        mapboxMap.addSource(new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2"));
+        mapboxMap.removeSource("my-source");
 
-    MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-    mapboxMap.addSource(new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2"));
-    mapboxMap.removeSource("my-source");
+        // Add initial source
+        mapboxMap.addSource(new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2"));
 
-    onView(withId(R.id.mapView)).perform(new AddRemoveSourceAction());
+        // Remove
+        Source mySource = mapboxMap.removeSource("my-source");
+        assertNotNull(mySource);
+        assertNull(mapboxMap.getLayer("my-source"));
+
+        // Add
+        Source source = new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
+        mapboxMap.addSource(source);
+
+        // Remove, preserving the reference
+        mapboxMap.removeSource(source);
+
+        // Re-add the reference...
+        mapboxMap.addSource(source);
+
+        // Ensure it's there
+        Assert.assertNotNull(mapboxMap.getSource(source.getId()));
+
+        // Test adding a duplicate source
+        try {
+          Source source2 = new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
+          mapboxMap.addSource(source2);
+          fail("Should not have been allowed to add a source with a duplicate id");
+        } catch (CannotAddSourceException cannotAddSourceException) {
+          // OK
+        }
+      }
+    });
+
+  }
+
+  @Test
+  public void testVectorSourceUrlGetter() {
+    validateTestSetup();
+    invoke(mapboxMap, new MapboxMapAction.OnInvokeActionListener() {
+      @Override
+      public void onInvokeAction(UiController uiController, MapboxMap mapboxMap) {
+        VectorSource source = new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
+        mapboxMap.addSource(source);
+        assertEquals("mapbox://mapbox.mapbox-terrain-v2", source.getUrl());
+      }
+    });
+  }
+
+  @Test
+  public void testRasterSourceUrlGetter() {
+    validateTestSetup();
+    invoke(mapboxMap, new MapboxMapAction.OnInvokeActionListener() {
+      @Override
+      public void onInvokeAction(UiController uiController, MapboxMap mapboxMap) {
+        RasterSource source = new RasterSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
+        mapboxMap.addSource(source);
+        assertEquals("mapbox://mapbox.mapbox-terrain-v2", source.getUrl());
+      }
+    });
+  }
+
+  @Test
+  public void testGeoJsonSourceUrlGetter() throws MalformedURLException {
+    validateTestSetup();
+    invoke(mapboxMap, new MapboxMapAction.OnInvokeActionListener() {
+      @Override
+      public void onInvokeAction(UiController uiController, MapboxMap mapboxMap) {
+        GeoJsonSource source = new GeoJsonSource("my-source");
+        mapboxMap.addSource(source);
+        assertNull(source.getUrl());
+        try {
+          source.setUrl(new URL("http://mapbox.com/my-file.json"));
+        } catch (MalformedURLException exception) {
+          fail();
+        }
+        assertEquals("http://mapbox.com/my-file.json", source.getUrl());
+      }
+    });
+  }
+
+  @Test
+  public void testRemoveSourceInUse() {
+    validateTestSetup();
+
+    onView(withId(R.id.mapView)).perform(new BaseViewAction() {
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        mapboxMap.addSource(new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2"));
+        mapboxMap.addLayer(new LineLayer("my-layer", "my-source"));
+        mapboxMap.removeSource("my-source");
+        assertNotNull(mapboxMap.getSource("my-source"));
+      }
+
+    });
   }
 
   /**
@@ -218,12 +299,11 @@ public class RuntimeStyleTests {
    */
   @Test
   public void testQueryRenderedFeaturesInputHandling() {
-    ViewUtils.checkViewIsDisplayed(R.id.mapView);
+    validateTestSetup();
     onView(withId(R.id.mapView)).perform(new BaseViewAction() {
 
       @Override
       public void perform(UiController uiController, View view) {
-        MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
         String[] layerIds = new String[600];
         for (int i = 0; i < layerIds.length; i++) {
           layerIds[i] = "layer-" + i;
@@ -238,8 +318,6 @@ public class RuntimeStyleTests {
 
     @Override
     public void perform(UiController uiController, View view) {
-      MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
       // Get initial
       assertNotNull(mapboxMap.getLayer("building"));
 
@@ -274,44 +352,6 @@ public class RuntimeStyleTests {
         mapboxMap.addLayer(new FillLayer("building", "composite"));
         fail("Should not have been allowed to add a layer with a duplicate id");
       } catch (CannotAddLayerException cannotAddLayerException) {
-        // OK
-      }
-    }
-  }
-
-  private class AddRemoveSourceAction extends BaseViewAction {
-
-    @Override
-    public void perform(UiController uiController, View view) {
-      MapboxMap mapboxMap = rule.getActivity().getMapboxMap();
-
-      // Add initial source
-      mapboxMap.addSource(new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2"));
-
-      // Remove
-      Source mySource = mapboxMap.removeSource("my-source");
-      assertNotNull(mySource);
-      assertNull(mapboxMap.getLayer("my-source"));
-
-      // Add
-      Source source = new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
-      mapboxMap.addSource(source);
-
-      // Remove, preserving the reference
-      mapboxMap.removeSource(source);
-
-      // Re-add the reference...
-      mapboxMap.addSource(source);
-
-      // Ensure it's there
-      Assert.assertNotNull(mapboxMap.getSource(source.getId()));
-
-      // Test adding a duplicate source
-      try {
-        Source source2 = new VectorSource("my-source", "mapbox://mapbox.mapbox-terrain-v2");
-        mapboxMap.addSource(source2);
-        fail("Should not have been allowed to add a source with a duplicate id");
-      } catch (CannotAddSourceException cannotAddSourceException) {
         // OK
       }
     }

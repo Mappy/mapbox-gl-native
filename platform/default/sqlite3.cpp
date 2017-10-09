@@ -30,7 +30,7 @@ public:
 
         const int error = sqlite3_close(db);
         if (error != SQLITE_OK) {
-            throw Exception { error, sqlite3_errmsg(db) };
+            mbgl::Log::Error(mbgl::Event::Database, "%s (Code %i)", sqlite3_errmsg(db), error);
         }
     }
 
@@ -110,10 +110,6 @@ Database &Database::operator=(Database &&other) {
 Database::~Database() {
 }
 
-Database::operator bool() const {
-    return impl.operator bool();
-}
-
 void Database::setBusyTimeout(std::chrono::milliseconds timeout) {
     assert(impl);
     const int err = sqlite3_busy_timeout(impl->db,
@@ -156,10 +152,6 @@ Statement &Statement::operator=(Statement &&other) {
 }
 
 Statement::~Statement() {
-}
-
-Statement::operator bool() const {
-    return impl.operator bool();
 }
 
 template <> void Statement::bind(int offset, std::nullptr_t) {

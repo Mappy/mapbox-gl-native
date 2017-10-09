@@ -76,6 +76,8 @@ gestures.
 
 For more information about user interface design, consult Apple’s
 [_iOS Human Interface Guidelines_](https://developer.apple.com/ios/human-interface-guidelines/).
+To learn more about designing maps for mobile devices, see [Nathaniel Slaughter's blog post](https://www.mapbox.com/blog/designing-maps-for-mobile-devices/) on
+the subject.
 
 ## Applying your style
 
@@ -181,6 +183,7 @@ In style JSON | In the SDK
 `background` | `MGLBackgroundStyleLayer`
 `circle` | `MGLCircleStyleLayer`
 `fill` | `MGLFillStyleLayer`
+`fill-extrusion` | `MGLFillExtrusionStyleLayer`
 `line` | `MGLLineStyleLayer`
 `raster` | `MGLRasterStyleLayer`
 `symbol` | `MGLSymbolStyleLayer`
@@ -205,6 +208,13 @@ In style JSON | In Objective-C | In Swift
 `fill-antialias` | `MGLFillStyleLayer.fillAntialiased` | `MGLFillStyleLayer.isFillAntialiased`
 `fill-translate` | `MGLFillStyleLayer.fillTranslation` | `MGLFillStyleLayer.fillTranslation`
 `fill-translate-anchor` | `MGLFillStyleLayer.fillTranslationAnchor` | `MGLFillStyleLayer.fillTranslationAnchor`
+
+### Fill extrusion style layers
+
+In style JSON | In Objective-C | In Swift
+--------------|----------------|---------
+`fill-extrusion-translate` | `MGLFillExtrusionStyleLayer.fillExtrusionTranslation` | `MGLFillExtrusionStyleLayer.fillExtrusionTranslation`
+`fill-extrusion-translate-anchor` | `MGLFillExtrusionStyleLayer.fillExtrusionTranslationAnchor` | `MGLFillExtrusionStyleLayer.fillExtrusionTranslationAnchor`
 
 ### Line style layers
 

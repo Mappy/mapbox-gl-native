@@ -16,19 +16,32 @@
 #include <mbgl/style/parser.hpp>
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/class_dictionary.hpp>
-#include <mbgl/style/update_parameters.hpp>
-#include <mbgl/style/cascade_parameters.hpp>
-#include <mbgl/style/property_evaluation_parameters.hpp>
 #include <mbgl/sprite/sprite_atlas.hpp>
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/geometry/line_atlas.hpp>
+#include <mbgl/renderer/update_parameters.hpp>
+#include <mbgl/renderer/cascade_parameters.hpp>
+#include <mbgl/renderer/property_evaluation_parameters.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
+#include <mbgl/renderer/render_source.hpp>
 #include <mbgl/renderer/render_item.hpp>
 #include <mbgl/renderer/render_tile.hpp>
+#include <mbgl/renderer/render_background_layer.hpp>
+#include <mbgl/renderer/render_circle_layer.hpp>
+#include <mbgl/renderer/render_custom_layer.hpp>
+#include <mbgl/renderer/render_fill_extrusion_layer.hpp>
+#include <mbgl/renderer/render_fill_layer.hpp>
+#include <mbgl/renderer/render_line_layer.hpp>
+#include <mbgl/renderer/render_raster_layer.hpp>
+#include <mbgl/renderer/render_symbol_layer.hpp>
+#include <mbgl/tile/tile.hpp>
 #include <mbgl/util/constants.hpp>
+#include <mbgl/util/exception.hpp>
 #include <mbgl/util/geometry.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/math.hpp>
+#include <mbgl/util/std.hpp>
 #include <mbgl/math/minmax.hpp>
 #include <mbgl/map/query.hpp>
 
@@ -39,14 +52,33 @@ namespace style {
 
 static Observer nullObserver;
 
-Style::Style(FileSource& fileSource_, float pixelRatio)
-    : fileSource(fileSource_),
+struct QueueSourceReloadVisitor {
+    UpdateBatch& updateBatch;
+
+    // No need to reload sources for these types; their visibility can change but
+    // they don't participate in layout.
+    void operator()(CustomLayer&) {}
+    void operator()(RasterLayer&) {}
+    void operator()(BackgroundLayer&) {}
+
+    template <class VectorLayer>
+    void operator()(VectorLayer& layer) {
+        updateBatch.sourceIDs.insert(layer.getSourceID());
+    }
+};
+
+Style::Style(Scheduler& scheduler_, FileSource& fileSource_, float pixelRatio)
+    : scheduler(scheduler_),
+      fileSource(fileSource_),
       glyphAtlas(std::make_unique<GlyphAtlas>(Size{ 2048, 2048 }, fileSource)),
       spriteAtlas(std::make_unique<SpriteAtlas>(Size{ 1024, 1024 }, pixelRatio)),
       lineAtlas(std::make_unique<LineAtlas>(Size{ 256, 512 })),
+      light(std::make_unique<Light>()),
+      renderLight(std::make_unique<RenderLight>(light->impl)),
       observer(&nullObserver) {
     glyphAtlas->setObserver(this);
     spriteAtlas->setObserver(this);
+    light->impl->setObserver(this);
 }
 
 Style::~Style() {
@@ -62,6 +94,7 @@ Style::~Style() {
 
     glyphAtlas->setObserver(nullptr);
     spriteAtlas->setObserver(nullptr);
+    light->impl->setObserver(nullptr);
 }
 
 bool Style::addClass(const std::string& className) {
@@ -101,7 +134,9 @@ TransitionOptions Style::getTransitionOptions() const {
 
 void Style::setJSON(const std::string& json) {
     sources.clear();
+    renderSources.clear();
     layers.clear();
+    renderLayers.clear();
     classes.clear();
     transitionOptions = {};
     updateBatch = {};
@@ -110,8 +145,9 @@ void Style::setJSON(const std::string& json) {
     auto error = parser.parse(json);
 
     if (error) {
-        Log::Error(Event::ParseStyle, "Failed to parse style: %s", util::toString(error).c_str());
-        observer->onStyleError();
+        std::string message = "Failed to parse style: " + util::toString(error);
+        Log::Error(Event::ParseStyle, message.c_str());
+        observer->onStyleError(std::make_exception_ptr(util::StyleParseException(message)));
         observer->onResourceError(error);
         return;
     }
@@ -129,9 +165,10 @@ void Style::setJSON(const std::string& json) {
     defaultZoom = parser.zoom;
     defaultBearing = parser.bearing;
     defaultPitch = parser.pitch;
+    setLight(std::make_unique<Light>(parser.light));
 
     glyphAtlas->setURL(parser.glyphURL);
-    spriteAtlas->load(parser.spriteURL, fileSource);
+    spriteAtlas->load(parser.spriteURL, scheduler, fileSource);
 
     loaded = true;
 
@@ -150,10 +187,39 @@ void Style::addSource(std::unique_ptr<Source> source) {
     }
 
     source->baseImpl->setObserver(this);
+    source->baseImpl->loadDescription(fileSource);
+
+    std::unique_ptr<RenderSource> renderSource = source->baseImpl->createRenderSource();
+    renderSource->setObserver(this);
+    renderSources.emplace_back(std::move(renderSource));
+
     sources.emplace_back(std::move(source));
 }
 
+struct SourceIdUsageEvaluator {
+    const std::string& sourceId;
+
+    bool operator()(BackgroundLayer&) { return false; }
+    bool operator()(CustomLayer&) { return false; }
+
+    template <class LayerType>
+    bool operator()(LayerType& layer) {
+        return layer.getSourceID() == sourceId;
+    }
+};
+
 std::unique_ptr<Source> Style::removeSource(const std::string& id) {
+    // Check if source is in use
+    SourceIdUsageEvaluator sourceIdEvaluator {id};
+    auto layerIt = std::find_if(layers.begin(), layers.end(), [&](const auto& layer) {
+        return layer->accept(sourceIdEvaluator);
+    });
+
+    if (layerIt != layers.end()) {
+        Log::Warning(Event::General, "Source '%s' is in use, cannot remove", id.c_str());
+        return nullptr;
+    }
+
     auto it = std::find_if(sources.begin(), sources.end(), [&](const auto& source) {
         return source->getID() == id;
     });
@@ -162,11 +228,15 @@ std::unique_ptr<Source> Style::removeSource(const std::string& id) {
         return nullptr;
     }
 
+    util::erase_if(renderSources, [&](const auto& source) {
+        return source->baseImpl.id == id;
+    });
+
     auto source = std::move(*it);
+    source->baseImpl->setObserver(nullptr);
     sources.erase(it);
     updateBatch.sourceIDs.erase(id);
 
-    source->baseImpl->detach();
     return source;
 }
 
@@ -211,19 +281,16 @@ Layer* Style::addLayer(std::unique_ptr<Layer> layer, optional<std::string> befor
         throw std::runtime_error(std::string{"Layer "} + layer->getID() + " already exists");
     }
 
-    if (SymbolLayer* symbolLayer = layer->as<SymbolLayer>()) {
-        if (!symbolLayer->impl->spriteAtlas) {
-            symbolLayer->impl->spriteAtlas = spriteAtlas.get();
-        }
-    }
-
     if (CustomLayer* customLayer = layer->as<CustomLayer>()) {
         customLayer->impl->initialize();
     }
 
     layer->baseImpl->setObserver(this);
+    layer->accept(QueueSourceReloadVisitor { updateBatch });
 
-    return layers.emplace(before ? findLayer(*before) : layers.end(), std::move(layer))->get();
+    auto added = layers.emplace(before ? findLayer(*before) : layers.end(), std::move(layer))->get();
+    renderLayers.emplace(before ? findRenderLayer(*before) : renderLayers.end(), added->baseImpl->createRenderLayer());
+    return std::move(added);
 }
 
 std::unique_ptr<Layer> Style::removeLayer(const std::string& id) {
@@ -240,8 +307,68 @@ std::unique_ptr<Layer> Style::removeLayer(const std::string& id) {
         customLayer->impl->deinitialize();
     }
 
+    layer->baseImpl->setObserver(nullptr);
     layers.erase(it);
+    removeRenderLayer(id);
     return layer;
+}
+
+std::vector<const RenderLayer*> Style::getRenderLayers() const {
+    std::vector<const RenderLayer*> result;
+    result.reserve(renderLayers.size());
+    for (const auto& layer : renderLayers) {
+        result.push_back(layer.get());
+    }
+    return result;
+}
+
+std::vector<RenderLayer*> Style::getRenderLayers() {
+    std::vector<RenderLayer*> result;
+    result.reserve(renderLayers.size());
+    for (auto& layer : renderLayers) {
+        result.push_back(layer.get());
+    }
+    return result;
+}
+
+std::vector<std::unique_ptr<RenderLayer>>::const_iterator Style::findRenderLayer(const std::string& id) const {
+    return std::find_if(renderLayers.begin(), renderLayers.end(), [&](const auto& layer) {
+        return layer->baseImpl.id == id;
+    });
+}
+
+RenderLayer* Style::getRenderLayer(const std::string& id) const {
+    auto it = findRenderLayer(id);
+    return it != renderLayers.end() ? it->get() : nullptr;
+}
+
+void Style::removeRenderLayer(const std::string& id) {
+    auto it = std::find_if(renderLayers.begin(), renderLayers.end(), [&](const auto& layer) {
+        return layer->baseImpl.id == id;
+    });
+
+    if (it != renderLayers.end()) {
+        renderLayers.erase(it);
+    }
+}
+
+void Style::setLight(std::unique_ptr<Light> light_) {
+    light = std::move(light_);
+    light->impl->setObserver(this);
+
+    // Copy renderlight to preserve the initialised
+    // transitioning light properties
+    renderLight = renderLight->copy(light->impl);
+
+    onLightChanged(*light);
+}
+
+Light* Style::getLight() const {
+    return light.get();
+}
+
+RenderLight* Style::getRenderLight() const {
+    return renderLight.get();
 }
 
 std::string Style::getName() const {
@@ -264,34 +391,8 @@ double Style::getDefaultPitch() const {
     return defaultPitch;
 }
 
-void Style::updateTiles(const UpdateParameters& parameters) {
-    for (const auto& source : sources) {
-        if (source->baseImpl->enabled) {
-            source->baseImpl->updateTiles(parameters);
-        }
-    }
-}
-
-void Style::updateSymbolDependentTiles() {
-    for (const auto& source : sources) {
-        source->baseImpl->updateSymbolDependentTiles();
-    }
-}
-
-void Style::relayout() {
-    for (const auto& sourceID : updateBatch.sourceIDs) {
-        Source* source = getSource(sourceID);
-        if (source && source->baseImpl->enabled) {
-            source->baseImpl->reloadTiles();
-        }
-    }
-    updateBatch.sourceIDs.clear();
-}
-
-void Style::cascade(const TimePoint& timePoint, MapMode mode) {
-    // When in continuous mode, we can either have user- or style-defined
-    // transitions. Still mode is always immediate.
-    static const TransitionOptions immediateTransition {};
+void Style::update(const UpdateParameters& parameters) {
+    bool zoomChanged = zoomHistory.update(parameters.transformState.getZoom(), parameters.timePoint);
 
     std::vector<ClassID> classIDs;
     for (const auto& className : classes) {
@@ -299,58 +400,73 @@ void Style::cascade(const TimePoint& timePoint, MapMode mode) {
     }
     classIDs.push_back(ClassID::Default);
 
-    const CascadeParameters parameters {
+    const CascadeParameters cascadeParameters {
         classIDs,
-        mode == MapMode::Continuous ? timePoint : Clock::time_point::max(),
-        mode == MapMode::Continuous ? transitionOptions : immediateTransition
+        parameters.timePoint,
+        parameters.mode == MapMode::Continuous ? transitionOptions : TransitionOptions()
     };
 
-    for (const auto& layer : layers) {
-        layer->baseImpl->cascade(parameters);
-    }
-}
-
-void Style::recalculate(float z, const TimePoint& timePoint, MapMode mode) {
-    // Disable all sources first. If we find an enabled layer that uses this source, we will
-    // re-enable it later.
-    for (const auto& source : sources) {
-        source->baseImpl->enabled = false;
-    }
-
-    zoomHistory.update(z, timePoint);
-
-    const PropertyEvaluationParameters parameters {
-        z,
-        mode == MapMode::Continuous ? timePoint : Clock::time_point::max(),
+    const PropertyEvaluationParameters evaluationParameters {
         zoomHistory,
-        mode == MapMode::Continuous ? util::DEFAULT_FADE_DURATION : Duration::zero()
+        parameters.timePoint,
+        parameters.mode == MapMode::Continuous ? util::DEFAULT_FADE_DURATION : Duration::zero()
     };
 
-    hasPendingTransitions = false;
-    for (const auto& layer : layers) {
-        hasPendingTransitions |= layer->baseImpl->evaluate(parameters);
+    const TileParameters tileParameters(parameters.pixelRatio,
+                                        parameters.debugOptions,
+                                        parameters.transformState,
+                                        parameters.scheduler,
+                                        parameters.fileSource,
+                                        parameters.mode,
+                                        parameters.annotationManager,
+                                        *this);
 
-        // Disable this layer if it doesn't need to be rendered.
-        const bool needsRendering = layer->baseImpl->needsRendering(zoomHistory.lastZoom);
-        if (!needsRendering) {
-            continue;
+    const bool cascade = parameters.updateFlags & Update::Classes;
+    const bool evaluate = cascade || zoomChanged || parameters.updateFlags & Update::RecalculateStyle;
+
+    if (cascade) {
+        renderLight->transition(cascadeParameters);
+    }
+
+    if (evaluate || renderLight->hasTransition()) {
+        renderLight->evaluate(evaluationParameters);
+    }
+
+    for (const auto& renderSource : renderSources) {
+        renderSource->enabled = false;
+    }
+
+    for (const auto& layer : renderLayers) {
+        if (cascade) {
+            layer->cascade(cascadeParameters);
         }
 
-        // If this layer has a source, make sure that it gets loaded.
-        if (Source* source = getSource(layer->baseImpl->source)) {
-            source->baseImpl->enabled = true;
-            if (!source->baseImpl->loaded) {
-                source->baseImpl->loadDescription(fileSource);
+        if (evaluate || layer->hasTransition()) {
+            layer->evaluate(evaluationParameters);
+        }
+
+        if (layer->needsRendering(zoomHistory.lastZoom)) {
+            if (RenderSource* renderSource = getRenderSource(layer->baseImpl.source)) {
+                renderSource->enabled = true;
             }
         }
     }
 
-    // Remove the existing tiles if we didn't end up re-enabling the source.
-    for (const auto& source : sources) {
-        if (!source->baseImpl->enabled) {
-            source->baseImpl->removeTiles();
+    for (const auto& renderSource : renderSources) {
+        bool updated = updateBatch.sourceIDs.count(renderSource->baseImpl.id);
+        if (renderSource->enabled) {
+            if (updated) {
+                renderSource->reloadTiles();
+            }
+            renderSource->updateTiles(tileParameters);
+        } else if (updated) {
+            renderSource->invalidateTiles();
+        } else {
+            renderSource->removeTiles();
         }
     }
+
+    updateBatch.sourceIDs.clear();
 }
 
 std::vector<const Source*> Style::getSources() const {
@@ -379,8 +495,26 @@ Source* Style::getSource(const std::string& id) const {
     return it != sources.end() ? it->get() : nullptr;
 }
 
+RenderSource* Style::getRenderSource(const std::string& id) const {
+    const auto it = std::find_if(renderSources.begin(), renderSources.end(), [&](const auto& source) {
+        return source->baseImpl.id == id;
+    });
+
+    return it != renderSources.end() ? it->get() : nullptr;
+}
+
 bool Style::hasTransitions() const {
-    return hasPendingTransitions;
+    if (renderLight->hasTransition()) {
+        return true;
+    }
+
+    for (const auto& layer : renderLayers) {
+        if (layer->hasTransition()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool Style::isLoaded() const {
@@ -389,7 +523,13 @@ bool Style::isLoaded() const {
     }
 
     for (const auto& source: sources) {
-        if (source->baseImpl->enabled && !source->baseImpl->isLoaded()) {
+        if (!source->baseImpl->loaded) {
+            return false;
+        }
+    }
+
+    for (const auto& renderSource: renderSources) {
+        if (!renderSource->isLoaded()) {
             return false;
         }
     }
@@ -404,25 +544,25 @@ bool Style::isLoaded() const {
 RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const {
     RenderData result;
 
-    for (const auto& source : sources) {
-        if (source->baseImpl->enabled) {
-            result.sources.insert(source.get());
+    for (const auto& renderSource: renderSources) {
+        if (renderSource->enabled) {
+            result.sources.insert(renderSource.get());
         }
     }
 
-    for (const auto& layer : layers) {
-        if (!layer->baseImpl->needsRendering(zoomHistory.lastZoom)) {
+    for (const auto& layer : renderLayers) {
+        if (!layer->needsRendering(zoomHistory.lastZoom)) {
             continue;
         }
 
-        if (const BackgroundLayer* background = layer->as<BackgroundLayer>()) {
+        if (const RenderBackgroundLayer* background = layer->as<RenderBackgroundLayer>()) {
             if (debugOptions & MapDebugOptions::Overdraw) {
                 // We want to skip glClear optimization in overdraw mode.
                 result.order.emplace_back(*layer);
                 continue;
             }
-            const BackgroundPaintProperties::Evaluated& paint = background->impl->paint.evaluated;
-            if (layer.get() == layers[0].get() && paint.get<BackgroundPattern>().from.empty()) {
+            const BackgroundPaintProperties::Evaluated& paint = background->evaluated;
+            if (layer.get() == renderLayers[0].get() && paint.get<BackgroundPattern>().from.empty()) {
                 // This is a solid background. We can use glClear().
                 result.backgroundColor = paint.get<BackgroundColor>() * paint.get<BackgroundOpacity>();
             } else {
@@ -432,19 +572,19 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
             continue;
         }
 
-        if (layer->is<CustomLayer>()) {
+        if (layer->is<RenderCustomLayer>()) {
             result.order.emplace_back(*layer);
             continue;
         }
 
-        Source* source = getSource(layer->baseImpl->source);
+        RenderSource* source = getRenderSource(layer->baseImpl.source);
         if (!source) {
-            Log::Warning(Event::Render, "can't find source for layer '%s'", layer->baseImpl->id.c_str());
+            Log::Warning(Event::Render, "can't find source for layer '%s'", layer->baseImpl.id.c_str());
             continue;
         }
 
-        auto& renderTiles = source->baseImpl->getRenderTiles();
-        const bool symbolLayer = layer->is<SymbolLayer>();
+        auto& renderTiles = source->getRenderTiles();
+        const bool symbolLayer = layer->is<RenderSymbolLayer>();
 
         // Sort symbol tiles in opposite y position, so tiles with overlapping
         // symbols are drawn on top of each other, with lower symbols being
@@ -465,8 +605,9 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
             });
         }
 
-        for (auto& tileRef : sortedTiles) {
-            auto& tile = tileRef.get();
+        std::vector<std::reference_wrapper<RenderTile>> sortedTilesForInsertion;
+        for (auto tileIt = sortedTiles.begin(); tileIt != sortedTiles.end(); ++tileIt) {
+            auto& tile = tileIt->get();
             if (!tile.tile.isRenderable()) {
                 continue;
             }
@@ -479,8 +620,9 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
                 // Look back through the buckets we decided to render to find out whether there is
                 // already a bucket from this layer that is a parent of this tile. Tiles are ordered
                 // by zoom level when we obtain them from getTiles().
-                for (auto it = result.order.rbegin(); it != result.order.rend() && (&it->layer == layer.get()); ++it) {
-                    if (tile.tile.id.isChildOf(it->tile->tile.id)) {
+                for (auto it = sortedTilesForInsertion.rbegin();
+                     it != sortedTilesForInsertion.rend(); ++it) {
+                    if (tile.tile.id.isChildOf(it->get().tile.id)) {
                         skip = true;
                         break;
                     }
@@ -492,10 +634,12 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
 
             auto bucket = tile.tile.getBucket(*layer);
             if (bucket) {
-                result.order.emplace_back(*layer, &tile, bucket);
+                sortedTilesForInsertion.emplace_back(tile);
                 tile.used = true;
             }
         }
+
+        result.order.emplace_back(*layer, std::move(sortedTilesForInsertion));
     }
 
     return result;
@@ -504,37 +648,40 @@ RenderData Style::getRenderData(MapDebugOptions debugOptions, float angle) const
 std::vector<Feature> Style::queryRenderedFeatures(const ScreenLineString& geometry,
                                                   const TransformState& transformState,
                                                   const RenderedQueryOptions& options) const {
-    std::unordered_set<std::string> sourceFilter;
+    std::unordered_map<std::string, std::vector<Feature>> resultsByLayer;
 
     if (options.layerIDs) {
+        std::unordered_set<std::string> sourceIDs;
         for (const auto& layerID : *options.layerIDs) {
-            auto layer = getLayer(layerID);
-            if (layer) sourceFilter.emplace(layer->baseImpl->source);
+            if (Layer* layer = getLayer(layerID)) {
+                sourceIDs.emplace(layer->baseImpl->source);
+            }
+        }
+        for (const auto& sourceID : sourceIDs) {
+            if (RenderSource* renderSource = getRenderSource(sourceID)) {
+                auto sourceResults = renderSource->queryRenderedFeatures(geometry, transformState, options);
+                std::move(sourceResults.begin(), sourceResults.end(), std::inserter(resultsByLayer, resultsByLayer.begin()));
+            }
+        }
+    } else {
+        for (const auto& renderSource : renderSources) {
+            auto sourceResults = renderSource->queryRenderedFeatures(geometry, transformState, options);
+            std::move(sourceResults.begin(), sourceResults.end(), std::inserter(resultsByLayer, resultsByLayer.begin()));
         }
     }
 
     std::vector<Feature> result;
-    std::unordered_map<std::string, std::vector<Feature>> resultsByLayer;
-
-    for (const auto& source : sources) {
-        if (!sourceFilter.empty() && sourceFilter.find(source->getID()) == sourceFilter.end()) {
-            continue;
-        }
-
-        auto sourceResults = source->baseImpl->queryRenderedFeatures(geometry, transformState, options);
-        std::move(sourceResults.begin(), sourceResults.end(), std::inserter(resultsByLayer, resultsByLayer.begin()));
-    }
 
     if (resultsByLayer.empty()) {
         return result;
     }
 
     // Combine all results based on the style layer order.
-    for (const auto& layer : layers) {
-        if (!layer->baseImpl->needsRendering(zoomHistory.lastZoom)) {
+    for (const auto& layer : renderLayers) {
+        if (!layer->needsRendering(zoomHistory.lastZoom)) {
             continue;
         }
-        auto it = resultsByLayer.find(layer->baseImpl->id);
+        auto it = resultsByLayer.find(layer->baseImpl.id);
         if (it != resultsByLayer.end()) {
             std::move(it->second.begin(), it->second.end(), std::back_inserter(result));
         }
@@ -543,27 +690,15 @@ std::vector<Feature> Style::queryRenderedFeatures(const ScreenLineString& geomet
     return result;
 }
 
-float Style::getQueryRadius() const {
-    float additionalRadius = 0;
-    for (auto& layer : layers) {
-        if (!layer->baseImpl->needsRendering(zoomHistory.lastZoom)) {
-            continue;
-        }
-        additionalRadius = util::max(additionalRadius, layer->baseImpl->getQueryRadius());
-    }
-    return additionalRadius;
-}
-
-
 void Style::setSourceTileCacheSize(size_t size) {
-    for (const auto& source : sources) {
-        source->baseImpl->setCacheSize(size);
+    for (const auto& renderSource : renderSources) {
+        renderSource->setCacheSize(size);
     }
 }
 
 void Style::onLowMemory() {
-    for (const auto& source : sources) {
-        source->baseImpl->onLowMemory();
+    for (const auto& renderSource : renderSources) {
+        renderSource->onLowMemory();
     }
 }
 
@@ -573,7 +708,6 @@ void Style::setObserver(style::Observer* observer_) {
 
 void Style::onGlyphsLoaded(const FontStack& fontStack, const GlyphRange& glyphRange) {
     observer->onGlyphsLoaded(fontStack, glyphRange);
-    updateSymbolDependentTiles();
 }
 
 void Style::onGlyphsError(const FontStack& fontStack, const GlyphRange& glyphRange, std::exception_ptr error) {
@@ -589,8 +723,9 @@ void Style::onSourceLoaded(Source& source) {
     observer->onUpdate(Update::Repaint);
 }
 
-void Style::onSourceAttributionChanged(Source& source, const std::string& attribution) {
-    observer->onSourceAttributionChanged(source, attribution);
+void Style::onSourceChanged(Source& source) {
+    observer->onSourceChanged(source);
+    observer->onUpdate(Update::Repaint);
 }
 
 void Style::onSourceError(Source& source, std::exception_ptr error) {
@@ -608,23 +743,20 @@ void Style::onSourceDescriptionChanged(Source& source) {
     }
 }
 
-void Style::onTileChanged(Source& source, const OverscaledTileID& tileID) {
-    observer->onTileChanged(source, tileID);
+void Style::onTileChanged(RenderSource&, const OverscaledTileID&) {
     observer->onUpdate(Update::Repaint);
 }
 
-void Style::onTileError(Source& source, const OverscaledTileID& tileID, std::exception_ptr error) {
+void Style::onTileError(RenderSource& source, const OverscaledTileID& tileID, std::exception_ptr error) {
     lastError = error;
     Log::Error(Event::Style, "Failed to load tile %s for source %s: %s",
-               util::toString(tileID).c_str(), source.getID().c_str(), util::toString(error).c_str());
-    observer->onTileError(source, tileID, error);
+               util::toString(tileID).c_str(), source.baseImpl.id.c_str(), util::toString(error).c_str());
     observer->onResourceError(error);
 }
 
 void Style::onSpriteLoaded() {
     observer->onSpriteLoaded();
     observer->onUpdate(Update::Repaint); // For *-pattern properties.
-    updateSymbolDependentTiles();
 }
 
 void Style::onSpriteError(std::exception_ptr error) {
@@ -634,29 +766,14 @@ void Style::onSpriteError(std::exception_ptr error) {
     observer->onResourceError(error);
 }
 
-struct QueueSourceReloadVisitor {
-    UpdateBatch& updateBatch;
-
-    // No need to reload sources for these types; their visibility can change but
-    // they don't participate in layout.
-    void operator()(CustomLayer&) {}
-    void operator()(RasterLayer&) {}
-    void operator()(BackgroundLayer&) {}
-
-    template <class VectorLayer>
-    void operator()(VectorLayer& layer) {
-        updateBatch.sourceIDs.insert(layer.getSourceID());
-    }
-};
-
 void Style::onLayerFilterChanged(Layer& layer) {
     layer.accept(QueueSourceReloadVisitor { updateBatch });
-    observer->onUpdate(Update::Layout);
+    observer->onUpdate(Update::Repaint);
 }
 
 void Style::onLayerVisibilityChanged(Layer& layer) {
     layer.accept(QueueSourceReloadVisitor { updateBatch });
-    observer->onUpdate(Update::RecalculateStyle | Update::Layout);
+    observer->onUpdate(Update::RecalculateStyle);
 }
 
 void Style::onLayerPaintPropertyChanged(Layer&) {
@@ -665,25 +782,29 @@ void Style::onLayerPaintPropertyChanged(Layer&) {
 
 void Style::onLayerDataDrivenPaintPropertyChanged(Layer& layer) {
     layer.accept(QueueSourceReloadVisitor { updateBatch });
-    observer->onUpdate(Update::RecalculateStyle | Update::Classes | Update::Layout);
+    observer->onUpdate(Update::RecalculateStyle | Update::Classes);
 }
 
 void Style::onLayerLayoutPropertyChanged(Layer& layer, const char * property) {
     layer.accept(QueueSourceReloadVisitor { updateBatch });
 
-    auto update = Update::Layout;
-
     // Recalculate the style for certain properties
-    bool needsRecalculation = strcmp(property, "icon-size") == 0 || strcmp(property, "text-size") == 0;
-    if (needsRecalculation) {
-        update |= Update::RecalculateStyle;
-    }
-    observer->onUpdate(update);
+    observer->onUpdate((strcmp(property, "icon-size") == 0 || strcmp(property, "text-size") == 0)
+        ? Update::RecalculateStyle
+        : Update::Repaint);
+}
+
+void Style::onLightChanged(const Light&) {
+    observer->onUpdate(Update::Classes | Update::RecalculateStyle);
 }
 
 void Style::dumpDebugLogs() const {
     for (const auto& source : sources) {
         source->baseImpl->dumpDebugLogs();
+    }
+
+    for (const auto& renderSource : renderSources) {
+        renderSource->dumpDebugLogs();
     }
 
     spriteAtlas->dumpDebugLogs();

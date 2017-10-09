@@ -17,6 +17,8 @@ module.exports = function (style, options, callback) {
             request(req.url, {encoding: null}, function (err, response, body) {
                 if (err) {
                     callback(err);
+                } else if (response.statusCode == 404) {
+                    callback();
                 } else if (response.statusCode != 200) {
                     callback(new Error(response.statusMessage));
                 } else {
@@ -74,7 +76,7 @@ module.exports = function (style, options, callback) {
             map.addImage(operation[1], img.data, {
                 height: img.height,
                 width: img.width,
-                pixelRatio: 1
+                pixelRatio: operation[3] || 1
             });
 
             applyOperations(operations.slice(1), callback);

@@ -1,10 +1,13 @@
 export BUILDTYPE ?= Debug
+export WITH_CXX11ABI ?= $(shell scripts/check-cxx11abi.sh)
 
 ifeq ($(BUILDTYPE), Release)
 else ifeq ($(BUILDTYPE), Debug)
 else
   $(error BUILDTYPE must be Debug or Release)
 endif
+
+buildtype := $(shell echo "$(BUILDTYPE)" | tr "[A-Z]" "[a-z]")
 
 ifeq ($(shell uname -s), Darwin)
   HOST_PLATFORM = macos
@@ -212,8 +215,7 @@ $(IOS_PROJ_PATH): $(IOS_USER_DATA_PATH)/WorkspaceSettings.xcsettings $(BUILD_DEP
 	(cd $(IOS_OUTPUT_PATH) && cmake -G Xcode ../.. \
 		-DCMAKE_TOOLCHAIN_FILE=../../platform/ios/toolchain.cmake \
 		-DMBGL_PLATFORM=ios \
-		-DMASON_PLATFORM=ios \
-		-DMASON_PLATFORM_VERSION=8.0)
+		-DMASON_PLATFORM=ios)
 
 $(IOS_USER_DATA_PATH)/WorkspaceSettings.xcsettings: platform/ios/WorkspaceSettings.xcsettings
 	mkdir -p "$(IOS_USER_DATA_PATH)"
@@ -251,11 +253,6 @@ iframework: $(IOS_PROJ_PATH)
 	FORMAT=dynamic BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) \
 	./platform/ios/scripts/package.sh
 
-.PHONY: ifabric
-ifabric: $(IOS_PROJ_PATH)
-	FORMAT=static BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO SELF_CONTAINED=YES \
-	./platform/ios/scripts/package.sh
-
 .PHONY: ideploy
 ideploy:
 	caffeinate -i ./platform/ios/scripts/deploy-packages.sh
@@ -276,7 +273,7 @@ darwin-update-examples:
 
 .PHONY: check-public-symbols
 check-public-symbols:
-	node platform/darwin/scripts/check-public-symbols.js macOS
+	node platform/darwin/scripts/check-public-symbols.js macOS iOS
 endif
 
 #### Linux targets #####################################################
@@ -292,13 +289,17 @@ $(LINUX_BUILD): $(BUILD_DEPS)
 	(cd $(LINUX_OUTPUT_PATH) && cmake -G Ninja ../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-		-DWITH_CXX11ABI=$(shell scripts/check-cxx11abi.sh) \
+		-DWITH_CXX11ABI=${WITH_CXX11ABI} \
 		-DWITH_COVERAGE=${WITH_COVERAGE} \
 		-DWITH_OSMESA=${WITH_OSMESA} \
 		-DWITH_EGL=${WITH_EGL})
 
 .PHONY: linux
 linux: glfw-app render offline
+
+.PHONY: linux-core
+linux-core: $(LINUX_BUILD)
+	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-core mbgl-loop-uv
 
 .PHONY: test
 test: $(LINUX_BUILD)
@@ -308,7 +309,7 @@ test: $(LINUX_BUILD)
 benchmark: $(LINUX_BUILD)
 	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-benchmark
 
-ifneq (,$(shell which gdb))
+ifneq (,$(shell command -v gdb 2> /dev/null))
   GDB = gdb -batch -return-child-result -ex 'set print thread-events off' -ex 'run' -ex 'thread apply all bt' --args
 endif
 
@@ -360,20 +361,23 @@ endif
 
 #### Qt targets #####################################################
 
-ifeq ($(WITH_QT_4), 1)
-QT_ROOT_PATH = build/qt4-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
-else
-QT_ROOT_PATH = build/qt-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
-endif
-
-ifneq (,$(shell which qmake))
-export QT_INSTALL_DOCS = $(shell qmake -query QT_INSTALL_DOCS)
+QT_QMAKE_FOUND := $(shell command -v qmake 2> /dev/null)
+ifdef QT_QMAKE_FOUND
+  export QT_INSTALL_DOCS = $(shell qmake -query QT_INSTALL_DOCS)
+  ifeq ($(shell qmake -query QT_VERSION | head -c1), 4)
+    QT_ROOT_PATH = build/qt4-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
+    WITH_QT_4=1
+  else
+    QT_ROOT_PATH = build/qt-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
+    WITH_QT_4=0
+  endif
 endif
 
 export QT_OUTPUT_PATH = $(QT_ROOT_PATH)/$(BUILDTYPE)
 QT_BUILD = $(QT_OUTPUT_PATH)/build.ninja
 
 $(QT_BUILD): $(BUILD_DEPS)
+	@scripts/check-qt.sh
 	mkdir -p $(QT_OUTPUT_PATH)
 	(cd $(QT_OUTPUT_PATH) && cmake -G Ninja ../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
@@ -391,6 +395,7 @@ ifeq ($(HOST_PLATFORM), macos)
 
 MACOS_QT_PROJ_PATH = $(QT_ROOT_PATH)/xcode/mbgl.xcodeproj
 $(MACOS_QT_PROJ_PATH): $(BUILD_DEPS)
+	@scripts/check-qt.sh
 	mkdir -p $(QT_ROOT_PATH)/xcode
 	(cd $(QT_ROOT_PATH)/xcode && cmake -G Xcode ../../.. \
 		-DMBGL_PLATFORM=qt \
@@ -451,39 +456,36 @@ test-node: node
 
 #### Android targets ###########################################################
 
-MBGL_ANDROID_ABIS  = arm-v5;armeabi;9
-MBGL_ANDROID_ABIS += arm-v7;armeabi-v7a;9
-MBGL_ANDROID_ABIS += arm-v8;arm64-v8a;21
-MBGL_ANDROID_ABIS += x86;x86;9
-MBGL_ANDROID_ABIS += x86-64;x86_64;21
-MBGL_ANDROID_ABIS += mips;mips;9
+MBGL_ANDROID_ABIS  = arm-v5;armeabi
+MBGL_ANDROID_ABIS += arm-v7;armeabi-v7a
+MBGL_ANDROID_ABIS += arm-v8;arm64-v8a
+MBGL_ANDROID_ABIS += x86;x86
+MBGL_ANDROID_ABIS += x86-64;x86_64
+MBGL_ANDROID_ABIS += mips;mips
 
-MBGL_ANDROID_BUILD_DIR = build/android-$1-$3/$(BUILDTYPE)
 MBGL_ANDROID_LOCAL_WORK_DIR = /data/local/tmp/core-tests
 MBGL_ANDROID_LIBDIR = lib$(if $(filter arm-v8 x86-64,$1),64)
 MBGL_ANDROID_DALVIKVM = dalvikvm$(if $(filter arm-v8 x86-64,$1),64,32)
 MBGL_ANDROID_APK_SUFFIX = $(if $(filter Release,$(BUILDTYPE)),release-unsigned,debug)
-MBGL_ANDROID_CORE_TEST_DIR = $(MBGL_ANDROID_BUILD_DIR)/core-tests
+MBGL_ANDROID_CORE_TEST_DIR = platform/android/MapboxGLAndroidSDK/.externalNativeBuild/cmake/$(buildtype)/$2/core-tests
+MBGL_ANDROID_GRADLE = ./gradlew --parallel --max-workers=$(JOBS) -Pmapbox.buildtype=$(buildtype)
+
+# Lists all devices, and extracts the identifiers, then obtains the ABI for every one.
+# Some devices return \r\n, so we'll have to remove the carriage return before concatenating.
+MBGL_ANDROID_ACTIVE_ARCHS = $(shell adb devices | sed '1d;/^\*/d;s/[[:space:]].*//' | xargs -n 1 -I DEV `type -P adb` -s DEV shell getprop ro.product.cpu.abi | tr -d '\r')
 
 .PHONY: android-help
 android-help:
 	@echo
 	@echo "Available Android architecture targets:"
 	@echo
-	@echo "    make android-arm-v5-9"
-	@echo "        (android-arm-v5)"
-	@echo "    make android-arm-v7-9"
-	@echo "        (android, android-arm-v7)"
-	@echo "    make android-arm-v8-21"
-	@echo "        (android-arm-v8)"
-	@echo "    make android-mips-9"
-	@echo "        (android-mips)"
-	@echo "    make android-mips-64-21"
-	@echo "        (android-mips-64)"
-	@echo "    make android-x86-9"
-	@echo "        (android-x86)"
-	@echo "    make android-x86-64-21"
-	@echo "        (android-x86-64)"
+	@echo "    make android-arm-v5"
+	@echo "    make android-arm-v7, make android"
+	@echo "    make android-arm-v8"
+	@echo "    make android-mips"
+	@echo "    make android-mips-64"
+	@echo "    make android-x86"
+	@echo "    make android-x86-64"
 	@echo "    make apackage"
 	@echo
 
@@ -492,51 +494,30 @@ android-style-code:
 	node platform/android/scripts/generate-style-code.js
 style-code: android-style-code
 
+# Configuration file for running CMake from Gradle within Android Studio.
+platform/android/configuration.gradle:
+	@echo "ext {\n    node = '`command -v node || command -v nodejs`'\n    npm = '`command -v npm`'\n    ccache = '`command -v ccache`'\n}" > $@
+
 define ANDROID_RULES
 # $1 = arm-v7 (short arch)
 # $2 = armeabi-v7a (internal arch)
-# $3 = 9 (platform version)
-
-$(MBGL_ANDROID_BUILD_DIR)/env.sh: $(BUILD_DEPS) platform/android/scripts/ndk.sh
-	@mkdir -p $(MBGL_ANDROID_BUILD_DIR)
-	platform/android/scripts/ndk.sh $1 $2 $3 > $(MBGL_ANDROID_BUILD_DIR)/env.sh.tmp && \
-		mv $(MBGL_ANDROID_BUILD_DIR)/env.sh.tmp $(MBGL_ANDROID_BUILD_DIR)/env.sh
-
-$(MBGL_ANDROID_BUILD_DIR)/build.ninja: $(MBGL_ANDROID_BUILD_DIR)/env.sh platform/android/config.cmake
-	# Invoke CMake twice to fix issues from double inclusion of toolchain.cmake on the first run.
-	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && \
-	([ -f $(MBGL_ANDROID_BUILD_DIR)/build.ninja ] || $$$${CMAKE} \
-	    -H. \
-	    -B"$(MBGL_ANDROID_BUILD_DIR)" \
-	    -G"$$$${CMAKE_GENERATOR}" \
-	    $$$${CMAKE_ARGS} \
-	    -DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-	    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-	    -DMBGL_PLATFORM=android \
-	    -DMASON_PLATFORM=android \
-	    -DMASON_PLATFORM_VERSION=$1-$3) && \
-	$$$${CMAKE} \
-	    -H. \
-	    -B"$(MBGL_ANDROID_BUILD_DIR)"
 
 .PHONY: android-test-lib-$1
-android-test-lib-$1: $(MBGL_ANDROID_BUILD_DIR)/build.ninja
-	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && $$$${CMAKE} --build $(MBGL_ANDROID_BUILD_DIR) -- $(NINJA_ARGS) -j$(JOBS) mbgl-test
+android-test-lib-$1: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 -Pmapbox.with_test=true :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
 
 .PHONY: android-lib-$1
-android-lib-$1: $(MBGL_ANDROID_BUILD_DIR)/build.ninja
-	. $(MBGL_ANDROID_BUILD_DIR)/env.sh && $$$${CMAKE} --build $(MBGL_ANDROID_BUILD_DIR) -- $(NINJA_ARGS) -j$(JOBS) mapbox-gl example-custom-layer
+android-lib-$1: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDK:assemble$(BUILDTYPE)
 
 .PHONY: android-$1
-android-$1: android-lib-$1
-	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
+android-$1: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
 
 .PHONY: android-core-test-$1
 android-core-test-$1: android-test-lib-$1
-	mkdir -p $(MBGL_ANDROID_CORE_TEST_DIR)
-
 	# Compile main sources and extract the classes (using the test app to get all transitive dependencies in one place)
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:assemble$(BUILDTYPE)
+	mkdir -p $(MBGL_ANDROID_CORE_TEST_DIR)
 	unzip -o platform/android/MapboxGLAndroidSDKTestApp/build/outputs/apk/MapboxGLAndroidSDKTestApp-$(MBGL_ANDROID_APK_SUFFIX).apk classes.dex -d $(MBGL_ANDROID_CORE_TEST_DIR)
 
 	# Compile Test runner
@@ -550,15 +531,11 @@ run-android-core-test-$1-%: android-core-test-$1
 	# Ensure clean state on the device
 	adb shell "rm -Rf $(MBGL_ANDROID_LOCAL_WORK_DIR) && mkdir -p $(MBGL_ANDROID_LOCAL_WORK_DIR)/test"
 
-	# Generate zipped asset files
-	cd test/fixtures/api && zip -r assets.zip assets && cd -
-	cd test/fixtures/storage && zip -r assets.zip assets && cd -
-
 	# Push all needed files to the device
 	adb push $(MBGL_ANDROID_CORE_TEST_DIR)/test.jar $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
 	adb push test/fixtures $(MBGL_ANDROID_LOCAL_WORK_DIR)/test > /dev/null 2>&1
-	adb push $(MBGL_ANDROID_BUILD_DIR)/stripped/libmapbox-gl.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
-	adb push $(MBGL_ANDROID_BUILD_DIR)/stripped/libmbgl-test.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
+	adb push platform/android/MapboxGLAndroidSDK/build/intermediates/bundles/default/jni/$2/libmapbox-gl.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
+	adb push platform/android/MapboxGLAndroidSDK/build/intermediates/bundles/default/jni/$2/libmbgl-test.so $(MBGL_ANDROID_LOCAL_WORK_DIR) > /dev/null 2>&1
 
 	# Kick off the tests
 	adb shell "export LD_LIBRARY_PATH=/system/$(MBGL_ANDROID_LIBDIR):$(MBGL_ANDROID_LOCAL_WORK_DIR) && cd $(MBGL_ANDROID_LOCAL_WORK_DIR) && $(MBGL_ANDROID_DALVIKVM) -cp $(MBGL_ANDROID_LOCAL_WORK_DIR)/test.jar Main --gtest_filter=$$*"
@@ -573,16 +550,29 @@ run-android-core-test-$1-%: android-core-test-$1
 run-android-core-test-$1: run-android-core-test-$1-*
 
 .PHONY: run-android-$1
-run-android-$1: android-$1
+run-android-$1: platform/android/configuration.gradle
 	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:install$(BUILDTYPE) && adb shell am start -n com.mapbox.mapboxsdk.testapp/.activity.FeatureOverviewActivity
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDKTestApp:install$(BUILDTYPE) && adb shell am start -n com.mapbox.mapboxsdk.testapp/.activity.FeatureOverviewActivity
 
-apackage: android-lib-$1
+.PHONY: android-ui-test-$1
+android-ui-test-$1: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDKTestApp:assembleDebug :MapboxGLAndroidSDKTestApp:assembleAndroidTest
+
+# This test assumes that you have Android Simulator started locally.
+.PHONY: run-android-ui-test-$1
+run-android-ui-test-$1: platform/android/configuration.gradle
+	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDKTestApp:connectedAndroidTest
+
+run-android-ui-test-$1-%: platform/android/configuration.gradle
+	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=$2 :MapboxGLAndroidSDKTestApp:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$$*"
+
 endef
 
 # Explodes the arguments into individual variables
 define ANDROID_RULES_INVOKER
-$(call ANDROID_RULES,$(word 1,$1),$(word 2,$1),$(word 3,$1))
+$(call ANDROID_RULES,$(word 1,$1),$(word 2,$1))
 endef
 
 $(foreach abi,$(MBGL_ANDROID_ABIS),$(eval $(call ANDROID_RULES_INVOKER,$(subst ;, ,$(abi)))))
@@ -590,60 +580,69 @@ $(foreach abi,$(MBGL_ANDROID_ABIS),$(eval $(call ANDROID_RULES_INVOKER,$(subst ;
 .PHONY: android
 android: android-arm-v7
 
+.PHONY: android-lib
+android-lib: android-lib-arm-v7
+
 .PHONY: run-android
 run-android: run-android-arm-v7
 
-.PHONY: run-android-unit-test
-run-android-unit-test:
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:testDebugUnitTest --continue
-
-run-android-unit-test-%:
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:testDebugUnitTest --tests "$*"
-
-.PHONY: run-android-wear-unit-test
-run-android-wear-unit-test:
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKWearTestApp:testDebugUnitTest --continue
-
-.PHONY: android-ui-test
-android-ui-test:
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:assembleDebug --continue && ./gradlew :MapboxGLAndroidSDKTestApp:assembleAndroidTest --continue
-
 .PHONY: run-android-ui-test
-run-android-ui-test:
-	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:connectedAndroidTest -i
+run-android-ui-test: run-android-ui-test-arm-v7
+run-android-ui-test-%: run-android-ui-test-arm-v7-%
 
-run-android-ui-test-%:
-	adb uninstall com.mapbox.mapboxsdk.testapp > /dev/null
-	cd platform/android && ./gradlew :MapboxGLAndroidSDKTestApp:connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$*"
+# Java-only test
+.PHONY: run-android-unit-test
+run-android-unit-test: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDKTestApp:testDebugUnitTest
+run-android-unit-test-%: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDKTestApp:testDebugUnitTest --tests "$*"
+
+# Java-only test
+.PHONY: run-android-wear-unit-test
+run-android-wear-unit-test: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDKWearTestApp:testDebugUnitTest
+run-android-wear-unit-test-%: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDKWearTestApp:testDebugUnitTest --tests "$*"
 
 .PHONY: run-android-ui-test-aws
-run-android-ui-test-aws:
-	cd platform/android && ./gradlew devicefarmUpload
-
-.PHONY: run-android-ui-test-spoon
-run-android-ui-test-spoon:
-	cd platform/android && ./gradlew spoon
+run-android-ui-test-aws: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=all devicefarmUpload
 
 .PHONY: apackage
-apackage:
-	cd platform/android && ./gradlew --parallel --max-workers=$(JOBS) assemble$(BUILDTYPE)
+apackage: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=all assemble$(BUILDTYPE)
+
+# Uploads the compiled Android SDK to Maven
+.PHONY: run-android-upload-archives
+run-android-upload-archives: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=all :MapboxGLAndroidSDK:uploadArchives
+
+# Runs Android UI tests on all connected devices using Spoon
+.PHONY: run-android-ui-test-spoon
+run-android-ui-test-spoon: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis="$(MBGL_ANDROID_ACTIVE_ARCHS)" spoon
 
 .PHONY: test-code-android
 test-code-android:
 	node platform/android/scripts/generate-test-code.js
 
-.PHONY: android-ndk-stack
-android-ndk-stack:
-	adb logcat | ndk-stack -sym build/android-arm-v7-9/Debug
-
 .PHONY: android-checkstyle
-android-checkstyle:
-	cd platform/android && ./gradlew checkstyle
+android-checkstyle: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none checkstyle
 
 .PHONY: android-javadoc
-android-javadoc:
-	cd platform/android && ./gradlew :MapboxGLAndroidSDK:javadocrelease
+android-javadoc: platform/android/configuration.gradle
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDK:javadocrelease
+
+ifeq ($(HOST_PLATFORM), macos)
+.PHONY: aproj
+aproj: platform/android/configuration.gradle
+	open -b com.google.android.studio platform/android
+endif
+
+.PHONY: android-configuration
+android-configuration: platform/android/configuration.gradle
+	cat platform/android/configuration.gradle
 
 #### Miscellaneous targets #####################################################
 
@@ -659,12 +658,12 @@ codestyle:
 .PHONY: clean
 clean:
 	-rm -rf ./build \
+	        ./platform/android/configuration.gradle \
 	        ./platform/android/MapboxGLAndroidSDK/build \
+	        ./platform/android/MapboxGLAndroidSDK/.externalNativeBuild \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/build \
 	        ./platform/android/MapboxGLAndroidSDKWearTestApp/build \
 	        ./platform/android/MapboxGLAndroidSDKTestApp/src/androidTest/java/com/mapbox/mapboxsdk/testapp/activity/gen \
-	        ./platform/android/MapboxGLAndroidSDK/src/main/jniLibs \
-	        ./platform/android/MapboxGLAndroidSDKTestApp/src/main/jniLibs \
 	        ./platform/android/MapboxGLAndroidSDK/src/main/assets
 
 .PHONY: distclean

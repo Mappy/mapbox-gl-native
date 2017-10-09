@@ -109,10 +109,6 @@ public:
     void setLinePatternTransition(const TransitionOptions&, const optional<std::string>& klass = {});
     TransitionOptions getLinePatternTransition(const optional<std::string>& klass = {}) const;
 
-    // Mappy path
-    bool getLineIsMappyPath () const;
-    void setLineIsMappyPath(bool);
-
     // Private implementation
 
     class Impl;
@@ -124,7 +120,7 @@ public:
 
 template <>
 inline bool Layer::is<LineLayer>() const {
-    return type == Type::Line;
+    return type == LayerType::Line;
 }
 
 } // namespace style

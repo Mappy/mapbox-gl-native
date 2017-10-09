@@ -1,4 +1,5 @@
 #include <mbgl/sprite/sprite_atlas.hpp>
+#include <mbgl/sprite/sprite_atlas_worker.hpp>
 #include <mbgl/sprite/sprite_atlas_observer.hpp>
 #include <mbgl/sprite/sprite_parser.hpp>
 #include <mbgl/gl/context.hpp>
@@ -11,6 +12,8 @@
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
+#include <mbgl/util/run_loop.hpp>
+#include <mbgl/actor/actor.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -21,25 +24,34 @@ namespace mbgl {
 static SpriteAtlasObserver nullObserver;
 
 struct SpriteAtlas::Loader {
+    Loader(Scheduler& scheduler, SpriteAtlas& spriteAtlas)
+        : mailbox(std::make_shared<Mailbox>(*util::RunLoop::Get())),
+          worker(scheduler, ActorRef<SpriteAtlas>(spriteAtlas, mailbox)) {
+    }
+
     std::shared_ptr<const std::string> image;
     std::shared_ptr<const std::string> json;
     std::unique_ptr<AsyncRequest> jsonRequest;
     std::unique_ptr<AsyncRequest> spriteRequest;
+    std::shared_ptr<Mailbox> mailbox;
+    Actor<SpriteAtlasWorker> worker;
 };
 
 SpriteAtlasElement::SpriteAtlasElement(Rect<uint16_t> rect_,
-                                       std::shared_ptr<const SpriteImage> image_,
+                                       const style::Image& image,
                                        Size size_, float pixelRatio)
     : pos(std::move(rect_)),
-      spriteImage(std::move(image_)),
-      relativePixelRatio(spriteImage->pixelRatio / pixelRatio) {
+      sdf(image.sdf),
+      relativePixelRatio(image.pixelRatio / pixelRatio),
+      width(image.getWidth()),
+      height(image.getHeight()) {
 
     const float padding = 1;
 
-    const float w = spriteImage->getWidth() * relativePixelRatio;
-    const float h = spriteImage->getHeight() * relativePixelRatio;
+    const float w = image.getWidth() * relativePixelRatio;
+    const float h = image.getHeight() * relativePixelRatio;
 
-    size = {{ float(spriteImage->getWidth()), spriteImage->getHeight() }};
+    size = {{ float(image.getWidth()), image.getHeight() }};
     tl   = {{ float(pos.x + padding)     / size_.width, float(pos.y + padding)     / size_.height }};
     br   = {{ float(pos.x + padding + w) / size_.width, float(pos.y + padding + h) / size_.height }};
 }
@@ -54,14 +66,14 @@ SpriteAtlas::SpriteAtlas(Size size_, float pixelRatio_)
 
 SpriteAtlas::~SpriteAtlas() = default;
 
-void SpriteAtlas::load(const std::string& url, FileSource& fileSource) {
+void SpriteAtlas::load(const std::string& url, Scheduler& scheduler, FileSource& fileSource) {
     if (url.empty()) {
         // Treat a non-existent sprite as a successfully loaded empty sprite.
-        loaded = true;
+        markAsLoaded();
         return;
     }
 
-    loader = std::make_unique<Loader>();
+    loader = std::make_unique<Loader>(scheduler, *this);
 
     loader->jsonRequest = fileSource.request(Resource::spriteJSON(url, pixelRatio), [this](Response res) {
         if (res.error) {
@@ -100,14 +112,24 @@ void SpriteAtlas::emitSpriteLoadedIfComplete() {
         return;
     }
 
-    auto result = parseSprite(*loader->image, *loader->json);
-    if (result.is<Sprites>()) {
-        loaded = true;
-        setSprites(result.get<Sprites>());
-        observer->onSpriteLoaded();
-    } else {
-        observer->onSpriteError(result.get<std::exception_ptr>());
+    loader->worker.invoke(&SpriteAtlasWorker::parse, loader->image, loader->json);
+    // TODO: delete the loader?
+}
+
+void SpriteAtlas::onParsed(Images&& result) {
+    markAsLoaded();
+    for (auto& pair : result) {
+        addImage(pair.first, std::move(pair.second));
     }
+    observer->onSpriteLoaded();
+    for (auto requestor : requestors) {
+        requestor->onIconsAvailable(buildIconMap());
+    }
+    requestors.clear();
+}
+
+void SpriteAtlas::onError(std::exception_ptr err) {
+    observer->onSpriteError(err);
 }
 
 void SpriteAtlas::setObserver(SpriteAtlasObserver* observer_) {
@@ -118,22 +140,38 @@ void SpriteAtlas::dumpDebugLogs() const {
     Log::Info(Event::General, "SpriteAtlas::loaded: %d", loaded);
 }
 
-void SpriteAtlas::setSprites(const Sprites& newSprites) {
-    std::lock_guard<std::mutex> lock(mutex);
-    for (const auto& pair : newSprites) {
-        _setSprite(pair.first, pair.second);
+void SpriteAtlas::addImage(const std::string& id, std::unique_ptr<style::Image> image_) {
+    icons.clear();
+
+    auto it = entries.find(id);
+    if (it == entries.end()) {
+        entries.emplace(id, Entry { std::move(image_), {}, {} });
+        return;
+    }
+
+    Entry& entry = it->second;
+
+    // There is already a sprite with that name in our store.
+    if (entry.image->image.size != image_->image.size) {
+        Log::Warning(Event::Sprite, "Can't change sprite dimensions for '%s'", id.c_str());
+        return;
+    }
+
+    entry.image = std::move(image_);
+
+    if (entry.iconRect) {
+        copy(entry, &Entry::iconRect);
+    }
+
+    if (entry.patternRect) {
+        copy(entry, &Entry::patternRect);
     }
 }
 
-void SpriteAtlas::setSprite(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
-    std::lock_guard<std::mutex> lock(mutex);
-    _setSprite(name, sprite);
-}
+void SpriteAtlas::removeImage(const std::string& id) {
+    icons.clear();
 
-void SpriteAtlas::removeSprite(const std::string& name) {
-    std::lock_guard<std::mutex> lock(mutex);
-
-    auto it = entries.find(name);
+    auto it = entries.find(id);
     if (it == entries.end()) {
         return;
     }
@@ -151,67 +189,44 @@ void SpriteAtlas::removeSprite(const std::string& name) {
     entries.erase(it);
 }
 
-void SpriteAtlas::_setSprite(const std::string& name,
-                             const std::shared_ptr<const SpriteImage>& sprite) {
-    if (!sprite->image.valid()) {
-        Log::Warning(Event::Sprite, "invalid sprite image '%s'", name.c_str());
-        return;
-    }
-
-    auto it = entries.find(name);
-    if (it == entries.end()) {
-        entries.emplace(name, Entry { sprite, {}, {} });
-        return;
-    }
-
-    Entry& entry = it->second;
-
-    // There is already a sprite with that name in our store.
-    if (entry.spriteImage->image.size != sprite->image.size) {
-        Log::Warning(Event::Sprite, "Can't change sprite dimensions for '%s'", name.c_str());
-        return;
-    }
-
-    entry.spriteImage = sprite;
-
-    if (entry.iconRect) {
-        copy(entry, &Entry::iconRect);
-    }
-
-    if (entry.patternRect) {
-        copy(entry, &Entry::patternRect);
-    }
-}
-
-std::shared_ptr<const SpriteImage> SpriteAtlas::getSprite(const std::string& name) {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto it = entries.find(name);
+const style::Image* SpriteAtlas::getImage(const std::string& id) const {
+    const auto it = entries.find(id);
     if (it != entries.end()) {
-        return it->second.spriteImage;
+        return it->second.image.get();
+    }
+    if (!entries.empty()) {
+        Log::Info(Event::Sprite, "Can't find sprite named '%s'", id.c_str());
+    }
+    return nullptr;
+}
+
+void SpriteAtlas::getIcons(IconRequestor& requestor) {
+    if (isLoaded()) {
+        requestor.onIconsAvailable(buildIconMap());
     } else {
-        if (!entries.empty()) {
-            Log::Info(Event::Sprite, "Can't find sprite named '%s'", name.c_str());
-        }
-        return nullptr;
+        requestors.insert(&requestor);
     }
 }
 
-optional<SpriteAtlasElement> SpriteAtlas::getIcon(const std::string& name) {
-    return getImage(name, &Entry::iconRect);
+void SpriteAtlas::removeRequestor(IconRequestor& requestor) {
+    requestors.erase(&requestor);
 }
 
-optional<SpriteAtlasElement> SpriteAtlas::getPattern(const std::string& name) {
-    return getImage(name, &Entry::patternRect);
+optional<SpriteAtlasElement> SpriteAtlas::getIcon(const std::string& id) {
+    return getImage(id, &Entry::iconRect);
 }
 
-optional<SpriteAtlasElement> SpriteAtlas::getImage(const std::string& name,
+optional<SpriteAtlasElement> SpriteAtlas::getPattern(const std::string& id) {
+    return getImage(id, &Entry::patternRect);
+}
+
+optional<SpriteAtlasElement> SpriteAtlas::getImage(const std::string& id,
                                                    optional<Rect<uint16_t>> Entry::*entryRect) {
-    std::lock_guard<std::mutex> lock(mutex);
 
-    auto it = entries.find(name);
+    auto it = entries.find(id);
     if (it == entries.end()) {
         if (!entries.empty()) {
-            Log::Info(Event::Sprite, "Can't find sprite named '%s'", name.c_str());
+            Log::Info(Event::Sprite, "Can't find sprite named '%s'", id.c_str());
         }
         return {};
     }
@@ -219,16 +234,17 @@ optional<SpriteAtlasElement> SpriteAtlas::getImage(const std::string& name,
     Entry& entry = it->second;
 
     if (entry.*entryRect) {
+        assert(entry.image.get());
         return SpriteAtlasElement {
             *(entry.*entryRect),
-            entry.spriteImage,
+            *entry.image,
             size,
             pixelRatio
         };
     }
 
-    const uint16_t pixelWidth = std::ceil(entry.spriteImage->image.size.width / pixelRatio);
-    const uint16_t pixelHeight = std::ceil(entry.spriteImage->image.size.height / pixelRatio);
+    const uint16_t pixelWidth = std::ceil(entry.image->image.size.width / pixelRatio);
+    const uint16_t pixelHeight = std::ceil(entry.image->image.size.height / pixelRatio);
 
     // Increase to next number divisible by 4, but at least 1.
     // This is so we can scale down the texture coordinates and pack them
@@ -250,7 +266,7 @@ optional<SpriteAtlasElement> SpriteAtlas::getImage(const std::string& name,
 
     return SpriteAtlasElement {
         rect,
-        entry.spriteImage,
+        *entry.image,
         size,
         pixelRatio
     };
@@ -263,7 +279,7 @@ void SpriteAtlas::copy(const Entry& entry, optional<Rect<uint16_t>> Entry::*entr
         image.fill(0);
     }
 
-    const PremultipliedImage& src = entry.spriteImage->image;
+    const PremultipliedImage& src = entry.image->image;
     const Rect<uint16_t>& rect = *(entry.*entryRect);
 
     const uint32_t padding = 1;
@@ -283,6 +299,18 @@ void SpriteAtlas::copy(const Entry& entry, optional<Rect<uint16_t>> Entry::*entr
     }
 
     dirty = true;
+}
+
+IconMap SpriteAtlas::buildIconMap() {
+    if (icons.empty()) {
+        for (const auto& entry : entries) {
+            icons.emplace(std::piecewise_construct,
+                          std::forward_as_tuple(entry.first),
+                          std::forward_as_tuple(*getIcon(entry.first)));
+
+        }
+    }
+    return icons;
 }
 
 void SpriteAtlas::upload(gl::Context& context, gl::TextureUnit unit) {

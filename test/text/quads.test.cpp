@@ -14,16 +14,19 @@ TEST(getIconQuads, normal) {
     Anchor anchor(2.0, 3.0, 0.0, 0.5f, 0);
     SpriteAtlasElement image = {
         Rect<uint16_t>( 0, 0, 15, 11 ),
-        std::make_shared<const SpriteImage>(PremultipliedImage({1,1}), 1.0),
+        style::Image(PremultipliedImage({1,1}), 1.0),
         { 0, 0 },
         1.0f
     };
-    PositionedIcon shapedIcon(image, -5.0, 6.0, -7.0, 8.0, 0);
+
+    auto shapedIcon = PositionedIcon::shapeIcon(image, {{ -6.5f, -4.5f }}, 0);
+    ASSERT_TRUE(shapedIcon);
+
     GeometryCoordinates line;
     Shaping shapedText;
 
     SymbolQuad quad =
-        getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+        getIconQuad(anchor, *shapedIcon, line, layout, 16.0f, SymbolPlacementType::Point, shapedText);
 
     ASSERT_EQ(quad.anchorPoint.x, 2);
     ASSERT_EQ(quad.anchorPoint.y, 3);
@@ -44,11 +47,14 @@ TEST(getIconQuads, style) {
     Anchor anchor(0.0, 0.0, 0.0, 0.5f, 0);
     SpriteAtlasElement image = {
         Rect<uint16_t>( 0, 0, 20, 20 ),
-        std::make_shared<const SpriteImage>(PremultipliedImage({1,1}), 1.0),
+        style::Image(PremultipliedImage({1,1}), 1.0),
         { 0, 0 },
         1.0f
     };
-    PositionedIcon shapedIcon(image, -10.0, 10.0, -10.0, 10.0, 0);
+
+    auto shapedIcon = PositionedIcon::shapeIcon(image, {{ -9.5f, -9.5f }}, 0);
+    ASSERT_TRUE(shapedIcon);
+
     GeometryCoordinates line;
     Shaping shapedText;
     shapedText.top = -10.0f;
@@ -61,7 +67,7 @@ TEST(getIconQuads, style) {
     {
         SymbolLayoutProperties::Evaluated layout;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.anchorPoint.x, 0);
         ASSERT_EQ(quad.anchorPoint.y, 0);
@@ -84,7 +90,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 24.0f;
         layout.get<IconTextFit>() = IconTextFitType::Width;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 24.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -60);
         ASSERT_EQ(quad.tl.y, 0);
@@ -102,7 +108,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 12.0f;
         layout.get<IconTextFit>() = IconTextFitType::Width;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -30);
         ASSERT_EQ(quad.tl.y, -5);
@@ -124,7 +130,7 @@ TEST(getIconQuads, style) {
         layout.get<IconTextFitPadding>()[2] = 5.0f;
         layout.get<IconTextFitPadding>()[3] = 10.0f;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -40);
         ASSERT_EQ(quad.tl.y, -10);
@@ -142,7 +148,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 24.0f;
         layout.get<IconTextFit>() = IconTextFitType::Height;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 24.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -30);
         ASSERT_EQ(quad.tl.y, -10);
@@ -160,7 +166,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 12.0f;
         layout.get<IconTextFit>() = IconTextFitType::Height;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -20);
         ASSERT_EQ(quad.tl.y, -5);
@@ -182,7 +188,7 @@ TEST(getIconQuads, style) {
         layout.get<IconTextFitPadding>()[2] = 5.0f;
         layout.get<IconTextFitPadding>()[3] = 10.0f;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -30);
         ASSERT_EQ(quad.tl.y, -10);
@@ -200,7 +206,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 24.0f;
         layout.get<IconTextFit>() = IconTextFitType::Both;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 24.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -60);
         ASSERT_EQ(quad.tl.y, -10);
@@ -218,7 +224,7 @@ TEST(getIconQuads, style) {
         layout.get<TextSize>() = 12.0f;
         layout.get<IconTextFit>() = IconTextFitType::Both;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -30);
         ASSERT_EQ(quad.tl.y, -5);
@@ -240,7 +246,7 @@ TEST(getIconQuads, style) {
         layout.get<IconTextFitPadding>()[2] = 5.0f;
         layout.get<IconTextFitPadding>()[3] = 10.0f;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -40);
         ASSERT_EQ(quad.tl.y, -10);
@@ -262,7 +268,7 @@ TEST(getIconQuads, style) {
         layout.get<IconTextFitPadding>()[2] = 10.0f;
         layout.get<IconTextFitPadding>()[3] = 15.0f;
         SymbolQuad quad =
-            getIconQuad(anchor, shapedIcon, line, layout, SymbolPlacementType::Point, shapedText);
+            getIconQuad(anchor, *shapedIcon, line, layout, 12.0f, SymbolPlacementType::Point, shapedText);
 
         ASSERT_EQ(quad.tl.x, -45);
         ASSERT_EQ(quad.tl.y, -5);

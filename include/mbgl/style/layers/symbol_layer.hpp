@@ -59,9 +59,9 @@ public:
     PropertyValue<AlignmentType> getIconRotationAlignment() const;
     void setIconRotationAlignment(PropertyValue<AlignmentType>);
 
-    static PropertyValue<float> getDefaultIconSize();
-    PropertyValue<float> getIconSize() const;
-    void setIconSize(PropertyValue<float>);
+    static DataDrivenPropertyValue<float> getDefaultIconSize();
+    DataDrivenPropertyValue<float> getIconSize() const;
+    void setIconSize(DataDrivenPropertyValue<float>);
 
     static PropertyValue<IconTextFitType> getDefaultIconTextFit();
     PropertyValue<IconTextFitType> getIconTextFit() const;
@@ -71,9 +71,9 @@ public:
     PropertyValue<std::array<float, 4>> getIconTextFitPadding() const;
     void setIconTextFitPadding(PropertyValue<std::array<float, 4>>);
 
-    static PropertyValue<std::string> getDefaultIconImage();
-    PropertyValue<std::string> getIconImage() const;
-    void setIconImage(PropertyValue<std::string>);
+    static DataDrivenPropertyValue<std::string> getDefaultIconImage();
+    DataDrivenPropertyValue<std::string> getIconImage() const;
+    void setIconImage(DataDrivenPropertyValue<std::string>);
 
     static DataDrivenPropertyValue<float> getDefaultIconRotate();
     DataDrivenPropertyValue<float> getIconRotate() const;
@@ -107,9 +107,9 @@ public:
     PropertyValue<std::vector<std::string>> getTextFont() const;
     void setTextFont(PropertyValue<std::vector<std::string>>);
 
-    static PropertyValue<float> getDefaultTextSize();
-    PropertyValue<float> getTextSize() const;
-    void setTextSize(PropertyValue<float>);
+    static DataDrivenPropertyValue<float> getDefaultTextSize();
+    DataDrivenPropertyValue<float> getTextSize() const;
+    void setTextSize(DataDrivenPropertyValue<float>);
 
     static PropertyValue<float> getDefaultTextMaxWidth();
     PropertyValue<float> getTextMaxWidth() const;
@@ -135,9 +135,9 @@ public:
     PropertyValue<float> getTextMaxAngle() const;
     void setTextMaxAngle(PropertyValue<float>);
 
-    static PropertyValue<float> getDefaultTextRotate();
-    PropertyValue<float> getTextRotate() const;
-    void setTextRotate(PropertyValue<float>);
+    static DataDrivenPropertyValue<float> getDefaultTextRotate();
+    DataDrivenPropertyValue<float> getTextRotate() const;
+    void setTextRotate(DataDrivenPropertyValue<float>);
 
     static PropertyValue<float> getDefaultTextPadding();
     PropertyValue<float> getTextPadding() const;
@@ -151,9 +151,9 @@ public:
     DataDrivenPropertyValue<TextTransformType> getTextTransform() const;
     void setTextTransform(DataDrivenPropertyValue<TextTransformType>);
 
-    static PropertyValue<std::array<float, 2>> getDefaultTextOffset();
-    PropertyValue<std::array<float, 2>> getTextOffset() const;
-    void setTextOffset(PropertyValue<std::array<float, 2>>);
+    static DataDrivenPropertyValue<std::array<float, 2>> getDefaultTextOffset();
+    DataDrivenPropertyValue<std::array<float, 2>> getTextOffset() const;
+    void setTextOffset(DataDrivenPropertyValue<std::array<float, 2>>);
 
     static PropertyValue<bool> getDefaultTextAllowOverlap();
     PropertyValue<bool> getTextAllowOverlap() const;
@@ -264,7 +264,7 @@ public:
 
 template <>
 inline bool Layer::is<SymbolLayer>() const {
-    return type == Type::Symbol;
+    return type == LayerType::Symbol;
 }
 
 } // namespace style

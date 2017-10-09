@@ -94,7 +94,6 @@ class Q_DECL_EXPORT QMapboxGL : public QObject
     Q_PROPERTY(QMargins margins READ margins WRITE setMargins)
 
 public:
-    // Reflects mbgl::MapChange.
     enum MapChange {
         MapChangeRegionWillChange = 0,
         MapChangeRegionWillChangeAnimated,
@@ -193,6 +192,7 @@ public:
     void rotateBy(const QPointF &first, const QPointF &second);
 
     void resize(const QSize &size, const QSize &framebufferSize);
+    void setFramebufferObject(quint32 fbo);
 
     double metersPerPixelAtLatitude(double latitude, double zoom) const;
     QMapbox::ProjectedMeters projectedMetersForCoordinate(const QMapbox::Coordinate &) const;

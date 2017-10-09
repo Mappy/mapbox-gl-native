@@ -3,6 +3,7 @@ package com.mapbox.mapboxsdk.storage;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.Environment;
 import android.support.annotation.NonNull;
 
@@ -27,8 +28,9 @@ public class FileSource {
     /**
      * Called whenever a URL needs to be transformed.
      *
-     * @param kind The kind of URL to be transformed.
-     * @return A URL that will now be downloaded.
+     * @param kind the kind of URL to be transformed.
+     * @param url  the  URL to be transformed
+     * @return a URL that will now be downloaded.
      */
     String onURL(@Resource.Kind int kind, String url);
 
@@ -37,16 +39,27 @@ public class FileSource {
   // File source instance is kept alive after initialization
   private static FileSource INSTANCE;
 
+  /**
+   * Get the single instance of FileSource.
+   *
+   * @param context the context to derive the cache path from
+   * @return the single instance of FileSource
+   */
   public static synchronized FileSource getInstance(Context context) {
     if (INSTANCE == null) {
       String cachePath = getCachePath(context);
-      String apkPath = context.getPackageCodePath();
-      INSTANCE = new FileSource(cachePath, apkPath);
+      INSTANCE = new FileSource(cachePath, context.getResources().getAssets());
     }
 
     return INSTANCE;
   }
 
+  /**
+   * Get the cache path for a context.
+   *
+   * @param context the context to derive the cache path from
+   * @return the cache path
+   */
   public static String getCachePath(Context context) {
     // Default value
     boolean setStorageExternal = MapboxConstants.DEFAULT_SET_STORAGE_EXTERNAL;
@@ -107,8 +120,8 @@ public class FileSource {
 
   private long nativePtr;
 
-  private FileSource(String cachePath, String apkPath) {
-    initialize(Mapbox.getAccessToken(), cachePath, apkPath);
+  private FileSource(String cachePath, AssetManager assetManager) {
+    initialize(Mapbox.getAccessToken(), cachePath, assetManager);
   }
 
   public native void setAccessToken(@NonNull String accessToken);
@@ -127,7 +140,7 @@ public class FileSource {
    */
   public native void setResourceTransform(final ResourceTransformCallback callback);
 
-  private native void initialize(String accessToken, String cachePath, String apkPath);
+  private native void initialize(String accessToken, String cachePath, AssetManager assetManager);
 
   @Override
   protected native void finalize() throws Throwable;

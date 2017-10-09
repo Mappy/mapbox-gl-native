@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mbgl/gl/extension.hpp>
-
 #include <mbgl/map/backend.hpp>
 
 #include <memory>
@@ -17,10 +15,9 @@ public:
     HeadlessBackend(std::shared_ptr<HeadlessDisplay>);
     ~HeadlessBackend() override;
 
-    void invalidate() override;
-    void notifyMapChange(MapChange) override;
+    void updateAssumedState() override;
 
-    void setMapChangeCallback(std::function<void(MapChange)>&& cb) { mapChangeCallback = std::move(cb); }
+    void invalidate() override;
 
     struct Impl {
         virtual ~Impl() {}
@@ -30,7 +27,7 @@ public:
 
 private:
     // Implementation specific functions
-    static gl::glProc initializeExtension(const char*);
+    gl::ProcAddress initializeExtension(const char*) override;
 
     void activate() override;
     void deactivate() override;
@@ -40,13 +37,10 @@ private:
 
     void createContext();
 
-    std::unique_ptr<Impl> impl;
     std::shared_ptr<HeadlessDisplay> display;
+    std::unique_ptr<Impl> impl;
 
-    bool extensionsLoaded = false;
     bool active = false;
-
-    std::function<void(MapChange)> mapChangeCallback;
 };
 
 } // namespace mbgl

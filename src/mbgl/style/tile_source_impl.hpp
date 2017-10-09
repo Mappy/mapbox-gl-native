@@ -17,8 +17,6 @@ namespace style {
 */
 class TileSourceImpl : public Source::Impl {
 public:
-    static Tileset parseTileJSON(const std::string& json, const std::string& sourceURL, SourceType, uint16_t tileSize);
-
     TileSourceImpl(SourceType, std::string id, Source&,
                    variant<std::string, Tileset> urlOrTileset,
                    uint16_t tileSize);
@@ -26,7 +24,7 @@ public:
 
     void loadDescription(FileSource&) final;
 
-    uint16_t getTileSize() const final {
+    uint16_t getTileSize() const {
         return tileSize;
     }
 
@@ -35,10 +33,9 @@ public:
     }
 
     optional<std::string> getAttribution() const override;
+    optional<Tileset> getTileset() const;
 
 protected:
-    Range<uint8_t> getZoomRange() final;
-
     const variant<std::string, Tileset> urlOrTileset;
     const uint16_t tileSize;
 

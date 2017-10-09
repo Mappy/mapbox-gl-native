@@ -17,15 +17,19 @@ import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.Polygon;
 import com.mapbox.mapboxsdk.annotations.Polyline;
+import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.geometry.ProjectedMeters;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.mapboxsdk.style.layers.CannotAddLayerException;
 import com.mapbox.mapboxsdk.style.layers.Filter;
 import com.mapbox.mapboxsdk.style.layers.Layer;
+import com.mapbox.mapboxsdk.style.light.Light;
 import com.mapbox.mapboxsdk.style.sources.CannotAddSourceException;
 import com.mapbox.mapboxsdk.style.sources.Source;
+import com.mapbox.mapboxsdk.utils.BitmapUtils;
 import com.mapbox.services.commons.geojson.Feature;
 
 import java.nio.ByteBuffer;
@@ -35,7 +39,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import timber.log.Timber;
-
 
 // Class that wraps the native methods for convenience
 final class NativeMapView {
@@ -259,6 +262,13 @@ final class NativeMapView {
     return nativeGetStyleJson();
   }
 
+  public void setLatLngBounds(LatLngBounds latLngBounds) {
+    if (isDestroyedOn("setLatLngBounds")) {
+      return;
+    }
+    nativeSetLatLngBounds(latLngBounds);
+  }
+
   public void cancelTransitions() {
     if (isDestroyedOn("cancelTransitions")) {
       return;
@@ -309,6 +319,13 @@ final class NativeMapView {
     return nativeGetLatLng().wrap();
   }
 
+  public CameraPosition getCameraForLatLngBounds(LatLngBounds latLngBounds) {
+    if (isDestroyedOn("getCameraForLatLngBounds")) {
+      return null;
+    }
+    return nativeGetCameraForLatLngBounds(latLngBounds);
+  }
+
   public void resetPosition() {
     if (isDestroyedOn("resetPosition")) {
       return;
@@ -328,55 +345,6 @@ final class NativeMapView {
       return;
     }
     nativeSetPitch(pitch, duration);
-  }
-
-  public void scaleBy(double ds) {
-    if (isDestroyedOn("scaleBy")) {
-      return;
-    }
-    scaleBy(ds, Double.NaN, Double.NaN);
-  }
-
-  public void scaleBy(double ds, double cx, double cy) {
-    if (isDestroyedOn("scaleBy")) {
-      return;
-    }
-    scaleBy(ds, cx, cy, 0);
-  }
-
-  public void scaleBy(double ds, double cx, double cy, long duration) {
-    if (isDestroyedOn("scaleBy")) {
-      return;
-    }
-    nativeScaleBy(ds, cx / pixelRatio, cy / pixelRatio, duration);
-  }
-
-  public void setScale(double scale) {
-    if (isDestroyedOn("setScale")) {
-      return;
-    }
-    setScale(scale, Double.NaN, Double.NaN);
-  }
-
-  public void setScale(double scale, double cx, double cy) {
-    if (isDestroyedOn("setScale")) {
-      return;
-    }
-    setScale(scale, cx, cy, 0);
-  }
-
-  public void setScale(double scale, double cx, double cy, long duration) {
-    if (isDestroyedOn("setScale")) {
-      return;
-    }
-    nativeSetScale(scale, cx / pixelRatio, cy / pixelRatio, duration);
-  }
-
-  public double getScale() {
-    if (isDestroyedOn("getScale")) {
-      return 0;
-    }
-    return nativeGetScale();
   }
 
   public void setZoom(double zoom, PointF focalPoint, long duration) {
@@ -717,11 +685,11 @@ final class NativeMapView {
     nativeFlyTo(angle, center.getLatitude(), center.getLongitude(), duration, pitch, zoom);
   }
 
-  public double[] getCameraValues() {
+  public CameraPosition getCameraPosition() {
     if (isDestroyedOn("getCameraValues")) {
-      return new double[] {};
+      return new CameraPosition.Builder().build();
     }
-    return nativeGetCameraValues();
+    return nativeGetCameraPosition();
   }
 
   // Runtime style Api
@@ -918,12 +886,15 @@ final class NativeMapView {
     fileSource.setApiBaseUrl(baseUrl);
   }
 
-  public float getPixelRatio() {
-    return pixelRatio;
+  public Light getLight() {
+    if (isDestroyedOn("getLight")) {
+      return null;
+    }
+    return nativeGetLight();
   }
 
-  public Context getContext() {
-    return mapView.getContext();
+  public float getPixelRatio() {
+    return pixelRatio;
   }
 
   //
@@ -939,18 +910,30 @@ final class NativeMapView {
   protected void onMapChanged(int rawChange) {
     if (onMapChangedListeners != null) {
       for (MapView.OnMapChangedListener onMapChangedListener : onMapChangedListeners) {
-        onMapChangedListener.onMapChanged(rawChange);
+        try {
+          onMapChangedListener.onMapChanged(rawChange);
+        } catch (RuntimeException err) {
+          Timber.e("Exception (%s) in MapView.OnMapChangedListener: %s", err.getClass(), err.getMessage());
+        }
       }
     }
   }
 
   protected void onFpsChanged(double fps) {
+    if (isDestroyedOn("OnFpsChanged")) {
+      return;
+    }
     mapView.onFpsChanged(fps);
   }
 
-  protected void onSnapshotReady(Bitmap bitmap) {
-    if (snapshotReadyCallback != null && bitmap != null) {
-      snapshotReadyCallback.onSnapshotReady(bitmap);
+  protected void onSnapshotReady(Bitmap mapContent) {
+    if (isDestroyedOn("OnSnapshotReady")) {
+      return;
+    }
+
+    Bitmap viewContent = BitmapUtils.createBitmapFromView(mapView);
+    if (snapshotReadyCallback != null && mapContent != null && viewContent != null) {
+      snapshotReadyCallback.onSnapshotReady(BitmapUtils.mergeBitmap(mapContent, viewContent));
     }
   }
 
@@ -995,6 +978,8 @@ final class NativeMapView {
 
   private native String nativeGetStyleJson();
 
+  private native void nativeSetLatLngBounds(LatLngBounds latLngBounds);
+
   private native void nativeCancelTransitions();
 
   private native void nativeSetGestureInProgress(boolean inProgress);
@@ -1005,17 +990,13 @@ final class NativeMapView {
 
   private native LatLng nativeGetLatLng();
 
+  private native CameraPosition nativeGetCameraForLatLngBounds(LatLngBounds latLngBounds);
+
   private native void nativeResetPosition();
 
   private native double nativeGetPitch();
 
   private native void nativeSetPitch(double pitch, long duration);
-
-  private native void nativeScaleBy(double ds, double cx, double cy, long duration);
-
-  private native void nativeSetScale(double scale, double cx, double cy, long duration);
-
-  private native double nativeGetScale();
 
   private native void nativeSetZoom(double zoom, double cx, double cy, long duration);
 
@@ -1095,7 +1076,7 @@ final class NativeMapView {
   private native void nativeFlyTo(double angle, double latitude, double longitude,
                                   long duration, double pitch, double zoom);
 
-  private native double[] nativeGetCameraValues();
+  private native CameraPosition nativeGetCameraPosition();
 
   private native long nativeGetTransitionDuration();
 
@@ -1150,6 +1131,8 @@ final class NativeMapView {
                                                              float right, float bottom,
                                                              String[] layerIds,
                                                              Object[] filter);
+
+  private native Light nativeGetLight();
 
   int getWidth() {
     if (isDestroyedOn("")) {

@@ -312,4 +312,25 @@ MGL_EXPORT
 
 @end
 
+/**
+ The `MGLOfflineStorageDelegate` protocol defines methods that a delegate of an
+ `MGLOfflineStorage` object can optionally implement to transform various types
+ of URLs before downloading them via the internet.
+ */
+@protocol MGLOfflineStorageDelegate <NSObject>
+
+/**
+ Sent whenever a URL needs to be transformed.
+
+ @param storage The storage object processing the download.
+ @param kind The kind of URL to be transformed.
+ @param url The original URL to be transformed.
+ @return A URL that will now be downloaded.
+ */
+- (NSURL *)offlineStorage:(MGLOfflineStorage *)storage
+     URLForResourceOfKind:(MGLResourceKind)kind
+                  withURL:(NSURL *)url;
+
+@end
+
 NS_ASSUME_NONNULL_END

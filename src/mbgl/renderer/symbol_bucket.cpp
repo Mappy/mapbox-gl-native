@@ -1,27 +1,35 @@
 #include <mbgl/renderer/symbol_bucket.hpp>
 #include <mbgl/renderer/painter.hpp>
-#include <mbgl/style/bucket_parameters.hpp>
-#include <mbgl/style/layers/symbol_layer.hpp>
+#include <mbgl/renderer/render_symbol_layer.hpp>
+#include <mbgl/renderer/bucket_parameters.hpp>
 #include <mbgl/style/layers/symbol_layer_impl.hpp>
 
 namespace mbgl {
 
 using namespace style;
 
-SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::Evaluated layout_,
-                           const std::unordered_map<std::string, std::pair<
+SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layout_,
+                           const std::map<std::string, std::pair<
                                style::IconPaintProperties::Evaluated, style::TextPaintProperties::Evaluated>>& layerPaintProperties,
+                           const style::DataDrivenPropertyValue<float>& textSize,
+                           const style::DataDrivenPropertyValue<float>& iconSize,
                            float zoom,
                            bool sdfIcons_,
                            bool iconsNeedLinear_)
     : layout(std::move(layout_)),
       sdfIcons(sdfIcons_),
-      iconsNeedLinear(iconsNeedLinear_) {
+      iconsNeedLinear(iconsNeedLinear_ || iconSize.isDataDriven() || !iconSize.isZoomConstant()),
+      textSizeBinder(SymbolSizeBinder::create(zoom, textSize, TextSize::defaultValue())),
+      iconSizeBinder(SymbolSizeBinder::create(zoom, iconSize, IconSize::defaultValue())) {
+    
     for (const auto& pair : layerPaintProperties) {
-        paintPropertyBinders.emplace(pair.first, std::make_pair(
-            SymbolIconProgram::PaintPropertyBinders(pair.second.first, zoom),
-            SymbolSDFTextProgram::PaintPropertyBinders(pair.second.second, zoom)
-        ));
+        paintPropertyBinders.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(pair.first),
+            std::forward_as_tuple(
+                std::piecewise_construct,
+                std::forward_as_tuple(pair.second.first, zoom),
+                std::forward_as_tuple(pair.second.second, zoom)));
     }
 }
 
@@ -29,11 +37,13 @@ void SymbolBucket::upload(gl::Context& context) {
     if (hasTextData()) {
         text.vertexBuffer = context.createVertexBuffer(std::move(text.vertices));
         text.indexBuffer = context.createIndexBuffer(std::move(text.triangles));
+        textSizeBinder->upload(context);
     }
 
     if (hasIconData()) {
         icon.vertexBuffer = context.createVertexBuffer(std::move(icon.vertices));
         icon.indexBuffer = context.createIndexBuffer(std::move(icon.triangles));
+        iconSizeBinder->upload(context);
     }
 
     if (!collisionBox.vertices.empty()) {
@@ -51,9 +61,9 @@ void SymbolBucket::upload(gl::Context& context) {
 
 void SymbolBucket::render(Painter& painter,
                           PaintParameters& parameters,
-                          const Layer& layer,
+                          const RenderLayer& layer,
                           const RenderTile& tile) {
-    painter.renderSymbol(parameters, *this, *layer.as<SymbolLayer>(), tile);
+    painter.renderSymbol(parameters, *this, *layer.as<RenderSymbolLayer>(), tile);
 }
 
 bool SymbolBucket::hasData() const {

@@ -11,7 +11,9 @@ mason_use(gtest VERSION 1.8.0${MASON_CXXABI_SUFFIX})
 mason_use(benchmark VERSION 1.0.0-1)
 mason_use(icu VERSION 58.1-min-size)
 
-include(cmake/loop-uv.cmake)
+# Link with libuv. This is not part of loop-uv.cmake because loop-uv.cmake is also
+# used by node.cmake, where we want to link with the libuv provided by node itself.
+target_add_mason_package(mbgl-loop-uv PUBLIC libuv)
 
 macro(mbgl_platform_core)
     target_add_mason_package(mbgl-core PUBLIC mesa)
@@ -86,6 +88,7 @@ macro(mbgl_platform_core)
         # Thread pool
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
+        PRIVATE platform/default/mbgl/util/shared_thread_pool.cpp
     )
 
     target_include_directories(mbgl-core
@@ -97,7 +100,7 @@ macro(mbgl_platform_core)
     target_add_mason_package(mbgl-core PUBLIC libpng)
     target_add_mason_package(mbgl-core PUBLIC libjpeg-turbo)
     target_add_mason_package(mbgl-core PUBLIC webp)
-    target_add_mason_package(mbgl-core PUBLIC icu)
+    target_add_mason_package(mbgl-core PRIVATE icu)
 
     target_link_libraries(mbgl-core
         PUBLIC -lz
@@ -108,7 +111,7 @@ endmacro()
 
 macro(mbgl_platform_glfw)
     target_link_libraries(mbgl-glfw
-        PRIVATE mbgl-loop
+        PRIVATE mbgl-loop-uv
     )
 
     add_custom_command(
@@ -122,14 +125,14 @@ endmacro()
 
 macro(mbgl_platform_render)
     target_link_libraries(mbgl-render
-        PRIVATE mbgl-loop
+        PRIVATE mbgl-loop-uv
     )
 endmacro()
 
 
 macro(mbgl_platform_offline)
     target_link_libraries(mbgl-offline
-        PRIVATE mbgl-loop
+        PRIVATE mbgl-loop-uv
     )
 endmacro()
 
@@ -146,7 +149,7 @@ macro(mbgl_platform_test)
     )
 
     target_link_libraries(mbgl-test
-        PRIVATE mbgl-loop
+        PRIVATE mbgl-loop-uv
     )
 endmacro()
 
@@ -163,7 +166,7 @@ macro(mbgl_platform_benchmark)
     )
 
     target_link_libraries(mbgl-benchmark
-        PRIVATE mbgl-loop
+        PRIVATE mbgl-loop-uv
     )
 endmacro()
 

@@ -4,7 +4,7 @@
 #include <mbgl/renderer/fill_bucket.hpp>
 #include <mbgl/renderer/line_bucket.hpp>
 #include <mbgl/renderer/symbol_bucket.hpp>
-#include <mbgl/style/bucket_parameters.hpp>
+#include <mbgl/renderer/bucket_parameters.hpp>
 #include <mbgl/style/layers/symbol_layer_properties.hpp>
 
 #include <mbgl/map/mode.hpp>
@@ -27,11 +27,11 @@ TEST(Buckets, LineBucket) {
 }
 
 TEST(Buckets, SymbolBucket) {
-    style::SymbolLayoutProperties::Evaluated layout;
+    style::SymbolLayoutProperties::PossiblyEvaluated layout;
     bool sdfIcons = false;
     bool iconsNeedLinear = false;
 
-    SymbolBucket bucket { layout, {}, 0, sdfIcons, iconsNeedLinear };
+    SymbolBucket bucket { layout, {}, 16.0f, 1.0f, 0, sdfIcons, iconsNeedLinear };
     ASSERT_FALSE(bucket.hasIconData());
     ASSERT_FALSE(bucket.hasTextData());
     ASSERT_FALSE(bucket.hasCollisionBoxData());

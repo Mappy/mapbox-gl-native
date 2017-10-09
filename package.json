@@ -1,6 +1,6 @@
 {
   "name": "@mapbox/mapbox-gl-native",
-  "version": "3.4.4",
+  "version": "3.5.1",
   "description": "Renders map tiles with Mapbox GL",
   "keywords": [
     "mapbox",
@@ -39,10 +39,10 @@
   },
   "gypfile": true,
   "binary": {
-    "module_name": "mapbox-gl-native",
+    "module_name": "mapbox_gl_native",
     "module_path": "./lib/",
     "host": "https://mapbox-node-binary.s3.amazonaws.com",
     "remote_path": "./{name}/v{version}",
-    "package_name": "{node_abi}-{platform}-{arch}.tar.gz"
+    "package_name": "{node_abi}-{platform}-{arch}-{configuration}.tar.gz"
   }
 }

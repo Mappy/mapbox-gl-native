@@ -1,6 +1,7 @@
 #include <mbgl/gl/value.hpp>
 #include <mbgl/gl/gl.hpp>
-#include <mbgl/gl/vertex_array.hpp>
+#include <mbgl/gl/context.hpp>
+#include <mbgl/gl/vertex_array_extension.hpp>
 
 namespace mbgl {
 namespace gl {
@@ -328,15 +329,17 @@ BindElementBuffer::Type BindElementBuffer::Get() {
 
 const constexpr BindVertexArray::Type BindVertexArray::Default;
 
-void BindVertexArray::Set(const Type& value) {
-    if (gl::BindVertexArray) {
-        MBGL_CHECK_ERROR(gl::BindVertexArray(value));
+void BindVertexArray::Set(const Type& value, const Context& context) {
+    if (auto vertexArray = context.getVertexArrayExtension()) {
+        if (vertexArray->bindVertexArray) {
+            MBGL_CHECK_ERROR(vertexArray->bindVertexArray(value));
+        }
     }
 }
 
-BindVertexArray::Type BindVertexArray::Get() {
+BindVertexArray::Type BindVertexArray::Get(const Context& context) {
     GLint binding = 0;
-    if (gl::BindVertexArray) {
+    if (context.getVertexArrayExtension()) {
 #ifdef GL_VERTEX_ARRAY_BINDING
         MBGL_CHECK_ERROR(glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &binding));
 #elif GL_VERTEX_ARRAY_BINDING_OES
@@ -348,6 +351,24 @@ BindVertexArray::Type BindVertexArray::Get() {
 #endif
     }
     return binding;
+}
+
+const optional<AttributeBinding> VertexAttribute::Default {};
+
+void VertexAttribute::Set(const optional<AttributeBinding>& binding, Context& context, AttributeLocation location) {
+    if (binding) {
+        context.vertexBuffer = binding->vertexBuffer;
+        MBGL_CHECK_ERROR(glEnableVertexAttribArray(location));
+        MBGL_CHECK_ERROR(glVertexAttribPointer(
+            location,
+            static_cast<GLint>(binding->attributeSize),
+            static_cast<GLenum>(binding->attributeType),
+            static_cast<GLboolean>(false),
+            static_cast<GLsizei>(binding->vertexSize),
+            reinterpret_cast<GLvoid*>(binding->attributeOffset + (binding->vertexSize * binding->vertexOffset))));
+    } else {
+        MBGL_CHECK_ERROR(glDisableVertexAttribArray(location));
+    }
 }
 
 #if not MBGL_USE_GLES2

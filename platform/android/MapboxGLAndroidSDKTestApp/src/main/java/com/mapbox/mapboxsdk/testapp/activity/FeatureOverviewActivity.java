@@ -1,6 +1,5 @@
 package com.mapbox.mapboxsdk.testapp.activity;
 
-import android.Manifest;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -8,15 +7,15 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.text.TextUtils;
 import android.view.View;
 
 import com.mapbox.mapboxsdk.testapp.R;
@@ -24,6 +23,8 @@ import com.mapbox.mapboxsdk.testapp.adapter.FeatureAdapter;
 import com.mapbox.mapboxsdk.testapp.adapter.FeatureSectionAdapter;
 import com.mapbox.mapboxsdk.testapp.model.activity.Feature;
 import com.mapbox.mapboxsdk.testapp.utils.ItemClickSupport;
+import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
+import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,18 +40,22 @@ import timber.log.Timber;
  * It uses tags as category and description to order the different entries.
  * </p>
  */
-public class FeatureOverviewActivity extends AppCompatActivity {
+public class FeatureOverviewActivity extends AppCompatActivity implements PermissionsListener {
 
   private static final String KEY_STATE_FEATURES = "featureList";
 
+  private PermissionsManager permissionsManager;
   private RecyclerView recyclerView;
   private FeatureSectionAdapter sectionAdapter;
   private List<Feature> features;
+  private int locationActivityInList;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_feature_overview);
+
+    permissionsManager = new PermissionsManager(this);
 
     recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
     recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -118,28 +123,42 @@ public class FeatureOverviewActivity extends AppCompatActivity {
   }
 
   private boolean requestLocationPermission(final int positionInList) {
-    if ((ContextCompat.checkSelfPermission(FeatureOverviewActivity.this,
-      Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-      || (ContextCompat.checkSelfPermission(FeatureOverviewActivity.this,
-      Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
-      ActivityCompat.requestPermissions(FeatureOverviewActivity.this, new String[] {
-        Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, positionInList);
+    if (isRuntimePermissionsRequired()) {
+      locationActivityInList = positionInList;
+      permissionsManager.requestLocationPermissions(this);
       return true;
-    } else {
-      return false;
     }
+    return false;
   }
 
   @Override
-  public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-      startFeature(features.get(requestCode));
+  public void onExplanationNeeded(List<String> list) {
+    Snackbar.make(
+      findViewById(android.R.id.content),
+      TextUtils.join("", list.toArray()),
+      Snackbar.LENGTH_SHORT).show();
+  }
+
+  @Override
+  public void onPermissionResult(boolean isPermissionGranted) {
+    if (isPermissionGranted) {
+      startFeature(features.get(locationActivityInList));
     } else {
       Snackbar.make(
         findViewById(android.R.id.content),
         "Can't open without accepting the location permission.",
         Snackbar.LENGTH_SHORT).show();
     }
+  }
+
+  @Override
+  public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    permissionsManager.onRequestPermissionsResult(requestCode, permissions, grantResults);
+  }
+
+  private boolean isRuntimePermissionsRequired() {
+    return android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
   }
 
   @Override
@@ -210,13 +229,13 @@ public class FeatureOverviewActivity extends AppCompatActivity {
         }
       };
 
-      List<String> requiresPermissionActvities = new ArrayList<String>() {
+      List<String> requiresPermissionActivities = new ArrayList<String>() {
         {
           add(resources.getString(R.string.activity_double_map));
         }
       };
 
-      return requiresPermissionCategories.contains(category) || requiresPermissionActvities.contains(name);
+      return requiresPermissionCategories.contains(category) || requiresPermissionActivities.contains(name);
     }
 
     @Override

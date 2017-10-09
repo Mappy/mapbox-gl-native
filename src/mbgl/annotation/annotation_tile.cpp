@@ -2,15 +2,18 @@
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/storage/file_source.hpp>
-#include <mbgl/style/update_parameters.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
+#include <mbgl/style/style.hpp>
 
 #include <utility>
 
 namespace mbgl {
 
 AnnotationTile::AnnotationTile(const OverscaledTileID& overscaledTileID,
-                               const style::UpdateParameters& parameters)
-    : GeometryTile(overscaledTileID, AnnotationManager::SourceID, parameters),
+                               const TileParameters& parameters)
+    : GeometryTile(overscaledTileID, AnnotationManager::SourceID, parameters,
+                   *parameters.style.glyphAtlas,
+                   parameters.annotationManager.spriteAtlas),
       annotationManager(parameters.annotationManager) {
     annotationManager.addTile(*this);
 }

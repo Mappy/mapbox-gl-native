@@ -3,6 +3,7 @@ package com.mapbox.mapboxsdk.geometry;
 import android.location.Location;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.annotation.FloatRange;
 
 import com.mapbox.services.android.telemetry.constants.GeoConstants;
 import com.mapbox.services.android.telemetry.utils.MathUtils;
@@ -21,6 +22,9 @@ import com.mapbox.services.android.telemetry.utils.MathUtils;
  */
 public class LatLng implements ILatLng, Parcelable {
 
+  /**
+   * Inner class responsible for recreating Parcels into objects.
+   */
   public static final Parcelable.Creator<LatLng> CREATOR = new Parcelable.Creator<LatLng>() {
     public LatLng createFromParcel(Parcel in) {
       return new LatLng(in);
@@ -44,31 +48,31 @@ public class LatLng implements ILatLng, Parcelable {
   }
 
   /**
-   * Construct a new latitude, longitude point given float arguments
+   * Construct a new latitude, longitude point given double arguments
    *
    * @param latitude  Latitude in degrees
    * @param longitude Longitude in degrees
    */
   public LatLng(double latitude, double longitude) {
-    this.latitude = latitude;
-    this.longitude = longitude;
+    setLatitude(latitude);
+    setLongitude(longitude);
   }
 
   /**
-   * Construct a new latitude, longitude, altitude point given float arguments
+   * Construct a new latitude, longitude, altitude point given double arguments
    *
    * @param latitude  Latitude in degrees
    * @param longitude Longitude in degress
    * @param altitude  Altitude in meters
    */
   public LatLng(double latitude, double longitude, double altitude) {
-    this.latitude = latitude;
-    this.longitude = longitude;
-    this.altitude = altitude;
+    setLatitude(latitude);
+    setLongitude(longitude);
+    setAltitude(altitude);
   }
 
   /**
-   * Transform a Location into a LatLng point
+   * Construct a new latitude, longitude, altitude point given location argument
    *
    * @param location Android Location
    */
@@ -77,44 +81,117 @@ public class LatLng implements ILatLng, Parcelable {
   }
 
   /**
-   * Clone an existing latitude longitude point
+   * Construct a new latitude, longitude, altitude point given another latitude, longitude, altitude point.
    *
-   * @param aLatLng LatLng
+   * @param latLng LatLng to be cloned.
    */
-  public LatLng(LatLng aLatLng) {
-    this.latitude = aLatLng.latitude;
-    this.longitude = aLatLng.longitude;
-    this.altitude = aLatLng.altitude;
+  public LatLng(LatLng latLng) {
+    this.latitude = latLng.latitude;
+    this.longitude = latLng.longitude;
+    this.altitude = latLng.altitude;
   }
 
+  /**
+   * Constructs a new latitude, longitude, altitude tuple given a parcel.
+   *
+   * @param in the parcel containing the latitude, longitude, altitude values
+   */
   protected LatLng(Parcel in) {
-    latitude = in.readDouble();
-    longitude = in.readDouble();
-    altitude = in.readDouble();
+    setLatitude(in.readDouble());
+    setLongitude(in.readDouble());
+    setAltitude(in.readDouble());
   }
 
-  public void setLatitude(double latitude) {
+  /**
+   * Set the latitude, in degrees.
+   * <p>
+   * This value is in the range of [-85.05112878, 85.05112878], see {@link GeoConstants#MIN_LATITUDE} and
+   * {@link GeoConstants#MAX_LATITUDE}
+   * </p>
+   *
+   * @param latitude the latitude value in degrees
+   * @see GeoConstants#MIN_LATITUDE
+   * @see GeoConstants#MAX_LATITUDE
+   */
+  public void setLatitude(
+    @FloatRange(from = GeoConstants.MIN_LATITUDE, to = GeoConstants.MAX_LATITUDE) double latitude) {
+    if (Double.isNaN(latitude)) {
+      throw new IllegalArgumentException("latitude must not be NaN");
+    }
+    if (Math.abs(latitude) > 90.0) {
+      throw new IllegalArgumentException("latitude must be between -90 and 90");
+    }
     this.latitude = latitude;
   }
 
+  /**
+   * Get the latitude, in degrees.
+   * <p>
+   * This value is in the range of [-85.05112878, 85.05112878], see {@link GeoConstants#MIN_LATITUDE} and
+   * {@link GeoConstants#MAX_LATITUDE}
+   * </p>
+   *
+   * @return the latitude value in degrees
+   * @see GeoConstants#MIN_LATITUDE
+   * @see GeoConstants#MAX_LATITUDE
+   */
   @Override
   public double getLatitude() {
     return latitude;
   }
 
-  public void setLongitude(double longitude) {
+  /**
+   * Set the longitude, in degrees.
+   * <p>
+   * This value is in the range of [-180, 180], see {@link GeoConstants#MIN_LONGITUDE} and
+   * {@link GeoConstants#MAX_LONGITUDE}
+   * </p>
+   *
+   * @param longitude the longitude value in degrees
+   * @see GeoConstants#MIN_LONGITUDE
+   * @see GeoConstants#MAX_LONGITUDE
+   */
+  public void setLongitude(@FloatRange(from = GeoConstants.MIN_LONGITUDE, to = GeoConstants.MAX_LONGITUDE)
+                             double longitude) {
+    if (Double.isNaN(longitude)) {
+      throw new IllegalArgumentException("longitude must not be NaN");
+    }
+    if (Double.isInfinite(longitude)) {
+      throw new IllegalArgumentException("longitude must not be infinite");
+    }
     this.longitude = longitude;
   }
 
+  /**
+   * Get the longitude, in degrees.
+   * <p>
+   * This value is in the range of [-180, 180], see {@link GeoConstants#MIN_LONGITUDE} and
+   * {@link GeoConstants#MAX_LONGITUDE}
+   * </p>
+   *
+   * @return the longitude value in degrees
+   * @see GeoConstants#MIN_LONGITUDE
+   * @see GeoConstants#MAX_LONGITUDE
+   */
   @Override
   public double getLongitude() {
     return longitude;
   }
 
+  /**
+   * Set the altitude, in meters.
+   *
+   * @param altitude the altitude in meters
+   */
   public void setAltitude(double altitude) {
     this.altitude = altitude;
   }
 
+  /**
+   * Get the altitude, in meters.
+   *
+   * @return the altitude value in meters
+   */
   @Override
   public double getAltitude() {
     return altitude;
@@ -124,13 +201,19 @@ public class LatLng implements ILatLng, Parcelable {
    * Return a new LatLng object with a wrapped Longitude.  This allows original data object
    * to remain unchanged.
    *
-   * @return New LatLng object with wrapped Longitude
+   * @return new LatLng object with wrapped Longitude
    */
   public LatLng wrap() {
     longitude = MathUtils.wrap(longitude, GeoConstants.MIN_LONGITUDE, GeoConstants.MAX_LONGITUDE);
     return this;
   }
 
+  /**
+   * Indicates whether some other object is "equal to" this one.
+   *
+   * @param object The object to compare
+   * @return True if equal, false if not
+   */
   @Override
   public boolean equals(Object object) {
     if (this == object) {
@@ -146,6 +229,11 @@ public class LatLng implements ILatLng, Parcelable {
       && Double.compare(latLng.longitude, longitude) == 0;
   }
 
+  /**
+   * Returns a hash code value for the object.
+   *
+   * @return the hash code value
+   */
   @Override
   public int hashCode() {
     int result;
@@ -159,16 +247,32 @@ public class LatLng implements ILatLng, Parcelable {
     return result;
   }
 
+  /**
+   * Returns a string representation of the object.
+   *
+   * @return the string representation
+   */
   @Override
   public String toString() {
     return "LatLng [latitude=" + latitude + ", longitude=" + longitude + ", altitude=" + altitude + "]";
   }
 
+  /**
+   * Describe the kinds of special objects contained in this Parcelable instance's marshaled representation.
+   *
+   * @return a bitmask indicating the set of special object types marshaled by this Parcelable object instance.
+   */
   @Override
   public int describeContents() {
     return 0;
   }
 
+  /**
+   * Flatten this object in to a Parcel.
+   *
+   * @param out   The Parcel in which the object should be written.
+   * @param flags Additional flags about how the object should be written
+   */
   @Override
   public void writeToParcel(Parcel out, int flags) {
     out.writeDouble(latitude);

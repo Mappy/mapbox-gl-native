@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 #import "MGLFoundation.h"
 
@@ -42,40 +43,10 @@ typedef NS_ENUM(NSInteger, MGLErrorCode) {
     MGLErrorCodeBadServerResponse = 2,
     /** An attempt to establish a connection failed. */
     MGLErrorCodeConnectionFailed = 3,
-};
-
-/**
- The mode used to track the user location on the map. Used with
- `MGLMapView.userTrackingMode`.
- */
-typedef NS_ENUM(NSUInteger, MGLUserTrackingMode) {
-    /** The map does not follow the user location. */
-    MGLUserTrackingModeNone              = 0,
-    /** The map follows the user location. This tracking mode falls back
-     to `MGLUserTrackingModeNone` if the user pans the map view. */
-    MGLUserTrackingModeFollow,
-    /**
-     The map follows the user location and rotates when the heading changes.
-     The default user location annotation displays a fan-shaped indicator with
-     the current heading. The heading indicator represents the direction the
-     device is facing, which is sized according to the reported accuracy.
-
-     This tracking mode is disabled if the user pans the map view, but
-     remains enabled if the user zooms in. If the user rotates the map
-     view, this tracking mode will fall back to `MGLUserTrackingModeFollow`.
-     */
-    MGLUserTrackingModeFollowWithHeading,
-    /**
-     The map follows the user location and rotates when the course changes.
-     Course represents the direction in which the device is traveling.
-     The default user location annotation shows a puck-shaped indicator
-     that rotates as the course changes.
-
-     This tracking mode is disabled if the user pans the map view, but
-     remains enabled if the user zooms in. If the user rotates the map view,
-     this tracking mode will fall back to `MGLUserTrackingModeFollow`.
-     */
-    MGLUserTrackingModeFollowWithCourse,
+    /** A style parse error occurred while attempting to load the map. */
+    MGLErrorCodeParseStyleFailed = 4,
+    /** An attempt to load the style failed. */
+    MGLErrorCodeLoadStyleFailed = 5,
 };
 
 /** Options for enabling debugging features in an `MGLMapView` instance. */
@@ -107,7 +78,7 @@ typedef NS_OPTIONS(NSUInteger, MGLMapDebugMaskOptions) {
 /**
  A structure containing information about a transition.
  */
-typedef struct MGLTransition {
+typedef struct __attribute__((objc_boxable)) MGLTransition {
     /**
      The amount of time the animation should take, not including the delay.
      */

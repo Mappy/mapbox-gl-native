@@ -9,7 +9,6 @@
 #include <mbgl/gl/offscreen_view.hpp>
 #include <mbgl/gl/context.hpp>
 #include <mbgl/util/default_thread_pool.hpp>
-#include <mbgl/sprite/sprite_image.hpp>
 #include <mbgl/storage/network_status.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/online_file_source.hpp>
@@ -17,6 +16,7 @@
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/async_task.hpp>
+#include <mbgl/style/image.hpp>
 #include <mbgl/style/layers/background_layer.hpp>
 #include <mbgl/util/color.hpp>
 
@@ -24,9 +24,30 @@ using namespace mbgl;
 using namespace mbgl::style;
 using namespace std::literals::string_literals;
 
+class BackendTest : public HeadlessBackend {
+public:
+    BackendTest() : HeadlessBackend(test::sharedDisplay()) {}
+
+    void onDidFailLoadingMap(std::exception_ptr) final {
+        if (didFailLoadingMapCallback) {
+            didFailLoadingMapCallback();
+        }
+    }
+
+    void onDidFinishLoadingStyle() final {
+        if (didFinishLoadingStyleCallback) {
+            didFinishLoadingStyleCallback();
+        }
+    }
+
+    std::function<void()> didFailLoadingMapCallback;
+    std::function<void()> didFinishLoadingStyleCallback;
+};
+
 struct MapTest {
     util::RunLoop runLoop;
-    HeadlessBackend backend { test::sharedDisplay() };
+    BackendTest backend;
+    BackendScope scope { backend };
     OffscreenView view { backend.getContext() };
     StubFileSource fileSource;
     ThreadPool threadPool { 4 };
@@ -44,8 +65,41 @@ TEST(Map, LatLngBehavior) {
     map.setLatLng({ 1, 1 });
     auto latLng2 = map.getLatLng();
 
-    ASSERT_DOUBLE_EQ(latLng1.latitude, latLng2.latitude);
-    ASSERT_DOUBLE_EQ(latLng1.longitude, latLng2.longitude);
+    ASSERT_DOUBLE_EQ(latLng1.latitude(), latLng2.latitude());
+    ASSERT_DOUBLE_EQ(latLng1.longitude(), latLng2.longitude());
+}
+
+TEST(Map, LatLngBoundsToCamera) {
+    MapTest test;
+    Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
+
+    map.setLatLngZoom({ 40.712730, -74.005953 }, 16.0);
+
+    LatLngBounds bounds = LatLngBounds::hull({15.68169,73.499857}, {53.560711, 134.77281});
+
+    CameraOptions virtualCamera = map.cameraForLatLngBounds(bounds, {});
+    ASSERT_TRUE(bounds.contains(*virtualCamera.center));
+}
+
+TEST(Map, CameraToLatLngBounds) {
+    MapTest test;
+    Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
+
+    map.setLatLngZoom({ 45, 90 }, 16);
+
+    LatLngBounds bounds = LatLngBounds::hull(
+            map.latLngForPixel({}),
+            map.latLngForPixel({ double(map.getSize().width), double(map.getSize().height) }));
+
+    CameraOptions camera = map.getCameraOptions({});
+
+    ASSERT_EQ(bounds, map.latLngBoundsForCamera(camera));
+
+    // Map::cameraForLatLngBounds only sets zoom and center.
+    CameraOptions virtualCamera = map.cameraForLatLngBounds(bounds, {});
+    ASSERT_NEAR(*camera.zoom, *virtualCamera.zoom, 1e-7);
+    ASSERT_NEAR(camera.center->latitude(), virtualCamera.center->latitude(), 1e-7);
+    ASSERT_NEAR(camera.center->longitude(), virtualCamera.center->longitude(), 1e-7);
 }
 
 TEST(Map, Offline) {
@@ -85,11 +139,9 @@ TEST(Map, SetStyleInvalidJSON) {
     Log::setObserver(std::make_unique<FixtureLogObserver>());
 
     bool fail = false;
-    test.backend.setMapChangeCallback([&](MapChange change) {
-        if (change == mbgl::MapChangeDidFailLoadingMap) {
-            fail = true;
-        }
-    });
+    test.backend.didFailLoadingMapCallback = [&]() {
+        fail = true;
+    };
 
     {
         Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool,
@@ -118,11 +170,9 @@ TEST(Map, SetStyleInvalidURL) {
         return response;
     };
 
-    test.backend.setMapChangeCallback([&](MapChange change) {
-        if (change == mbgl::MapChangeDidFailLoadingMap) {
-            test.runLoop.stop();
-        }
-    });
+    test.backend.didFailLoadingMapCallback = [&]() {
+        test.runLoop.stop();
+    };
 
     Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
     map.setStyleURL("mapbox://bar");
@@ -233,11 +283,9 @@ TEST(Map, StyleLoadedSignal) {
 
     // The map should emit a signal on style loaded
     bool emitted = false;
-    test.backend.setMapChangeCallback([&](MapChange change) {
-        if (change == mbgl::MapChangeDidFinishLoadingStyle) {
-            emitted = true;
-        }
-    });
+    test.backend.didFinishLoadingStyleCallback = [&]() {
+        emitted = true;
+    };
     map.setStyleJSON(util::read_file("test/fixtures/api/empty.json"));
     EXPECT_TRUE(emitted);
 
@@ -255,11 +303,9 @@ TEST(Map, TEST_REQUIRES_SERVER(StyleNetworkErrorRetry)) {
     Map map(test.backend, test.view.getSize(), 1, fileSource, test.threadPool, MapMode::Still);
     map.setStyleURL("http://127.0.0.1:3000/style-fail-once-500");
 
-    test.backend.setMapChangeCallback([&](MapChange change) {
-        if (change == mbgl::MapChangeDidFinishLoadingStyle) {
-            test.runLoop.stop();
-        }
-    });
+    test.backend.didFinishLoadingStyleCallback = [&]() {
+        test.runLoop.stop();
+    };
 
     test.runLoop.run();
 }
@@ -275,17 +321,15 @@ TEST(Map, TEST_REQUIRES_SERVER(StyleNotFound)) {
     util::Timer timer;
 
     // Not found errors should not trigger a retry like other errors.
-    test.backend.setMapChangeCallback([&](MapChange change) {
-        if (change == mbgl::MapChangeDidFinishLoadingStyle) {
-            FAIL() << "Should not retry on not found!";
-        }
+    test.backend.didFinishLoadingStyleCallback = [&]() {
+        FAIL() << "Should not retry on not found!";
+    };
 
-        if (change == mbgl::MapChangeDidFailLoadingMap) {
-            timer.start(Milliseconds(1100), 0s, [&] {
-                test.runLoop.stop();
-            });
-        }
-    });
+    test.backend.didFailLoadingMapCallback = [&]() {
+        timer.start(Milliseconds(1100), 0s, [&] {
+            test.runLoop.stop();
+        });
+    };
 
     test.runLoop.run();
 
@@ -312,12 +356,7 @@ TEST(Map, WithoutVAOExtension) {
 
     test.backend.getContext().disableVAOExtension = true;
 
-#ifdef MBGL_ASSET_ZIP
-    // Regenerate with `cd test/fixtures/api/ && zip -r assets.zip assets/`
-    DefaultFileSource fileSource(":memory:", "test/fixtures/api/assets.zip");
-#else
     DefaultFileSource fileSource(":memory:", "test/fixtures/api/assets");
-#endif
 
     Map map(test.backend, test.view.getSize(), 1, fileSource, test.threadPool, MapMode::Still);
     map.setStyleJSON(util::read_file("test/fixtures/api/water.json"));
@@ -440,8 +479,8 @@ TEST(Map, AddImage) {
     Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
     auto decoded1 = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
     auto decoded2 = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
-    auto image1 = std::make_unique<SpriteImage>(std::move(decoded1), 1.0);
-    auto image2 = std::make_unique<SpriteImage>(std::move(decoded2), 1.0);
+    auto image1 = std::make_unique<style::Image>(std::move(decoded1), 1.0);
+    auto image2 = std::make_unique<style::Image>(std::move(decoded2), 1.0);
 
     // No-op.
     map.addImage("test-icon", std::move(image1));
@@ -456,7 +495,7 @@ TEST(Map, RemoveImage) {
 
     Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
     auto decoded = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
-    auto image = std::make_unique<SpriteImage>(std::move(decoded), 1.0);
+    auto image = std::make_unique<style::Image>(std::move(decoded), 1.0);
 
     map.setStyleJSON(util::read_file("test/fixtures/api/icon_style.json"));
     map.addImage("test-icon", std::move(image));
@@ -469,7 +508,7 @@ TEST(Map, GetImage) {
 
     Map map(test.backend, test.view.getSize(), 1, test.fileSource, test.threadPool, MapMode::Still);
     auto decoded = decodeImage(util::read_file("test/fixtures/sprites/default_marker.png"));
-    auto image = std::make_unique<SpriteImage>(std::move(decoded), 1.0);
+    auto image = std::make_unique<style::Image>(std::move(decoded), 1.0);
 
     map.setStyleJSON(util::read_file("test/fixtures/api/icon_style.json"));
     map.addImage("test-icon", std::move(image));
@@ -542,16 +581,10 @@ public:
 TEST(Map, TEST_DISABLED_ON_CI(ContinuousRendering)) {
     util::RunLoop runLoop;
     MockBackend backend { test::sharedDisplay() };
+    BackendScope scope { backend };
     OffscreenView view { backend.getContext() };
     ThreadPool threadPool { 4 };
-
-#ifdef MBGL_ASSET_ZIP
-    // Regenerate with `cd test/fixtures/api/ && zip -r assets.zip assets/`
-    DefaultFileSource fileSource(":memory:", "test/fixtures/api/assets.zip");
-#else
     DefaultFileSource fileSource(":memory:", "test/fixtures/api/assets");
-#endif
-
     Map map(backend, view.getSize(), 1, fileSource, threadPool, MapMode::Continuous);
 
     using namespace std::chrono_literals;
@@ -575,7 +608,7 @@ TEST(Map, TEST_DISABLED_ON_CI(ContinuousRendering)) {
             });
         }
 
-        BackendScope scope(backend);
+        BackendScope scope2(backend);
         map.render(view);
     }};
 

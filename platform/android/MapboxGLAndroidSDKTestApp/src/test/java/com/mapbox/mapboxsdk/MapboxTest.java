@@ -4,7 +4,8 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
-import com.mapbox.mapboxsdk.exceptions.InvalidAccessTokenException;
+import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
+import com.mapbox.mapboxsdk.location.LocationSource;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -24,11 +25,13 @@ public class MapboxTest {
 
   private Context context;
   private Context appContext;
+  private LocationSource locationSource;
 
   @Before
   public void before() {
     context = mock(Context.class);
     appContext = mock(Context.class);
+    locationSource = mock(LocationSource.class);
     when(context.getApplicationContext()).thenReturn(appContext);
   }
 
@@ -39,7 +42,7 @@ public class MapboxTest {
     assertSame(accessToken, Mapbox.getAccessToken());
   }
 
-  @Test(expected = InvalidAccessTokenException.class)
+  @Test(expected = MapboxConfigurationException.class)
   public void testGetInvalidAccessToken() {
     final String accessToken = "dummy";
     injectMapboxSingleton(accessToken);
@@ -80,7 +83,7 @@ public class MapboxTest {
   }
 
   private void injectMapboxSingleton(String accessToken) {
-    Mapbox mapbox = new Mapbox(appContext, accessToken);
+    Mapbox mapbox = new Mapbox(appContext, accessToken, locationSource);
     try {
       Field field = Mapbox.class.getDeclaredField("INSTANCE");
       field.setAccessible(true);

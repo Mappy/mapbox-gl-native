@@ -6,7 +6,7 @@ This document explains how to build the Mapbox iOS SDK from source. It is intend
 
 The Mapbox iOS SDK and iosapp demo application require iOS 8.0 or above.
 
-The Mapbox iOS SDK requires Xcode 7.3 or above. The iosapp demo application requires Xcode 8.0 or above to build.
+The Mapbox iOS SDK requires Xcode 8.0 or above.
 
 ## Building the SDK
 
@@ -46,7 +46,6 @@ Build and package the SDK by using one of the following commands:
 * `make iframework` builds a dynamic framework in the Debug configuration for devices and the iOS Simulator. The CocoaPods pod downloads the output of this target.
 * `make ipackage-sim` builds a dynamic framework in the Debug configuration for the iOS simulator. This is the fastest target.
 * `make ipackage-strip` builds both dynamic and static frameworks in the Debug configuration, stripped of debug symbols, for devices and the iOS Simulator.
-* `make ifabric` builds a special static framework for compatibility with the Fabric Mac application.
 
 You can customize the build output by passing the following arguments into the `make` invocation:
 

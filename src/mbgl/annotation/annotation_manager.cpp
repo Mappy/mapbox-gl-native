@@ -21,19 +21,9 @@ const std::string AnnotationManager::PointLayerID = "com.mapbox.annotations.poin
 
 AnnotationManager::AnnotationManager(float pixelRatio)
     : spriteAtlas({ 1024, 1024 }, pixelRatio) {
-
-    struct NullFileSource : public FileSource {
-        std::unique_ptr<AsyncRequest> request(const Resource&, Callback) override {
-            assert(false);
-            return nullptr;
-        }
-    };
-
-    NullFileSource nullFileSource;
-
-    // This is a special atlas, holding only images added via addIcon. But we need its isLoaded()
-    // method to return true.
-    spriteAtlas.load("", nullFileSource);
+    // This is a special atlas, holding only images added via addIcon, so we always treat it as
+    // loaded.
+    spriteAtlas.markAsLoaded();
 }
 
 AnnotationManager::~AnnotationManager() = default;
@@ -176,9 +166,7 @@ std::unique_ptr<AnnotationTileData> AnnotationManager::getTileData(const Canonic
 void AnnotationManager::updateStyle(Style& style) {
     // Create annotation source, point layer, and point bucket
     if (!style.getSource(SourceID)) {
-        std::unique_ptr<Source> source = std::make_unique<AnnotationSource>();
-        source->baseImpl->enabled = true;
-        style.addSource(std::move(source));
+        style.addSource(std::make_unique<AnnotationSource>());
 
         std::unique_ptr<SymbolLayer> layer = std::make_unique<SymbolLayer>(PointLayerID, SourceID);
 
@@ -186,8 +174,6 @@ void AnnotationManager::updateStyle(Style& style) {
         layer->setIconImage({"{sprite}"});
         layer->setIconAllowOverlap(true);
         layer->setIconIgnorePlacement(true);
-
-        layer->impl->spriteAtlas = &spriteAtlas;
 
         style.addLayer(std::move(layer));
     }
@@ -220,17 +206,17 @@ void AnnotationManager::removeTile(AnnotationTile& tile) {
     tiles.erase(&tile);
 }
 
-void AnnotationManager::addIcon(const std::string& name, std::shared_ptr<const SpriteImage> sprite) {
-    spriteAtlas.setSprite(name, sprite);
+void AnnotationManager::addImage(const std::string& id, std::unique_ptr<style::Image> image) {
+    spriteAtlas.addImage(id, std::move(image));
 }
 
-void AnnotationManager::removeIcon(const std::string& name) {
-    spriteAtlas.removeSprite(name);
+void AnnotationManager::removeImage(const std::string& id) {
+    spriteAtlas.removeImage(id);
 }
 
-double AnnotationManager::getTopOffsetPixelsForIcon(const std::string& name) {
-    auto sprite = spriteAtlas.getSprite(name);
-    return sprite ? -(sprite->image.size.height / sprite->pixelRatio) / 2 : 0;
+double AnnotationManager::getTopOffsetPixelsForImage(const std::string& id) {
+    const style::Image* image = spriteAtlas.getImage(id);
+    return image ? -(image->image.size.height / image->pixelRatio) / 2 : 0;
 }
 
 } // namespace mbgl

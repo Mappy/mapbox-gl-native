@@ -3,11 +3,24 @@
 
 static NSString * const MGLTestAnnotationReuseIdentifer = @"MGLTestAnnotationReuseIdentifer";
 
+@interface MGLCustomAnnotationView : MGLAnnotationView
+
+@end
+
+@implementation MGLCustomAnnotationView
+
+- (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier {
+    return [super initWithReuseIdentifier:@"reuse-id"];
+}
+
+@end
+
 @interface MGLAnnotationView (Test)
+
 @property (nonatomic) MGLMapView *mapView;
 @property (nonatomic, readwrite) MGLAnnotationViewDragState dragState;
-
 - (void)setDragState:(MGLAnnotationViewDragState)dragState;
+
 @end
 
 @interface MGLMapView (Test)
@@ -51,7 +64,7 @@ static NSString * const MGLTestAnnotationReuseIdentifer = @"MGLTestAnnotationReu
 - (void)setUp
 {
     [super setUp];
-    _mapView = [[MGLMapView alloc] initWithFrame:CGRectZero];
+    _mapView = [[MGLMapView alloc] initWithFrame:CGRectMake(0, 0, 64, 64)];
     _mapView.delegate = self;
 }
 
@@ -79,13 +92,19 @@ static NSString * const MGLTestAnnotationReuseIdentifer = @"MGLTestAnnotationReu
     XCTAssertNil(_annotationView.annotation, @"annotation property should be nil");
 }
 
+- (void)testCustomAnnotationView
+{
+    MGLCustomAnnotationView *customAnnotationView = [[MGLCustomAnnotationView alloc] initWithReuseIdentifier:@"reuse-id"];
+    XCTAssertNotNil(customAnnotationView);
+}
+
 - (MGLAnnotationView *)mapView:(MGLMapView *)mapView viewForAnnotation:(id<MGLAnnotation>)annotation
 {
     MGLAnnotationView *annotationView = [mapView dequeueReusableAnnotationViewWithIdentifier:MGLTestAnnotationReuseIdentifer];
 
     if (!annotationView)
     {
-        annotationView = [[MGLAnnotationView alloc] initWithReuseIdentifier:MGLTestAnnotationReuseIdentifer];
+        annotationView = [[MGLAnnotationView alloc] initWithAnnotation:annotation reuseIdentifier:MGLTestAnnotationReuseIdentifer];
     }
 
     _annotationView = annotationView;

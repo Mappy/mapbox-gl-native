@@ -17,13 +17,12 @@ import java.lang.annotation.RetentionPolicy;
  */
 public class Style {
 
-
   /**
-   * Indicates the parameter accepts one of the values from {@link Style}. Using one of these
+   * Indicates the parameter accepts one of the values from Style. Using one of these
    * constants means your map style will always use the latest version and may change as we
    * improve the style
    */
-  @StringDef( {MAPBOX_STREETS, OUTDOORS, LIGHT, DARK, SATELLITE, SATELLITE_STREETS})
+  @StringDef( {MAPBOX_STREETS, OUTDOORS, LIGHT, DARK, SATELLITE, SATELLITE_STREETS, TRAFFIC_DAY, TRAFFIC_NIGHT})
   @Retention(RetentionPolicy.SOURCE)
   public @interface StyleUrl {
   }
@@ -35,13 +34,13 @@ public class Style {
    * constant means your map style will always use the latest version and may change as we
    * improve the style.
    */
-  public static final String MAPBOX_STREETS = "mapbox://styles/mapbox/streets-v9";
+  public static final String MAPBOX_STREETS = "mapbox://styles/mapbox/streets-v10";
 
   /**
    * Outdoors: A general-purpose style tailored to outdoor activities. Using this constant means
    * your map style will always use the latest version and may change as we improve the style.
    */
-  public static final String OUTDOORS = "mapbox://styles/mapbox/outdoors-v9";
+  public static final String OUTDOORS = "mapbox://styles/mapbox/outdoors-v10";
 
   /**
    * Light: Subtle light backdrop for data visualizations. Using this constant means your map
@@ -66,5 +65,23 @@ public class Style {
    * constant means your map style will always use the latest version and may change as we
    * improve the style.
    */
-  public static final String SATELLITE_STREETS = "mapbox://styles/mapbox/satellite-streets-v9";
+  public static final String SATELLITE_STREETS = "mapbox://styles/mapbox/satellite-streets-v10";
+
+  /**
+   * Traffic Day: Color-coded roads based on live traffic congestion data. Traffic data is currently
+   * available in
+   * <a href="https://www.mapbox.com/api-documentation/pages/traffic-countries.html">these select
+   * countries</a>. Using this constant means your map style will always use the latest version and
+   * may change as we improve the style.
+   */
+  public static final String TRAFFIC_DAY = "mapbox://styles/mapbox/traffic-day-v2";
+
+  /**
+   * Traffic Night: Color-coded roads based on live traffic congestion data, designed to maximize
+   * legibility in low-light situations. Traffic data is currently available in
+   * <a href="https://www.mapbox.com/api-documentation/pages/traffic-countries.html">these select
+   * countries</a>. Using this constant means your map style will always use the latest version and
+   * may change as we improve the style.
+   */
+  public static final String TRAFFIC_NIGHT = "mapbox://styles/mapbox/traffic-night-v2";
 }

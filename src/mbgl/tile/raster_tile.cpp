@@ -3,17 +3,17 @@
 #include <mbgl/tile/tile_observer.hpp>
 #include <mbgl/tile/tile_loader_impl.hpp>
 #include <mbgl/style/source.hpp>
-#include <mbgl/style/update_parameters.hpp>
 #include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
 #include <mbgl/storage/file_source.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
 #include <mbgl/renderer/raster_bucket.hpp>
 #include <mbgl/util/run_loop.hpp>
 
 namespace mbgl {
 
 RasterTile::RasterTile(const OverscaledTileID& id_,
-                       const style::UpdateParameters& parameters,
+                       const TileParameters& parameters,
                        const Tileset& tileset)
     : Tile(id_),
       loader(*this, id_, parameters, tileset),
@@ -28,6 +28,7 @@ void RasterTile::cancel() {
 }
 
 void RasterTile::setError(std::exception_ptr err) {
+    loaded = true;
     observer->onTileError(*this, err);
 }
 
@@ -36,22 +37,31 @@ void RasterTile::setData(std::shared_ptr<const std::string> data,
                              optional<Timestamp> expires_) {
     modified = modified_;
     expires = expires_;
-    worker.invoke(&RasterTileWorker::parse, data);
+
+    pending = true;
+    ++correlationID;
+    worker.invoke(&RasterTileWorker::parse, data, correlationID);
 }
 
-void RasterTile::onParsed(std::unique_ptr<Bucket> result) {
+void RasterTile::onParsed(std::unique_ptr<Bucket> result, const uint64_t resultCorrelationID) {
     bucket = std::move(result);
-    availableData = bucket ? DataAvailability::All : DataAvailability::None;
+    loaded = true;
+    if (resultCorrelationID == correlationID) {
+        pending = false;
+    }
+    renderable = bucket ? true : false;
     observer->onTileChanged(*this);
 }
 
-void RasterTile::onError(std::exception_ptr err) {
-    bucket.reset();
-    availableData = DataAvailability::None;
+void RasterTile::onError(std::exception_ptr err, const uint64_t resultCorrelationID) {
+    loaded = true;
+    if (resultCorrelationID == correlationID) {
+        pending = false;
+    }
     observer->onTileError(*this, err);
 }
 
-Bucket* RasterTile::getBucket(const style::Layer&) {
+Bucket* RasterTile::getBucket(const RenderLayer&) const {
     return bucket.get();
 }
 

@@ -3,6 +3,7 @@
 
 #include <jni/jni.hpp>
 
+#include <mbgl/style/transition_options.hpp>
 #include <mbgl/util/logging.hpp>
 
 // Java -> C++ conversion
@@ -104,9 +105,10 @@ namespace android {
         Value wrapped(env, jfilter);
         Filter filter;
 
-        Result<Filter> converted = convert<Filter>(wrapped);
+        Error error;
+        optional<Filter> converted = convert<Filter>(wrapped, error);
         if (!converted) {
-            mbgl::Log::Error(mbgl::Event::JNI, "Error setting filter: " + converted.error().message);
+            mbgl::Log::Error(mbgl::Event::JNI, "Error setting filter: " + error.message);
             return;
         }
         filter = std::move(*converted);
@@ -119,6 +121,8 @@ namespace android {
             layer.as<SymbolLayer>()->setFilter(filter);
         } else if (layer.is<CircleLayer>()) {
             layer.as<CircleLayer>()->setFilter(filter);
+        } else if (layer.is<FillExtrusionLayer>()){
+            layer.as<FillExtrusionLayer>()->setFilter(filter);
         } else {
             mbgl::Log::Warning(mbgl::Event::JNI, "Layer doesn't support filters");
         }
@@ -137,9 +141,32 @@ namespace android {
             layer.as<SymbolLayer>()->setSourceLayer(layerId);
         } else if (layer.is<CircleLayer>()) {
             layer.as<CircleLayer>()->setSourceLayer(layerId);
+        } else if(layer.is<FillExtrusionLayer>()) {
+            layer.as<FillExtrusionLayer>()->setSourceLayer(layerId);
         } else {
             mbgl::Log::Warning(mbgl::Event::JNI, "Layer doesn't support source layer");
         }
+    }
+
+    jni::String Layer::getSourceLayer(jni::JNIEnv& env) {
+        using namespace mbgl::style;
+
+        std::string sourceLayerId;
+        if (layer.is<FillLayer>()) {
+            sourceLayerId = layer.as<FillLayer>()->getSourceLayer();
+        } else if (layer.is<LineLayer>()) {
+            sourceLayerId = layer.as<LineLayer>()->getSourceLayer();
+        } else if (layer.is<SymbolLayer>()) {
+            sourceLayerId = layer.as<SymbolLayer>()->getSourceLayer();
+        } else if (layer.is<CircleLayer>()) {
+            sourceLayerId = layer.as<CircleLayer>()->getSourceLayer();
+        } else if (layer.is<FillExtrusionLayer>()) {
+            sourceLayerId = layer.as<FillExtrusionLayer>()->getSourceLayer();
+        } else {
+            mbgl::Log::Warning(mbgl::Event::JNI, "Layer doesn't support source layer");
+        }
+
+        return jni::Make<jni::String>(env, sourceLayerId);
     }
 
     jni::jfloat Layer::getMinZoom(jni::JNIEnv&){
@@ -178,6 +205,7 @@ namespace android {
             METHOD(&Layer::setPaintProperty, "nativeSetPaintProperty"),
             METHOD(&Layer::setFilter, "nativeSetFilter"),
             METHOD(&Layer::setSourceLayer, "nativeSetSourceLayer"),
+            METHOD(&Layer::getSourceLayer, "nativeGetSourceLayer"),
             METHOD(&Layer::getMinZoom, "nativeGetMinZoom"),
             METHOD(&Layer::getMaxZoom, "nativeGetMaxZoom"),
             METHOD(&Layer::setMinZoom, "nativeSetMinZoom"),

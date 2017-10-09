@@ -6,6 +6,7 @@
 #import "MGLPolygon+MGLAdditions.h"
 
 #import <mbgl/util/geojson.hpp>
+#import <mapbox/polylabel.hpp>
 
 @implementation MGLPolygon
 
@@ -52,6 +53,13 @@
 
 - (NSUInteger)hash {
     return [super hash] + [[self geoJSONDictionary] hash];
+}
+
+- (CLLocationCoordinate2D)coordinate {
+    // pole of inaccessibility
+    auto poi = mapbox::polylabel([self polygon]);
+    
+    return MGLLocationCoordinate2DFromPoint(poi);
 }
 
 - (mbgl::LinearRing<double>)ring {
@@ -155,11 +163,17 @@
     return hash;
 }
 
+- (CLLocationCoordinate2D)coordinate {
+    MGLPolygon *firstPolygon = self.polygons.firstObject;
+    
+    return firstPolygon.coordinate;
+}
+
 - (BOOL)intersectsOverlayBounds:(MGLCoordinateBounds)overlayBounds {
     return MGLCoordinateBoundsIntersectsCoordinateBounds(_overlayBounds, overlayBounds);
 }
 
-- (mbgl::Geometry<double>)geometryObject {
+- (mbgl::MultiPolygon<double>)multiPolygon {
     mbgl::MultiPolygon<double> multiPolygon;
     multiPolygon.reserve(self.polygons.count);
     for (MGLPolygon *polygon in self.polygons) {
@@ -173,6 +187,10 @@
     return multiPolygon;
 }
 
+- (mbgl::Geometry<double>)geometryObject {
+    return [self multiPolygon];
+}
+
 - (NSDictionary *)geoJSONDictionary {
     NSMutableArray *coordinates = [[NSMutableArray alloc] initWithCapacity:self.polygons.count];
     for (MGLPolygonFeature *feature in self.polygons) {
@@ -180,6 +198,16 @@
     }
     return @{@"type": @"MultiPolygon",
              @"coordinates": coordinates};
+}
+
+- (NSString *)description
+{
+    return [NSString stringWithFormat:@"<%@: %p; title = %@, subtitle: = %@, count = %lu; bounds = %@>",
+            NSStringFromClass([self class]), (void *)self,
+            self.title ? [NSString stringWithFormat:@"\"%@\"", self.title] : self.title,
+            self.subtitle ? [NSString stringWithFormat:@"\"%@\"", self.subtitle] : self.subtitle,
+            (unsigned long)self.polygons.count,
+            MGLStringFromCoordinateBounds(self.overlayBounds)];
 }
 
 @end

@@ -1,10 +1,14 @@
 #pragma once
 
 #include <mbgl/util/noncopyable.hpp>
+#include <mbgl/util/any.hpp>
+#include <mbgl/style/layer_type.hpp>
 #include <mbgl/style/types.hpp>
 
+#include <cassert>
 #include <memory>
 #include <string>
+#include <stdexcept>
 
 namespace mbgl {
 namespace style {
@@ -35,23 +39,16 @@ class FillExtrusionLayer;
  *     auto circleLayer = std::make_unique<CircleLayer>("my-circle-layer");
  */
 class Layer : public mbgl::util::noncopyable {
-protected:
-    enum class Type {
-        Fill,
-        Line,
-        Circle,
-        Symbol,
-        Raster,
-        Background,
-        Custom,
-        FillExtrusion,
-    };
-
+public:
     class Impl;
-    const Type type;
-    Layer(Type, std::unique_ptr<Impl>);
+
+protected:
+
+    const LayerType type;
+    Layer(LayerType, std::unique_ptr<Impl>);
 
 public:
+
     virtual ~Layer();
 
     // Check whether this layer is of the given subtype.
@@ -71,7 +68,7 @@ public:
 
     // Convenience method for dynamic dispatch on the concrete layer type. Using
     // method overloading, this allows consolidation of logic common to vector-based
-    // layers (Fill, Line, Circle, or Symbol). For example:
+    // layers (Fill, FillExtrusion, Line, Circle, or Symbol). For example:
     //
     //     struct Visitor {
     //         void operator()(CustomLayer&) { ... }
@@ -84,23 +81,28 @@ public:
     template <class V>
     auto accept(V&& visitor) {
         switch (type) {
-        case Type::Fill:
+        case LayerType::Fill:
             return visitor(*as<FillLayer>());
-        case Type::Line:
+        case LayerType::Line:
             return visitor(*as<LineLayer>());
-        case Type::Circle:
+        case LayerType::Circle:
             return visitor(*as<CircleLayer>());
-        case Type::Symbol:
+        case LayerType::Symbol:
             return visitor(*as<SymbolLayer>());
-        case Type::Raster:
+        case LayerType::Raster:
             return visitor(*as<RasterLayer>());
-        case Type::Background:
+        case LayerType::Background:
             return visitor(*as<BackgroundLayer>());
-        case Type::Custom:
+        case LayerType::Custom:
             return visitor(*as<CustomLayer>());
-        case Type::FillExtrusion:
+        case LayerType::FillExtrusion:
             return visitor(*as<FillExtrusionLayer>());
         }
+
+
+        // Not reachable, but placate GCC.
+        assert(false);
+        throw new std::runtime_error("unknown layer type");
     }
 
     const std::string& getID() const;
@@ -118,7 +120,10 @@ public:
     // Private implementation
     const std::unique_ptr<Impl> baseImpl;
 
-    friend std::string layoutKey(const Layer&);
+    // For use in SDK bindings, which store a reference to a platform-native peer
+    // object here, so that separately-obtained references to this object share
+    // identical platform-native peers.
+    any peer;
 };
 
 } // namespace style

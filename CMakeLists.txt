@@ -12,6 +12,9 @@ option(WITH_EGL      "Use EGL backend" OFF)
 
 if(WITH_CXX11ABI)
     set(MASON_CXXABI_SUFFIX -cxx11abi)
+    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
+else()
+    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 endif()
 
 if(WITH_OSMESA AND WITH_EGL)
@@ -40,17 +43,19 @@ set_source_files_properties(src/mbgl/util/version.cpp PROPERTIES COMPILE_DEFINIT
 
 mason_use(geometry VERSION 0.9.0 HEADER_ONLY)
 mason_use(variant VERSION 1.1.4 HEADER_ONLY)
+mason_use(any VERSION 8fef1e9 HEADER_ONLY)
 mason_use(unique_resource VERSION cba309e HEADER_ONLY)
 mason_use(rapidjson VERSION 1.1.0 HEADER_ONLY)
 mason_use(boost VERSION 1.62.0 HEADER_ONLY)
 mason_use(geojsonvt VERSION 6.2.0 HEADER_ONLY)
 mason_use(supercluster VERSION 0.2.0-1 HEADER_ONLY)
 mason_use(kdbush VERSION 0.1.1-1 HEADER_ONLY)
-mason_use(earcut VERSION 0.12.1 HEADER_ONLY)
+mason_use(earcut VERSION 0.12.3 HEADER_ONLY)
 mason_use(protozero VERSION 1.4.2 HEADER_ONLY)
 mason_use(pixelmatch VERSION 0.10.0 HEADER_ONLY)
 mason_use(geojson VERSION 0.4.0 HEADER_ONLY)
 mason_use(polylabel VERSION 1.0.2 HEADER_ONLY)
+mason_use(wagyu VERSION 0.4.1 HEADER_ONLY)
 
 add_definitions(-DRAPIDJSON_HAS_STDSTRING=1)
 
@@ -61,14 +66,17 @@ endif(WITH_COVERAGE)
 
 set(CMAKE_CONFIGURATION_TYPES Debug Release)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -ftemplate-depth=1024 -Wall -Wextra -Wshadow -Werror -Wno-variadic-macros -Wno-unknown-pragmas")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -ftemplate-depth=1024 -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Werror -Wno-variadic-macros -Wno-unknown-pragmas")
 if(APPLE)
     # -Wno-error=unused-command-line-argument is required due to https://llvm.org/bugs/show_bug.cgi?id=7798
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-command-line-argument")
 endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-Os -DNDEBUG")
 
-if(CMAKE_COMPILER_IS_GNUCXX)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unknown-warning-option")
+elseif(CMAKE_COMPILER_IS_GNUCXX)
     # https://svn.boost.org/trac/boost/ticket/9240
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fext-numeric-literals")
 endif()
@@ -76,6 +84,8 @@ endif()
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/platform/${MBGL_PLATFORM}/config.cmake)
     message(ERROR "Can't find config.cmake file for platform ${MBGL_PLATFORM}")
 endif()
+
+include(cmake/loop-uv.cmake)
 
 include(platform/${MBGL_PLATFORM}/config.cmake)
 
@@ -106,4 +116,10 @@ endif()
 
 if(COMMAND mbgl_platform_node)
     include(cmake/node.cmake)
+endif()
+
+if(CMAKE_GENERATOR STREQUAL "Xcode")
+    write_xcconfig_target_properties(
+        mbgl-core
+    )
 endif()

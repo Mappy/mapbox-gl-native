@@ -24,6 +24,9 @@ public:
     DefaultFileSource(const std::string& cachePath,
                       const std::string& assetRoot,
                       uint64_t maximumCacheSize = util::DEFAULT_MAX_CACHE_SIZE);
+    DefaultFileSource(const std::string& cachePath,
+                      std::unique_ptr<FileSource>&& assetFileSource,
+                      uint64_t maximumCacheSize = util::DEFAULT_MAX_CACHE_SIZE);
     ~DefaultFileSource() override;
 
     bool supportsOptionalRequests() const override {
@@ -119,6 +122,22 @@ public:
      * Clean ambient cache
      */
     void cleanAmbientCache(void);
+
+    /*
+     * Pause file request activity.
+     *
+     * If pause is called then no revalidation or network request activity
+     * will occur.
+     */
+    void pause();
+
+    /*
+     * Resume file request activity.
+     *
+     * Calling resume will unpause the file source and process any tasks that
+     * expired while the file source was paused.
+     */
+    void resume();
 
     /*
      * Pause file request activity.

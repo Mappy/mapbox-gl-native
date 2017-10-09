@@ -2,7 +2,7 @@
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/line_bucket.hpp>
 #include <mbgl/renderer/render_tile.hpp>
-#include <mbgl/style/layers/line_layer.hpp>
+#include <mbgl/renderer/render_line_layer.hpp>
 #include <mbgl/style/layers/line_layer_impl.hpp>
 #include <mbgl/programs/programs.hpp>
 #include <mbgl/programs/line_program.hpp>
@@ -15,16 +15,16 @@ using namespace style;
 
 void Painter::renderLine(PaintParameters& parameters,
                          LineBucket& bucket,
-                         const LineLayer& layer,
+                         const RenderLineLayer& layer,
                          const RenderTile& tile) {
     if (pass == RenderPass::Opaque) {
         return;
     }
 
-    const LinePaintProperties::Evaluated& properties = layer.impl->paint.evaluated;
+    const LinePaintProperties::Evaluated& properties = layer.evaluated;
 
-    auto draw = [&] (auto& program, auto&& uniformValues, auto& lineProperties) {
-        program.draw(
+    auto draw = [&] (auto& program, auto&& uniformValues) {
+        program.get(properties).draw(
             context,
             gl::Triangles(),
             depthModeForSublayer(0, gl::DepthMode::ReadOnly),
@@ -35,8 +35,9 @@ void Painter::renderLine(PaintParameters& parameters,
             *bucket.indexBuffer,
             bucket.segments,
             bucket.paintPropertyBinders.at(layer.getID()),
-            lineProperties,
-            state.getZoom()
+            properties,
+            state.getZoom(),
+            layer.getID()
         );
     };
 
@@ -57,9 +58,8 @@ void Painter::renderLine(PaintParameters& parameters,
                  pixelsToGLUnits,
                  posA,
                  posB,
-                 layer.impl->dashLineWidth,
-                 lineAtlas->getSize().width),
-             properties);
+                 layer.dashLineWidth,
+                 lineAtlas->getSize().width));
 
     } else if (!properties.get<LinePattern>().from.empty()) {
         optional<SpriteAtlasElement> posA = spriteAtlas->getPattern(properties.get<LinePattern>().from);
@@ -77,29 +77,15 @@ void Painter::renderLine(PaintParameters& parameters,
                  state,
                  pixelsToGLUnits,
                  *posA,
-                 *posB),
-             properties);
+                 *posB));
 
     } else {
-		// Mappy specific drawing on paths
-		if (layer.impl->isMappyPath == true) {
-            const LinePaintProperties::Evaluated& mappyProperties = layer.impl->mappyPaint.evaluated;
-            draw(parameters.programs.line,
-                 LineProgram::uniformValues(
-                                            mappyProperties,
-                                            tile,
-                                            state,
-                                            pixelsToGLUnits),
-                 mappyProperties);
-		}
-
         draw(parameters.programs.line,
              LineProgram::uniformValues(
-                                        properties,
-                                        tile,
-                                        state,
-                                        pixelsToGLUnits),
-             properties);
+                 properties,
+                 tile,
+                 state,
+                 pixelsToGLUnits));
     }
 }
 

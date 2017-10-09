@@ -113,7 +113,6 @@ public class MapboxConstants {
   public static final String STATE_MY_BEARING_TRACKING_MODE = "mapbox_myBearingTracking";
   public static final String STATE_MY_LOCATION_TRACKING_DISMISS = "mapbox_myLocationTrackingDismiss";
   public static final String STATE_MY_BEARING_TRACKING_DISMISS = "mapbox_myBearingTrackingDismiss";
-  public static final String STATE_MY_TRACKING_MODE_DISMISS_FOR_CAMERA = "mapbox_myBearingTrackingDismiss";
   public static final String STATE_COMPASS_ENABLED = "mapbox_compassEnabled";
   public static final String STATE_COMPASS_GRAVITY = "mapbox_compassGravity";
   public static final String STATE_COMPASS_MARGIN_LEFT = "mapbox_compassMarginLeft";
@@ -121,6 +120,7 @@ public class MapboxConstants {
   public static final String STATE_COMPASS_MARGIN_RIGHT = "mapbox_compassMarginRight";
   public static final String STATE_COMPASS_MARGIN_BOTTOM = "mapbox_compassMarginBottom";
   public static final String STATE_COMPASS_FADE_WHEN_FACING_NORTH = "mapbox_compassFade";
+  public static final String STATE_COMPASS_IMAGE_BITMAP = "mapbox_compassImage";
   public static final String STATE_LOGO_GRAVITY = "mapbox_logoGravity";
   public static final String STATE_LOGO_MARGIN_LEFT = "mapbox_logoMarginLeft";
   public static final String STATE_LOGO_MARGIN_TOP = "mapbox_logoMarginTop";
@@ -133,5 +133,6 @@ public class MapboxConstants {
   public static final String STATE_ATTRIBUTION_MARGIN_RIGHT = "mapbox_attrMarginRight";
   public static final String STATE_ATTRIBUTION_MARGIN_BOTTOM = "mapbox_atrrMarginBottom";
   public static final String STATE_ATTRIBUTION_ENABLED = "mapbox_atrrEnabled";
-
+  public static final String STATE_LOCATION_CHANGE_ANIMATION_ENABLED = "mapbox_locationChangeAnimationEnabled";
+  public static final String STATE_USING_CUSTOM_LOCATION_SOURCE = "mapbox_usingCustomLocationSource";
 }

@@ -1,5 +1,7 @@
 #import "MGLSource.h"
 
+#include <memory>
+
 NS_ASSUME_NONNULL_BEGIN
 
 namespace mbgl {
@@ -8,14 +10,29 @@ namespace mbgl {
     }
 }
 
+// A struct to be stored in the `peer` member of mbgl::style::Source, in order to implement
+// object identity. We don't store a MGLSource pointer directly because that doesn't
+// interoperate with ARC. The inner pointer is weak in order to avoid a reference cycle for
+// "pending" MGLSources, which have a strong owning pointer to the mbgl::style::Source.
+struct SourceWrapper {
+    __weak MGLSource *source;
+};
+
 @class MGLMapView;
 
 @interface MGLSource (Private)
 
 /**
- Initializes and returns a source with a raw pointer to the backing store.
+ Initializes and returns a source with a raw pointer to the backing store,
+ associated with a style.
  */
-- (instancetype)initWithRawSource:(mbgl::style::Source *)rawSource;
+- (instancetype)initWithRawSource:(mbgl::style::Source *)rawSource mapView:(nullable MGLMapView *)mapView;
+
+/**
+ Initializes and returns a source with an owning pointer to the backing store,
+ unassociated from a style.
+ */
+- (instancetype)initWithPendingSource:(std::unique_ptr<mbgl::style::Source>)pendingSource;
 
 /**
  A raw pointer to the mbgl object, which is always initialized, either to the
@@ -24,7 +41,15 @@ namespace mbgl {
  pointer value stays even after ownership of the object is transferred via
  `mbgl::Map addSource`.
  */
-@property (nonatomic) mbgl::style::Source *rawSource;
+@property (nonatomic, readonly) mbgl::style::Source *rawSource;
+
+/**
+ The map view whose style currently contains the source.
+
+ If the source is not currently part of any map view’s style, this property is
+ set to `nil`.
+ */
+@property (nonatomic, readonly, weak) MGLMapView *mapView;
 
 /**
  Adds the mbgl source that this object represents to the mbgl map.

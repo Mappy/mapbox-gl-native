@@ -1,9 +1,10 @@
 #pragma once
 
 #include <mbgl/text/glyph_range.hpp>
+#include <mbgl/util/font_stack.hpp>
 #include <mbgl/util/rect.hpp>
 #include <mbgl/util/traits.hpp>
-#include <mbgl/util/image.hpp>
+#include <mbgl/util/optional.hpp>
 
 #include <cstdint>
 #include <vector>
@@ -12,21 +13,18 @@
 
 namespace mbgl {
 
+typedef char16_t GlyphID;
+typedef std::set<GlyphID> GlyphIDs;
+    
 // Note: this only works for the BMP
-GlyphRange getGlyphRange(char16_t glyph);
+GlyphRange getGlyphRange(GlyphID glyph);
 
 struct GlyphMetrics {
-    explicit operator bool() const {
-        return !(width == 0 && height == 0 && advance == 0);
-    }
-
-    // Glyph metrics.
     uint32_t width = 0;
     uint32_t height = 0;
     int32_t left = 0;
     int32_t top = 0;
     uint32_t advance = 0;
-
 };
 
 inline bool operator==(const GlyphMetrics& lhs, const GlyphMetrics& rhs) {
@@ -38,26 +36,19 @@ inline bool operator==(const GlyphMetrics& lhs, const GlyphMetrics& rhs) {
 }
 
 struct Glyph {
-    explicit Glyph() : rect(0, 0, 0, 0), metrics() {}
-    explicit Glyph(Rect<uint16_t> rect_, GlyphMetrics metrics_)
-        : rect(std::move(rect_)), metrics(std::move(metrics_)) {}
-
-    explicit operator bool() const {
-        return metrics || rect.hasArea();
-    }
-
-    const Rect<uint16_t> rect;
-    const GlyphMetrics metrics;
+    Rect<uint16_t> rect;
+    GlyphMetrics metrics;
 };
 
-typedef std::map<uint32_t, Glyph> GlyphPositions;
+typedef std::map<GlyphID, optional<Glyph>> GlyphPositions;
+typedef std::map<FontStack, GlyphPositions> GlyphPositionMap;
 
 class PositionedGlyph {
 public:
-    explicit PositionedGlyph(uint32_t glyph_, float x_, float y_, float angle_)
+    explicit PositionedGlyph(GlyphID glyph_, float x_, float y_, float angle_)
         : glyph(glyph_), x(x_), y(y_), angle(angle_) {}
 
-    uint32_t glyph = 0;
+    GlyphID glyph = 0;
     float x = 0;
     float y = 0;
     float angle = 0;
@@ -78,21 +69,6 @@ class Shaping {
     WritingModeType writingMode;
 
     explicit operator bool() const { return !positionedGlyphs.empty(); }
-};
-
-class SDFGlyph {
-public:
-    // We're using this value throughout the Mapbox GL ecosystem. If this is different, the glyphs
-    // also need to be reencoded.
-    static constexpr const uint8_t borderSize = 3;
-
-    uint32_t id = 0;
-
-    // A signed distance field of the glyph with a border (see above).
-    AlphaImage bitmap;
-
-    // Glyph metrics
-    GlyphMetrics metrics;
 };
 
 enum class WritingModeType : uint8_t {
@@ -120,5 +96,9 @@ constexpr WritingModeType& operator&=(WritingModeType& lhs, WritingModeType rhs)
 constexpr WritingModeType operator~(WritingModeType value) {
     return WritingModeType(~mbgl::underlying_type(value));
 }
+
+typedef std::map<FontStack,GlyphIDs> GlyphDependencies;
+typedef std::map<FontStack,GlyphRangeSet> GlyphRangeDependencies;
+
 
 } // end namespace mbgl

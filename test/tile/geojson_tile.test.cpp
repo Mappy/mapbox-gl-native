@@ -8,7 +8,7 @@
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
 #include <mbgl/style/style.hpp>
-#include <mbgl/style/update_parameters.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
 #include <mbgl/style/layers/circle_layer.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 
@@ -24,10 +24,10 @@ public:
     util::RunLoop loop;
     ThreadPool threadPool { 1 };
     AnnotationManager annotationManager { 1.0 };
-    style::Style style { fileSource, 1.0 };
+    style::Style style { threadPool, fileSource, 1.0 };
     Tileset tileset { { "https://example.com" }, { 0, 22 }, "none" };
 
-    style::UpdateParameters updateParameters {
+    TileParameters tileParameters {
         1.0,
         MapDebugOptions(),
         transformState,
@@ -41,26 +41,26 @@ public:
 
 TEST(GeoJSONTile, Issue7648) {
     GeoJSONTileTest test;
-    GeoJSONTile tile(OverscaledTileID(0, 0, 0), "source", test.updateParameters);
 
     test.style.addLayer(std::make_unique<CircleLayer>("circle", "source"));
-
-    StubTileObserver observer;
-    observer.tileChanged = [&] (const Tile&) {
-        // Once present, the bucket should never "disappear", which would cause
-        // flickering.
-        ASSERT_NE(nullptr, tile.getBucket(*test.style.getLayer("circle")));
-    };
-    tile.setObserver(&observer);
-
-    tile.setPlacementConfig({});
 
     mapbox::geometry::feature_collection<int16_t> features;
     features.push_back(mapbox::geometry::feature<int16_t> {
         mapbox::geometry::point<int16_t>(0, 0)
     });
 
-    tile.updateData(features);
+    GeoJSONTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, features);
+
+    StubTileObserver observer;
+    observer.tileChanged = [&] (const Tile&) {
+        // Once present, the bucket should never "disappear", which would cause
+        // flickering.
+        ASSERT_NE(nullptr, tile.getBucket(*test.style.getRenderLayer("circle")));
+    };
+
+    tile.setObserver(&observer);
+    tile.setPlacementConfig({});
+
     while (!tile.isComplete()) {
         test.loop.runOnce();
     }
@@ -70,3 +70,40 @@ TEST(GeoJSONTile, Issue7648) {
         test.loop.runOnce();
     }
 }
+
+// Tests that tiles remain renderable if they have been renderable and then had an error sent to
+// them, e.g. when revalidating/refreshing the request.
+TEST(GeoJSONTile, Issue9927) {
+    GeoJSONTileTest test;
+
+    test.style.addLayer(std::make_unique<CircleLayer>("circle", "source"));
+
+    mapbox::geometry::feature_collection<int16_t> features;
+    features.push_back(mapbox::geometry::feature<int16_t> {
+        mapbox::geometry::point<int16_t>(0, 0)
+    });
+
+    GeoJSONTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, features);
+
+    tile.setPlacementConfig({});
+
+    while (!tile.isComplete()) {
+        test.loop.runOnce();
+    }
+
+    ASSERT_TRUE(tile.isRenderable());
+    ASSERT_NE(nullptr, tile.getBucket(*test.style.getRenderLayer("circle")));
+
+    // Make sure that once we've had a renderable tile and then receive erroneous data, we retain
+    // the previously rendered data and keep the tile renderable.
+    tile.setError(std::make_exception_ptr(std::runtime_error("Connection offline")));
+    ASSERT_TRUE(tile.isRenderable());
+    ASSERT_NE(nullptr, tile.getBucket(*test.style.getRenderLayer("circle")));
+
+    // Then simulate a parsing failure and make sure that we keep it renderable in this situation
+    // as well. We're using 3 as a correlationID since we've done two three calls that increment
+    // this counter (as part of the GeoJSONTile constructor, setLayers, and setPlacementConfig).
+    tile.onError(std::make_exception_ptr(std::runtime_error("Parse error")), 3);
+    ASSERT_TRUE(tile.isRenderable());
+    ASSERT_NE(nullptr, tile.getBucket(*test.style.getRenderLayer("circle")));
+ }

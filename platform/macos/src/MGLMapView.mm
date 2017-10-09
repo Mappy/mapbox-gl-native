@@ -1,17 +1,18 @@
 #import "MGLMapView_Private.h"
-#import "MGLAnnotationImage_Private.h"
+
 #import "MGLAttributionButton.h"
-#import "MGLAttributionInfo.h"
 #import "MGLCompassCell.h"
 #import "MGLOpenGLLayer.h"
 #import "MGLStyle.h"
 
+#import "MGLAnnotationImage_Private.h"
+#import "MGLAttributionInfo_Private.h"
 #import "MGLFeature_Private.h"
+#import "MGLFoundation_Private.h"
 #import "MGLGeometry_Private.h"
 #import "MGLMultiPoint_Private.h"
 #import "MGLOfflineStorage_Private.h"
 #import "MGLStyle_Private.h"
-#import "MGLFoundation_Private.h"
 
 #import "MGLAccountManager.h"
 #import "MGLMapCamera.h"
@@ -26,17 +27,19 @@
 #import <mbgl/map/camera.hpp>
 #import <mbgl/storage/reachability.h>
 #import <mbgl/util/default_thread_pool.hpp>
-#import <mbgl/gl/extension.hpp>
-#import <mbgl/gl/context.hpp>
 #import <mbgl/map/backend.hpp>
-#import <mbgl/sprite/sprite_image.hpp>
+#import <mbgl/map/backend_scope.hpp>
+#import <mbgl/style/image.hpp>
 #import <mbgl/storage/default_file_source.hpp>
 #import <mbgl/storage/network_status.hpp>
 #import <mbgl/math/wrap.hpp>
 #import <mbgl/util/constants.hpp>
 #import <mbgl/util/chrono.hpp>
+#import <mbgl/util/exception.hpp>
 #import <mbgl/util/run_loop.hpp>
 #import <mbgl/util/shared_thread_pool.hpp>
+#import <mbgl/util/string.hpp>
+#import <mbgl/util/projection.hpp>
 
 #import <map>
 #import <unordered_map>
@@ -53,6 +56,7 @@
 #import "NSPredicate+MGLAdditions.h"
 
 #import <QuartzCore/QuartzCore.h>
+#import <OpenGL/gl.h>
 
 class MGLMapViewImpl;
 class MGLAnnotationContext;
@@ -155,7 +159,7 @@ public:
     NSMagnificationGestureRecognizer *_magnificationGestureRecognizer;
     NSRotationGestureRecognizer *_rotationGestureRecognizer;
     NSClickGestureRecognizer *_singleClickRecognizer;
-    double _scaleAtBeginningOfGesture;
+    double _zoomAtBeginningOfGesture;
     CLLocationDirection _directionAtBeginningOfGesture;
     CGFloat _pitchAtBeginningOfGesture;
     BOOL _didHideCursorDuringGesture;
@@ -305,8 +309,11 @@ public:
 }
 
 - (mbgl::Size)size {
-    return { static_cast<uint32_t>(self.bounds.size.width),
-             static_cast<uint32_t>(self.bounds.size.height) };
+    // check for minimum texture size supported by OpenGL ES 2.0
+    //
+    CGSize size = CGSizeMake(MAX(self.bounds.size.width, 64), MAX(self.bounds.size.height, 64));
+    return { static_cast<uint32_t>(size.width),
+             static_cast<uint32_t>(size.height) };
 }
 
 - (mbgl::Size)framebufferSize {
@@ -357,7 +364,7 @@ public:
     NSImage *logoImage = [[NSImage alloc] initWithContentsOfFile:
                           [[NSBundle mgl_frameworkBundle] pathForResource:@"mapbox" ofType:@"pdf"]];
     // Account for the image’s built-in padding when aligning other controls to the logo.
-    logoImage.alignmentRect = NSInsetRect(logoImage.alignmentRect, 3, 3);
+    logoImage.alignmentRect = NSInsetRect(logoImage.alignmentRect, 0, 3);
     _logoView.image = logoImage;
     _logoView.translatesAutoresizingMaskIntoConstraints = NO;
     _logoView.accessibilityTitle = NSLocalizedStringWithDefaultValue(@"MAP_A11Y_TITLE", nil, nil, @"Mapbox", @"Accessibility title");
@@ -765,21 +772,9 @@ public:
 
 - (void)renderSync {
     if (!self.dormant) {
-        // Enable vertex buffer objects.
-        mbgl::gl::InitializeExtensions([](const char *name) {
-            static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
-            if (!framework) {
-                throw std::runtime_error("Failed to load OpenGL framework.");
-            }
+        // The OpenGL implementation automatically enables the OpenGL context for us.
+        mbgl::BackendScope scope { *_mbglView, mbgl::BackendScope::ScopeType::Implicit };
 
-            CFStringRef str = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
-            void *symbol = CFBundleGetFunctionPointerForName(framework, str);
-            CFRelease(str);
-
-            return reinterpret_cast<mbgl::gl::glProc>(symbol);
-        });
-
-        _mbglView->updateViewBinding();
         _mbglMap->render(*_mbglView);
 
         if (_isPrinting) {
@@ -813,131 +808,148 @@ public:
     [self.layer setNeedsDisplay];
 }
 
-- (void)notifyMapChange:(mbgl::MapChange)change {
-    // Ignore map updates when the Map object isn't set.
+- (void)cameraWillChangeAnimated:(BOOL)animated {
     if (!_mbglMap) {
         return;
     }
 
-    switch (change) {
-        case mbgl::MapChangeRegionWillChange:
-        case mbgl::MapChangeRegionWillChangeAnimated:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapView:cameraWillChangeAnimated:)]) {
-                BOOL animated = change == mbgl::MapChangeRegionWillChangeAnimated;
-                [self.delegate mapView:self cameraWillChangeAnimated:animated];
-            }
-            break;
-        }
-        case mbgl::MapChangeRegionIsChanging:
-        {
-            // Update a minimum of UI that needs to stay attached to the map
-            // while animating.
-            [self updateCompass];
-            [self updateAnnotationCallouts];
-
-            if ([self.delegate respondsToSelector:@selector(mapViewCameraIsChanging:)]) {
-                [self.delegate mapViewCameraIsChanging:self];
-            }
-            break;
-        }
-        case mbgl::MapChangeRegionDidChange:
-        case mbgl::MapChangeRegionDidChangeAnimated:
-        {
-            // Update all UI at the end of an animation or atomic change to the
-            // viewport. More expensive updates can happen here, but care should
-            // still be taken to minimize the work done here because scroll
-            // gesture recognition and momentum scrolling is performed as a
-            // series of atomic changes, not an animation.
-            [self updateZoomControls];
-            [self updateCompass];
-            [self updateAnnotationCallouts];
-            [self updateAnnotationTrackingAreas];
-
-            if ([self.delegate respondsToSelector:@selector(mapView:cameraDidChangeAnimated:)]) {
-                BOOL animated = change == mbgl::MapChangeRegionDidChangeAnimated;
-                [self.delegate mapView:self cameraDidChangeAnimated:animated];
-            }
-            break;
-        }
-        case mbgl::MapChangeWillStartLoadingMap:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapViewWillStartLoadingMap:)]) {
-                [self.delegate mapViewWillStartLoadingMap:self];
-            }
-            break;
-        }
-        case mbgl::MapChangeDidFinishLoadingMap:
-        {
-            [self.style willChangeValueForKey:@"sources"];
-            [self.style didChangeValueForKey:@"sources"];
-            [self.style willChangeValueForKey:@"layers"];
-            [self.style didChangeValueForKey:@"layers"];
-            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishLoadingMap:)]) {
-                [self.delegate mapViewDidFinishLoadingMap:self];
-            }
-            break;
-        }
-        case mbgl::MapChangeDidFailLoadingMap:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapViewDidFailLoadingMap:withError:)]) {
-                NSError *error = [NSError errorWithDomain:MGLErrorDomain code:0 userInfo:nil];
-                [self.delegate mapViewDidFailLoadingMap:self withError:error];
-            }
-            break;
-        }
-        case mbgl::MapChangeWillStartRenderingMap:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingMap:)]) {
-                [self.delegate mapViewWillStartRenderingMap:self];
-            }
-            break;
-        }
-        case mbgl::MapChangeDidFinishRenderingMap:
-        case mbgl::MapChangeDidFinishRenderingMapFullyRendered:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingMap:fullyRendered:)]) {
-                BOOL fullyRendered = change == mbgl::MapChangeDidFinishRenderingMapFullyRendered;
-                [self.delegate mapViewDidFinishRenderingMap:self fullyRendered:fullyRendered];
-            }
-            break;
-        }
-        case mbgl::MapChangeWillStartRenderingFrame:
-        {
-            if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingFrame:)]) {
-                [self.delegate mapViewWillStartRenderingFrame:self];
-            }
-            break;
-        }
-        case mbgl::MapChangeDidFinishRenderingFrame:
-        case mbgl::MapChangeDidFinishRenderingFrameFullyRendered:
-        {
-            if (_isChangingAnnotationLayers) {
-                _isChangingAnnotationLayers = NO;
-                [self.style didChangeValueForKey:@"layers"];
-            }
-            if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingFrame:fullyRendered:)]) {
-                BOOL fullyRendered = change == mbgl::MapChangeDidFinishRenderingFrameFullyRendered;
-                [self.delegate mapViewDidFinishRenderingFrame:self fullyRendered:fullyRendered];
-            }
-            break;
-        }
-        case mbgl::MapChangeDidFinishLoadingStyle:
-        {
-            self.style = [[MGLStyle alloc] initWithMapView:self];
-            if ([self.delegate respondsToSelector:@selector(mapView:didFinishLoadingStyle:)])
-            {
-                [self.delegate mapView:self didFinishLoadingStyle:self.style];
-            }
-            break;
-        }
-        case mbgl::MapChangeSourceDidChange:
-        {
-            [self installAttributionView];
-            self.needsUpdateConstraints = YES;
-            break;
-        }
+    if ([self.delegate respondsToSelector:@selector(mapView:cameraWillChangeAnimated:)]) {
+        [self.delegate mapView:self cameraWillChangeAnimated:animated];
     }
+}
+
+- (void)cameraIsChanging {
+    if (!_mbglMap) {
+        return;
+    }
+
+    // Update a minimum of UI that needs to stay attached to the map
+    // while animating.
+    [self updateCompass];
+    [self updateAnnotationCallouts];
+
+    if ([self.delegate respondsToSelector:@selector(mapViewCameraIsChanging:)]) {
+        [self.delegate mapViewCameraIsChanging:self];
+    }
+}
+
+- (void)cameraDidChangeAnimated:(BOOL)animated {
+    if (!_mbglMap) {
+        return;
+    }
+
+    // Update all UI at the end of an animation or atomic change to the
+    // viewport. More expensive updates can happen here, but care should
+    // still be taken to minimize the work done here because scroll
+    // gesture recognition and momentum scrolling is performed as a
+    // series of atomic changes, not an animation.
+    [self updateZoomControls];
+    [self updateCompass];
+    [self updateAnnotationCallouts];
+    [self updateAnnotationTrackingAreas];
+
+    if ([self.delegate respondsToSelector:@selector(mapView:cameraDidChangeAnimated:)]) {
+        [self.delegate mapView:self cameraDidChangeAnimated:animated];
+    }
+}
+
+- (void)mapViewWillStartLoadingMap {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(mapViewWillStartLoadingMap:)]) {
+        [self.delegate mapViewWillStartLoadingMap:self];
+    }
+}
+
+- (void)mapViewDidFinishLoadingMap {
+    if (!_mbglMap) {
+        return;
+    }
+
+    [self.style willChangeValueForKey:@"sources"];
+    [self.style didChangeValueForKey:@"sources"];
+    [self.style willChangeValueForKey:@"layers"];
+    [self.style didChangeValueForKey:@"layers"];
+    if ([self.delegate respondsToSelector:@selector(mapViewDidFinishLoadingMap:)]) {
+        [self.delegate mapViewDidFinishLoadingMap:self];
+    }
+}
+
+- (void)mapViewDidFailLoadingMapWithError:(NSError *)error {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(mapViewDidFailLoadingMap:withError:)]) {
+        [self.delegate mapViewDidFailLoadingMap:self withError:error];
+    }
+}
+
+- (void)mapViewWillStartRenderingFrame {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingFrame:)]) {
+        [self.delegate mapViewWillStartRenderingFrame:self];
+    }
+}
+
+- (void)mapViewDidFinishRenderingFrameFullyRendered:(BOOL)fullyRendered {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if (_isChangingAnnotationLayers) {
+        _isChangingAnnotationLayers = NO;
+        [self.style didChangeValueForKey:@"layers"];
+    }
+    if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingFrame:fullyRendered:)]) {
+        [self.delegate mapViewDidFinishRenderingFrame:self fullyRendered:fullyRendered];
+    }
+}
+
+- (void)mapViewWillStartRenderingMap {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(mapViewWillStartRenderingMap:)]) {
+        [self.delegate mapViewWillStartRenderingMap:self];
+    }
+}
+
+- (void)mapViewDidFinishRenderingMapFullyRendered:(BOOL)fullyRendered {
+    if (!_mbglMap) {
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingMap:fullyRendered:)]) {
+        [self.delegate mapViewDidFinishRenderingMap:self fullyRendered:fullyRendered];
+    }
+}
+
+- (void)mapViewDidFinishLoadingStyle {
+    if (!_mbglMap) {
+        return;
+    }
+
+    self.style = [[MGLStyle alloc] initWithMapView:self];
+    if ([self.delegate respondsToSelector:@selector(mapView:didFinishLoadingStyle:)])
+    {
+        [self.delegate mapView:self didFinishLoadingStyle:self.style];
+    }
+}
+
+- (void)sourceDidChange {
+    if (!_mbglMap) {
+        return;
+    }
+
+    [self installAttributionView];
+    self.needsUpdateConstraints = YES;
 }
 
 #pragma mark Printing
@@ -1027,31 +1039,12 @@ public:
     [self didChangeValueForKey:@"zoomLevel"];
 }
 
-- (void)zoomBy:(double)zoomDelta animated:(BOOL)animated {
-    [self setZoomLevel:round(self.zoomLevel) + zoomDelta animated:animated];
-}
-
-- (void)zoomBy:(double)zoomDelta atPoint:(NSPoint)point animated:(BOOL)animated {
-    [self willChangeValueForKey:@"centerCoordinate"];
-    [self willChangeValueForKey:@"zoomLevel"];
-    double newZoom = round(self.zoomLevel) + zoomDelta;
-    MGLMapCamera *oldCamera = self.camera;
-    mbgl::ScreenCoordinate center(point.x, self.bounds.size.height - point.y);
-    _mbglMap->setZoom(newZoom, center, MGLDurationFromTimeInterval(animated ? MGLAnimationDuration : 0));
-    if ([self.delegate respondsToSelector:@selector(mapView:shouldChangeFromCamera:toCamera:)]
-        && ![self.delegate mapView:self shouldChangeFromCamera:oldCamera toCamera:self.camera]) {
-        self.camera = oldCamera;
-    }
-    [self didChangeValueForKey:@"zoomLevel"];
-    [self didChangeValueForKey:@"centerCoordinate"];
-}
-
-- (void)scaleBy:(double)scaleFactor atPoint:(NSPoint)point animated:(BOOL)animated {
+- (void)setZoomLevel:(double)zoomLevel atPoint:(NSPoint)point animated:(BOOL)animated {
     [self willChangeValueForKey:@"centerCoordinate"];
     [self willChangeValueForKey:@"zoomLevel"];
     MGLMapCamera *oldCamera = self.camera;
     mbgl::ScreenCoordinate center(point.x, self.bounds.size.height - point.y);
-    _mbglMap->scaleBy(scaleFactor, center, MGLDurationFromTimeInterval(animated ? MGLAnimationDuration : 0));
+    _mbglMap->setZoom(zoomLevel, center, MGLDurationFromTimeInterval(animated ? MGLAnimationDuration : 0));
     if ([self.delegate respondsToSelector:@selector(mapView:shouldChangeFromCamera:toCamera:)]
         && ![self.delegate mapView:self shouldChangeFromCamera:oldCamera toCamera:self.camera]) {
         self.camera = oldCamera;
@@ -1376,7 +1369,7 @@ public:
             // Move the cursor back to the start point and show it again, creating
             // the illusion that it has stayed in place during the entire gesture.
             CGPoint cursorPoint = [self convertPoint:startPoint toView:nil];
-            cursorPoint = [self.window convertRectToScreen:{ startPoint, NSZeroSize }].origin;
+            cursorPoint = [self.window convertRectToScreen:{ cursorPoint, NSZeroSize }].origin;
             cursorPoint.y = self.window.screen.frame.size.height - cursorPoint.y;
             CGDisplayMoveCursorToPoint(kCGDirectMainDisplay, cursorPoint);
             CGDisplayShowCursor(kCGDirectMainDisplay);
@@ -1392,10 +1385,10 @@ public:
         _mbglMap->cancelTransitions();
 
         if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
-            _scaleAtBeginningOfGesture = _mbglMap->getScale();
+            _zoomAtBeginningOfGesture = _mbglMap->getZoom();
         } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
-            CGFloat newZoomLevel = log2f(_scaleAtBeginningOfGesture) - delta.y / 75;
-            [self scaleBy:powf(2, newZoomLevel) / _mbglMap->getScale() atPoint:startPoint animated:NO];
+            CGFloat newZoomLevel = _zoomAtBeginningOfGesture - delta.y / 75;
+            [self setZoomLevel:newZoomLevel atPoint:startPoint animated:NO];
         }
     } else if (flags & NSAlternateKeyMask) {
         // Option-drag to rotate and/or tilt.
@@ -1456,7 +1449,7 @@ public:
 
     if (gestureRecognizer.state == NSGestureRecognizerStateBegan) {
         _mbglMap->setGestureInProgress(true);
-        _scaleAtBeginningOfGesture = _mbglMap->getScale();
+        _zoomAtBeginningOfGesture = _mbglMap->getZoom();
     } else if (gestureRecognizer.state == NSGestureRecognizerStateChanged) {
         NSPoint zoomInPoint = [gestureRecognizer locationInView:self];
         mbgl::ScreenCoordinate center(zoomInPoint.x, self.bounds.size.height - zoomInPoint.y);
@@ -1464,7 +1457,7 @@ public:
             [self willChangeValueForKey:@"zoomLevel"];
             [self willChangeValueForKey:@"centerCoordinate"];
             MGLMapCamera *oldCamera = self.camera;
-            _mbglMap->setScale(_scaleAtBeginningOfGesture * (1 + gestureRecognizer.magnification), center);
+            _mbglMap->setZoom(_zoomAtBeginningOfGesture + log2(1 + gestureRecognizer.magnification), center);
             if ([self.delegate respondsToSelector:@selector(mapView:shouldChangeFromCamera:toCamera:)]
                 && ![self.delegate mapView:self shouldChangeFromCamera:oldCamera toCamera:self.camera]) {
                 self.camera = oldCamera;
@@ -1516,7 +1509,7 @@ public:
     _mbglMap->cancelTransitions();
 
     NSPoint gesturePoint = [gestureRecognizer locationInView:self];
-    [self zoomBy:1 atPoint:gesturePoint animated:YES];
+    [self setZoomLevel:round(self.zoomLevel) + 1 atPoint:gesturePoint animated:YES];
 }
 
 - (void)smartMagnifyWithEvent:(NSEvent *)event {
@@ -1528,7 +1521,7 @@ public:
 
     // Tap with two fingers (“right-click”) to zoom out on mice but not trackpads.
     NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
-    [self zoomBy:-1 atPoint:gesturePoint animated:YES];
+    [self setZoomLevel:round(self.zoomLevel) - 1 atPoint:gesturePoint animated:YES];
 }
 
 /// Rotate fingers to rotate.
@@ -1581,7 +1574,7 @@ public:
                 }
 
                 NSPoint gesturePoint = [self convertPoint:event.locationInWindow fromView:nil];
-                [self scaleBy:scale atPoint:gesturePoint animated:NO];
+                [self setZoomLevel:self.zoomLevel + log2(scale) atPoint:gesturePoint animated:NO];
             }
         }
     } else if (self.scrollEnabled
@@ -1689,13 +1682,13 @@ public:
 
 - (IBAction)moveToBeginningOfParagraph:(__unused id)sender {
     if (self.zoomEnabled) {
-        [self zoomBy:1 animated:YES];
+        [self setZoomLevel:round(self.zoomLevel) + 1 animated:YES];
     }
 }
 
 - (IBAction)moveToEndOfParagraph:(__unused id)sender {
     if (self.zoomEnabled) {
-        [self zoomBy:-1 animated:YES];
+        [self setZoomLevel:round(self.zoomLevel) - 1 animated:YES];
     }
 }
 
@@ -1743,11 +1736,15 @@ public:
 }
 
 - (IBAction)giveFeedback:(id)sender {
-    CLLocationCoordinate2D centerCoordinate = self.centerCoordinate;
+    MGLMapCamera *camera = self.camera;
     double zoomLevel = self.zoomLevel;
     NSMutableArray *urls = [NSMutableArray array];
     for (MGLAttributionInfo *info in [self.style attributionInfosWithFontSize:0 linkColor:nil]) {
-        NSURL *url = [info feedbackURLAtCenterCoordinate:centerCoordinate zoomLevel:zoomLevel];
+        NSURL *url = [info feedbackURLForStyleURL:self.styleURL
+                               atCenterCoordinate:camera.centerCoordinate
+                                        zoomLevel:zoomLevel
+                                        direction:camera.heading
+                                            pitch:camera.pitch];
         if (url) {
             [urls addObject:url];
         }
@@ -1957,8 +1954,7 @@ public:
         return;
     }
 
-    std::shared_ptr<mbgl::SpriteImage> sprite(annotationImage.image.mgl_spriteImage);
-    _mbglMap->addAnnotationIcon(iconIdentifier.UTF8String, sprite);
+    _mbglMap->addAnnotationImage(iconIdentifier.UTF8String, annotationImage.image.mgl_styleImage);
 
     // Create a slop area with a “radius” equal to the annotation image’s entire
     // size, allowing the eventual click to be on any point within this image.
@@ -2620,6 +2616,9 @@ public:
 #pragma mark Geometric methods
 
 - (NSPoint)convertCoordinate:(CLLocationCoordinate2D)coordinate toPointToView:(nullable NSView *)view {
+    if (!CLLocationCoordinate2DIsValid(coordinate)) {
+        return NSMakePoint(NAN, NAN);
+    }
     return [self convertLatLng:MGLLatLngFromLocationCoordinate2D(coordinate) toPointToView:view];
 }
 
@@ -2646,6 +2645,9 @@ public:
 }
 
 - (NSRect)convertCoordinateBounds:(MGLCoordinateBounds)bounds toRectToView:(nullable NSView *)view {
+    if (!CLLocationCoordinate2DIsValid(bounds.sw) || !CLLocationCoordinate2DIsValid(bounds.ne)) {
+        return CGRectNull;
+    }
     return [self convertLatLngBounds:MGLLatLngBoundsFromCoordinateBounds(bounds) toRectToView:view];
 }
 
@@ -2678,7 +2680,7 @@ public:
             (bounds.south() + bounds.north()) / 2,
             bounds.west() - 1,
         };
-    } else if (bounds.northeast().longitude < 180) {
+    } else if (bounds.northeast().longitude() < 180) {
         outsideLatLng = {
             (bounds.south() + bounds.north()) / 2,
             bounds.east() + 1,
@@ -2695,7 +2697,7 @@ public:
 }
 
 - (CLLocationDistance)metersPerPointAtLatitude:(CLLocationDegrees)latitude {
-    return _mbglMap->getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
+    return mbgl::Projection::getMetersPerPixelAtLatitude(latitude, self.zoomLevel);
 }
 
 #pragma mark Debugging
@@ -2759,8 +2761,91 @@ public:
     MGLMapViewImpl(MGLMapView *nativeView_)
         : nativeView(nativeView_) {}
 
-    void notifyMapChange(mbgl::MapChange change) override {
-        [nativeView notifyMapChange:change];
+    void onCameraWillChange(mbgl::MapObserver::CameraChangeMode mode) override {
+        bool animated = mode == mbgl::MapObserver::CameraChangeMode::Animated;
+        [nativeView cameraWillChangeAnimated:animated];
+    }
+
+    void onCameraIsChanging() override {
+        [nativeView cameraIsChanging];
+    }
+
+    void onCameraDidChange(mbgl::MapObserver::CameraChangeMode mode) override {
+        bool animated = mode == mbgl::MapObserver::CameraChangeMode::Animated;
+        [nativeView cameraDidChangeAnimated:animated];
+    }
+
+    void onWillStartLoadingMap() override {
+        [nativeView mapViewWillStartLoadingMap];
+    }
+
+    void onDidFinishLoadingMap() override {
+        [nativeView mapViewDidFinishLoadingMap];
+    }
+
+    void onDidFailLoadingMap(std::exception_ptr exception) override {
+        NSString *description;
+        MGLErrorCode code;
+        try {
+            std::rethrow_exception(exception);
+        } catch (const mbgl::util::StyleParseException&) {
+            code = MGLErrorCodeParseStyleFailed;
+            description = NSLocalizedStringWithDefaultValue(@"PARSE_STYLE_FAILED_DESC", nil, nil, @"The map failed to load because the style is corrupted.", @"User-friendly error description");
+        } catch (const mbgl::util::StyleLoadException&) {
+            code = MGLErrorCodeLoadStyleFailed;
+            description = NSLocalizedStringWithDefaultValue(@"LOAD_STYLE_FAILED_DESC", nil, nil, @"The map failed to load because the style can't be loaded.", @"User-friendly error description");
+        } catch (const mbgl::util::NotFoundException&) {
+            code = MGLErrorCodeNotFound;
+            description = NSLocalizedStringWithDefaultValue(@"STYLE_NOT_FOUND_DESC", nil, nil, @"The map failed to load because the style can’t be found or is incompatible.", @"User-friendly error description");
+        } catch (...) {
+            code = MGLErrorCodeUnknown;
+            description = NSLocalizedStringWithDefaultValue(@"LOAD_MAP_FAILED_DESC", nil, nil, @"The map failed to load because an unknown error occurred.", @"User-friendly error description");
+        }
+        NSDictionary *userInfo = @{
+            NSLocalizedDescriptionKey: description,
+            NSLocalizedFailureReasonErrorKey: @(mbgl::util::toString(exception).c_str()),
+        };
+        NSError *error = [NSError errorWithDomain:MGLErrorDomain code:code userInfo:userInfo];
+        [nativeView mapViewDidFailLoadingMapWithError:error];
+    }
+
+    void onWillStartRenderingFrame() override {
+        [nativeView mapViewWillStartRenderingFrame];
+    }
+
+    void onDidFinishRenderingFrame(mbgl::MapObserver::RenderMode mode) override {
+        bool fullyRendered = mode == mbgl::MapObserver::RenderMode::Full;
+        [nativeView mapViewDidFinishRenderingFrameFullyRendered:fullyRendered];
+    }
+
+    void onWillStartRenderingMap() override {
+        [nativeView mapViewWillStartRenderingMap];
+    }
+
+    void onDidFinishRenderingMap(mbgl::MapObserver::RenderMode mode) override {
+        bool fullyRendered = mode == mbgl::MapObserver::RenderMode::Full;
+        [nativeView mapViewDidFinishRenderingMapFullyRendered:fullyRendered];
+    }
+
+    void onDidFinishLoadingStyle() override {
+        [nativeView mapViewDidFinishLoadingStyle];
+    }
+
+    void onSourceChanged(mbgl::style::Source&) override {
+        [nativeView sourceDidChange];
+    }
+
+    mbgl::gl::ProcAddress initializeExtension(const char* name) override {
+        static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengl"));
+        if (!framework) {
+            throw std::runtime_error("Failed to load OpenGL framework.");
+        }
+
+        CFStringRef str = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
+        void *symbol = CFBundleGetFunctionPointerForName(framework, str);
+        CFRelease(str);
+
+        return reinterpret_cast<mbgl::gl::ProcAddress>(symbol);
     }
 
     void invalidate() override {
@@ -2784,24 +2869,19 @@ public:
         [NSOpenGLContext clearCurrentContext];
     }
 
-    mbgl::gl::value::Viewport::Type getViewport() const {
-        return { 0, 0, nativeView.framebufferSize };
-    }
-
-    void updateViewBinding() {
-        fbo = mbgl::gl::value::BindFramebuffer::Get();
-        getContext().bindFramebuffer.setCurrentValue(fbo);
-        getContext().viewport.setCurrentValue(getViewport());
-        assert(mbgl::gl::value::Viewport::Get() == getContext().viewport.getCurrentValue());
+    void updateAssumedState() override {
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fbo);
+        assumeFramebufferBinding(fbo);
+        assumeViewportSize(nativeView.framebufferSize);
     }
 
     void bind() override {
-        getContext().bindFramebuffer = fbo;
-        getContext().viewport = getViewport();
+        setFramebufferBinding(fbo);
+        setViewportSize(nativeView.framebufferSize);
     }
 
     mbgl::PremultipliedImage readStillImage() {
-        return getContext().readFramebuffer<mbgl::PremultipliedImage>(nativeView.framebufferSize);
+        return readFramebuffer(nativeView.framebufferSize);
     }
 
 private:

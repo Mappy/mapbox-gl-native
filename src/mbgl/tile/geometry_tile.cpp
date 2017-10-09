@@ -2,11 +2,14 @@
 #include <mbgl/tile/geometry_tile_worker.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/tile/tile_observer.hpp>
-#include <mbgl/style/update_parameters.hpp>
 #include <mbgl/style/layer_impl.hpp>
 #include <mbgl/style/layers/background_layer.hpp>
 #include <mbgl/style/layers/custom_layer.hpp>
-#include <mbgl/style/layers/symbol_layer.hpp>
+#include <mbgl/renderer/tile_parameters.hpp>
+#include <mbgl/renderer/render_background_layer.hpp>
+#include <mbgl/renderer/render_custom_layer.hpp>
+#include <mbgl/renderer/render_symbol_layer.hpp>
+#include <mbgl/renderer/symbol_bucket.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/geometry/feature_index.hpp>
@@ -15,8 +18,10 @@
 #include <mbgl/map/query.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/style/filter_evaluator.hpp>
-#include <mbgl/style/query.hpp>
+#include <mbgl/util/chrono.hpp>
 #include <mbgl/util/logging.hpp>
+
+#include <iostream>
 
 namespace mbgl {
 
@@ -24,7 +29,9 @@ using namespace style;
 
 GeometryTile::GeometryTile(const OverscaledTileID& id_,
                            std::string sourceID_,
-                           const style::UpdateParameters& parameters)
+                           const TileParameters& parameters,
+                           GlyphAtlas& glyphAtlas_,
+                           SpriteAtlas& spriteAtlas_)
     : Tile(id_),
       sourceID(std::move(sourceID_)),
       style(parameters.style),
@@ -32,12 +39,16 @@ GeometryTile::GeometryTile(const OverscaledTileID& id_,
       worker(parameters.workerScheduler,
              ActorRef<GeometryTile>(*this, mailbox),
              id_,
-             *parameters.style.glyphAtlas,
              obsolete,
-             parameters.mode) {
+             parameters.mode),
+      glyphAtlas(glyphAtlas_),
+      spriteAtlas(spriteAtlas_),
+      placementThrottler(Milliseconds(300), [this] { invokePlacement(); }) {
 }
 
 GeometryTile::~GeometryTile() {
+    glyphAtlas.removeGlyphs(*this);
+    spriteAtlas.removeRequestor(*this);
     cancel();
 }
 
@@ -46,15 +57,14 @@ void GeometryTile::cancel() {
 }
 
 void GeometryTile::setError(std::exception_ptr err) {
+    loaded = true;
     observer->onTileError(*this, err);
 }
 
 void GeometryTile::setData(std::unique_ptr<const GeometryTileData> data_) {
     // Mark the tile as pending again if it was complete before to prevent signaling a complete
     // state despite pending parse operations.
-    if (availableData == DataAvailability::All) {
-        availableData = DataAvailability::Some;
-    }
+    pending = true;
 
     ++correlationID;
     worker.invoke(&GeometryTileWorker::setData, std::move(data_), correlationID);
@@ -68,25 +78,23 @@ void GeometryTile::setPlacementConfig(const PlacementConfig& desiredConfig) {
 
     // Mark the tile as pending again if it was complete before to prevent signaling a complete
     // state despite pending parse operations.
-    if (availableData == DataAvailability::All) {
-        availableData = DataAvailability::Some;
-    }
+    pending = true;
 
     ++correlationID;
     requestedConfig = desiredConfig;
-    worker.invoke(&GeometryTileWorker::setPlacementConfig, desiredConfig, correlationID);
+    placementThrottler.invoke();
 }
 
-void GeometryTile::symbolDependenciesChanged() {
-    worker.invoke(&GeometryTileWorker::symbolDependenciesChanged);
+void GeometryTile::invokePlacement() {
+    if (requestedConfig) {
+        worker.invoke(&GeometryTileWorker::setPlacementConfig, *requestedConfig, correlationID);
+    }
 }
 
 void GeometryTile::redoLayout() {
     // Mark the tile as pending again if it was complete before to prevent signaling a complete
     // state despite pending parse operations.
-    if (availableData == DataAvailability::All) {
-        availableData = DataAvailability::Some;
-    }
+    pending = true;
 
     std::vector<std::unique_ptr<Layer>> copy;
 
@@ -108,8 +116,10 @@ void GeometryTile::redoLayout() {
     worker.invoke(&GeometryTileWorker::setLayers, std::move(copy), correlationID);
 }
 
-void GeometryTile::onLayout(LayoutResult result) {
-    availableData = DataAvailability::Some;
+void GeometryTile::onLayout(LayoutResult result, const uint64_t resultCorrelationID) {
+    loaded = true;
+    renderable = true;
+    (void)resultCorrelationID;
     nonSymbolBuckets = std::move(result.nonSymbolBuckets);
     featureIndex = std::move(result.featureIndex);
     data = std::move(result.tileData);
@@ -117,23 +127,47 @@ void GeometryTile::onLayout(LayoutResult result) {
     observer->onTileChanged(*this);
 }
 
-void GeometryTile::onPlacement(PlacementResult result) {
-    if (result.correlationID == correlationID) {
-        availableData = DataAvailability::All;
+void GeometryTile::onPlacement(PlacementResult result, const uint64_t resultCorrelationID) {
+    loaded = true;
+    renderable = true;
+    if (resultCorrelationID == correlationID) {
+        pending = false;
     }
     symbolBuckets = std::move(result.symbolBuckets);
+    for (auto& entry : symbolBuckets) {
+        dynamic_cast<SymbolBucket*>(entry.second.get())->spriteAtlas = &spriteAtlas;
+    }
     collisionTile = std::move(result.collisionTile);
     observer->onTileChanged(*this);
 }
 
-void GeometryTile::onError(std::exception_ptr err) {
-    availableData = DataAvailability::All;
+void GeometryTile::onError(std::exception_ptr err, const uint64_t resultCorrelationID) {
+    loaded = true;
+    if (resultCorrelationID == correlationID) {
+        pending = false;
+    }
     observer->onTileError(*this, err);
 }
+    
+void GeometryTile::onGlyphsAvailable(GlyphPositionMap glyphPositions) {
+    worker.invoke(&GeometryTileWorker::onGlyphsAvailable, std::move(glyphPositions));
+}
 
-Bucket* GeometryTile::getBucket(const Layer& layer) {
-    const auto& buckets = layer.is<SymbolLayer>() ? symbolBuckets : nonSymbolBuckets;
-    const auto it = buckets.find(layer.baseImpl->id);
+void GeometryTile::getGlyphs(GlyphDependencies glyphDependencies) {
+    glyphAtlas.getGlyphs(*this, std::move(glyphDependencies));
+}
+
+void GeometryTile::onIconsAvailable(IconMap icons) {
+    worker.invoke(&GeometryTileWorker::onIconsAvailable, std::move(icons));
+}
+
+void GeometryTile::getIcons(IconDependencies) {
+    spriteAtlas.getIcons(*this);
+}
+
+Bucket* GeometryTile::getBucket(const RenderLayer& layer) const {
+    const auto& buckets = layer.is<RenderSymbolLayer>() ? symbolBuckets : nonSymbolBuckets;
+    const auto it = buckets.find(layer.baseImpl.id);
     if (it == buckets.end()) {
         return nullptr;
     }
@@ -159,12 +193,13 @@ void GeometryTile::queryRenderedFeatures(
                         *data,
                         id.canonical,
                         style,
-                        collisionTile.get());
+                        collisionTile.get(),
+                        *this);
 }
 
 void GeometryTile::querySourceFeatures(
     std::vector<Feature>& result,
-    const style::SourceQueryOptions& options) {
+    const SourceQueryOptions& options) {
 
     // Data not yet available
     if (!data) {
