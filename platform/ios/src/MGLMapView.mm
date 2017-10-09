@@ -548,7 +548,7 @@ public:
     
     _doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTapGesture:)];
     _doubleTap.numberOfTapsRequired = 2;
-    [doubleTap requireGestureRecognizerToFail:mappyLongPressGestureRecognizer];
+    [_doubleTap requireGestureRecognizerToFail:mappyLongPressGestureRecognizer];
     [self addGestureRecognizer:_doubleTap];
 
     _singleTapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTapGesture:)];
@@ -1333,14 +1333,6 @@ public:
 
 - (void)touchesBegan:(__unused NS_SET_OF(UITouch *) *)touches withEvent:(__unused UIEvent *)event
 {
-    if (_mbglMap->isInTransition()) {
-        for (UIGestureRecognizer *gesture in self.gestureRecognizers) {
-            if ([gesture isMemberOfClass:[UITapGestureRecognizer class]]) {
-                gesture.enabled = NO;
-                gesture.enabled = YES;
-            }
-        }
-    }
     _changeDelimiterSuppressionDepth = 0;
     _mbglMap->setGestureInProgress(false);
     if (self.userTrackingState == MGLUserTrackingStateBegan)
@@ -1850,7 +1842,6 @@ public:
     if ( ! self.isPitchEnabled) return;
 
     _mbglMap->cancelTransitions();
-    MGLMapCamera *oldCamera = self.camera;
 
     if (twoFingerDrag.state == UIGestureRecognizerStateBegan)
     {

@@ -30,12 +30,4 @@ std::string Color::stringify() const {
         util::toString(a) + ")";
 }
 
-std::string Color::stringify() const {
-    return "rgba(" +
-        util::toString(r * 255) + "," +
-        util::toString(g * 255) + "," +
-        util::toString(b * 255) + "," +
-        util::toString(a) + ")";
-}
-
 } // namespace mbgl

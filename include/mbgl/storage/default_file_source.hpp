@@ -139,22 +139,6 @@ public:
      */
     void resume();
 
-    /*
-     * Pause file request activity.
-     *
-     * If pause is called then no revalidation or network request activity
-     * will occur.
-     */
-    void pause();
-
-    /*
-     * Resume file request activity.
-     *
-     * Calling resume will unpause the file source and process any tasks that
-     * expired while the file source was paused.
-     */
-    void resume();
-
     // For testing only.
     void put(const Resource&, const Response&);
 

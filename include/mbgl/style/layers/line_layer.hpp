@@ -109,6 +109,10 @@ public:
     void setLinePatternTransition(const TransitionOptions&, const optional<std::string>& klass = {});
     TransitionOptions getLinePatternTransition(const optional<std::string>& klass = {}) const;
 
+    // Mappy path
+    bool getLineIsMappyPath () const;
+    void setLineIsMappyPath(bool);
+
     // Private implementation
 
     class Impl;

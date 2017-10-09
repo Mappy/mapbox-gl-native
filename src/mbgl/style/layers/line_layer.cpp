@@ -180,6 +180,14 @@ PropertyValue<std::array<float, 2>> LineLayer::getDefaultLineTranslate() {
     return { {{ 0, 0 }} };
 }
 
+bool LineLayer::getLineIsMappyPath() const {
+    return impl->isMappyPath;
+}
+
+void LineLayer::setLineIsMappyPath(bool value) {
+    impl->isMappyPath = value;
+}
+
 PropertyValue<std::array<float, 2>> LineLayer::getLineTranslate(const optional<std::string>& klass) const {
     return impl->cascading.template get<LineTranslate>().get(klass);
 }

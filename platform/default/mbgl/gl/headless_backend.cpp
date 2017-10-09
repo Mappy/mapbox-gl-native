@@ -33,11 +33,6 @@ void HeadlessBackend::activate() {
 
     assert(hasContext());
     impl->activateContext();
-
-    if (!extensionsLoaded) {
-        gl::InitializeExtensions(initializeExtension);
-        extensionsLoaded = true;
-    }
 }
 
 void HeadlessBackend::deactivate() {
@@ -46,14 +41,12 @@ void HeadlessBackend::deactivate() {
     active = false;
 }
 
-void HeadlessBackend::invalidate() {
-    assert(false);
+void HeadlessBackend::updateAssumedState() {
+    // no-op
 }
 
-void HeadlessBackend::notifyMapChange(MapChange change) {
-    if (mapChangeCallback) {
-        mapChangeCallback(change);
-    }
+void HeadlessBackend::invalidate() {
+    assert(false);
 }
 
 } // namespace mbgl

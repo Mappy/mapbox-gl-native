@@ -6,7 +6,6 @@
 #include <mbgl/util/range.hpp>
 #include <mbgl/util/any.hpp>
 #include <mbgl/style/types.hpp>
-#include <mbgl/style/query.hpp>
 
 #include <memory>
 #include <string>
@@ -53,8 +52,6 @@ public:
     const std::string& getID() const;
     optional<std::string> getAttribution() const;
     
-    std::vector<Feature> querySourceFeatures(const SourceQueryOptions& options = {});
-
     // Private implementation
     class Impl;
     const std::unique_ptr<Impl> baseImpl;

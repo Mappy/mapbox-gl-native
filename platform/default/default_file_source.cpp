@@ -148,6 +148,10 @@ public:
         offlineDatabase.put(resource, response);
     }
 
+    void cleanAmbientCache(void) {
+        offlineDatabase.deleteAllTiles();
+    }
+
 private:
     OfflineDownload& getDownload(int64_t regionID) {
         auto it = downloads.find(regionID);
@@ -271,6 +275,10 @@ void DefaultFileSource::getOfflineRegionStatus(OfflineRegion& region, std::funct
 
 void DefaultFileSource::setOfflineMapboxTileCountLimit(uint64_t limit) const {
     thread->invokeSync(&Impl::setOfflineMapboxTileCountLimit, limit);
+}
+
+void DefaultFileSource::cleanAmbientCache(void) {
+    thread->invokeSync(&Impl::cleanAmbientCache);
 }
 
 void DefaultFileSource::pause() {
