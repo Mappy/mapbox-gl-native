@@ -598,35 +598,7 @@ const NSTimeInterval MGLFlushInterval = 180;
 }
 
 + (void)ensureMetricsOptoutExists {
-    NSNumber *shownInAppNumber = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxMetricsEnabledSettingShownInApp"];
-    BOOL metricsEnabledSettingShownInAppFlag = [shownInAppNumber boolValue];
-
-    if (!metricsEnabledSettingShownInAppFlag &&
-        [[NSUserDefaults standardUserDefaults] integerForKey:@"MGLMapboxAccountType"] == 0) {
-        // Opt-out is not configured in UI, so check for Settings.bundle
-        id defaultEnabledValue;
-        NSString *appSettingsBundle = [[NSBundle mainBundle] pathForResource:@"Settings" ofType:@"bundle"];
-
-        if (appSettingsBundle) {
-            // Dynamic Settings.bundle loading based on http://stackoverflow.com/a/510329/2094275
-            NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:[appSettingsBundle stringByAppendingPathComponent:@"Root.plist"]];
-            NSArray *preferences = settings[@"PreferenceSpecifiers"];
-            for (NSDictionary *prefSpecification in preferences) {
-                if ([prefSpecification[@"Key"] isEqualToString:@"MGLMapboxMetricsEnabled"]) {
-                    defaultEnabledValue = prefSpecification[@"DefaultValue"];
-                }
-            }
-        }
-
-        if (!defaultEnabledValue) {
-            [NSException raise:@"Telemetry opt-out missing" format:
-             @"End users must be able to opt out of Mapbox Telemetry in your app, either inside Settings (via Settings.bundle) or inside this app. "
-             @"By default, this opt-out control is included as a menu item in the attribution action sheet. "
-             @"If you reimplement the opt-out control inside this app, disable this assertion by setting MGLMapboxMetricsEnabledSettingShownInApp to YES in Info.plist."
-             @"\n\nSee https://www.mapbox.com/ios-sdk/#telemetry_opt_out for more information."
-             @"\n\nAdditionally, by hiding this attribution control you agree to display the required attribution elsewhere in this app."];
-        }
-    }
+    // disabled metrics on Mappy
 }
 
 #pragma mark CLLocationManagerUtilityDelegate
