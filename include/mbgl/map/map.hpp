@@ -81,6 +81,7 @@ public:
     bool isRotating() const;
     bool isScaling() const;
     bool isPanning() const;
+	bool isInTransition() const;
 
     // Camera
     CameraOptions getCameraOptions(const EdgeInsets&) const;
