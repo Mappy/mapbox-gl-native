@@ -31,6 +31,12 @@ void RenderLineLayer::evaluate(const PropertyEvaluationParameters& parameters) {
     dashLineWidth = unevaluated.evaluate<style::LineWidth>(dashArrayParams);
 
     evaluated = unevaluated.evaluate(parameters);
+	if (impl->isMappyPath == true) {
+		mappyEvaluated = unevaluated.evaluate(parameters);
+		float width = evaluated.get<style::LineWidth>();
+		mappyEvaluated.get<style::LineWidth>() ={width * 3.0f / 2.0f};
+		mappyEvaluated.get<style::LineColor>() = {Color::white()};
+	}
 
     passes = (evaluated.get<style::LineOpacity>().constantOr(1.0) > 0
               && evaluated.get<style::LineColor>().constantOr(Color::black()).a > 0

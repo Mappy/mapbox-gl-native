@@ -30,6 +30,7 @@ public:
     // Paint properties
     style::LinePaintProperties::Unevaluated unevaluated;
     style::LinePaintProperties::Evaluated evaluated;
+    style::LinePaintProperties::Evaluated mappyEvaluated;
 
     const style::LineLayer::Impl* const impl;
 

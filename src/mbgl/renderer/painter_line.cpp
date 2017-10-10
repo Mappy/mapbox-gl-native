@@ -23,8 +23,8 @@ void Painter::renderLine(PaintParameters& parameters,
 
     const LinePaintProperties::Evaluated& properties = layer.evaluated;
 
-    auto draw = [&] (auto& program, auto&& uniformValues) {
-        program.get(properties).draw(
+    auto draw = [&] (auto& program, auto&& uniformValues, auto& lineProperties) {
+        program.get(lineProperties).draw(
             context,
             gl::Triangles(),
             depthModeForSublayer(0, gl::DepthMode::ReadOnly),
@@ -35,7 +35,7 @@ void Painter::renderLine(PaintParameters& parameters,
             *bucket.indexBuffer,
             bucket.segments,
             bucket.paintPropertyBinders.at(layer.getID()),
-            properties,
+            lineProperties,
             state.getZoom(),
             layer.getID()
         );
@@ -59,7 +59,8 @@ void Painter::renderLine(PaintParameters& parameters,
                  posA,
                  posB,
                  layer.dashLineWidth,
-                 lineAtlas->getSize().width));
+                 lineAtlas->getSize().width),
+             properties);
 
     } else if (!properties.get<LinePattern>().from.empty()) {
         optional<SpriteAtlasElement> posA = spriteAtlas->getPattern(properties.get<LinePattern>().from);
@@ -77,15 +78,28 @@ void Painter::renderLine(PaintParameters& parameters,
                  state,
                  pixelsToGLUnits,
                  *posA,
-                 *posB));
+                 *posB),
+             properties);
 
     } else {
+        // Mappy specific drawing on paths
+        if (layer.impl->isMappyPath == true) {
+            const LinePaintProperties::Evaluated& mappyProperties = layer.mappyEvaluated;
+            draw(parameters.programs.line,
+                 LineProgram::uniformValues(
+                                            mappyProperties,
+                                            tile,
+                                            state,
+                                            pixelsToGLUnits),
+                 mappyProperties);
+        }
         draw(parameters.programs.line,
              LineProgram::uniformValues(
                  properties,
                  tile,
                  state,
-                 pixelsToGLUnits));
+                 pixelsToGLUnits),
+             properties);
     }
 }
 
