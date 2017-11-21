@@ -1603,7 +1603,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     if (!annotationView)
     {
         annotationView = [[MBXAnnotationView alloc] initWithReuseIdentifier:MBXViewControllerAnnotationViewReuseIdentifer];
-        annotationView.frame = CGRectMake(0, 0, 10, 10);
+        annotationView.frame = CGRectMake(0, 0, 20, 20);
         annotationView.backgroundColor = [UIColor whiteColor];
 
         // Note that having two long press gesture recognizers on overlapping
@@ -1617,6 +1617,13 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         // as they move towards and away from the horizon. Relatedly, annotations
         // backed by GL sprites currently ONLY scale with viewing distance.
         // annotationView.scalesWithViewingDistance = NO;
+
+		NSUInteger rand = arc4random_uniform(10);
+		annotationView.zOrder = rand;
+		UILabel *title = [[UILabel alloc] init];
+		title.text = [NSString stringWithFormat:@"%@", @(rand)];
+		title.frame = annotationView.frame;
+		[annotationView addSubview:title];
     } else {
         // orange indicates that the annotation view was reused
         annotationView.backgroundColor = [UIColor orangeColor];

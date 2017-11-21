@@ -187,6 +187,15 @@ MGL_EXPORT
  */
 @property (nonatomic, assign) BOOL rotatesToMatchCamera;
 
+/**
+ An integer to determine the z order of the view.
+
+ The higher the number is, the more visible the view will be.
+
+ Default value is 0
+ */
+@property (nonatomic, assign) NSInteger zOrder;
+
 #pragma mark Managing the Selection State
 
 /**
