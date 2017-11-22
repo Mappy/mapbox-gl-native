@@ -2258,6 +2258,10 @@ public:
             [self updateCalloutView];
         }
     }
+	else if ([keyPath isEqualToString:@"zOrder"] && [object isKindOfClass:[MGLAnnotationView class]])
+	{
+		[self.annotationContainerView reorderSubviews];
+	}
 }
 
 + (NS_SET_OF(NSString *) *)keyPathsForValuesAffectingZoomEnabled
@@ -3429,6 +3433,7 @@ public:
                     annotationViewsForAnnotation[annotationValue] = annotationView;
                     annotationView.annotation = annotation;
                     annotationView.center = [self convertCoordinate:annotation.coordinate toPointToView:self];
+					[annotationView addObserver:self forKeyPath:@"zOrder" options:0 context:nil];
                     [newAnnotationViews addObject:annotationView];
 
                     MGLAnnotationImage *annotationImage = self.invisibleAnnotationImage;
@@ -3707,6 +3712,7 @@ public:
 
         annotationView.annotation = nil;
         [annotationView removeFromSuperview];
+		[annotationView removeObserver:self forKeyPath:@"zOrder"];
         [self.annotationContainerView.annotationViews removeObject:annotationView];
 
         if (annotationTag == _selectedAnnotationTag)

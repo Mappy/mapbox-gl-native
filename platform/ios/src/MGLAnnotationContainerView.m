@@ -33,6 +33,11 @@
         [self addSubview:view];
     }
 	[self.annotationViews addObjectsFromArray:subviews];
+	[self reorderSubviews];
+}
+
+- (void)reorderSubviews
+{
 	NSArray *sortedAnnotationViews = [self.annotationViews sortedArrayUsingComparator:^NSComparisonResult(MGLAnnotationView *  _Nonnull obj1, MGLAnnotationView *  _Nonnull obj2) {
 		if (obj1.zOrder == obj2.zOrder) {
 			return NSOrderedSame;
