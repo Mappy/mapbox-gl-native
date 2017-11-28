@@ -3790,6 +3790,7 @@ public:
     [reusableView prepareForReuse];
     [annotationViewReuseQueue removeObject:reusableView];
 
+	[reusableView addObserver:self forKeyPath:@"zOrder" options:0 context:nil];
     return reusableView;
 }
 
@@ -5432,6 +5433,7 @@ public:
         if (![annotationViewReuseQueue containsObject:annotationView])
         {
             [annotationViewReuseQueue addObject:annotationView];
+			[annotationView removeObserver:self forKeyPath:@"zOrder"];
             annotationContext.annotationView = nil;
         }
     }
