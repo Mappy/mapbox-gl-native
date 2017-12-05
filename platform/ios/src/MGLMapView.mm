@@ -3433,7 +3433,6 @@ public:
                     annotationViewsForAnnotation[annotationValue] = annotationView;
                     annotationView.annotation = annotation;
                     annotationView.center = [self convertCoordinate:annotation.coordinate toPointToView:self];
-					[annotationView addObserver:self forKeyPath:@"zOrder" options:0 context:nil];
                     [newAnnotationViews addObject:annotationView];
 
                     MGLAnnotationImage *annotationImage = self.invisibleAnnotationImage;
@@ -3591,6 +3590,8 @@ public:
 
         _unionedAnnotationRepresentationSize = CGSizeMake(MAX(_unionedAnnotationRepresentationSize.width, _largestAnnotationViewSize.width),
                                                           MAX(_unionedAnnotationRepresentationSize.height, _largestAnnotationViewSize.height));
+
+		[annotationView addObserver:self forKeyPath:@"zOrder" options:0 context:nil];
     }
 
     return annotationView;
@@ -3789,8 +3790,6 @@ public:
     MGLAnnotationView *reusableView = annotationViewReuseQueue.firstObject;
     [reusableView prepareForReuse];
     [annotationViewReuseQueue removeObject:reusableView];
-
-	[reusableView addObserver:self forKeyPath:@"zOrder" options:0 context:nil];
     return reusableView;
 }
 
