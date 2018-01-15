@@ -107,8 +107,7 @@ Database &Database::operator=(Database &&other) {
     return *this;
 }
 
-Database::~Database() {
-}
+Database::~Database() = default;
 
 void Database::setBusyTimeout(std::chrono::milliseconds timeout) {
     assert(impl);
@@ -151,8 +150,7 @@ Statement &Statement::operator=(Statement &&other) {
     return *this;
 }
 
-Statement::~Statement() {
-}
+Statement::~Statement() = default;
 
 template <> void Statement::bind(int offset, std::nullptr_t) {
     assert(impl);
@@ -289,6 +287,11 @@ bool Statement::run() {
     }
 }
 
+template <> bool Statement::get(int offset) {
+    assert(impl);
+    return sqlite3_column_int(impl->stmt, offset);
+}
+
 template <> int Statement::get(int offset) {
     assert(impl);
     return sqlite3_column_int(impl->stmt, offset);
@@ -314,7 +317,7 @@ template <> std::string Statement::get(int offset) {
 
 template <> std::vector<uint8_t> Statement::get(int offset) {
     assert(impl);
-    const uint8_t* begin = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(impl->stmt, offset));
+    const auto* begin = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(impl->stmt, offset));
     const uint8_t* end   = begin + sqlite3_column_bytes(impl->stmt, offset);
     return { begin, end };
 }
@@ -383,8 +386,8 @@ int64_t Statement::lastInsertRowId() const {
 
 uint64_t Statement::changes() const {
     assert(impl);
-    auto changes = impl->changes;
-    return (changes < 0 ? 0 : changes);
+    auto changes_ = impl->changes;
+    return (changes_ < 0 ? 0 : changes_);
 }
 
 Transaction::Transaction(Database& db_, Mode mode)

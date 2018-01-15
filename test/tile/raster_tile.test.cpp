@@ -3,13 +3,15 @@
 #include <mbgl/tile/raster_tile.hpp>
 #include <mbgl/tile/tile_loader_impl.hpp>
 
+#include <mbgl/style/style.hpp>
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
-#include <mbgl/style/style.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
-#include <mbgl/renderer/raster_bucket.hpp>
+#include <mbgl/renderer/buckets/raster_bucket.hpp>
+#include <mbgl/renderer/image_manager.hpp>
+#include <mbgl/text/glyph_manager.hpp>
 
 using namespace mbgl;
 
@@ -19,8 +21,10 @@ public:
     TransformState transformState;
     util::RunLoop loop;
     ThreadPool threadPool { 1 };
-    AnnotationManager annotationManager { 1.0 };
-    style::Style style { threadPool, fileSource, 1.0 };
+    style::Style style { loop, fileSource, 1 };
+    AnnotationManager annotationManager { style };
+    ImageManager imageManager;
+    GlyphManager glyphManager { fileSource };
     Tileset tileset { { "https://example.com" }, { 0, 22 }, "none" };
 
     TileParameters tileParameters {
@@ -31,7 +35,9 @@ public:
         fileSource,
         MapMode::Continuous,
         annotationManager,
-        style
+        imageManager,
+        glyphManager,
+        0
     };
 };
 
@@ -56,7 +62,7 @@ TEST(RasterTile, onError) {
 TEST(RasterTile, onParsed) {
     RasterTileTest test;
     RasterTile tile(OverscaledTileID(0, 0, 0), test.tileParameters, test.tileset);
-    tile.onParsed(std::make_unique<RasterBucket>(UnassociatedImage{}), 0);
+    tile.onParsed(std::make_unique<RasterBucket>(PremultipliedImage{}), 0);
     EXPECT_TRUE(tile.isRenderable());
     EXPECT_TRUE(tile.isLoaded());
     EXPECT_TRUE(tile.isComplete());

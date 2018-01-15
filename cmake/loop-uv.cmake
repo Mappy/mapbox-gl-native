@@ -14,4 +14,10 @@ target_include_directories(mbgl-loop-uv
     PRIVATE src
 )
 
+target_link_libraries(mbgl-loop-uv
+    PRIVATE mbgl-core
+)
+
 create_source_groups(mbgl-loop-uv)
+
+xcode_create_scheme(TARGET mbgl-loop-uv)

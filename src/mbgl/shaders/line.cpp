@@ -26,7 +26,6 @@ attribute vec4 a_data;
 
 uniform mat4 u_matrix;
 uniform mediump float u_ratio;
-uniform mediump float u_width;
 uniform vec2 u_gl_units_to_pixels;
 
 varying vec2 v_normal;
@@ -42,6 +41,7 @@ varying highp vec4 color;
 uniform highp vec4 u_color;
 #endif
 
+
 #ifndef HAS_UNIFORM_u_blur
 uniform lowp float a_blur_t;
 attribute lowp vec2 a_blur;
@@ -49,6 +49,7 @@ varying lowp float blur;
 #else
 uniform lowp float u_blur;
 #endif
+
 
 #ifndef HAS_UNIFORM_u_opacity
 uniform lowp float a_opacity_t;
@@ -58,12 +59,14 @@ varying lowp float opacity;
 uniform lowp float u_opacity;
 #endif
 
+
 #ifndef HAS_UNIFORM_u_gapwidth
 uniform lowp float a_gapwidth_t;
 attribute mediump vec2 a_gapwidth;
 #else
 uniform mediump float u_gapwidth;
 #endif
+
 
 #ifndef HAS_UNIFORM_u_offset
 uniform lowp float a_offset_t;
@@ -72,37 +75,58 @@ attribute lowp vec2 a_offset;
 uniform lowp float u_offset;
 #endif
 
-void main() {
 
+#ifndef HAS_UNIFORM_u_width
+uniform lowp float a_width_t;
+attribute mediump vec2 a_width;
+#else
+uniform mediump float u_width;
+#endif
+
+
+void main() {
+    
 #ifndef HAS_UNIFORM_u_color
     color = unpack_mix_vec4(a_color, a_color_t);
 #else
     highp vec4 color = u_color;
 #endif
 
+    
 #ifndef HAS_UNIFORM_u_blur
     blur = unpack_mix_vec2(a_blur, a_blur_t);
 #else
     lowp float blur = u_blur;
 #endif
 
+    
 #ifndef HAS_UNIFORM_u_opacity
     opacity = unpack_mix_vec2(a_opacity, a_opacity_t);
 #else
     lowp float opacity = u_opacity;
 #endif
 
+    
 #ifndef HAS_UNIFORM_u_gapwidth
     mediump float gapwidth = unpack_mix_vec2(a_gapwidth, a_gapwidth_t);
 #else
     mediump float gapwidth = u_gapwidth;
 #endif
 
+    
 #ifndef HAS_UNIFORM_u_offset
     lowp float offset = unpack_mix_vec2(a_offset, a_offset_t);
 #else
     lowp float offset = u_offset;
 #endif
+
+    
+#ifndef HAS_UNIFORM_u_width
+    mediump float width = unpack_mix_vec2(a_width, a_width_t);
+#else
+    mediump float width = u_width;
+#endif
+
 
     vec2 a_extrude = a_data.xy - 128.0;
     float a_direction = mod(a_data.z, 4.0) - 1.0;
@@ -117,11 +141,11 @@ void main() {
     // these transformations used to be applied in the JS and native code bases.
     // moved them into the shader for clarity and simplicity.
     gapwidth = gapwidth / 2.0;
-    float width = u_width / 2.0;
+    float halfwidth = width / 2.0;
     offset = -1.0 * offset;
 
     float inset = gapwidth + (gapwidth > 0.0 ? ANTIALIASING : 0.0);
-    float outset = gapwidth + width * (gapwidth > 0.0 ? 2.0 : 1.0) + ANTIALIASING;
+    float outset = gapwidth + halfwidth * (gapwidth > 0.0 ? 2.0 : 1.0) + ANTIALIASING;
 
     // Scale the extrusion vector down to a normal and then up by the line width
     // of this vertex.
@@ -155,11 +179,13 @@ varying highp vec4 color;
 uniform highp vec4 u_color;
 #endif
 
+
 #ifndef HAS_UNIFORM_u_blur
 varying lowp float blur;
 #else
 uniform lowp float u_blur;
 #endif
+
 
 #ifndef HAS_UNIFORM_u_opacity
 varying lowp float opacity;
@@ -167,23 +193,27 @@ varying lowp float opacity;
 uniform lowp float u_opacity;
 #endif
 
+
 varying vec2 v_width2;
 varying vec2 v_normal;
 varying float v_gamma_scale;
 
 void main() {
-
+    
 #ifdef HAS_UNIFORM_u_color
     highp vec4 color = u_color;
 #endif
 
+    
 #ifdef HAS_UNIFORM_u_blur
     lowp float blur = u_blur;
 #endif
 
+    
 #ifdef HAS_UNIFORM_u_opacity
     lowp float opacity = u_opacity;
 #endif
+
 
     // Calculate the distance of the pixel from the line in pixels.
     float dist = length(v_normal) * v_width2.s;

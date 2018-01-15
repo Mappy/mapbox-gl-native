@@ -36,8 +36,35 @@ optional<TextTransformType> IdentityStops<TextTransformType>::evaluate(const Val
     if (!value.is<std::string>()) {
         return {};
     }
-    
+
     return Enum<TextTransformType>::toEnum(value.get<std::string>());
+}
+
+template <>
+optional<TextJustifyType> IdentityStops<TextJustifyType>::evaluate(const Value& value) const {
+    if (!value.is<std::string>()) {
+        return {};
+    }
+
+    return Enum<TextJustifyType>::toEnum(value.get<std::string>());
+}
+
+template <>
+optional<SymbolAnchorType> IdentityStops<SymbolAnchorType>::evaluate(const Value& value) const {
+    if (!value.is<std::string>()) {
+        return {};
+    }
+
+    return Enum<SymbolAnchorType>::toEnum(value.get<std::string>());
+}
+
+template <>
+optional<LineJoinType> IdentityStops<LineJoinType>::evaluate(const Value& value) const {
+    if (!value.is<std::string>()) {
+        return {};
+    }
+
+    return Enum<LineJoinType>::toEnum(value.get<std::string>());
 }
 
 template <>
@@ -46,15 +73,16 @@ optional<std::array<float, 2>> IdentityStops<std::array<float, 2>>::evaluate(con
         return {};
     }
 
-    const std::vector<Value>& vector = value.get<std::vector<Value>>();
+    const auto& vector = value.get<std::vector<Value>>();
     if (vector.size() != 2 || !numericValue<float>(vector[0]) || !numericValue<float>(vector[1])) {
         return {};
     }
 
-    return {{{
+    std::array<float, 2> array {{
         *numericValue<float>(vector[0]),
         *numericValue<float>(vector[1])
-    }}};
+    }};
+    return array;
 }
 
 } // namespace style

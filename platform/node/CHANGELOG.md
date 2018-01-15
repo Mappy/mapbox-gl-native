@@ -1,3 +1,25 @@
+# 3.5.6 - September 29, 2017
+- Protects against requests which throw [#9554](https://github.com/mapbox/mapbox-gl-native/pull/9554)
+- Fixed an issue around reusing a map object [#9554](https://github.com/mapbox/mapbox-gl-native/pull/9554)
+- Fixed an issue in test [#9553](https://github.com/mapbox/mapbox-gl-native/pull/9553)
+- Increased the default maximum zoom level from 20 to 22 ([#9835](https://github.com/mapbox/mapbox-gl-native/pull/9835))
+
+# 3.5.5 - July 14, 2017
+- Provide debuggable release builds for node packages [#9497](https://github.com/mapbox/mapbox-gl-native/pull/9497)
+
+# 3.5.4 - June 6, 2017
+- Add support for ImageSource [#8968](https://github.com/mapbox/mapbox-gl-native/pull/8968)
+- Fixed an issue with `map.addImage()` which would cause added images to randomly be replaced with images found the style's sprite sheet ([#9119](https://github.com/mapbox/mapbox-gl-native/pull/9119))
+
+# 3.5.3 - May 30, 2017
+
+- Fixed a regression around `line-dasharrary` and `fill-pattern` that caused these properties to sometimes not render correctly ([#9130](https://github.com/mapbox/mapbox-gl-native/pull/9130))
+
+# 3.5.2 - May 18, 2017
+
+- Fixed a memory leak ([#8884](https://github.com/mapbox/mapbox-gl-native/pull/9035))
+
+
 # 3.5.1 - May 8, 2017
 
 - Adds Node v6 binaries. **Note, Node v4 binaries will be removed on August 1st.** ([#8884](https://github.com/mapbox/mapbox-gl-native/pull/8884))
@@ -163,7 +185,7 @@
 
 - Check libuv version semver-ishly, fixes segfaults in Node.js 0.12.x
   and io.js.
-- Fixes segfault, throws JavaScript error instead when attempting to 
+- Fixes segfault, throws JavaScript error instead when attempting to
   render without first loading a style.
 - Bumps mbgl submodule to v0.4.0
 
@@ -189,12 +211,12 @@
 
 # 1.0.3 - April 3, 2015
 
-- Fixes crash during garbage collection by assigning FileSource handle 
+- Fixes crash during garbage collection by assigning FileSource handle
   to a v8::Persistent in NodeMap constructor.
 
 # 1.0.2 - April 2, 2015
 
-- Initialize shared display connection at module load time to avoid 
+- Initialize shared display connection at module load time to avoid
   race condition when display connection is initialized on-demand.
 
 # 1.0.1 - March 19, 2015

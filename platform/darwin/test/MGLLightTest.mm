@@ -18,7 +18,7 @@
 @implementation MGLLightTest
 
 - (void)testProperties {
-    
+
     MGLTransition defaultTransition = MGLTransitionMake(0, 0);
     MGLTransition transition = MGLTransitionMake(6, 3);
     mbgl::style::TransitionOptions transitionOptions { { MGLDurationFromTimeInterval(6) }, { MGLDurationFromTimeInterval(3) } };
@@ -35,9 +35,7 @@
         XCTAssertEqual(anchorValue.MGLLightAnchorValue, MGLLightAnchorViewport);
 
         mbgl::style::PropertyValue<mbgl::style::LightAnchorType> propertyValue = { mbgl::style::LightAnchorType::Viewport };
- 
         light.setAnchor(propertyValue);
- 
         mglLight = [[MGLLight alloc] initWithMBGLLight:&light];
         lightFromMGLlight = [mglLight mbglLight];
 
@@ -55,14 +53,12 @@
         XCTAssert(positionTransition.delay && MGLTimeIntervalFromDuration(*positionTransition.delay) == defaultTransition.delay);
         XCTAssert(positionTransition.duration && MGLTimeIntervalFromDuration(*positionTransition.duration) == defaultTransition.duration);
 
-        const std::array<float, 3> positionArray = { { 6, 180, 90 } };
+        std::array<float, 3> positionArray = { { 6, 180, 90 } };
         mbgl::style::Position position = { positionArray };
         mbgl::style::PropertyValue<mbgl::style::Position> propertyValue = { position };
- 
         light.setPosition(propertyValue);
         light.setPositionTransition(transitionOptions);
 
- 
         mglLight = [[MGLLight alloc] initWithMBGLLight:&light];
         lightFromMGLlight = [mglLight mbglLight];
 
@@ -85,11 +81,9 @@
         XCTAssert(colorTransition.duration && MGLTimeIntervalFromDuration(*colorTransition.duration) == defaultTransition.duration);
 
         mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
- 
         light.setColor(propertyValue);
         light.setColorTransition(transitionOptions);
 
- 
         mglLight = [[MGLLight alloc] initWithMBGLLight:&light];
         lightFromMGLlight = [mglLight mbglLight];
 
@@ -112,11 +106,9 @@
         XCTAssert(intensityTransition.duration && MGLTimeIntervalFromDuration(*intensityTransition.duration) == defaultTransition.duration);
 
         mbgl::style::PropertyValue<float> propertyValue = { 0xff };
- 
         light.setIntensity(propertyValue);
         light.setIntensityTransition(transitionOptions);
 
- 
         mglLight = [[MGLLight alloc] initWithMBGLLight:&light];
         lightFromMGLlight = [mglLight mbglLight];
 
@@ -131,10 +123,10 @@
 
 - (void)testValueAdditions {
     MGLSphericalPosition position = MGLSphericalPositionMake(1.15, 210, 30);
-    
-    XCTAssertEqual(@(position).MGLSphericalPositionValue.radial, position.radial);
-    XCTAssertEqual(@(position).MGLSphericalPositionValue.azimuthal, position.azimuthal);
-    XCTAssertEqual(@(position).MGLSphericalPositionValue.polar, position.polar);
+
+    XCTAssertEqual([NSValue valueWithMGLSphericalPosition:position].MGLSphericalPositionValue.radial, position.radial);
+    XCTAssertEqual([NSValue valueWithMGLSphericalPosition:position].MGLSphericalPositionValue.azimuthal, position.azimuthal);
+    XCTAssertEqual([NSValue valueWithMGLSphericalPosition:position].MGLSphericalPositionValue.polar, position.polar);
     XCTAssertEqual([NSValue valueWithMGLLightAnchor:MGLLightAnchorMap].MGLLightAnchorValue, MGLLightAnchorMap);
     XCTAssertEqual([NSValue valueWithMGLLightAnchor:MGLLightAnchorViewport].MGLLightAnchorValue, MGLLightAnchorViewport);
 }

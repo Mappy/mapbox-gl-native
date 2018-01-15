@@ -6,10 +6,8 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.os.Environment;
 import android.support.annotation.NonNull;
-
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-
 import timber.log.Timber;
 
 /**
@@ -72,9 +70,9 @@ public class FileSource {
         MapboxConstants.KEY_META_DATA_SET_STORAGE_EXTERNAL,
         MapboxConstants.DEFAULT_SET_STORAGE_EXTERNAL);
     } catch (PackageManager.NameNotFoundException exception) {
-      Timber.e("Failed to read the package metadata: ", exception);
+      Timber.e(exception, "Failed to read the package metadata: ");
     } catch (Exception exception) {
-      Timber.e("Failed to read the storage key: ", exception);
+      Timber.e(exception, "Failed to read the storage key: ");
     }
 
     String cachePath = null;
@@ -83,7 +81,7 @@ public class FileSource {
         // Try getting the external storage path
         cachePath = context.getExternalFilesDir(null).getAbsolutePath();
       } catch (NullPointerException exception) {
-        Timber.e("Failed to obtain the external storage path: ", exception);
+        Timber.e(exception, "Failed to obtain the external storage path: ");
       }
     }
 
@@ -123,6 +121,10 @@ public class FileSource {
   private FileSource(String cachePath, AssetManager assetManager) {
     initialize(Mapbox.getAccessToken(), cachePath, assetManager);
   }
+
+  public native void activate();
+
+  public native void deactivate();
 
   public native void setAccessToken(@NonNull String accessToken);
 

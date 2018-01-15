@@ -1,12 +1,11 @@
 #include <mbgl/map/map.hpp>
-#include <mbgl/map/backend_scope.hpp>
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/run_loop.hpp>
 
-#include <mbgl/gl/headless_backend.hpp>
-#include <mbgl/gl/offscreen_view.hpp>
+#include <mbgl/gl/headless_frontend.hpp>
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/storage/default_file_source.hpp>
+#include <mbgl/style/style.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
@@ -27,14 +26,13 @@ int main(int argc, char *argv[]) {
     double zoom = 0;
     double bearing = 0;
     double pitch = 0;
+    double pixelRatio = 1;
 
-    uint32_t pixelRatio = 1;
     uint32_t width = 512;
     uint32_t height = 512;
     static std::string output = "out.png";
     std::string cache_file = "cache.sqlite";
     std::string asset_root = ".";
-    std::vector<std::string> classes;
     std::string token;
     bool debug = false;
 
@@ -49,7 +47,6 @@ int main(int argc, char *argv[]) {
         ("width,w", po::value(&width)->value_name("pixels")->default_value(width), "Image width")
         ("height,h", po::value(&height)->value_name("pixels")->default_value(height), "Image height")
         ("ratio,r", po::value(&pixelRatio)->value_name("number")->default_value(pixelRatio), "Image scale factor")
-        ("class,c", po::value(&classes)->value_name("name"), "Class name")
         ("token,t", po::value(&token)->value_name("key")->default_value(token), "Mapbox access token")
         ("debug", po::bool_switch(&debug)->default_value(debug), "Debug mode")
         ("output,o", po::value(&output)->value_name("file")->default_value(output), "Output file name")
@@ -84,20 +81,15 @@ int main(int argc, char *argv[]) {
         fileSource.setAccessToken(std::string(token));
     }
 
-    HeadlessBackend backend;
-    BackendScope scope { backend };
-    OffscreenView view(backend.getContext(), { width * pixelRatio, height * pixelRatio });
     ThreadPool threadPool(4);
-    Map map(backend, mbgl::Size { width, height }, pixelRatio, fileSource, threadPool, MapMode::Still);
+    HeadlessFrontend frontend({ width, height }, pixelRatio, fileSource, threadPool);
+    Map map(frontend, MapObserver::nullObserver(), frontend.getSize(), pixelRatio, fileSource, threadPool, MapMode::Still);
 
     if (style_path.find("://") == std::string::npos) {
         style_path = std::string("file://") + style_path;
     }
 
-    map.setStyleURL(style_path);
-
-    map.setClasses(classes);
-
+    map.getStyle().loadURL(style_path);
     map.setLatLngZoom({ lat, lon }, zoom);
     map.setBearing(bearing);
     map.setPitch(pitch);
@@ -106,23 +98,14 @@ int main(int argc, char *argv[]) {
         map.setDebug(debug ? mbgl::MapDebugOptions::TileBorders | mbgl::MapDebugOptions::ParseStatus : mbgl::MapDebugOptions::NoDebug);
     }
 
-    map.renderStill(view, [&](std::exception_ptr error) {
-        try {
-            if (error) {
-                std::rethrow_exception(error);
-            }
-        } catch(std::exception& e) {
-            std::cout << "Error: " << e.what() << std::endl;
-            exit(1);
-        }
-
+    try {
         std::ofstream out(output, std::ios::binary);
-        out << encodePNG(view.readStillImage());
+        out << encodePNG(frontend.render(map));
         out.close();
-        loop.stop();
-    });
-
-    loop.run();
+    } catch(std::exception& e) {
+        std::cout << "Error: " << e.what() << std::endl;
+        exit(1);
+    }
 
     return 0;
 }

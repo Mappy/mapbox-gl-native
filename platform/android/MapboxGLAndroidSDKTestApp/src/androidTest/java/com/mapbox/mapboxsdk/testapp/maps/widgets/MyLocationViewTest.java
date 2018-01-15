@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.testapp.maps.widgets;
 
+import android.annotation.SuppressLint;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -97,6 +98,7 @@ public class MyLocationViewTest extends BaseActivityTest {
       return getClass().getSimpleName();
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public void perform(UiController uiController, View view) {
       if (isEnabled) {
@@ -104,7 +106,7 @@ public class MyLocationViewTest extends BaseActivityTest {
         mapboxMap.moveCamera(
           CameraUpdateFactory.newCameraPosition(
             new CameraPosition.Builder()
-              .target(new LatLng(Mapbox.getLocationSource().getLastLocation()))
+              .target(new LatLng(Mapbox.getLocationEngine().getLastLocation()))
               .build()
           )
         );

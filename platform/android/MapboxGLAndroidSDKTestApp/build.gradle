@@ -25,15 +25,11 @@ android {
     }
 
     lintOptions {
+        baseline file("lint-baseline-local.xml")
         checkAllWarnings true
         warningsAsErrors true
-        disable 'MissingTranslation'
-        disable 'IconDensities'
-        disable 'InvalidPackage'
-    }
-
-    testOptions {
-        unitTests.returnDefaultValues = true
+        disable  'MissingTranslation', 'GoogleAppIndexingWarning', 'UnpackedNativeCode', 'IconDipSize', 'TypographyQuotes'
+        abortOnError false
     }
 
     buildTypes {
@@ -63,21 +59,19 @@ dependencies {
     // Support libraries
     compile rootProject.ext.dep.supportAppcompatV7
     compile rootProject.ext.dep.supportRecyclerView
+    compile rootProject.ext.dep.supportDesign
 
     // Leak Canary
     debugCompile rootProject.ext.dep.leakCanaryDebug
     releaseCompile rootProject.ext.dep.leakCanaryRelease
-    testCompile rootProject.ext.dep.leakCanaryTest
 
     // Mapbox Android Services (Java component)
     compile(rootProject.ext.dep.mapboxJavaServices) {
         transitive = true
     }
+    compile rootProject.ext.dep.lost
 
     // Testing dependencies
-    testCompile rootProject.ext.dep.junit
-    testCompile rootProject.ext.dep.mockito
-    androidTestCompile rootProject.ext.dep.testSpoonRunner
     androidTestCompile rootProject.ext.dep.supportAnnotations
     androidTestCompile rootProject.ext.dep.testRunner
     androidTestCompile rootProject.ext.dep.testRules
@@ -87,8 +81,7 @@ dependencies {
 
 apply from: 'gradle-make.gradle'
 apply from: 'gradle-config.gradle'
-apply from: 'gradle-device-farm.gradle'
-apply from: 'gradle-spoon.gradle'
 apply from: 'gradle-checkstyle.gradle'
+apply from: '../gradle-lint.gradle'
 
 

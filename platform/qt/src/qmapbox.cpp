@@ -139,16 +139,6 @@ namespace QMapbox {
 */
 
 /*!
-    \class QMapbox::StyleSourcedAnnotation
-
-    \inmodule Mapbox Qt SDK
-
-    Represents a style sourced annotation object, along with its properties.
-
-    A style sourced annotation comprises of its geometry and a layer identifier.
-*/
-
-/*!
     \typedef QMapbox::Annotation
 
     Alias for QVariant.
@@ -226,7 +216,7 @@ Q_DECL_EXPORT NetworkMode networkMode()
 
     Forwards the network status \a mode to Mapbox GL Native engine.
 
-    File source requests uses the available network when \a mode is set to \a
+    File source requests uses the available network when \a mode is set to \b
     Online, otherwise scoped to the local cache.
 */
 Q_DECL_EXPORT void setNetworkMode(NetworkMode mode)

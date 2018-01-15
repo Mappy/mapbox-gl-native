@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -11,9 +12,10 @@ import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
 import com.mapbox.mapboxsdk.location.LocationSource;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
-import com.mapbox.services.android.telemetry.MapboxTelemetry;
 import com.mapbox.services.android.telemetry.location.LocationEngine;
 import com.mapbox.services.android.telemetry.location.LocationEnginePriority;
+import com.mapbox.services.android.telemetry.location.LocationEngineProvider;
+import com.mapbox.services.android.telemetry.MapboxTelemetry;
 
 import timber.log.Timber;
 
@@ -25,13 +27,15 @@ import timber.log.Timber;
  * connectivity state.
  * </p>
  */
+@UiThread
 public final class Mapbox {
 
+  @SuppressLint("StaticFieldLeak")
   private static Mapbox INSTANCE;
   private Context context;
   private String accessToken;
   private Boolean connected;
-  private LocationSource locationSource;
+  private LocationEngine locationEngine;
 
   /**
    * Get an instance of Mapbox.
@@ -47,8 +51,9 @@ public final class Mapbox {
   public static synchronized Mapbox getInstance(@NonNull Context context, @NonNull String accessToken) {
     if (INSTANCE == null) {
       Context appContext = context.getApplicationContext();
-      INSTANCE = new Mapbox(appContext, accessToken, new LocationSource(appContext));
-      LocationEngine locationEngine = new LocationSource(appContext);
+      LocationEngineProvider locationEngineProvider = new LocationEngineProvider(context);
+      LocationEngine locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
+      INSTANCE = new Mapbox(appContext, accessToken, locationEngine);
       locationEngine.setPriority(LocationEnginePriority.NO_POWER);
 
       try {
@@ -63,10 +68,10 @@ public final class Mapbox {
     return INSTANCE;
   }
 
-  Mapbox(@NonNull Context context, @NonNull String accessToken, LocationSource locationSource) {
+  Mapbox(@NonNull Context context, @NonNull String accessToken, LocationEngine locationEngine) {
     this.context = context;
     this.accessToken = accessToken;
-    this.locationSource = locationSource;
+    this.locationEngine = locationEngine;
   }
 
   /**
@@ -140,7 +145,24 @@ public final class Mapbox {
     return (activeNetwork != null && activeNetwork.isConnected());
   }
 
+  /**
+   * Returns a location source instance with empty methods.
+   *
+   * @return an empty location source implementation
+   * @deprecated Replaced by {@link Mapbox#getLocationEngine()}
+   */
+  @Deprecated
   public static LocationSource getLocationSource() {
-    return INSTANCE.locationSource;
+    return new EmptyLocationSource();
+  }
+
+
+  /**
+   * Returns the location engine used by the SDK.
+   *
+   * @return the location engine configured
+   */
+  public static LocationEngine getLocationEngine() {
+    return INSTANCE.locationEngine;
   }
 }

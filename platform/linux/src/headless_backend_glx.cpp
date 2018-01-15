@@ -17,7 +17,7 @@ struct GLXImpl : public HeadlessBackend::Impl {
               fbConfigs(fbConfigs_) {
     }
 
-    ~GLXImpl() {
+    ~GLXImpl() override {
         if (glxPbuffer) {
             glXDestroyPbuffer(xDisplay, glxPbuffer);
         }
@@ -50,7 +50,7 @@ gl::ProcAddress HeadlessBackend::initializeExtension(const char* name) {
 
 bool HeadlessBackend::hasDisplay() {
     if (!display) {
-        display.reset(new HeadlessDisplay);
+        display = HeadlessDisplay::create();
     }
     return bool(display);
 };
@@ -58,8 +58,8 @@ bool HeadlessBackend::hasDisplay() {
 void HeadlessBackend::createContext() {
     assert(!hasContext());
 
-    Display* xDisplay = display->attribute<Display*>();
-    GLXFBConfig* fbConfigs = display->attribute<GLXFBConfig*>();
+    auto* xDisplay = display->attribute<Display*>();
+    auto* fbConfigs = display->attribute<GLXFBConfig*>();
 
     // Try to create a legacy context.
     GLXContext glContext = glXCreateNewContext(xDisplay, fbConfigs[0], GLX_RGBA_TYPE, None, True);
@@ -81,7 +81,7 @@ void HeadlessBackend::createContext() {
     };
     GLXPbuffer glxPbuffer = glXCreatePbuffer(xDisplay, fbConfigs[0], pbufferAttributes);
 
-    impl.reset(new GLXImpl(glContext, glxPbuffer, xDisplay, fbConfigs));
+    impl = std::make_unique<mbgl::GLXImpl>(glContext, glxPbuffer, xDisplay, fbConfigs);
 }
 
 } // namespace mbgl

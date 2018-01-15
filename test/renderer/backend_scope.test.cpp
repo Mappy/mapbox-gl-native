@@ -1,14 +1,20 @@
 #include <mbgl/test/util.hpp>
 
-#include <mbgl/map/backend.hpp>
-#include <mbgl/map/backend_scope.hpp>
+#include <mbgl/renderer/renderer_backend.hpp>
+#include <mbgl/renderer/backend_scope.hpp>
 
 #include <functional>
 
 using namespace mbgl;
 
-class StubBackend: public Backend {
+class StubRendererBackend: public RendererBackend {
 public:
+    void bind() override {
+    }
+
+    mbgl::Size getFramebufferSize() const override {
+        return mbgl::Size{};
+    }
 
     void activate() override {
         if (activateFunction) activateFunction();
@@ -21,8 +27,6 @@ public:
     void updateAssumedState() override {
         if (updateAssumedStateFunction) updateAssumedStateFunction();
     }
-
-    void invalidate() override {}
 
     gl::ProcAddress initializeExtension(const char* ext) override {
         if (initializeExtensionFunction) {
@@ -45,7 +49,7 @@ TEST(BackendScope, SingleScope) {
     bool activated;
     bool deactivated;
 
-    StubBackend backend;
+    StubRendererBackend backend;
     backend.activateFunction = [&] { activated = true; };
     backend.deactivateFunction = [&] { deactivated = true; };
 
@@ -63,7 +67,7 @@ TEST(BackendScope, NestedScopes) {
     int activated = 0;
     int deactivated = 0;
 
-    StubBackend backend;
+    StubRendererBackend backend;
     backend.activateFunction = [&] { activated++; };
     backend.deactivateFunction = [&] { deactivated++; };
 
@@ -87,15 +91,15 @@ TEST(BackendScope, NestedScopes) {
 TEST(BackendScope, ChainedScopes) {
     bool activatedA = false;
     bool activatedB = false;
-    
-    StubBackend backendA;
+
+    StubRendererBackend backendA;
     backendA.activateFunction = [&] { activatedA = true; };
     backendA.deactivateFunction = [&] { activatedA = false; };
-    
-    StubBackend backendB;
+
+    StubRendererBackend backendB;
     backendB.activateFunction = [&] { activatedB = true; };
     backendB.deactivateFunction = [&] { activatedB = false; };
-    
+
     {
         BackendScope scopeA { backendA };
         ASSERT_TRUE(activatedA);
@@ -107,7 +111,7 @@ TEST(BackendScope, ChainedScopes) {
         ASSERT_FALSE(activatedB);
         ASSERT_TRUE(activatedA);
     }
-    
+
     ASSERT_FALSE(activatedA);
     ASSERT_FALSE(activatedB);
 }

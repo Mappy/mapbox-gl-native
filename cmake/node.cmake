@@ -53,3 +53,50 @@ add_custom_command(
 mbgl_platform_node()
 
 create_source_groups(mbgl-node)
+
+initialize_xcode_cxx_build_settings(mbgl-node)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+    TYPE node
+    NAME "node tests"
+    ARGS
+        "node_modules/.bin/tape platform/node/test/js/**/*.test.js"
+)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+    TYPE node
+    NAME "node render tests"
+    ARGS
+        "platform/node/test/render.test.js"
+    OPTIONAL_ARGS
+        "group"
+        "test"
+)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+    TYPE node
+    NAME "node query tests"
+    ARGS
+        "platform/node/test/query.test.js"
+    OPTIONAL_ARGS
+        "group"
+        "test"
+)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+    TYPE node
+    NAME "node-benchmark"
+    ARGS
+        "platform/node/test/benchmark.js"
+    OPTIONAL_ARGS
+        "group"
+        "test"
+)

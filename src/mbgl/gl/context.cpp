@@ -1,4 +1,3 @@
-#include <mbgl/map/view.hpp>
 #include <mbgl/gl/context.hpp>
 #include <mbgl/gl/gl.hpp>
 #include <mbgl/gl/debugging_extension.hpp>
@@ -15,6 +14,31 @@ namespace gl {
 
 static_assert(underlying_type(ShaderType::Vertex) == GL_VERTEX_SHADER, "OpenGL type mismatch");
 static_assert(underlying_type(ShaderType::Fragment) == GL_FRAGMENT_SHADER, "OpenGL type mismatch");
+
+static_assert(underlying_type(DataType::Byte) == GL_BYTE, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::UnsignedByte) == GL_UNSIGNED_BYTE, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::Short) == GL_SHORT, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::UnsignedShort) == GL_UNSIGNED_SHORT, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::Integer) == GL_INT, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::UnsignedInteger) == GL_UNSIGNED_INT, "OpenGL type mismatch");
+static_assert(underlying_type(DataType::Float) == GL_FLOAT, "OpenGL type mismatch");
+
+#if not MBGL_USE_GLES2
+static_assert(underlying_type(RenderbufferType::RGBA) == GL_RGBA8, "OpenGL type mismatch");
+#else
+static_assert(underlying_type(RenderbufferType::RGBA) == GL_RGBA8_OES, "OpenGL type mismatch");
+#endif // MBGL_USE_GLES2
+#if not MBGL_USE_GLES2
+static_assert(underlying_type(RenderbufferType::DepthStencil) == GL_DEPTH24_STENCIL8, "OpenGL type mismatch");
+#else
+static_assert(underlying_type(RenderbufferType::DepthStencil) == GL_DEPTH24_STENCIL8_OES, "OpenGL type mismatch");
+#endif // MBGL_USE_GLES2
+#if not MBGL_USE_GLES2
+static_assert(underlying_type(RenderbufferType::DepthComponent) == GL_DEPTH_COMPONENT, "OpenGL type mismatch");
+#else
+static_assert(underlying_type(RenderbufferType::DepthComponent) == GL_DEPTH_COMPONENT16, "OpenGL type mismatch");
+#endif // MBGL_USE_GLES2
+
 
 static_assert(underlying_type(PrimitiveType::Points) == GL_POINTS, "OpenGL type mismatch");
 static_assert(underlying_type(PrimitiveType::Lines) == GL_LINES, "OpenGL type mismatch");
@@ -36,16 +60,40 @@ static_assert(std::is_same<std::underlying_type_t<TextureFormat>, GLenum>::value
 static_assert(underlying_type(TextureFormat::RGBA) == GL_RGBA, "OpenGL type mismatch");
 static_assert(underlying_type(TextureFormat::Alpha) == GL_ALPHA, "OpenGL type mismatch");
 
+static_assert(underlying_type(UniformDataType::Float) == GL_FLOAT, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatVec2) == GL_FLOAT_VEC2, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatVec3) == GL_FLOAT_VEC3, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatVec4) == GL_FLOAT_VEC4, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::Int) == GL_INT, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::IntVec2) == GL_INT_VEC2, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::IntVec3) == GL_INT_VEC3, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::IntVec4) == GL_INT_VEC4, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::Bool) == GL_BOOL, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::BoolVec2) == GL_BOOL_VEC2, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::BoolVec3) == GL_BOOL_VEC3, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::BoolVec4) == GL_BOOL_VEC4, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatMat2) == GL_FLOAT_MAT2, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatMat3) == GL_FLOAT_MAT3, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::FloatMat4) == GL_FLOAT_MAT4, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::Sampler2D) == GL_SAMPLER_2D, "OpenGL type mismatch");
+static_assert(underlying_type(UniformDataType::SamplerCube) == GL_SAMPLER_CUBE, "OpenGL type mismatch");
+
+static_assert(underlying_type(BufferUsage::StreamDraw) == GL_STREAM_DRAW, "OpenGL type mismatch");
+static_assert(underlying_type(BufferUsage::StaticDraw) == GL_STATIC_DRAW, "OpenGL type mismatch");
+static_assert(underlying_type(BufferUsage::DynamicDraw) == GL_DYNAMIC_DRAW, "OpenGL type mismatch");
+
 static_assert(std::is_same<BinaryProgramFormat, GLenum>::value, "OpenGL type mismatch");
 
 Context::Context() = default;
 
 Context::~Context() {
-    reset();
+    if (cleanupOnDestruction) {
+        reset();
+    }
 }
 
 void Context::initializeExtensions(const std::function<gl::ProcAddress(const char*)>& getProcAddress) {
-    if (const char* extensions =
+    if (const auto* extensions =
             reinterpret_cast<const char*>(MBGL_CHECK_ERROR(glGetString(GL_EXTENSIONS)))) {
 
         auto fn = [&](
@@ -94,7 +142,7 @@ UniqueShader Context::createShader(ShaderType type, const std::string& source) {
     UniqueShader result { MBGL_CHECK_ERROR(glCreateShader(static_cast<GLenum>(type))), { this } };
 
     const GLchar* sources = source.data();
-    const GLsizei lengths = static_cast<GLsizei>(source.length());
+    const auto lengths = static_cast<GLsizei>(source.length());
     MBGL_CHECK_ERROR(glShaderSource(result, 1, &sources, &lengths));
     MBGL_CHECK_ERROR(glCompileShader(result));
 
@@ -164,13 +212,18 @@ void Context::verifyProgramLinkage(ProgramID program_) {
     throw std::runtime_error("program failed to link");
 }
 
-UniqueBuffer Context::createVertexBuffer(const void* data, std::size_t size) {
+UniqueBuffer Context::createVertexBuffer(const void* data, std::size_t size, const BufferUsage usage) {
     BufferID id = 0;
     MBGL_CHECK_ERROR(glGenBuffers(1, &id));
     UniqueBuffer result { std::move(id), { this } };
     vertexBuffer = result;
-    MBGL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW));
+    MBGL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, size, data, static_cast<GLenum>(usage)));
     return result;
+}
+
+void Context::updateVertexBuffer(UniqueBuffer& buffer, const void* data, std::size_t size) {
+    vertexBuffer = buffer;
+    MBGL_CHECK_ERROR(glBufferSubData(GL_ARRAY_BUFFER, 0, size, data));
 }
 
 UniqueBuffer Context::createIndexBuffer(const void* data, std::size_t size) {
@@ -195,7 +248,14 @@ UniqueTexture Context::createTexture() {
 }
 
 bool Context::supportsVertexArrays() const {
-    return vertexArray &&
+    static bool blacklisted = []() {
+        // Blacklist Adreno 3xx as it crashes on glBuffer(Sub)Data
+        const std::string renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+        return renderer.find("Adreno (TM) 3") != std::string::npos;
+    }();
+
+    return !blacklisted &&
+           vertexArray &&
            vertexArray->genVertexArrays &&
            vertexArray->bindVertexArray &&
            vertexArray->deleteVertexArrays;
@@ -278,11 +338,9 @@ std::unique_ptr<uint8_t[]> Context::readFramebuffer(const Size size, const Textu
     const size_t stride = size.width * (format == TextureFormat::RGBA ? 4 : 1);
     auto data = std::make_unique<uint8_t[]>(stride * size.height);
 
-#if not MBGL_USE_GLES2
     // When reading data from the framebuffer, make sure that we are storing the values
     // tightly packed into the buffer to avoid buffer overruns.
     pixelStorePack = { 1 };
-#endif // MBGL_USE_GLES2
 
     MBGL_CHECK_ERROR(glReadPixels(0, 0, size.width, size.height, static_cast<GLenum>(format),
                                   GL_UNSIGNED_BYTE, data.get()));
@@ -408,6 +466,9 @@ Framebuffer Context::createFramebuffer(const Texture& color) {
 Framebuffer
 Context::createFramebuffer(const Texture& color,
                            const Renderbuffer<RenderbufferType::DepthComponent>& depthTarget) {
+    if (color.size != depthTarget.size) {
+        throw std::runtime_error("Renderbuffer size mismatch");
+    }
     auto fbo = createFramebuffer();
     bindFramebuffer = fbo;
     MBGL_CHECK_ERROR(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color.texture, 0));
@@ -419,6 +480,7 @@ Context::createFramebuffer(const Texture& color,
 UniqueTexture
 Context::createTexture(const Size size, const void* data, TextureFormat format, TextureUnit unit) {
     auto obj = createTexture();
+    pixelStoreUnpack = { 1 };
     updateTexture(obj, size, data, format, unit);
     // We are using clamp to edge here since OpenGL ES doesn't allow GL_REPEAT on NPOT textures.
     // We use those when the pixelRatio isn't a power of two, e.g. on iPhone 6 Plus.
@@ -431,7 +493,7 @@ Context::createTexture(const Size size, const void* data, TextureFormat format, 
 
 void Context::updateTexture(
     TextureID id, const Size size, const void* data, TextureFormat format, TextureUnit unit) {
-    activeTexture = unit;
+    activeTextureUnit = unit;
     texture[unit] = id;
     MBGL_CHECK_ERROR(glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(format), size.width,
                                   size.height, 0, static_cast<GLenum>(format), GL_UNSIGNED_BYTE,
@@ -445,7 +507,7 @@ void Context::bindTexture(Texture& obj,
                           TextureWrap wrapX,
                           TextureWrap wrapY) {
     if (filter != obj.filter || mipmap != obj.mipmap || wrapX != obj.wrapX || wrapY != obj.wrapY) {
-        activeTexture = unit;
+        activeTextureUnit = unit;
         texture[unit] = obj.texture;
 
         if (filter != obj.filter || mipmap != obj.mipmap) {
@@ -476,7 +538,7 @@ void Context::bindTexture(Texture& obj,
     } else if (texture[unit] != obj.texture) {
         // We are checking first to avoid setting the active texture without a subsequent
         // texture bind.
-        activeTexture = unit;
+        activeTextureUnit = unit;
         texture[unit] = obj.texture;
     }
 }
@@ -488,8 +550,8 @@ void Context::reset() {
 }
 
 void Context::setDirtyState() {
-    // Note: does not set viewport/bindFramebuffer to dirty since they are handled separately in
-    // the view object.
+    // Note: does not set viewport/scissorTest/bindFramebuffer to dirty
+    // since they are handled separately in the view object.
     stencilFunc.setDirty();
     stencilMask.setDirty();
     stencilTest.setDirty();
@@ -508,13 +570,13 @@ void Context::setDirtyState() {
     clearStencil.setDirty();
     program.setDirty();
     lineWidth.setDirty();
-    activeTexture.setDirty();
+    activeTextureUnit.setDirty();
+    pixelStorePack.setDirty();
+    pixelStoreUnpack.setDirty();
 #if not MBGL_USE_GLES2
     pointSize.setDirty();
     pixelZoom.setDirty();
     rasterPos.setDirty();
-    pixelStorePack.setDirty();
-    pixelStoreUnpack.setDirty();
     pixelTransferDepth.setDirty();
     pixelTransferStencil.setDirty();
 #endif // MBGL_USE_GLES2
@@ -659,8 +721,10 @@ void Context::performCleanup() {
 
     if (!abandonedTextures.empty()) {
         for (const auto id : abandonedTextures) {
-            if (activeTexture == id) {
-                activeTexture.setDirty();
+            for (auto& binding : texture) {
+                if (binding == id) {
+                    binding.setDirty();
+                }
             }
         }
         MBGL_CHECK_ERROR(glDeleteTextures(int(abandonedTextures.size()), abandonedTextures.data()));

@@ -6,14 +6,16 @@
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
-#include <mbgl/map/query.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/layers/symbol_layer.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
-#include <mbgl/renderer/symbol_bucket.hpp>
+#include <mbgl/renderer/buckets/symbol_bucket.hpp>
+#include <mbgl/renderer/query.hpp>
 #include <mbgl/text/collision_tile.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
+#include <mbgl/renderer/image_manager.hpp>
+#include <mbgl/text/glyph_manager.hpp>
 
 #include <memory>
 
@@ -25,8 +27,10 @@ public:
     TransformState transformState;
     util::RunLoop loop;
     ThreadPool threadPool { 1 };
-    AnnotationManager annotationManager { 1.0 };
-    style::Style style { threadPool, fileSource, 1.0 };
+    style::Style style { loop, fileSource, 1 };
+    AnnotationManager annotationManager { style };
+    ImageManager imageManager;
+    GlyphManager glyphManager { fileSource };
     Tileset tileset { { "https://example.com" }, { 0, 22 }, "none" };
 
     TileParameters tileParameters {
@@ -37,7 +41,9 @@ public:
         fileSource,
         MapMode::Continuous,
         annotationManager,
-        style
+        imageManager,
+        glyphManager,
+        0
     };
 };
 
@@ -69,7 +75,7 @@ TEST(VectorTile, Issue7615) {
         style::SymbolLayoutProperties::PossiblyEvaluated(),
         std::map<
             std::string,
-            std::pair<style::IconPaintProperties::Evaluated, style::TextPaintProperties::Evaluated>>(),
+            std::pair<style::IconPaintProperties::PossiblyEvaluated, style::TextPaintProperties::PossiblyEvaluated>>(),
         16.0f, 1.0f, 0.0f, false, false);
     
     // Simulate placement of a symbol layer.
@@ -79,16 +85,18 @@ TEST(VectorTile, Issue7615) {
             symbolBucket
         }},
         nullptr,
+        {},
+        {},
     }, 0);
 
     // Subsequent onLayout should not cause the existing symbol bucket to be discarded.
     tile.onLayout(GeometryTile::LayoutResult {
-        {},
+        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
         nullptr,
         nullptr,
     }, 0);
 
-    EXPECT_EQ(symbolBucket.get(), tile.getBucket(*symbolLayer.baseImpl->createRenderLayer()));
+    EXPECT_EQ(symbolBucket.get(), tile.getBucket(*symbolLayer.baseImpl));
 }
 
 TEST(VectorTile, Issue8542) {

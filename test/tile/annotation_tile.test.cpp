@@ -4,14 +4,17 @@
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/map/transform.hpp>
-#include <mbgl/map/query.hpp>
-#include <mbgl/style/style.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
-#include <mbgl/map/query.hpp>
+#include <mbgl/renderer/query.hpp>
 #include <mbgl/text/collision_tile.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/annotation/annotation_tile.hpp>
+#include <mbgl/renderer/image_manager.hpp>
+#include <mbgl/text/glyph_manager.hpp>
+#include <mbgl/renderer/backend_scope.hpp>
+#include <mbgl/gl/headless_backend.hpp>
+#include <mbgl/style/style.hpp>
 
 #include <memory>
 
@@ -23,8 +26,12 @@ public:
     TransformState transformState;
     util::RunLoop loop;
     ThreadPool threadPool { 1 };
-    AnnotationManager annotationManager { 1.0 };
-    style::Style style { threadPool, fileSource, 1.0 };
+    style::Style style { loop, fileSource, 1 };
+    AnnotationManager annotationManager { style };
+    HeadlessBackend backend;
+    BackendScope scope { backend };
+    ImageManager imageManager;
+    GlyphManager glyphManager { fileSource };
 
     TileParameters tileParameters {
         1.0,
@@ -34,7 +41,9 @@ public:
         fileSource,
         MapMode::Continuous,
         annotationManager,
-        style
+        imageManager,
+        glyphManager,
+        0
     };
 };
 
@@ -44,14 +53,13 @@ TEST(AnnotationTile, Issue8289) {
     AnnotationTile tile(OverscaledTileID(0, 0, 0), test.tileParameters);
 
     auto data = std::make_unique<AnnotationTileData>();
-    data->layers.emplace("test", AnnotationTileLayer("test"));
-    data->layers.at("test").features.push_back(AnnotationTileFeature(0, FeatureType::Point, GeometryCollection()));
+    data->addLayer("test")->addFeature(0, FeatureType::Point, GeometryCollection());
 
     // Simulate layout and placement of a symbol layer.
     tile.onLayout(GeometryTile::LayoutResult {
-        {},
-            std::make_unique<FeatureIndex>(),
-            std::move(data),
+        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
+        std::make_unique<FeatureIndex>(),
+        std::move(data),
     }, 0);
 
     auto collisionTile = std::make_unique<CollisionTile>(PlacementConfig());
@@ -62,15 +70,17 @@ TEST(AnnotationTile, Issue8289) {
     collisionTile->placeFeature(feature, false, false);
 
     tile.onPlacement(GeometryTile::PlacementResult {
+        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
+        std::move(collisionTile),
         {},
-            std::move(collisionTile),
+        {},
     }, 0);
 
     // Simulate a second layout with empty data.
     tile.onLayout(GeometryTile::LayoutResult {
-        {},
-            std::make_unique<FeatureIndex>(),
-            std::make_unique<AnnotationTileData>(),
+        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
+        std::make_unique<FeatureIndex>(),
+        std::make_unique<AnnotationTileData>(),
     }, 0);
 
     std::unordered_map<std::string, std::vector<Feature>> result;
@@ -78,7 +88,7 @@ TEST(AnnotationTile, Issue8289) {
     TransformState transformState;
     RenderedQueryOptions options;
 
-    tile.queryRenderedFeatures(result, queryGeometry, transformState, options);
+    tile.queryRenderedFeatures(result, queryGeometry, transformState, {}, options);
 
     EXPECT_TRUE(result.empty());
 }

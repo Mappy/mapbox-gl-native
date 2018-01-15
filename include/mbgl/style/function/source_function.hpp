@@ -16,7 +16,7 @@ template <class T>
 class SourceFunction {
 public:
     using Stops = std::conditional_t<
-        util::Interpolatable<T>,
+        util::Interpolatable<T>::value,
         variant<
             ExponentialStops<T>,
             IntervalStops<T>,
@@ -53,6 +53,7 @@ public:
     std::string property;
     Stops stops;
     optional<T> defaultValue;
+    bool useIntegerZoom = false;
 };
 
 } // namespace style

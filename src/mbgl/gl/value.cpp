@@ -242,13 +242,13 @@ LineWidth::Type LineWidth::Get() {
     return lineWidth;
 }
 
-const constexpr ActiveTexture::Type ActiveTexture::Default;
+const constexpr ActiveTextureUnit::Type ActiveTextureUnit::Default;
 
-void ActiveTexture::Set(const Type& value) {
+void ActiveTextureUnit::Set(const Type& value) {
     MBGL_CHECK_ERROR(glActiveTexture(GL_TEXTURE0 + value));
 }
 
-ActiveTexture::Type ActiveTexture::Get() {
+ActiveTextureUnit::Type ActiveTextureUnit::Get() {
     GLint activeTexture;
     MBGL_CHECK_ERROR(glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture));
     return static_cast<Type>(activeTexture - GL_TEXTURE0);
@@ -265,6 +265,18 @@ Viewport::Type Viewport::Get() {
     MBGL_CHECK_ERROR(glGetIntegerv(GL_VIEWPORT, viewport));
     return { static_cast<int32_t>(viewport[0]), static_cast<int32_t>(viewport[1]),
              { static_cast<uint32_t>(viewport[2]), static_cast<uint32_t>(viewport[3]) } };
+}
+
+const constexpr ScissorTest::Type ScissorTest::Default;
+
+void ScissorTest::Set(const Type& value) {
+    MBGL_CHECK_ERROR(value ? glEnable(GL_SCISSOR_TEST) : glDisable(GL_SCISSOR_TEST));
+}
+
+ScissorTest::Type ScissorTest::Get() {
+    Type scissorTest;
+    MBGL_CHECK_ERROR(scissorTest = glIsEnabled(GL_SCISSOR_TEST));
+    return scissorTest;
 }
 
 const constexpr BindFramebuffer::Type BindFramebuffer::Default;
@@ -371,6 +383,34 @@ void VertexAttribute::Set(const optional<AttributeBinding>& binding, Context& co
     }
 }
 
+const constexpr PixelStorePack::Type PixelStorePack::Default;
+
+void PixelStorePack::Set(const Type& value) {
+    assert(value.alignment == 1 || value.alignment == 2 || value.alignment == 4 ||
+           value.alignment == 8);
+    MBGL_CHECK_ERROR(glPixelStorei(GL_PACK_ALIGNMENT, value.alignment));
+}
+
+PixelStorePack::Type PixelStorePack::Get() {
+    Type value;
+    MBGL_CHECK_ERROR(glGetIntegerv(GL_PACK_ALIGNMENT, &value.alignment));
+    return value;
+}
+
+const constexpr PixelStoreUnpack::Type PixelStoreUnpack::Default;
+
+void PixelStoreUnpack::Set(const Type& value) {
+    assert(value.alignment == 1 || value.alignment == 2 || value.alignment == 4 ||
+           value.alignment == 8);
+    MBGL_CHECK_ERROR(glPixelStorei(GL_UNPACK_ALIGNMENT, value.alignment));
+}
+
+PixelStoreUnpack::Type PixelStoreUnpack::Get() {
+    Type value;
+    MBGL_CHECK_ERROR(glGetIntegerv(GL_UNPACK_ALIGNMENT, &value.alignment));
+    return value;
+}
+
 #if not MBGL_USE_GLES2
 
 const constexpr PointSize::Type PointSize::Default;
@@ -408,34 +448,6 @@ RasterPos::Type RasterPos::Get() {
     GLdouble pos[4];
     MBGL_CHECK_ERROR(glGetDoublev(GL_CURRENT_RASTER_POSITION, pos));
     return { pos[0], pos[1], pos[2], pos[3] };
-}
-
-const constexpr PixelStorePack::Type PixelStorePack::Default;
-
-void PixelStorePack::Set(const Type& value) {
-    assert(value.alignment == 1 || value.alignment == 2 || value.alignment == 4 ||
-           value.alignment == 8);
-    MBGL_CHECK_ERROR(glPixelStorei(GL_PACK_ALIGNMENT, value.alignment));
-}
-
-PixelStorePack::Type PixelStorePack::Get() {
-    Type value;
-    MBGL_CHECK_ERROR(glGetIntegerv(GL_PACK_ALIGNMENT, &value.alignment));
-    return value;
-}
-
-const constexpr PixelStoreUnpack::Type PixelStoreUnpack::Default;
-
-void PixelStoreUnpack::Set(const Type& value) {
-    assert(value.alignment == 1 || value.alignment == 2 || value.alignment == 4 ||
-           value.alignment == 8);
-    MBGL_CHECK_ERROR(glPixelStorei(GL_UNPACK_ALIGNMENT, value.alignment));
-}
-
-PixelStoreUnpack::Type PixelStoreUnpack::Get() {
-    Type value;
-    MBGL_CHECK_ERROR(glGetIntegerv(GL_UNPACK_ALIGNMENT, &value.alignment));
-    return value;
 }
 
 const constexpr PixelTransferDepth::Type PixelTransferDepth::Default;

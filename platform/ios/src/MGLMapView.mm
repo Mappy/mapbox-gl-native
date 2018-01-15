@@ -6,7 +6,6 @@
 #import <OpenGLES/EAGL.h>
 
 #include <mbgl/map/map.hpp>
-#include <mbgl/map/view.hpp>
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/map/camera.hpp>
 #include <mbgl/map/mode.hpp>
@@ -15,11 +14,13 @@
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/network_status.hpp>
+#include <mbgl/style/style.hpp>
 #include <mbgl/style/image.hpp>
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/layers/custom_layer.hpp>
-#include <mbgl/map/backend.hpp>
-#include <mbgl/map/backend_scope.hpp>
+#include <mbgl/renderer/renderer.hpp>
+#include <mbgl/renderer/renderer_backend.hpp>
+#include <mbgl/renderer/backend_scope.hpp>
 #include <mbgl/math/wrap.hpp>
 #include <mbgl/util/exception.hpp>
 #include <mbgl/util/geo.hpp>
@@ -34,12 +35,15 @@
 #include <mbgl/util/projection.hpp>
 
 #import "Mapbox.h"
+#import "MGLShape_Private.h"
 #import "MGLFeature_Private.h"
 #import "MGLGeometry_Private.h"
 #import "MGLMultiPoint_Private.h"
 #import "MGLOfflineStorage_Private.h"
 #import "MGLFoundation_Private.h"
+#import "MGLRendererFrontend.h"
 
+#import "MGLVectorSource+MGLAdditions.h"
 #import "NSBundle+MGLAdditions.h"
 #import "NSDate+MGLAdditions.h"
 #import "NSException+MGLAdditions.h"
@@ -65,6 +69,7 @@
 #import "MGLAnnotationContainerView.h"
 #import "MGLAnnotationContainerView_Private.h"
 #import "MGLAttributionInfo_Private.h"
+#import "MGLMapAccessibilityElement.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -136,9 +141,6 @@ const CGFloat MGLAnnotationImagePaddingForCallout = 1;
 
 const CGSize MGLAnnotationAccessibilityElementMinimumSize = CGSizeMake(10, 10);
 
-/// Unique identifier representing a single annotation in mbgl.
-typedef uint32_t MGLAnnotationTag;
-
 /// An indication that the requested annotation was not found or is nonexistent.
 enum { MGLAnnotationTagNotFound = UINT32_MAX };
 
@@ -161,38 +163,6 @@ mbgl::util::UnitBezier MGLUnitBezierForMediaTimingFunction(CAMediaTimingFunction
     return { p1[0], p1[1], p2[0], p2[1] };
 }
 
-@interface MGLAnnotationAccessibilityElement : UIAccessibilityElement
-
-@property (nonatomic) MGLAnnotationTag tag;
-
-- (instancetype)initWithAccessibilityContainer:(id)container tag:(MGLAnnotationTag)identifier NS_DESIGNATED_INITIALIZER;
-
-@end
-
-@implementation MGLAnnotationAccessibilityElement
-
-- (instancetype)initWithAccessibilityContainer:(id)container tag:(MGLAnnotationTag)tag
-{
-    if (self = [super initWithAccessibilityContainer:container])
-    {
-        _tag = tag;
-        self.accessibilityTraits = UIAccessibilityTraitButton | UIAccessibilityTraitAdjustable;
-    }
-    return self;
-}
-
-- (void)accessibilityIncrement
-{
-    [self.accessibilityContainer accessibilityIncrement];
-}
-
-- (void)accessibilityDecrement
-{
-    [self.accessibilityContainer accessibilityDecrement];
-}
-
-@end
-
 /// Lightweight container for metadata about an annotation, including the annotation itself.
 class MGLAnnotationContext {
 public:
@@ -204,32 +174,12 @@ public:
     NSString *viewReuseIdentifier;
 };
 
-/** An accessibility element representing the MGLMapView at large. */
-@interface MGLMapViewProxyAccessibilityElement : UIAccessibilityElement
-
-@end
-
-@implementation MGLMapViewProxyAccessibilityElement
-
-- (instancetype)initWithAccessibilityContainer:(id)container
-{
-    if (self = [super initWithAccessibilityContainer:container])
-    {
-        self.accessibilityTraits = UIAccessibilityTraitButton;
-        self.accessibilityLabel = [self.accessibilityContainer accessibilityLabel];
-        self.accessibilityHint = NSLocalizedStringWithDefaultValue(@"CLOSE_CALLOUT_A11Y_HINT", nil, nil, @"Returns to the map", @"Accessibility hint for closing the selected annotation’s callout view and returning to the map");
-    }
-    return self;
-}
-
-@end
-
 #pragma mark - Private -
 
 @interface MGLMapView () <UIGestureRecognizerDelegate,
                           GLKViewDelegate,
                           CLLocationManagerDelegate,
-                          SMCalloutViewDelegate,
+                          MGLSMCalloutViewDelegate,
                           MGLCalloutViewDelegate,
                           MGLMultiPointDelegate,
                           MGLAnnotationImageDelegate>
@@ -278,6 +228,8 @@ public:
 {
     mbgl::Map *_mbglMap;
     MBGLView *_mbglView;
+    std::unique_ptr<MGLRenderFrontend> _rendererFrontend;
+    
     std::shared_ptr<mbgl::ThreadPool> _mbglThreadPool;
 
     BOOL _opaque;
@@ -323,6 +275,10 @@ public:
 	BOOL _delegateHasWhiteStrokeForShapeAnnotations;
 
     MGLCompassDirectionFormatter *_accessibilityCompassFormatter;
+    NS_ARRAY_OF(id <MGLFeature>) *_visiblePlaceFeatures;
+    NS_ARRAY_OF(id <MGLFeature>) *_visibleRoadFeatures;
+    NS_MUTABLE_SET_OF(MGLFeatureAccessibilityElement *) *_featureAccessibilityElements;
+    BOOL _accessibilityValueAnnouncementIsPending;
 
     MGLReachability *_reachability;
 }
@@ -379,7 +335,7 @@ public:
 
 - (nonnull NSURL *)styleURL
 {
-    NSString *styleURLString = @(_mbglMap->getStyleURL().c_str()).mgl_stringOrNilIfEmpty;
+    NSString *styleURLString = @(_mbglMap->getStyle().getURL().c_str()).mgl_stringOrNilIfEmpty;
     NSAssert(styleURLString || _isTargetingInterfaceBuilder, @"Invalid style URL string %@", styleURLString);
     return styleURLString ? [NSURL URLWithString:styleURLString] : nil;
 }
@@ -395,18 +351,23 @@ public:
 
     styleURL = styleURL.mgl_URLByStandardizingScheme;
     self.style = nil;
-    _mbglMap->setStyleURL([[styleURL absoluteString] UTF8String]);
+    _mbglMap->getStyle().loadURL([[styleURL absoluteString] UTF8String]);
 }
 
 - (IBAction)reloadStyle:(__unused id)sender {
     NSURL *styleURL = self.styleURL;
-    _mbglMap->setStyleURL("");
+    _mbglMap->getStyle().loadURL("");
     self.styleURL = styleURL;
 }
 
 - (mbgl::Map *)mbglMap
 {
     return _mbglMap;
+}
+
+- (mbgl::Renderer *)renderer
+{
+    return _rendererFrontend->getRenderer();
 }
 
 - (void)commonInit
@@ -427,10 +388,9 @@ public:
     self.accessibilityTraits = UIAccessibilityTraitAllowsDirectInteraction | UIAccessibilityTraitAdjustable;
     _accessibilityCompassFormatter = [[MGLCompassDirectionFormatter alloc] init];
     _accessibilityCompassFormatter.unitStyle = NSFormattingUnitStyleLong;
-
     self.backgroundColor = [UIColor clearColor];
     self.clipsToBounds = YES;
-
+    if (@available(iOS 11.0, *)) { self.accessibilityIgnoresInvertColors = YES; }
     // setup mbgl view
     _mbglView = new MBGLView(self);
 
@@ -443,8 +403,10 @@ public:
     mbgl::DefaultFileSource *mbglFileSource = [MGLOfflineStorage sharedOfflineStorage].mbglFileSource;
     const float scaleFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ? [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
     _mbglThreadPool = mbgl::sharedThreadPool();
-    _mbglMap = new mbgl::Map(*_mbglView, self.size, scaleFactor, *mbglFileSource, *_mbglThreadPool, mbgl::MapMode::Continuous, mbgl::GLContextMode::Unique, mbgl::ConstrainMode::None, mbgl::ViewportMode::Default);
-    [self validateTileCacheSize];
+    
+    auto renderer = std::make_unique<mbgl::Renderer>(*_mbglView, scaleFactor, *mbglFileSource, *_mbglThreadPool, mbgl::GLContextMode::Unique);
+    _rendererFrontend = std::make_unique<MGLRenderFrontend>(std::move(renderer), self, *_mbglView);
+    _mbglMap = new mbgl::Map(*_rendererFrontend, *_mbglView, self.size, scaleFactor, *mbglFileSource, *_mbglThreadPool, mbgl::MapMode::Continuous, mbgl::ConstrainMode::None, mbgl::ViewportMode::Default);
 
     // start paused if in IB
     if (_isTargetingInterfaceBuilder || background) {
@@ -479,9 +441,6 @@ public:
     _logoView.accessibilityTraits = UIAccessibilityTraitStaticText;
     _logoView.accessibilityLabel = NSLocalizedStringWithDefaultValue(@"LOGO_A11Y_LABEL", nil, nil, @"Mapbox", @"Accessibility label");
     _logoView.translatesAutoresizingMaskIntoConstraints = NO;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-    if ([_logoView respondsToSelector:@selector(accessibilityIgnoresInvertColors)]) { _logoView.accessibilityIgnoresInvertColors = YES; }
-#endif
     [self addSubview:_logoView];
     _logoViewConstraints = [NSMutableArray array];
 
@@ -490,10 +449,7 @@ public:
     _attributionButton = [UIButton buttonWithType:UIButtonTypeInfoLight];
     _attributionButton.accessibilityLabel = NSLocalizedStringWithDefaultValue(@"INFO_A11Y_LABEL", nil, nil, @"About this map", @"Accessibility label");
     _attributionButton.accessibilityHint = NSLocalizedStringWithDefaultValue(@"INFO_A11Y_HINT", nil, nil, @"Shows credits, a feedback form, and more", @"Accessibility hint");
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-    if ([_attributionButton respondsToSelector:@selector(accessibilityIgnoresInvertColors)])  { _attributionButton.accessibilityIgnoresInvertColors = YES; }
-#endif
-    [_attributionButton addTarget:self action:@selector(showAttribution) forControlEvents:UIControlEventTouchUpInside];
+    [_attributionButton addTarget:self action:@selector(showAttribution:) forControlEvents:UIControlEventTouchUpInside];
     _attributionButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_attributionButton];
     _attributionButtonConstraints = [NSMutableArray array];
@@ -509,9 +465,6 @@ public:
     _compassView.accessibilityLabel = NSLocalizedStringWithDefaultValue(@"COMPASS_A11Y_LABEL", nil, nil, @"Compass", @"Accessibility label");
     _compassView.accessibilityHint = NSLocalizedStringWithDefaultValue(@"COMPASS_A11Y_HINT", nil, nil, @"Rotates the map to face due north", @"Accessibility hint");
     _compassView.translatesAutoresizingMaskIntoConstraints = NO;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-    if ([_compassView respondsToSelector:@selector(accessibilityIgnoresInvertColors)]) { _compassView.accessibilityIgnoresInvertColors = YES; }
-#endif
     [self addSubview:_compassView];
     _compassViewConstraints = [NSMutableArray array];
     
@@ -519,9 +472,6 @@ public:
     //
     _scaleBar = [[MGLScaleBar alloc] init];
     _scaleBar.translatesAutoresizingMaskIntoConstraints = NO;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-    if ([_scaleBar respondsToSelector:@selector(accessibilityIgnoresInvertColors)]) { _scaleBar.accessibilityIgnoresInvertColors = YES; }
-#endif
     [self addSubview:_scaleBar];
     _scaleBarConstraints = [NSMutableArray array];
     
@@ -641,9 +591,7 @@ public:
     _glView.contentScaleFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ? [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
     _glView.layer.opaque = _opaque;
     _glView.delegate = self;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
-    if ([_glView respondsToSelector:@selector(accessibilityIgnoresInvertColors)]) { _glView.accessibilityIgnoresInvertColors = YES; }
-#endif
+
     [_glView bindDrawable];
     [self insertSubview:_glView atIndex:0];
     _glView.contentMode = UIViewContentModeCenter;
@@ -755,48 +703,10 @@ public:
 {
     MGLAssertIsMainThread();
 
-    _mbglMap->onLowMemory();
+    _rendererFrontend->onLowMemory();
 }
 
 #pragma mark - Layout -
-
-- (void)setFrame:(CGRect)frame
-{
-    [super setFrame:frame];
-    
-    if ( ! CGRectEqualToRect(frame, self.frame))
-    {
-        [self validateTileCacheSize];
-    }
-}
-
-- (void)setBounds:(CGRect)bounds
-{
-    [super setBounds:bounds];
-    
-    if ( ! CGRectEqualToRect(bounds, self.bounds))
-    {
-        [self validateTileCacheSize];
-    }
-}
-
-- (void)validateTileCacheSize
-{
-    if ( ! _mbglMap)
-    {
-        return;
-    }
-
-    CGFloat zoomFactor   = self.maximumZoomLevel - self.minimumZoomLevel + 1;
-    CGFloat cpuFactor    = [NSProcessInfo processInfo].processorCount;
-    CGFloat memoryFactor = (CGFloat)[NSProcessInfo processInfo].physicalMemory / 1000 / 1000 / 1000;
-    CGFloat sizeFactor   = (CGRectGetWidth(self.bounds)  / mbgl::util::tileSize) *
-                           (CGRectGetHeight(self.bounds) / mbgl::util::tileSize);
-
-    NSUInteger cacheSize = zoomFactor * cpuFactor * memoryFactor * sizeFactor * 0.5;
-
-    _mbglMap->setSourceTileCacheSize(cacheSize);
-}
 
 + (BOOL)requiresConstraintBasedLayout
 {
@@ -844,7 +754,7 @@ public:
                                          toItem:viewController.topLayoutGuide
                                       attribute:NSLayoutAttributeBottom
                                      multiplier:1.0
-                                       constant:5.0 + self.contentInset.top]];
+                                       constant:5.0]];
     }
     [self.compassViewConstraints addObject:
      [NSLayoutConstraint constraintWithItem:self.compassView
@@ -854,6 +764,7 @@ public:
                                   attribute:NSLayoutAttributeTop
                                  multiplier:1.0
                                    constant:5.0 + self.contentInset.top]];
+    
     [self.compassViewConstraints addObject:
      [NSLayoutConstraint constraintWithItem:self
                                   attribute:NSLayoutAttributeTrailing
@@ -878,7 +789,7 @@ public:
                                          toItem:viewController.topLayoutGuide
                                       attribute:NSLayoutAttributeBottom
                                      multiplier:1.0
-                                       constant:5.0 + self.contentInset.top]];
+                                       constant:5.0]];
     }
     [self.scaleBarConstraints addObject:
      [NSLayoutConstraint constraintWithItem:self.scaleBar
@@ -982,8 +893,10 @@ public:
         // compass view
         [self removeConstraints:self.compassViewConstraints];
         [self.compassViewConstraints removeAllObjects];
-        [self.compassViewConstraints addObject:[self.compassView.topAnchor constraintEqualToAnchor:safeAreaLayoutGuide.topAnchor
-                                                                                          constant:5.0 + self.contentInset.top]];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpartial-availability"
+            [self.compassViewConstraints addObject:[self.compassView.topAnchor constraintEqualToSystemSpacingBelowAnchor:safeAreaLayoutGuide.topAnchor multiplier:1]];
+#pragma clang diagnostic pop
         [self.compassViewConstraints addObject:[safeAreaLayoutGuide.rightAnchor constraintEqualToAnchor:self.compassView.rightAnchor
                                                                                           constant:8.0 + self.contentInset.right]];
         [self addConstraints:self.compassViewConstraints];
@@ -991,8 +904,10 @@ public:
         // scale bar view
         [self removeConstraints:self.scaleBarConstraints];
         [self.scaleBarConstraints removeAllObjects];
-        [self.scaleBarConstraints addObject:[self.scaleBar.topAnchor constraintEqualToAnchor:safeAreaLayoutGuide.topAnchor
-                                                                                    constant:5.0 + self.contentInset.top]];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpartial-availability"
+        [self.scaleBarConstraints addObject:[self.scaleBar.topAnchor constraintEqualToSystemSpacingBelowAnchor:safeAreaLayoutGuide.topAnchor multiplier:1]];
+#pragma clang diagnostic pop
         [self.scaleBarConstraints addObject:[self.scaleBar.leftAnchor constraintEqualToAnchor:safeAreaLayoutGuide.leftAnchor
                                                                                      constant:8.0 + self.contentInset.left]];
         [self addConstraints:self.scaleBarConstraints];
@@ -1037,12 +952,9 @@ public:
 // This is the delegate of the GLKView object's display call.
 - (void)glkView:(__unused GLKView *)view drawInRect:(__unused CGRect)rect
 {
-    if ( ! self.dormant)
+    if ( ! self.dormant || ! _rendererFrontend)
     {
-        // The OpenGL implementation automatically enables the OpenGL context for us.
-        mbgl::BackendScope scope { *_mbglView, mbgl::BackendScope::ScopeType::Implicit };
-
-        _mbglMap->render(*_mbglView);
+        _rendererFrontend->render();
 
         [self updateUserLocationAnnotationView];
     }
@@ -1051,6 +963,14 @@ public:
 // This gets called when the view dimension changes, e.g. because the device is being rotated.
 - (void)layoutSubviews
 {
+    // Calling this here instead of in the scale bar itself because if this is done in the
+    // scale bar instance, it triggers a call to this this `layoutSubviews` method that
+    // calls `_mbglMap->setSize()` just below that triggers rendering update which triggers
+    // another scale bar update which causes a rendering update loop and a major performace
+    // degradation. The only time the scale bar's intrinsic content size _must_ invalidated
+    // is here as a reaction to this object's view dimension changes.
+    [self.scaleBar invalidateIntrinsicContentSize];
+    
     [super layoutSubviews];
 
     [self adjustContentInset];
@@ -1141,7 +1061,7 @@ public:
     }
 
     // Compass, logo and attribution button constraints needs to be updated.
-    [self setNeedsLayout];
+    [self setNeedsUpdateConstraints];
 }
 
 /// Returns the frame of inset content within the map view.
@@ -1652,7 +1572,9 @@ public:
     id<MGLAnnotation>annotation = [self annotationForGestureRecognizer:singleTap persistingResults:YES];
     if(annotation)
     {
-        [self selectAnnotation:annotation animated:YES];
+        CGPoint calloutPoint = [singleTap locationInView:self];
+        CGRect positionRect = [self positioningRectForAnnotation:annotation defaultCalloutPoint:calloutPoint];
+        [self selectAnnotation:annotation animated:YES calloutPositioningRect:positionRect];
     }
     else
     {
@@ -1900,18 +1822,17 @@ public:
     return panCamera;
 }
 
-- (MGLMapCamera *)cameraByZoomingToZoomLevel:(double)zoom  aroundAnchorPoint:(CGPoint)anchorPoint
+- (MGLMapCamera *)cameraByZoomingToZoomLevel:(double)zoom aroundAnchorPoint:(CGPoint)anchorPoint
 {
-    mbgl::EdgeInsets padding = MGLEdgeInsetsFromNSEdgeInsets(self.contentInset);
-    mbgl::CameraOptions currentCameraOptions = _mbglMap->getCameraOptions(padding);
-    MGLMapCamera *camera;
-    
     mbgl::ScreenCoordinate anchor = mbgl::ScreenCoordinate { anchorPoint.x, anchorPoint.y };
+    mbgl::EdgeInsets padding = mbgl::EdgeInsets(anchor.y, anchor.x, self.size.height - anchor.y, self.size.width - anchor.x);
+    mbgl::CameraOptions currentCameraOptions = _mbglMap->getCameraOptions(padding);
+
     currentCameraOptions.zoom = mbgl::util::clamp(zoom, self.minimumZoomLevel, self.maximumZoomLevel);
     currentCameraOptions.anchor = anchor;
-    camera = [self cameraForCameraOptions:currentCameraOptions];
+    MGLCoordinateBounds bounds = MGLCoordinateBoundsFromLatLngBounds(_mbglMap->latLngBoundsForCamera(currentCameraOptions));
     
-    return camera;
+    return [self cameraThatFitsCoordinateBounds:bounds];
 }
 
 - (MGLMapCamera *)cameraByRotatingToDirection:(CLLocationDirection)degrees aroundAnchorPoint:(CGPoint)anchorPoint
@@ -1974,7 +1895,7 @@ public:
     return [self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)];
 }
 
-- (void)calloutViewClicked:(__unused SMCalloutView *)calloutView
+- (void)calloutViewClicked:(__unused MGLSMCalloutView *)calloutView
 {
     if ([self.delegate respondsToSelector:@selector(mapView:tapOnCalloutForAnnotation:)])
     {
@@ -2044,14 +1965,14 @@ public:
 
     return ([validSimultaneousGestures containsObject:gestureRecognizer] && [validSimultaneousGestures containsObject:otherGestureRecognizer]);
 }
-             
+
 - (CLLocationDegrees)angleBetweenPoints:(CGPoint)west east:(CGPoint)east
 {
     CGFloat slope = (west.y - east.y) / (west.x - east.x);
-                 
+    
     CGFloat angle = atan(fabs(slope));
     CLLocationDegrees degrees = MGLDegreesFromRadians(angle);
-                 
+    
     return degrees;
 }
 
@@ -2089,9 +2010,9 @@ public:
 
 #pragma mark - Attribution -
 
-- (void)showAttribution
+- (void)showAttribution:(__unused id)sender
 {
-    NSString *title = NSLocalizedStringWithDefaultValue(@"SDK_NAME", nil, nil, @"Mapbox iOS SDK", @"Action sheet title");
+    NSString *title = NSLocalizedStringWithDefaultValue(@"SDK_NAME", nil, nil, @"Mapbox Maps SDK for iOS", @"Action sheet title");
     UIAlertController *attributionController = [UIAlertController alertControllerWithTitle:title
                                                                                    message:nil
                                                                             preferredStyle:UIAlertControllerStyleActionSheet];
@@ -2366,10 +2287,11 @@ public:
 
 - (void)resetPosition
 {
-    CGFloat pitch = _mbglMap->getDefaultPitch();
-    CLLocationDirection heading = mbgl::util::wrap(_mbglMap->getDefaultBearing(), 0., 360.);
-    CLLocationDistance distance = MGLAltitudeForZoomLevel(_mbglMap->getDefaultZoom(), pitch, 0, self.frame.size);
-    self.camera = [MGLMapCamera cameraLookingAtCenterCoordinate:MGLLocationCoordinate2DFromLatLng(_mbglMap->getDefaultLatLng())
+    auto camera = _mbglMap->getStyle().getDefaultCamera();
+    CGFloat pitch = *camera.pitch;
+    CLLocationDirection heading = mbgl::util::wrap(*camera.angle, 0., 360.);
+    CLLocationDistance distance = MGLAltitudeForZoomLevel(*camera.zoom, pitch, 0, self.frame.size);
+    self.camera = [MGLMapCamera cameraLookingAtCenterCoordinate:MGLLocationCoordinate2DFromLatLng(*camera.center)
                                                    fromDistance:distance
                                                           pitch:pitch
                                                         heading:heading];
@@ -2377,7 +2299,7 @@ public:
 
 - (void)emptyMemoryCache
 {
-    _mbglMap->onLowMemory();
+    _rendererFrontend->onLowMemory();
 }
 
 - (void)setZoomEnabled:(BOOL)zoomEnabled
@@ -2411,8 +2333,61 @@ public:
 
 - (NSString *)accessibilityValue
 {
+    NSMutableArray *facts = [NSMutableArray array];
+    
     double zoomLevel = round(self.zoomLevel + 1);
-    return [NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"MAP_A11Y_VALUE", nil, nil, @"Zoom %dx\n%ld annotation(s) visible", @"Map accessibility value"), (int)zoomLevel, (long)self.accessibilityAnnotationCount];
+    [facts addObject:[NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"MAP_A11Y_VALUE_ZOOM", nil, nil, @"Zoom %dx.", @"Map accessibility value; {zoom level}"), (int)zoomLevel]];
+    
+    NSInteger annotationCount = self.accessibilityAnnotationCount;
+    if (annotationCount) {
+        [facts addObject:[NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"MAP_A11Y_VALUE_ANNOTATIONS", nil, nil, @"%ld annotation(s) visible.", @"Map accessibility value; {number of visible annotations}"), (long)self.accessibilityAnnotationCount]];
+    }
+    
+    NSArray *placeFeatures = self.visiblePlaceFeatures;
+    if (placeFeatures.count) {
+        NSMutableArray *placesArray = [NSMutableArray arrayWithCapacity:placeFeatures.count];
+        NSMutableSet *placesSet = [NSMutableSet setWithCapacity:placeFeatures.count];
+        for (id <MGLFeature> placeFeature in placeFeatures.reverseObjectEnumerator) {
+            NSString *name = [placeFeature attributeForKey:@"name"];
+            if (![placesSet containsObject:name]) {
+                [placesArray addObject:name];
+                [placesSet addObject:name];
+            }
+            if (placesArray.count >= 3) {
+                break;
+            }
+        }
+        NSString *placesString = [placesArray componentsJoinedByString:NSLocalizedStringWithDefaultValue(@"LIST_SEPARATOR", nil, nil, @", ", @"List separator")];
+        [facts addObject:[NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"MAP_A11Y_VALUE_PLACES", nil, nil, @"Places visible: %@.", @"Map accessibility value; {list of visible places}"), placesString]];
+    }
+    
+    NSArray *roadFeatures = self.visibleRoadFeatures;
+    if (roadFeatures.count) {
+        [facts addObject:[NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"MAP_A11Y_VALUE_ROADS", nil, nil, @"%ld road(s) visible.", @"Map accessibility value; {number of visible roads}"), roadFeatures.count]];
+    }
+    
+    NSString *value = [facts componentsJoinedByString:@" "];
+    return value;
+}
+
+- (NS_ARRAY_OF(id <MGLFeature>) *)visiblePlaceFeatures
+{
+    if (!_visiblePlaceFeatures)
+    {
+        NSArray *placeStyleLayerIdentifiers = [self.style.placeStyleLayers valueForKey:@"identifier"];
+        _visiblePlaceFeatures = [self visibleFeaturesInRect:self.bounds inStyleLayersWithIdentifiers:[NSSet setWithArray:placeStyleLayerIdentifiers]];
+    }
+    return _visiblePlaceFeatures;
+}
+
+- (NS_ARRAY_OF(id <MGLFeature>) *)visibleRoadFeatures
+{
+    if (!_visibleRoadFeatures)
+    {
+        NSArray *roadStyleLayerIdentifiers = [self.style.roadStyleLayers valueForKey:@"identifier"];
+        _visibleRoadFeatures = [self visibleFeaturesInRect:self.bounds inStyleLayersWithIdentifiers:[NSSet setWithArray:roadStyleLayerIdentifiers]];
+    }
+    return _visibleRoadFeatures;
 }
 
 - (CGRect)accessibilityFrame
@@ -2446,14 +2421,9 @@ public:
 {
     if (self.calloutViewForSelectedAnnotation)
     {
-        return 2 /* selectedAnnotationCalloutView, mapViewProxyAccessibilityElement */;
+        return 2 /* calloutViewForSelectedAnnotation, mapViewProxyAccessibilityElement */;
     }
-    NSInteger count = self.accessibilityAnnotationCount + 2 /* compass, attributionButton */;
-    if (self.userLocationAnnotationView)
-    {
-        count++;
-    }
-    return count;
+    return !!self.userLocationAnnotationView + self.accessibilityAnnotationCount + self.visiblePlaceFeatures.count + self.visibleRoadFeatures.count + 2 /* compass, attributionButton */;
 }
 
 - (NSInteger)accessibilityAnnotationCount
@@ -2478,67 +2448,123 @@ public:
         }
         return nil;
     }
-    std::vector<MGLAnnotationTag> visibleAnnotations = [self annotationTagsInRect:self.bounds];
-
-    // Ornaments
-    if (index == 0)
+    
+    // Compass
+    NSUInteger compassIndex = 0;
+    if (index == compassIndex)
     {
         return self.compassView;
     }
-    if ( ! self.userLocationAnnotationView)
-    {
-        index++;
-    }
-    else if (index == 1)
+    
+    // User location annotation
+    NSRange userLocationAnnotationRange = NSMakeRange(compassIndex + 1, !!self.userLocationAnnotationView);
+    if (NSLocationInRange(index, userLocationAnnotationRange))
     {
         return self.userLocationAnnotationView;
     }
-    if (index > 0 && (NSUInteger)index == visibleAnnotations.size() + 2 /* compass, userLocationAnnotationView */)
-    {
-        return self.attributionButton;
-    }
-
-    std::sort(visibleAnnotations.begin(), visibleAnnotations.end());
+    
     CGPoint centerPoint = self.contentCenter;
     if (self.userTrackingMode != MGLUserTrackingModeNone)
     {
         centerPoint = self.userLocationAnnotationViewCenter;
     }
-    CLLocationCoordinate2D currentCoordinate = [self convertPoint:centerPoint toCoordinateFromView:self];
-    std::sort(visibleAnnotations.begin(), visibleAnnotations.end(), [&](const MGLAnnotationTag tagA, const MGLAnnotationTag tagB) {
-        CLLocationCoordinate2D coordinateA = [[self annotationWithTag:tagA] coordinate];
-        CLLocationCoordinate2D coordinateB = [[self annotationWithTag:tagB] coordinate];
-        CLLocationDegrees deltaA = hypot(coordinateA.latitude - currentCoordinate.latitude,
-                                         coordinateA.longitude - currentCoordinate.longitude);
-        CLLocationDegrees deltaB = hypot(coordinateB.latitude - currentCoordinate.latitude,
-                                         coordinateB.longitude - currentCoordinate.longitude);
-        return deltaA < deltaB;
-    });
-
-    NSUInteger annotationIndex = MGLAnnotationTagNotFound;
-    if (index >= 0 && (NSUInteger)(index - 2) < visibleAnnotations.size())
+    
+    // Visible annotations
+    std::vector<MGLAnnotationTag> visibleAnnotations = [self annotationTagsInRect:self.bounds];
+    NSRange visibleAnnotationRange = NSMakeRange(NSMaxRange(userLocationAnnotationRange), visibleAnnotations.size());
+    if (NSLocationInRange(index, visibleAnnotationRange))
     {
-        annotationIndex = index - 2 /* compass, userLocationAnnotationView */;
+        std::sort(visibleAnnotations.begin(), visibleAnnotations.end());
+        std::sort(visibleAnnotations.begin(), visibleAnnotations.end(), [&](const MGLAnnotationTag tagA, const MGLAnnotationTag tagB) {
+            CLLocationCoordinate2D coordinateA = [[self annotationWithTag:tagA] coordinate];
+            CLLocationCoordinate2D coordinateB = [[self annotationWithTag:tagB] coordinate];
+            CGPoint pointA = [self convertCoordinate:coordinateA toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:coordinateB toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return deltaA < deltaB;
+        });
+        
+        NSUInteger annotationIndex = index - visibleAnnotationRange.location;
+        MGLAnnotationTag annotationTag = visibleAnnotations[annotationIndex];
+        NSAssert(annotationTag != MGLAnnotationTagNotFound, @"Can’t get accessibility element for nonexistent or invisible annotation at index %li.", (long)index);
+        return [self accessibilityElementForAnnotationWithTag:annotationTag];
     }
-    MGLAnnotationTag annotationTag = visibleAnnotations[annotationIndex];
-    NSAssert(annotationTag != MGLAnnotationTagNotFound, @"Can’t get accessibility element for nonexistent or invisible annotation at index %li.", (long)index);
+    
+    // Visible place features
+    NSArray *visiblePlaceFeatures = self.visiblePlaceFeatures;
+    NSRange visiblePlaceFeatureRange = NSMakeRange(NSMaxRange(visibleAnnotationRange), visiblePlaceFeatures.count);
+    if (NSLocationInRange(index, visiblePlaceFeatureRange))
+    {
+        visiblePlaceFeatures = [visiblePlaceFeatures sortedArrayUsingComparator:^NSComparisonResult(id <MGLFeature> _Nonnull featureA, id <MGLFeature> _Nonnull featureB) {
+            CGPoint pointA = [self convertCoordinate:featureA.coordinate toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:featureB.coordinate toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return [@(deltaA) compare:@(deltaB)];
+        }];
+        
+        id <MGLFeature> feature = visiblePlaceFeatures[index - visiblePlaceFeatureRange.location];
+        return [self accessibilityElementForPlaceFeature:feature];
+    }
+    
+    // Visible road features
+    NSArray *visibleRoadFeatures = self.visibleRoadFeatures;
+    NSRange visibleRoadFeatureRange = NSMakeRange(NSMaxRange(visiblePlaceFeatureRange), visibleRoadFeatures.count);
+    if (NSLocationInRange(index, visibleRoadFeatureRange))
+    {
+        visibleRoadFeatures = [visibleRoadFeatures sortedArrayUsingComparator:^NSComparisonResult(id <MGLFeature> _Nonnull featureA, id <MGLFeature> _Nonnull featureB) {
+            CGPoint pointA = [self convertCoordinate:featureA.coordinate toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:featureB.coordinate toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return [@(deltaA) compare:@(deltaB)];
+        }];
+        
+        id <MGLFeature> feature = visibleRoadFeatures[index - visibleRoadFeatureRange.location];
+        return [self accessibilityElementForRoadFeature:feature];
+    }
+    
+    // Attribution button
+    NSUInteger attributionButtonIndex = NSMaxRange(visibleRoadFeatureRange);
+    if (index == attributionButtonIndex)
+    {
+        return self.attributionButton;
+    }
+    
+    NSAssert(NO, @"Index %ld not in recognized accessibility element ranges. "
+             @"User location annotation range: %@; visible annotation range: %@; "
+             @"visible place feature range: %@; visible road feature range: %@.",
+             (long)index, NSStringFromRange(userLocationAnnotationRange),
+             NSStringFromRange(visibleAnnotationRange), NSStringFromRange(visiblePlaceFeatureRange),
+             NSStringFromRange(visibleRoadFeatureRange));
+    return nil;
+}
+
+/**
+ Returns an accessibility element corresponding to a visible annotation with the given tag.
+ 
+ @param annotationTag Tag of the annotation represented by the accessibility element to return.
+ */
+- (id)accessibilityElementForAnnotationWithTag:(MGLAnnotationTag)annotationTag
+{
     NSAssert(_annotationContextsByAnnotationTag.count(annotationTag), @"Missing annotation for tag %u.", annotationTag);
     MGLAnnotationContext &annotationContext = _annotationContextsByAnnotationTag.at(annotationTag);
     id <MGLAnnotation> annotation = annotationContext.annotation;
-
+    
     // Let the annotation view serve as its own accessibility element.
     MGLAnnotationView *annotationView = annotationContext.annotationView;
     if (annotationView && annotationView.superview)
     {
         return annotationView;
     }
-
+    
     // Lazily create an accessibility element for the found annotation.
     if ( ! annotationContext.accessibilityElement)
     {
         annotationContext.accessibilityElement = [[MGLAnnotationAccessibilityElement alloc] initWithAccessibilityContainer:self tag:annotationTag];
     }
-
+    
     // Update the accessibility element.
     MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithTag:annotationTag];
     CGRect annotationFrame = [self frameOfImage:annotationImage.image centeredAtCoordinate:annotation.coordinate];
@@ -2549,8 +2575,7 @@ public:
     annotationFrame = CGRectUnion(annotationFrame, minimumFrame);
     CGRect screenRect = UIAccessibilityConvertFrameToScreenCoordinates(annotationFrame, self);
     annotationContext.accessibilityElement.accessibilityFrame = screenRect;
-    annotationContext.accessibilityElement.accessibilityHint = NSLocalizedStringWithDefaultValue(@"ANNOTATION_A11Y_HINT", nil, nil, @"Shows more info", @"Accessibility hint");
-
+    
     if ([annotation respondsToSelector:@selector(title)])
     {
         annotationContext.accessibilityElement.accessibilityLabel = annotation.title;
@@ -2559,8 +2584,112 @@ public:
     {
         annotationContext.accessibilityElement.accessibilityValue = annotation.subtitle;
     }
-
+    
     return annotationContext.accessibilityElement;
+}
+
+/**
+ Returns an accessibility element corresponding to the given place feature.
+ 
+ @param feature The place feature represented by the accessibility element.
+ */
+- (id)accessibilityElementForPlaceFeature:(id <MGLFeature>)feature
+{
+    if (!_featureAccessibilityElements)
+    {
+        _featureAccessibilityElements = [NSMutableSet set];
+    }
+    
+    MGLFeatureAccessibilityElement *element = [_featureAccessibilityElements objectsPassingTest:^BOOL(MGLFeatureAccessibilityElement * _Nonnull element, BOOL * _Nonnull stop) {
+        return element.feature.identifier && ![element.feature.identifier isEqual:@0] && [element.feature.identifier isEqual:feature.identifier];
+    }].anyObject;
+    if (!element)
+    {
+        element = [[MGLPlaceFeatureAccessibilityElement alloc] initWithAccessibilityContainer:self feature:feature];
+    }
+    CGPoint center = [self convertCoordinate:feature.coordinate toPointToView:self];
+    CGRect annotationFrame = CGRectInset({center, CGSizeZero}, -MGLAnnotationAccessibilityElementMinimumSize.width / 2, -MGLAnnotationAccessibilityElementMinimumSize.width / 2);
+    CGRect screenRect = UIAccessibilityConvertFrameToScreenCoordinates(annotationFrame, self);
+    element.accessibilityFrame = screenRect;
+    
+    [_featureAccessibilityElements addObject:element];
+    
+    return element;
+}
+
+/**
+ Returns an accessibility element corresponding to the given road feature.
+ 
+ @param feature The road feature represented by the accessibility element.
+ */
+- (id)accessibilityElementForRoadFeature:(id <MGLFeature>)feature
+{
+    if (!_featureAccessibilityElements)
+    {
+        _featureAccessibilityElements = [NSMutableSet set];
+    }
+    
+    MGLFeatureAccessibilityElement *element = [_featureAccessibilityElements objectsPassingTest:^BOOL(MGLFeatureAccessibilityElement * _Nonnull element, BOOL * _Nonnull stop) {
+        return element.feature.identifier && ![element.feature.identifier isEqual:@0] && [element.feature.identifier isEqual:feature.identifier];
+    }].anyObject;
+    if (!element)
+    {
+        element = [[MGLRoadFeatureAccessibilityElement alloc] initWithAccessibilityContainer:self feature:feature];
+    }
+    
+    UIBezierPath *path;
+    if ([feature isKindOfClass:[MGLPointFeature class]])
+    {
+        CGPoint center = [self convertCoordinate:feature.coordinate toPointToView:self];
+        CGRect annotationFrame = CGRectInset({center, CGSizeZero}, -MGLAnnotationAccessibilityElementMinimumSize.width / 2, -MGLAnnotationAccessibilityElementMinimumSize.width / 2);
+        CGRect screenRect = UIAccessibilityConvertFrameToScreenCoordinates(annotationFrame, self);
+        element.accessibilityFrame = screenRect;
+    }
+    else if ([feature isKindOfClass:[MGLPolylineFeature class]])
+    {
+        path = [self pathOfPolyline:(MGLPolyline *)feature];
+    }
+    else if ([feature isKindOfClass:[MGLMultiPolylineFeature class]])
+    {
+        path = [UIBezierPath bezierPath];
+        for (MGLPolyline *polyline in [(MGLMultiPolylineFeature *)feature polylines])
+        {
+            [path appendPath:[self pathOfPolyline:polyline]];
+        }
+    }
+    
+    if (path)
+    {
+        CGPathRef strokedCGPath = CGPathCreateCopyByStrokingPath(path.CGPath, NULL, MGLAnnotationAccessibilityElementMinimumSize.width, kCGLineCapButt, kCGLineJoinMiter, 0);
+        UIBezierPath *strokedPath = [UIBezierPath bezierPathWithCGPath:strokedCGPath];
+        CGPathRelease(strokedCGPath);
+        UIBezierPath *screenPath = UIAccessibilityConvertPathToScreenCoordinates(strokedPath, self);
+        element.accessibilityPath = screenPath;
+    }
+    
+    [_featureAccessibilityElements addObject:element];
+    
+    return element;
+}
+
+- (UIBezierPath *)pathOfPolyline:(MGLPolyline *)polyline
+{
+    CLLocationCoordinate2D *coordinates = polyline.coordinates;
+    NSUInteger pointCount = polyline.pointCount;
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    for (NSUInteger i = 0; i < pointCount; i++)
+    {
+        CGPoint point = [self convertCoordinate:coordinates[i] toPointToView:self];
+        if (i)
+        {
+            [path addLineToPoint:point];
+        }
+        else
+        {
+            [path moveToPoint:point];
+        }
+    }
+    return path;
 }
 
 - (NSInteger)indexOfAccessibilityElement:(id)element
@@ -2570,17 +2699,30 @@ public:
         return [@[self.calloutViewForSelectedAnnotation, self.mapViewProxyAccessibilityElement]
                 indexOfObject:element];
     }
+    
+    // Compass
+    NSUInteger compassIndex = 0;
     if (element == self.compassView)
     {
-        return 0;
+        return compassIndex;
     }
+    
+    // User location annotation
+    NSRange userLocationAnnotationRange = NSMakeRange(compassIndex + 1, !!self.userLocationAnnotationView);
     if (element == self.userLocationAnnotationView)
     {
-        return 1;
+        return userLocationAnnotationRange.location;
     }
-
+    
+    CGPoint centerPoint = self.contentCenter;
+    if (self.userTrackingMode != MGLUserTrackingModeNone)
+    {
+        centerPoint = self.userLocationAnnotationViewCenter;
+    }
+    
+    // Visible annotations
     std::vector<MGLAnnotationTag> visibleAnnotations = [self annotationTagsInRect:self.bounds];
-
+    NSRange visibleAnnotationRange = NSMakeRange(NSMaxRange(userLocationAnnotationRange), visibleAnnotations.size());
     MGLAnnotationTag tag = MGLAnnotationTagNotFound;
     if ([element isKindOfClass:[MGLAnnotationView class]])
     {
@@ -2591,22 +2733,92 @@ public:
     {
         tag = [(MGLAnnotationAccessibilityElement *)element tag];
     }
-    else if (element == self.attributionButton)
+    
+    if (tag != MGLAnnotationTagNotFound)
     {
-        return !!self.userLocationAnnotationView + visibleAnnotations.size();
+        std::sort(visibleAnnotations.begin(), visibleAnnotations.end());
+        std::sort(visibleAnnotations.begin(), visibleAnnotations.end(), [&](const MGLAnnotationTag tagA, const MGLAnnotationTag tagB) {
+            CLLocationCoordinate2D coordinateA = [[self annotationWithTag:tagA] coordinate];
+            CLLocationCoordinate2D coordinateB = [[self annotationWithTag:tagB] coordinate];
+            CGPoint pointA = [self convertCoordinate:coordinateA toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:coordinateB toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return deltaA < deltaB;
+        });
+        
+        auto foundElement = std::find(visibleAnnotations.begin(), visibleAnnotations.end(), tag);
+        if (foundElement == visibleAnnotations.end())
+        {
+            return NSNotFound;
+        }
+        return visibleAnnotationRange.location + std::distance(visibleAnnotations.begin(), foundElement);
     }
-    else
+    
+    // Visible place features
+    NSArray *visiblePlaceFeatures = self.visiblePlaceFeatures;
+    NSRange visiblePlaceFeatureRange = NSMakeRange(NSMaxRange(visibleAnnotationRange), visiblePlaceFeatures.count);
+    if ([element isKindOfClass:[MGLPlaceFeatureAccessibilityElement class]])
     {
-        return NSNotFound;
+        visiblePlaceFeatures = [visiblePlaceFeatures sortedArrayUsingComparator:^NSComparisonResult(id <MGLFeature> _Nonnull featureA, id <MGLFeature> _Nonnull featureB) {
+            CGPoint pointA = [self convertCoordinate:featureA.coordinate toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:featureB.coordinate toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return [@(deltaA) compare:@(deltaB)];
+        }];
+        
+        id <MGLFeature> feature = [(MGLPlaceFeatureAccessibilityElement *)element feature];
+        NSUInteger featureIndex = [visiblePlaceFeatures indexOfObject:feature];
+        if (featureIndex == NSNotFound)
+        {
+            featureIndex = [visiblePlaceFeatures indexOfObjectPassingTest:^BOOL (id <MGLFeature> _Nonnull visibleFeature, NSUInteger idx, BOOL * _Nonnull stop) {
+                return visibleFeature.identifier && ![visibleFeature.identifier isEqual:@0] && [visibleFeature.identifier isEqual:feature.identifier];
+            }];
+        }
+        if (featureIndex == NSNotFound)
+        {
+            return NSNotFound;
+        }
+        return visiblePlaceFeatureRange.location + featureIndex;
     }
-
-    std::sort(visibleAnnotations.begin(), visibleAnnotations.end());
-    auto foundElement = std::find(visibleAnnotations.begin(), visibleAnnotations.end(), tag);
-    if (foundElement == visibleAnnotations.end())
+    
+    // Visible road features
+    NSArray *visibleRoadFeatures = self.visibleRoadFeatures;
+    NSRange visibleRoadFeatureRange = NSMakeRange(NSMaxRange(visiblePlaceFeatureRange), visibleRoadFeatures.count);
+    if ([element isKindOfClass:[MGLRoadFeatureAccessibilityElement class]])
     {
-        return NSNotFound;
+        visibleRoadFeatures = [visibleRoadFeatures sortedArrayUsingComparator:^NSComparisonResult(id <MGLFeature> _Nonnull featureA, id <MGLFeature> _Nonnull featureB) {
+            CGPoint pointA = [self convertCoordinate:featureA.coordinate toPointToView:self];
+            CGPoint pointB = [self convertCoordinate:featureB.coordinate toPointToView:self];
+            CGFloat deltaA = hypot(pointA.x - centerPoint.x, pointA.y - centerPoint.y);
+            CGFloat deltaB = hypot(pointB.x - centerPoint.x, pointB.y - centerPoint.y);
+            return [@(deltaA) compare:@(deltaB)];
+        }];
+        
+        id <MGLFeature> feature = [(MGLRoadFeatureAccessibilityElement *)element feature];
+        NSUInteger featureIndex = [visibleRoadFeatures indexOfObject:feature];
+        if (featureIndex == NSNotFound)
+        {
+            featureIndex = [visibleRoadFeatures indexOfObjectPassingTest:^BOOL (id <MGLFeature> _Nonnull visibleFeature, NSUInteger idx, BOOL * _Nonnull stop) {
+                return visibleFeature.identifier && ![visibleFeature.identifier isEqual:@0] && [visibleFeature.identifier isEqual:feature.identifier];
+            }];
+        }
+        if (featureIndex == NSNotFound)
+        {
+            return NSNotFound;
+        }
+        return visibleRoadFeatureRange.location + featureIndex;
     }
-    return !!self.userLocationAnnotationView + std::distance(visibleAnnotations.begin(), foundElement) + 1 /* compass */;
+    
+    // Attribution button
+    NSUInteger attributionButtonIndex = NSMaxRange(visibleRoadFeatureRange);
+    if (element == self.attributionButton)
+    {
+        return attributionButtonIndex;
+    }
+    
+    return NSNotFound;
 }
 
 - (MGLMapViewProxyAccessibilityElement *)mapViewProxyAccessibilityElement
@@ -2637,10 +2849,11 @@ public:
     {
         centerPoint = self.userLocationAnnotationViewCenter;
     }
-    _mbglMap->setZoom(_mbglMap->getZoom() + log2(scaleFactor), mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
+    double newZoom = round(self.zoomLevel) + log2(scaleFactor);
+    _mbglMap->setZoom(newZoom, mbgl::ScreenCoordinate { centerPoint.x, centerPoint.y });
     [self unrotateIfNeededForGesture];
 
-    UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, self.accessibilityValue);
+    _accessibilityValueAnnouncementIsPending = YES;
 }
 
 #pragma mark - Geography -
@@ -2761,7 +2974,6 @@ public:
 - (void)setMinimumZoomLevel:(double)minimumZoomLevel
 {
     _mbglMap->setMinZoom(minimumZoomLevel);
-    [self validateTileCacheSize];
 }
 
 - (double)minimumZoomLevel
@@ -2772,7 +2984,6 @@ public:
 - (void)setMaximumZoomLevel:(double)maximumZoomLevel
 {
     _mbglMap->setMaxZoom(maximumZoomLevel);
-    [self validateTileCacheSize];
 }
 
 - (double)maximumZoomLevel
@@ -3081,6 +3292,16 @@ public:
     return [self cameraForCameraOptions:cameraOptions];
 }
 
+- (MGLMapCamera *)cameraThatFitsShape:(MGLShape *)shape direction:(CLLocationDirection)direction edgePadding:(UIEdgeInsets)insets {
+    mbgl::EdgeInsets padding = MGLEdgeInsetsFromNSEdgeInsets(insets);
+    padding += MGLEdgeInsetsFromNSEdgeInsets(self.contentInset);
+
+    mbgl::CameraOptions cameraOptions = _mbglMap->cameraForGeometry([shape geometryObject], padding, direction);
+
+    return [self cameraForCameraOptions:cameraOptions];
+
+}
+
 - (MGLMapCamera *)cameraForCameraOptions:(const mbgl::CameraOptions &)cameraOptions
 {
     CLLocationCoordinate2D centerCoordinate = MGLLocationCoordinate2DFromLatLng(cameraOptions.center ? *cameraOptions.center : _mbglMap->getLatLng());
@@ -3316,6 +3537,12 @@ public:
     }
 
     std::vector<MGLAnnotationTag> annotationTags = [self annotationTagsInRect:rect];
+    std::vector<MGLAnnotationTag> shapeAnnotationTags = [self shapeAnnotationTagsInRect:rect];
+    
+    if (shapeAnnotationTags.size()) {
+        annotationTags.insert(annotationTags.end(), shapeAnnotationTags.begin(), shapeAnnotationTags.end());
+    }
+    
     if (annotationTags.size())
     {
         NSMutableArray *annotations = [NSMutableArray arrayWithCapacity:annotationTags.size()];
@@ -3432,7 +3659,7 @@ public:
                 {
                     annotationViewsForAnnotation[annotationValue] = annotationView;
                     annotationView.annotation = annotation;
-                    annotationView.center = [self convertCoordinate:annotation.coordinate toPointToView:self];
+                    annotationView.center = MGLPointRounded([self convertCoordinate:annotation.coordinate toPointToView:self]);
                     [newAnnotationViews addObject:annotationView];
 
                     MGLAnnotationImage *annotationImage = self.invisibleAnnotationImage;
@@ -3661,7 +3888,7 @@ public:
     annotationImage.delegate = self;
 
     // add sprite
-    _mbglMap->addAnnotationImage(iconIdentifier.UTF8String, annotationImage.image.mgl_styleImage);
+    _mbglMap->addAnnotationImage([annotationImage.image mgl_styleImageWithIdentifier:iconIdentifier]);
 
     // Create a slop area with a “radius” equal in size to the annotation
     // image’s alignment rect, allowing the eventual tap to be on any point
@@ -3745,6 +3972,22 @@ public:
     }
 }
 
+- (nonnull NS_ARRAY_OF(id <MGLOverlay>) *)overlays
+{
+    if (self.annotations == nil) { return @[]; }
+
+    NS_MUTABLE_ARRAY_OF(id <MGLOverlay>) *mutableOverlays = [NSMutableArray array];
+
+    [self.annotations enumerateObjectsUsingBlock:^(id<MGLAnnotation>  _Nonnull annotation, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([annotation conformsToProtocol:@protocol(MGLOverlay)])
+        {
+            [mutableOverlays addObject:(id<MGLOverlay>)annotation];
+        }
+    }];
+
+    return [NSArray arrayWithArray:mutableOverlays];
+}
+
 - (void)addOverlay:(id <MGLOverlay>)overlay
 {
     [self addOverlays:@[ overlay ]];
@@ -3816,6 +4059,11 @@ public:
     queryRect = CGRectInset(queryRect, -MGLAnnotationImagePaddingForHitTest / 2.0,
                             -MGLAnnotationImagePaddingForHitTest / 2.0);
     std::vector<MGLAnnotationTag> nearbyAnnotations = [self annotationTagsInRect:queryRect];
+    std::vector<MGLAnnotationTag> nearbyShapeAnnotations = [self shapeAnnotationTagsInRect:queryRect];
+    
+    if (nearbyShapeAnnotations.size()) {
+        nearbyAnnotations.insert(nearbyAnnotations.end(), nearbyShapeAnnotations.begin(), nearbyShapeAnnotations.end());
+    }
 
     // Assume that the user is fat-fingering an annotation.
     CGRect hitRect = CGRectInset({ point, CGSizeZero },
@@ -3823,47 +4071,66 @@ public:
                                  -MGLAnnotationImagePaddingForHitTest);
     if (nearbyAnnotations.size())
     {
-        // Filter out any annotation view or annotation whose image is unselectable or
-        // for which hit testing fails.
-        auto end = std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(),
-                                  [&](const MGLAnnotationTag annotationTag)
-        {
+        // Assume that the user is fat-fingering an annotation.
+        CGRect hitRect = CGRectInset({ point, CGSizeZero },
+                                     -MGLAnnotationImagePaddingForHitTest,
+                                     -MGLAnnotationImagePaddingForHitTest);
+        
+        // Filter out any annotation whose image or view is unselectable or for which
+        // hit testing fails.
+        auto end = std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(), [&](const MGLAnnotationTag annotationTag) {
             id <MGLAnnotation> annotation = [self annotationWithTag:annotationTag];
             NSAssert(annotation, @"Unknown annotation found nearby tap");
             if ( ! annotation)
             {
                 return true;
             }
-
+            
             MGLAnnotationContext annotationContext = _annotationContextsByAnnotationTag.at(annotationTag);
             CGRect annotationRect;
-
+            
             MGLAnnotationView *annotationView = annotationContext.annotationView;
+            
             if (annotationView)
             {
+				// Mappy
                 // remove annotation views as they will be tested later
                 return true;
+//                if ( ! annotationView.enabled)
+//                {
+//                    return true;
+//                }
+//
+//                CGPoint calloutAnchorPoint = MGLPointRounded([self convertCoordinate:annotation.coordinate toPointToView:self]);
+//                CGRect frame = CGRectInset({ calloutAnchorPoint, CGSizeZero }, -CGRectGetWidth(annotationView.frame) / 2, -CGRectGetHeight(annotationView.frame) / 2);
+//                annotationRect = UIEdgeInsetsInsetRect(frame, annotationView.alignmentRectInsets);
             }
             else
             {
+                if ([annotation isKindOfClass:[MGLMultiPoint class]])
+                {
+                    return false;
+                }
+                
                 MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithTag:annotationTag];
                 if ( ! annotationImage.enabled)
                 {
                     return true;
                 }
-
+                
                 MGLAnnotationImage *fallbackAnnotationImage = [self dequeueReusableAnnotationImageWithIdentifier:MGLDefaultStyleMarkerSymbolName];
                 UIImage *fallbackImage = fallbackAnnotationImage.image;
-
+                
                 annotationRect = [self frameOfImage:annotationImage.image ?: fallbackImage centeredAtCoordinate:annotation.coordinate];
             }
-
+            
             // Filter out the annotation if the fattened finger didn’t land
             // within the image’s alignment rect.
             return !!!CGRectIntersectsRect(annotationRect, hitRect);
         });
-
+        
         nearbyAnnotations.resize(std::distance(nearbyAnnotations.begin(), end));
+
     }
     
     // test annotation views for real touch
@@ -3954,7 +4221,15 @@ public:
 /// Returns the tags of the annotations coincident with the given rectangle.
 - (std::vector<MGLAnnotationTag>)annotationTagsInRect:(CGRect)rect
 {
-    return _mbglMap->queryPointAnnotations({
+    return _rendererFrontend->getRenderer()->queryPointAnnotations({
+        { CGRectGetMinX(rect), CGRectGetMinY(rect) },
+        { CGRectGetMaxX(rect), CGRectGetMaxY(rect) },
+    });
+}
+
+- (std::vector<MGLAnnotationTag>)shapeAnnotationTagsInRect:(CGRect)rect
+{
+    return _rendererFrontend->getRenderer()->queryShapeAnnotations({
         { CGRectGetMinX(rect), CGRectGetMinY(rect) },
         { CGRectGetMaxX(rect), CGRectGetMaxY(rect) },
     });
@@ -4009,16 +4284,15 @@ public:
 
 - (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
 {
+    CGRect positioningRect = [self positioningRectForAnnotation:annotation defaultCalloutPoint:CGPointZero];
+    [self selectAnnotation:annotation animated:animated calloutPositioningRect:positioningRect];
+}
+
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated calloutPositioningRect:(CGRect)calloutPositioningRect
+{
     if ( ! annotation) return;
 
-    if ([annotation isKindOfClass:[MGLMultiPoint class]]) return;
-
     if (annotation == self.selectedAnnotation) return;
-
-    if (annotation != self.userLocation)
-    {
-        self.userTrackingMode = MGLUserTrackingModeNone;
-    }
 
     [self deselectAnnotation:self.selectedAnnotation animated:NO];
 
@@ -4031,9 +4305,6 @@ public:
         if (annotationTag == MGLAnnotationTagNotFound) return;
     }
 
-    // By default attempt to use the GL annotation image frame as the positioning rect.
-    CGRect positioningRect = [self positioningRectForCalloutForAnnotationWithTag:annotationTag];
-
     MGLAnnotationView *annotationView = nil;
 
     if (annotation != self.userLocation)
@@ -4041,21 +4312,12 @@ public:
             MGLAnnotationContext &annotationContext = _annotationContextsByAnnotationTag.at(annotationTag);
             annotationView = annotationContext.annotationView;
             if (annotationView && annotationView.enabled) {
-            {
-                // Annotations represented by views use the view frame as the positioning rect.
-                positioningRect = annotationView.frame;
-                [annotationView.superview bringSubviewToFront:annotationView];
-                [annotationView setSelected:YES animated:animated];
+                    // Annotations represented by views use the view frame as the positioning rect.
+                    calloutPositioningRect = annotationView.frame;
+                    [annotationView.superview bringSubviewToFront:annotationView];
+                    [annotationView setSelected:YES animated:animated];
             }
         }
-    }
-
-     // The client can request that any annotation be selected (even ones that are offscreen).
-     // The annotation can’t be selected if no part of it is hittable.
-    if ( ! CGRectIntersectsRect(positioningRect, self.bounds) && annotation != self.userLocation)
-    {
-        return;
-    }
 
     self.selectedAnnotation = annotation;
 
@@ -4085,7 +4347,7 @@ public:
 
         if (_userLocationAnnotationIsSelected)
         {
-            positioningRect = [self.userLocationAnnotationView.layer.presentationLayer frame];
+            calloutPositioningRect = [self.userLocationAnnotationView.layer.presentationLayer frame];
 
             CGRect implicitAnnotationFrame = [self.userLocationAnnotationView.layer.presentationLayer frame];
             CGRect explicitAnnotationFrame = self.userLocationAnnotationView.frame;
@@ -4101,7 +4363,7 @@ public:
             if ([calloutView.leftAccessoryView isKindOfClass:[UIControl class]])
             {
                 UITapGestureRecognizer *calloutAccessoryTap = [[UITapGestureRecognizer alloc] initWithTarget:self
-                                                                  action:@selector(handleCalloutAccessoryTapGesture:)];
+                                                                                                      action:@selector(handleCalloutAccessoryTapGesture:)];
 
                 [calloutView.leftAccessoryView addGestureRecognizer:calloutAccessoryTap];
             }
@@ -4114,7 +4376,7 @@ public:
             if ([calloutView.rightAccessoryView isKindOfClass:[UIControl class]])
             {
                 UITapGestureRecognizer *calloutAccessoryTap = [[UITapGestureRecognizer alloc] initWithTarget:self
-                                                                  action:@selector(handleCalloutAccessoryTapGesture:)];
+                                                                                                      action:@selector(handleCalloutAccessoryTapGesture:)];
 
                 [calloutView.rightAccessoryView addGestureRecognizer:calloutAccessoryTap];
             }
@@ -4124,7 +4386,7 @@ public:
         calloutView.delegate = self;
 
         // present popup
-        [calloutView presentCalloutFromRect:positioningRect
+        [calloutView presentCalloutFromRect:calloutPositioningRect
                                      inView:self.glView
                           constrainedToView:self.glView
                                    animated:animated];
@@ -4154,12 +4416,40 @@ public:
 /// Returns the rectangle that represents the annotation image of the annotation
 /// with the given tag. This rectangle is fitted to the image’s alignment rect
 /// and is appropriate for positioning a popover.
+/// If a shape annotation is visible but its centroid is not, and a default point is specified,
+/// the callout view is anchored to the default callout point.
+- (CGRect)positioningRectForAnnotation:(id <MGLAnnotation>)annotation defaultCalloutPoint:(CGPoint)calloutPoint
+{
+    MGLAnnotationTag annotationTag = [self annotationTagForAnnotation:annotation];
+    CGRect positioningRect = [self positioningRectForCalloutForAnnotationWithTag:annotationTag];
+    
+    // For annotations which `coordinate` falls offscreen it will use the current tap point as anchor instead.
+    if ( ! CGRectIntersectsRect(positioningRect, self.bounds) && annotation != self.userLocation)
+    {
+        if (!CGPointEqualToPoint(calloutPoint, CGPointZero)) {
+            positioningRect = CGRectMake(calloutPoint.x, calloutPoint.y, positioningRect.size.width, positioningRect.size.height);
+        }
+    }
+    
+    return positioningRect;
+}
+
+/// Returns the rectangle that represents the annotation image of the annotation
+/// with the given tag. This rectangle is fitted to the image’s alignment rect
+/// and is appropriate for positioning a popover.
 - (CGRect)positioningRectForCalloutForAnnotationWithTag:(MGLAnnotationTag)annotationTag
 {
     id <MGLAnnotation> annotation = [self annotationWithTag:annotationTag];
     if ( ! annotation)
     {
         return CGRectZero;
+    }
+    
+    if ([annotation isKindOfClass:[MGLMultiPoint class]]) {
+        CLLocationCoordinate2D origin = annotation.coordinate;
+        CGPoint originPoint = [self convertCoordinate:origin toPointToView:self];
+        return CGRectMake(originPoint.x, originPoint.y, MGLAnnotationImagePaddingForHitTest, MGLAnnotationImagePaddingForHitTest);
+        
     }
     UIImage *image = [self imageOfAnnotationWithTag:annotationTag].image;
     if ( ! image)
@@ -4182,7 +4472,7 @@ public:
 /// image centered at the given coordinate.
 - (CGRect)frameOfImage:(UIImage *)image centeredAtCoordinate:(CLLocationCoordinate2D)coordinate
 {
-    CGPoint calloutAnchorPoint = [self convertCoordinate:coordinate toPointToView:self];
+    CGPoint calloutAnchorPoint = MGLPointRounded([self convertCoordinate:coordinate toPointToView:self]);
     CGRect frame = CGRectInset({ calloutAnchorPoint, CGSizeZero }, -image.size.width / 2, -image.size.height / 2);
     return UIEdgeInsetsInsetRect(frame, image.alignmentRectInsets);
 }
@@ -4622,7 +4912,6 @@ public:
     {
         self.showsUserLocation = YES;
     }
-
     [self validateUserHeadingUpdating];
 }
 
@@ -5005,7 +5294,7 @@ public:
         optionalFilter = predicate.mgl_filter;
     }
 
-    std::vector<mbgl::Feature> features = _mbglMap->queryRenderedFeatures(screenCoordinate, { optionalLayerIDs, optionalFilter });
+    std::vector<mbgl::Feature> features = _rendererFrontend->getRenderer()->queryRenderedFeatures(screenCoordinate, { optionalLayerIDs, optionalFilter });
     return MGLFeaturesFromMBGLFeatures(features);
 }
 
@@ -5038,7 +5327,7 @@ public:
         optionalFilter = predicate.mgl_filter;
     }
 
-    std::vector<mbgl::Feature> features = _mbglMap->queryRenderedFeatures(screenBox, { optionalLayerIDs, optionalFilter });
+    std::vector<mbgl::Feature> features = _rendererFrontend->getRenderer()->queryRenderedFeatures(screenBox, { optionalLayerIDs, optionalFilter });
     return MGLFeaturesFromMBGLFeatures(features);
 }
 
@@ -5165,10 +5454,24 @@ public:
     {
         if ([UIApplication sharedApplication].applicationState == UIApplicationStateActive)
         {
-            UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
+            _featureAccessibilityElements = nil;
+            _visiblePlaceFeatures = nil;
+            _visibleRoadFeatures = nil;
+            if (_accessibilityValueAnnouncementIsPending) {
+                _accessibilityValueAnnouncementIsPending = NO;
+                [self performSelector:@selector(announceAccessibilityValue) withObject:nil afterDelay:0.1];
+            } else {
+                UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
+            }
         }
         [self.delegate mapView:self regionDidChangeAnimated:animated];
     }
+}
+
+- (void)announceAccessibilityValue
+{
+    UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, self.accessibilityValue);
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
 }
 
 - (void)mapViewWillStartLoadingMap {
@@ -5252,6 +5555,8 @@ public:
     if (!_mbglMap) {
         return;
     }
+    
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
 
     if ([self.delegate respondsToSelector:@selector(mapViewDidFinishRenderingMap:fullyRendered:)])
     {
@@ -5264,7 +5569,7 @@ public:
         return;
     }
 
-    self.style = [[MGLStyle alloc] initWithMapView:self];
+    self.style = [[MGLStyle alloc] initWithRawStyle:&_mbglMap->getStyle() mapView:self];
     if ([self.delegate respondsToSelector:@selector(mapView:didFinishLoadingStyle:)])
     {
         [self.delegate mapView:self didFinishLoadingStyle:self.style];
@@ -5335,7 +5640,7 @@ public:
 
         if (annotationView)
         {
-            annotationView.center = [self convertCoordinate:annotationContext.annotation.coordinate toPointToView:self];
+            annotationView.center = MGLPointRounded([self convertCoordinate:annotationContext.annotation.coordinate toPointToView:self]);
         }
     }
 
@@ -5454,7 +5759,7 @@ public:
     }
     else
     {
-        userPoint = [self convertCoordinate:self.userLocation.coordinate toPointToView:self];
+        userPoint = MGLPointRounded([self convertCoordinate:self.userLocation.coordinate toPointToView:self]);
     }
 
     if ( ! annotationView.superview)
@@ -5707,7 +6012,7 @@ public:
     return _annotationViewReuseQueueByIdentifier[identifier];
 }
 
-class MBGLView : public mbgl::View, public mbgl::Backend
+class MBGLView : public mbgl::RendererBackend, public mbgl::MapObserver
 {
 public:
     MBGLView(MGLMapView* nativeView_) : nativeView(nativeView_) {
@@ -5718,7 +6023,7 @@ public:
     /// context state with the anticipated values.
     void updateAssumedState() override {
         assumeFramebufferBinding(ImplicitFramebufferBinding);
-        assumeViewportSize(nativeView.framebufferSize);
+        assumeViewport(0, 0, nativeView.framebufferSize);
     }
 
     void bind() override {
@@ -5731,8 +6036,12 @@ public:
             updateAssumedState();
         } else {
             // Our framebuffer is still bound, but the viewport might have changed.
-            setViewportSize(nativeView.framebufferSize);
+            setViewport(0, 0, nativeView.framebufferSize);
         }
+    }
+
+    mbgl::Size getFramebufferSize() const override {
+        return nativeView.framebufferSize;
     }
 
     void onCameraWillChange(mbgl::MapObserver::CameraChangeMode mode) override {
@@ -5817,11 +6126,6 @@ public:
         CFRelease(str);
 
         return reinterpret_cast<mbgl::gl::ProcAddress>(symbol);
-    }
-
-    void invalidate() override
-    {
-        [nativeView setNeedsGLDisplay];
     }
 
     void activate() override

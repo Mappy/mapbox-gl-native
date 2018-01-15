@@ -2,7 +2,7 @@
 #include <mbgl/test/stub_file_source.hpp>
 #include <mbgl/test/fixture_log_observer.hpp>
 
-#include <mbgl/style/style.hpp>
+#include <mbgl/style/style_impl.hpp>
 #include <mbgl/style/source_impl.hpp>
 #include <mbgl/style/sources/vector_source.hpp>
 #include <mbgl/style/layer.hpp>
@@ -21,34 +21,34 @@ TEST(Style, Properties) {
 
     ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style style { threadPool, fileSource, 1.0 };
+    Style::Impl style { threadPool, fileSource, 1.0 };
 
-    style.setJSON(R"STYLE({"name": "Test"})STYLE");
+    style.loadJSON(R"STYLE({"name": "Test"})STYLE");
     ASSERT_EQ("Test", style.getName());
 
-    style.setJSON(R"STYLE({"center": [10, 20]})STYLE");
+    style.loadJSON(R"STYLE({"center": [10, 20]})STYLE");
     ASSERT_EQ("", style.getName());
-    ASSERT_EQ((LatLng{20, 10}), style.getDefaultLatLng());
+    ASSERT_EQ((LatLng{20, 10}), *style.getDefaultCamera().center);
 
-    style.setJSON(R"STYLE({"bearing": 24})STYLE");
+    style.loadJSON(R"STYLE({"bearing": 24})STYLE");
     ASSERT_EQ("", style.getName());
-    ASSERT_EQ((LatLng{0, 0}), style.getDefaultLatLng());
-    ASSERT_EQ(24, style.getDefaultBearing());
+    ASSERT_EQ(LatLng {}, *style.getDefaultCamera().center);
+    ASSERT_EQ(24, *style.getDefaultCamera().angle);
 
-    style.setJSON(R"STYLE({"zoom": 13.3})STYLE");
+    style.loadJSON(R"STYLE({"zoom": 13.3})STYLE");
     ASSERT_EQ("", style.getName());
-    ASSERT_EQ(13.3, style.getDefaultZoom());
+    ASSERT_EQ(13.3, *style.getDefaultCamera().zoom);
 
-    style.setJSON(R"STYLE({"pitch": 60})STYLE");
+    style.loadJSON(R"STYLE({"pitch": 60})STYLE");
     ASSERT_EQ("", style.getName());
-    ASSERT_EQ(60, style.getDefaultPitch());
+    ASSERT_EQ(60, *style.getDefaultCamera().pitch);
 
-    style.setJSON(R"STYLE({"name": 23, "center": {}, "bearing": "north", "zoom": null, "pitch": "wide"})STYLE");
+    style.loadJSON(R"STYLE({"name": 23, "center": {}, "bearing": "north", "zoom": null, "pitch": "wide"})STYLE");
     ASSERT_EQ("", style.getName());
-    ASSERT_EQ((LatLng{0, 0}), style.getDefaultLatLng());
-    ASSERT_EQ(0, style.getDefaultBearing());
-    ASSERT_EQ(0, style.getDefaultZoom());
-    ASSERT_EQ(0, style.getDefaultPitch());
+    ASSERT_EQ(LatLng {}, *style.getDefaultCamera().center);
+    ASSERT_EQ(0, *style.getDefaultCamera().zoom);
+    ASSERT_EQ(0, *style.getDefaultCamera().angle);
+    ASSERT_EQ(0, *style.getDefaultCamera().pitch);
 }
 
 TEST(Style, DuplicateSource) {
@@ -56,9 +56,9 @@ TEST(Style, DuplicateSource) {
 
     ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style style { threadPool, fileSource, 1.0 };
+    Style::Impl style { threadPool, fileSource, 1.0 };
 
-    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
+    style.loadJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
 
     style.addSource(std::make_unique<VectorSource>("sourceId", "mapbox://mapbox.mapbox-terrain-v2"));
 
@@ -78,9 +78,9 @@ TEST(Style, RemoveSourceInUse) {
 
     ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style style { threadPool, fileSource, 1.0 };
+    Style::Impl style { threadPool, fileSource, 1.0 };
 
-    style.setJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
+    style.loadJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
 
     style.addSource(std::make_unique<VectorSource>("sourceId", "mapbox://mapbox.mapbox-terrain-v2"));
     style.addLayer(std::make_unique<LineLayer>("layerId", "sourceId"));

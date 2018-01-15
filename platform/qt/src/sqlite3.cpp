@@ -11,6 +11,7 @@
 #include <cstring>
 #include <cstdio>
 #include <chrono>
+#include <limits>
 
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/logging.hpp>
@@ -50,6 +51,15 @@ void checkDatabaseError(const QSqlDatabase &db) {
     }
 }
 
+void checkDatabaseOpenError(const QSqlDatabase &db) {
+    // Assume every error when opening the data as CANTOPEN. Qt
+    // always returns -1 for `nativeErrorCode()` on database errors.
+    QSqlError lastError = db.lastError();
+    if (lastError.type() != QSqlError::NoError) {
+        throw Exception { Exception::Code::CANTOPEN, "Error opening the database." };
+    }
+}
+
 class DatabaseImpl {
 public:
     DatabaseImpl(const char* filename, int flags) {
@@ -77,7 +87,7 @@ public:
         db->setDatabaseName(QString(filename));
 
         if (!db->open()) {
-            checkDatabaseError(*db);
+            checkDatabaseOpenError(*db);
         }
     }
 
@@ -132,7 +142,11 @@ Database::~Database() {
 
 void Database::setBusyTimeout(std::chrono::milliseconds timeout) {
     assert(impl);
-    std::string timeoutStr = mbgl::util::toString(timeout.count());
+
+    // std::chrono::milliseconds.count() is a long and Qt will cast
+    // internally to int, so we need to make sure the limits apply.
+    std::string timeoutStr = mbgl::util::toString(timeout.count() & INT_MAX);
+
     QString connectOptions = impl->db->connectOptions();
     if (connectOptions.isEmpty()) {
         if (!connectOptions.isEmpty()) connectOptions.append(';');
@@ -143,7 +157,7 @@ void Database::setBusyTimeout(std::chrono::milliseconds timeout) {
     }
     impl->db->setConnectOptions(connectOptions);
     if (!impl->db->open()) {
-        checkDatabaseError(*impl->db);
+        checkDatabaseOpenError(*impl->db);
     }
 }
 
@@ -298,6 +312,7 @@ bool Statement::run() {
     return impl->query.next();
 }
 
+template bool Statement::get(int);
 template int Statement::get(int);
 template int64_t Statement::get(int);
 template double Statement::get(int);

@@ -5,6 +5,7 @@
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/layout_property.hpp>
 #include <mbgl/style/paint_property.hpp>
+#include <mbgl/style/properties.hpp>
 #include <mbgl/programs/attributes.hpp>
 #include <mbgl/programs/uniforms.hpp>
 
@@ -86,6 +87,16 @@ struct IconOffset : DataDrivenLayoutProperty<std::array<float, 2>> {
     static std::array<float, 2> defaultValue() { return {{ 0, 0 }}; }
 };
 
+struct IconAnchor : DataDrivenLayoutProperty<SymbolAnchorType> {
+    static constexpr const char * key = "icon-anchor";
+    static SymbolAnchorType defaultValue() { return SymbolAnchorType::Center; }
+};
+
+struct IconPitchAlignment : LayoutProperty<AlignmentType> {
+    static constexpr const char * key = "icon-pitch-alignment";
+    static AlignmentType defaultValue() { return AlignmentType::Auto; }
+};
+
 struct TextPitchAlignment : LayoutProperty<AlignmentType> {
     static constexpr const char * key = "text-pitch-alignment";
     static AlignmentType defaultValue() { return AlignmentType::Auto; }
@@ -111,7 +122,7 @@ struct TextSize : DataDrivenLayoutProperty<float> {
     static float defaultValue() { return 16; }
 };
 
-struct TextMaxWidth : LayoutProperty<float> {
+struct TextMaxWidth : DataDrivenLayoutProperty<float> {
     static constexpr const char * key = "text-max-width";
     static float defaultValue() { return 10; }
 };
@@ -121,19 +132,19 @@ struct TextLineHeight : LayoutProperty<float> {
     static float defaultValue() { return 1.2; }
 };
 
-struct TextLetterSpacing : LayoutProperty<float> {
+struct TextLetterSpacing : DataDrivenLayoutProperty<float> {
     static constexpr const char * key = "text-letter-spacing";
     static float defaultValue() { return 0; }
 };
 
-struct TextJustify : LayoutProperty<TextJustifyType> {
+struct TextJustify : DataDrivenLayoutProperty<TextJustifyType> {
     static constexpr const char * key = "text-justify";
     static TextJustifyType defaultValue() { return TextJustifyType::Center; }
 };
 
-struct TextAnchor : LayoutProperty<TextAnchorType> {
+struct TextAnchor : DataDrivenLayoutProperty<SymbolAnchorType> {
     static constexpr const char * key = "text-anchor";
-    static TextAnchorType defaultValue() { return TextAnchorType::Center; }
+    static SymbolAnchorType defaultValue() { return SymbolAnchorType::Center; }
 };
 
 struct TextMaxAngle : LayoutProperty<float> {
@@ -237,7 +248,7 @@ struct TextTranslateAnchor : PaintProperty<TranslateAnchorType> {
     static TranslateAnchorType defaultValue() { return TranslateAnchorType::Map; }
 };
 
-class SymbolLayoutProperties : public LayoutProperties<
+class SymbolLayoutProperties : public Properties<
     SymbolPlacement,
     SymbolSpacing,
     SymbolAvoidEdges,
@@ -253,6 +264,8 @@ class SymbolLayoutProperties : public LayoutProperties<
     IconPadding,
     IconKeepUpright,
     IconOffset,
+    IconAnchor,
+    IconPitchAlignment,
     TextPitchAlignment,
     TextRotationAlignment,
     TextField,
@@ -274,7 +287,7 @@ class SymbolLayoutProperties : public LayoutProperties<
     TextOptional
 > {};
 
-class SymbolPaintProperties : public PaintProperties<
+class SymbolPaintProperties : public Properties<
     IconOpacity,
     IconColor,
     IconHaloColor,

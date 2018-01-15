@@ -650,19 +650,19 @@ TEST(OfflineDatabase, MigrateFromV2Schema) {
 
     // v2.db is a v2 database containing a single offline region with a small number of resources.
 
-    deleteFile("test/fixtures/offline_database/v5.db");
-    writeFile("test/fixtures/offline_database/v5.db", util::read_file("test/fixtures/offline_database/v2.db"));
+    deleteFile("test/fixtures/offline_database/migrated.db");
+    writeFile("test/fixtures/offline_database/migrated.db", util::read_file("test/fixtures/offline_database/v2.db"));
 
     {
-        OfflineDatabase db("test/fixtures/offline_database/v5.db", 0);
+        OfflineDatabase db("test/fixtures/offline_database/migrated.db", 0);
         auto regions = db.listRegions();
         for (auto& region : regions) {
             db.deleteRegion(std::move(region));
         }
     }
 
-    EXPECT_EQ(5, databaseUserVersion("test/fixtures/offline_database/v5.db"));
-    EXPECT_LT(databasePageCount("test/fixtures/offline_database/v5.db"),
+    EXPECT_EQ(6, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
+    EXPECT_LT(databasePageCount("test/fixtures/offline_database/migrated.db"),
               databasePageCount("test/fixtures/offline_database/v2.db"));
 }
 
@@ -671,18 +671,18 @@ TEST(OfflineDatabase, MigrateFromV3Schema) {
 
     // v3.db is a v3 database, migrated from v2.
 
-    deleteFile("test/fixtures/offline_database/v5.db");
-    writeFile("test/fixtures/offline_database/v5.db", util::read_file("test/fixtures/offline_database/v3.db"));
+    deleteFile("test/fixtures/offline_database/migrated.db");
+    writeFile("test/fixtures/offline_database/migrated.db", util::read_file("test/fixtures/offline_database/v3.db"));
 
     {
-        OfflineDatabase db("test/fixtures/offline_database/v5.db", 0);
+        OfflineDatabase db("test/fixtures/offline_database/migrated.db", 0);
         auto regions = db.listRegions();
         for (auto& region : regions) {
             db.deleteRegion(std::move(region));
         }
     }
 
-    EXPECT_EQ(5, databaseUserVersion("test/fixtures/offline_database/v5.db"));
+    EXPECT_EQ(6, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
 }
 
 TEST(OfflineDatabase, MigrateFromV4Schema) {
@@ -690,24 +690,52 @@ TEST(OfflineDatabase, MigrateFromV4Schema) {
 
     // v4.db is a v4 database, migrated from v2 & v3. This database used `journal_mode = WAL` and `synchronous = NORMAL`.
 
-    deleteFile("test/fixtures/offline_database/v5.db");
-    writeFile("test/fixtures/offline_database/v5.db", util::read_file("test/fixtures/offline_database/v4.db"));
+    deleteFile("test/fixtures/offline_database/migrated.db");
+    writeFile("test/fixtures/offline_database/migrated.db", util::read_file("test/fixtures/offline_database/v4.db"));
 
     {
-        OfflineDatabase db("test/fixtures/offline_database/v5.db", 0);
+        OfflineDatabase db("test/fixtures/offline_database/migrated.db", 0);
         auto regions = db.listRegions();
         for (auto& region : regions) {
             db.deleteRegion(std::move(region));
         }
     }
 
-    EXPECT_EQ(5, databaseUserVersion("test/fixtures/offline_database/v5.db"));
+    EXPECT_EQ(6, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
 
     // Journal mode should be DELETE after migration to v5.
-    EXPECT_EQ("delete", databaseJournalMode("test/fixtures/offline_database/v5.db"));
+    EXPECT_EQ("delete", databaseJournalMode("test/fixtures/offline_database/migrated.db"));
 
     // Synchronous setting should be FULL (2) after migration to v5.
-    EXPECT_EQ(2, databaseSyncMode("test/fixtures/offline_database/v5.db"));
+    EXPECT_EQ(2, databaseSyncMode("test/fixtures/offline_database/migrated.db"));
+}
+
+
+TEST(OfflineDatabase, MigrateFromV5Schema) {
+    using namespace mbgl;
+
+    // v5.db is a v5 database, migrated from v2, v3 & v4.
+
+    deleteFile("test/fixtures/offline_database/migrated.db");
+    writeFile("test/fixtures/offline_database/migrated.db", util::read_file("test/fixtures/offline_database/v5.db"));
+
+    {
+        OfflineDatabase db("test/fixtures/offline_database/migrated.db", 0);
+        auto regions = db.listRegions();
+        for (auto& region : regions) {
+            db.deleteRegion(std::move(region));
+        }
+    }
+
+    EXPECT_EQ(6, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
+
+    EXPECT_EQ((std::vector<std::string>{ "id", "url_template", "pixel_ratio", "z", "x", "y",
+                                         "expires", "modified", "etag", "data", "compressed",
+                                         "accessed", "must_revalidate" }),
+              databaseTableColumns("test/fixtures/offline_database/migrated.db", "tiles"));
+    EXPECT_EQ((std::vector<std::string>{ "id", "url", "kind", "expires", "modified", "etag", "data",
+                                         "compressed", "accessed", "must_revalidate" }),
+              databaseTableColumns("test/fixtures/offline_database/migrated.db", "resources"));
 }
 
 TEST(OfflineDatabase, DowngradeSchema) {
@@ -723,13 +751,13 @@ TEST(OfflineDatabase, DowngradeSchema) {
         OfflineDatabase db("test/fixtures/offline_database/migrated.db", 0);
     }
 
-    EXPECT_EQ(5, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
+    EXPECT_EQ(6, databaseUserVersion("test/fixtures/offline_database/migrated.db"));
 
     EXPECT_EQ((std::vector<std::string>{ "id", "url_template", "pixel_ratio", "z", "x", "y",
                                          "expires", "modified", "etag", "data", "compressed",
-                                         "accessed" }),
+                                         "accessed", "must_revalidate" }),
               databaseTableColumns("test/fixtures/offline_database/migrated.db", "tiles"));
     EXPECT_EQ((std::vector<std::string>{ "id", "url", "kind", "expires", "modified", "etag", "data",
-                                         "compressed", "accessed" }),
+                                         "compressed", "accessed", "must_revalidate" }),
               databaseTableColumns("test/fixtures/offline_database/migrated.db", "resources"));
 }

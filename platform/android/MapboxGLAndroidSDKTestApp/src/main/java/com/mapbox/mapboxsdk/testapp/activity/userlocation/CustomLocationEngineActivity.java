@@ -12,6 +12,9 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
 
+/**
+ * Test activity showcasing using a custom location engine.
+ */
 public class CustomLocationEngineActivity extends BaseLocationActivity {
 
   private MapView mapView;
@@ -65,7 +68,7 @@ public class CustomLocationEngineActivity extends BaseLocationActivity {
     if (mapboxMap != null) {
       int itemId = item.getItemId();
       if (itemId == R.id.action_id_location_source_lost) {
-        mapboxMap.setLocationSource(Mapbox.getLocationSource());
+        mapboxMap.setLocationSource(Mapbox.getLocationEngine());
         return true;
       } else if (itemId == R.id.action_id_location_source_mock) {
         mapboxMap.setLocationSource(MockLocationEngine.getInstance());

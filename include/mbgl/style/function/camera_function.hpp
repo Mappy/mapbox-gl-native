@@ -12,7 +12,7 @@ template <class T>
 class CameraFunction {
 public:
     using Stops = std::conditional_t<
-        util::Interpolatable<T>,
+        util::Interpolatable<T>::value,
         variant<
             ExponentialStops<T>,
             IntervalStops<T>>,
@@ -25,7 +25,7 @@ public:
 
     T evaluate(float zoom) const {
         return stops.match([&] (const auto& s) {
-            return s.evaluate(Value(double(zoom))).value_or(T());
+            return s.evaluate(zoom).value_or(T());
         });
     }
     
@@ -35,6 +35,7 @@ public:
     }
 
     Stops stops;
+    bool useIntegerZoom = false;
 };
 
 } // namespace style

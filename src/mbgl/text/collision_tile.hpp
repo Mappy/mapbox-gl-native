@@ -31,10 +31,10 @@ namespace mbgl {
 namespace bg = boost::geometry;
 namespace bgm = bg::model;
 namespace bgi = bg::index;
-typedef bgm::point<float, 2, bg::cs::cartesian> CollisionPoint;
-typedef bgm::box<CollisionPoint> Box;
-typedef std::tuple<Box, CollisionBox, IndexedSubfeature> CollisionTreeBox;
-typedef bgi::rtree<CollisionTreeBox, bgi::linear<16, 4>> Tree;
+using CollisionPoint = bgm::point<float, 2, bg::cs::cartesian>;
+using Box = bgm::box<CollisionPoint>;
+using CollisionTreeBox = std::tuple<Box, CollisionBox, IndexedSubfeature>;
+using Tree = bgi::rtree<CollisionTreeBox, bgi::linear<16, 4>>;
 
 class IndexedSubfeature;
 
@@ -49,8 +49,8 @@ public:
 
     const PlacementConfig config;
 
-    const float minScale = 0.5f;
-    const float maxScale = 2.0f;
+    float minScale = 0.5f;
+    float maxScale = 2.0f;
     float yStretch;
 
     std::array<float, 4> rotationMatrix;
@@ -58,12 +58,14 @@ public:
 
 private:
     float findPlacementScale(
-            const Point<float>& anchor, const CollisionBox& box,
+            const Point<float>& anchor, const CollisionBox& box, const float boxMaxScale,
             const Point<float>& blockingAnchor, const CollisionBox& blocking);
     Box getTreeBox(const Point<float>& anchor, const CollisionBox& box, const float scale = 1.0);
 
     Tree tree;
     Tree ignoredTree;
+    
+    float perspectiveRatio;
 };
 
 } // namespace mbgl

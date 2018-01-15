@@ -110,9 +110,6 @@ const NamedColor namedColors[] = {
     { "yellow", { 255, 255, 0, 1 } }, { "yellowgreen", { 154, 205, 50, 1 } }
 };
 
-const size_t namedColorCount = sizeof (namedColors) / sizeof (NamedColor);
-
-
 template <typename T>
 uint8_t clamp_css_byte(T i) {  // Clamp to integer 0 .. 255.
     i = ::round(i);  // Seems to be what Chrome does (vs truncation).
@@ -189,9 +186,9 @@ optional<Color> parse(const std::string& css_str) {
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 
 
-    for (size_t i = 0; i < namedColorCount; i++) {
-        if (str == namedColors[i].name) {
-            return { namedColors[i].color };
+    for (const auto& namedColor : namedColors) {
+        if (str == namedColor.name) {
+            return { namedColor.color };
         }
     }
 

@@ -20,7 +20,11 @@ import timber.log.Timber;
 
 /**
  * Settings for the user location and bearing tracking of a MapboxMap.
+ *
+ * @deprecated use location layer plugin from
+ * https://github.com/mapbox/mapbox-plugins-android/tree/master/plugins/locationlayer instead.
  */
+@Deprecated
 public final class TrackingSettings {
 
   private final MyLocationView myLocationView;
@@ -48,7 +52,7 @@ public final class TrackingSettings {
   }
 
   void initialise(MapboxMapOptions options) {
-    locationSource = Mapbox.getLocationSource();
+    locationSource = Mapbox.getLocationEngine();
     setMyLocationEnabled(options.getLocationEnabled());
   }
 
@@ -388,7 +392,7 @@ public final class TrackingSettings {
 
     this.isCustomLocationSource = locationSource != null;
     if (locationSource == null) {
-      locationSource = Mapbox.getLocationSource();
+      locationSource = Mapbox.getLocationEngine();
     }
     this.locationSource = locationSource;
     myLocationView.setLocationSource(locationSource);

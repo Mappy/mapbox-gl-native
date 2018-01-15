@@ -15,9 +15,6 @@ bool FixtureLog::Message::operator==(const Message& rhs) const {
     return severity == rhs.severity && event == rhs.event && code == rhs.code && msg == rhs.msg;
 }
 
-FixtureLog::Message::Message() : severity(), event(), code(), msg() {
-}
-
 FixtureLog::Observer::Observer(FixtureLog* log_) : log(log_) {
 }
 
@@ -97,10 +94,10 @@ std::vector<FixtureLog::Message> FixtureLogObserver::unchecked() const {
 }
 
 ::std::ostream& operator<<(::std::ostream& os, const FixtureLog::Message& message) {
-    os << "[\"" << Enum<EventSeverity>::toString(message.severity) << "\", \"";
-    os << Enum<Event>::toString(message.event) << "\"";
+    os << R"([")" << Enum<EventSeverity>::toString(message.severity) << R"(", ")";
+    os << Enum<Event>::toString(message.event) << R"(")";
     os << ", " << message.code;
-    os << ", \"" << message.msg << "\"";
+    os << R"(, ")" << message.msg << R"(")";
     return os << "]" << std::endl;
 }
 

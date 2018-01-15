@@ -27,11 +27,11 @@ import Mapbox
 class MGLDocumentationExampleTests: XCTestCase, MGLMapViewDelegate {
     var mapView: MGLMapView!
     var styleLoadingExpectation: XCTestExpectation!
+    static let styleURL = Bundle(for: MGLDocumentationExampleTests.self).url(forResource: "one-liner", withExtension: "json")!
 
     override func setUp() {
         super.setUp()
-        let styleURL = Bundle(for: MGLDocumentationExampleTests.self).url(forResource: "one-liner", withExtension: "json")
-        mapView = MGLMapView(frame: CGRect(x: 0, y: 0, width: 256, height: 256), styleURL: styleURL)
+        mapView = MGLMapView(frame: CGRect(x: 0, y: 0, width: 256, height: 256), styleURL: MGLDocumentationExampleTests.styleURL)
         mapView.delegate = self
         styleLoadingExpectation = expectation(description: "Map view should finish loading style")
         waitForExpectations(timeout: 1, handler: nil)
@@ -114,6 +114,20 @@ class MGLDocumentationExampleTests: XCTestCase, MGLMapViewDelegate {
         //#-end-example-code
         
         XCTAssertNotNil(polyline)
+    }
+
+    func testMGLImageSource() {
+        //#-example-code
+        let coordinates = MGLCoordinateQuad(
+          topLeft: CLLocationCoordinate2D(latitude: 46.437, longitude: -80.425),
+          bottomLeft: CLLocationCoordinate2D(latitude: 37.936, longitude: -80.425),
+          bottomRight: CLLocationCoordinate2D(latitude: 37.936, longitude: -71.516),
+          topRight: CLLocationCoordinate2D(latitude: 46.437, longitude: -71.516))
+        let source = MGLImageSource(identifier: "radar", coordinateQuad: coordinates, url: URL(string: "https://www.mapbox.com/mapbox-gl-js/assets/radar.gif")!)
+        mapView.style?.addSource(source)
+        //#-end-example-code
+
+        XCTAssertNotNil(mapView.style?.source(withIdentifier: "radar"))
     }
 
     func testMGLCircleStyleLayer() {
@@ -262,6 +276,47 @@ class MGLDocumentationExampleTests: XCTestCase, MGLMapViewDelegate {
             mapView.addGestureRecognizer(mapTapGestureRecognizer)
         #endif
         //#-end-example-code
+    }
+    
+    func testMGLMapSnapshotter() {
+        let expectation = self.expectation(description: "MGLMapSnapshotter should produce a snapshot")
+        #if os(macOS)
+            var image: NSImage? {
+                didSet {
+                    expectation.fulfill()
+                }
+            }
+        #else
+            var image: UIImage? {
+                didSet {
+                    expectation.fulfill()
+                }
+            }
+        #endif
+        
+        class MGLStyle {
+            static func satelliteStreetsStyleURL() -> URL {
+                return MGLDocumentationExampleTests.styleURL
+            }
+        }
+        
+        //#-example-code
+        let camera = MGLMapCamera(lookingAtCenter: CLLocationCoordinate2D(latitude: 37.7184, longitude: -122.4365), fromDistance: 100, pitch: 20, heading: 0)
+
+        let options = MGLMapSnapshotOptions(styleURL: MGLStyle.satelliteStreetsStyleURL(), camera: camera, size: CGSize(width: 320, height: 480))
+        options.zoomLevel = 10
+
+        let snapshotter = MGLMapSnapshotter(options: options)
+        snapshotter.start { (snapshot, error) in
+            if let error = error {
+                fatalError(error.localizedDescription)
+            }
+            
+            image = snapshot?.image
+        }
+        //#-end-example-code
+        
+        wait(for: [expectation], timeout: 1)
     }
     
     // For testMGLMapView().

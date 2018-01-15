@@ -4,14 +4,13 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:2.3.1'
-        classpath 'com.amazonaws:aws-devicefarm-gradle-plugin:1.2'
-        classpath 'com.stanfy.spoon:spoon-gradle-plugin:1.2.1'
     }
 }
 
 allprojects {
     repositories {
         jcenter()
+        maven { url 'https://maven.google.com' }
         maven { url "http://oss.sonatype.org/content/repositories/snapshots/" }
     }
 }

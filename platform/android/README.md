@@ -1,6 +1,6 @@
-# [Mapbox Android SDK](https://www.mapbox.com/android-sdk/)
+# [Mapbox Maps SDK for Android](https://www.mapbox.com/android-sdk/)
 
-[![Bitrise](https://www.bitrise.io/app/79cdcbdc42de4303.svg?token=_InPF8bII6W7J6kFr-L8QQ&branch=master)](https://www.bitrise.io/app/79cdcbdc42de4303)
+[![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master)
 
 A library based on [Mapbox GL Native](../../README.md) for embedding interactive map views with scalable, customizable vector maps into Java applications on Android devices.
 
@@ -10,7 +10,7 @@ Alright. So, actually, you may be in the wrong place. From here on in, this READ
 
 **To view our current API documentation, see our [JavaDoc](https://www.mapbox.com/android-sdk/api).**
 
-**To install and use the Mapbox Android SDK in an application, see the [Mapbox Android SDK website](https://www.mapbox.com/android-sdk/).**
+**To install and use the Mapbox Maps SDK for Android in an application, see the [Mapbox Maps SDK for Android website](https://www.mapbox.com/install/android/).**
 
 [![](https://www.mapbox.com/android-sdk/images/splash.png)](https://www.mapbox.com/android-sdk/)
 
@@ -40,12 +40,15 @@ These dependencies are required for all operating systems and all platform targe
   - NDK
   - LLDB
 
-- Modern C++ compiler that supports -std=c++14
+- Modern C++ compiler that supports `-std=c++14`\*
   - clang++ 3.5 or later or
-  - g++-5 or later
+  - g++-4.9 or later
 - [cURL](https://curl.haxx.se) (for build only)
 - [Node.js](https://nodejs.org/) or later (for build only)
 - [pkg-config](https://wiki.freedesktop.org/www/Software/pkg-config/) (for build only)
+
+**Note**: We partially support C++14 because GCC 4.9 does not fully implement the
+final draft of the C++14 standard. More information in [DEVELOPING.md](DEVELOPING.md).
 
 ##### Additional Dependencies for Linux
 
@@ -75,6 +78,10 @@ make aproj
 
 Open Android Studio project in `/platform/android`, run `make android-configuration` in the root folder of the project.
 
+##### Setup Checkstyle
+
+Mapbox uses specific IDE settings related to code and check style. 
+See [checkstyle guide](https://github.com/mapbox/mapbox-gl-native/wiki/Setting-up-Mapbox-checkstyle) for configuration details. 
 
 ##### Setting Mapbox Access Token
 
@@ -87,3 +94,8 @@ With the first gradle invocation, gradle will take the value of the `MAPBOX_ACCE
 Run the configuration for the `MapboxGLAndroidSDKTestApp` module and select a device or emulator to deploy on. Based on the selected device, the c++ code will be compiled for the related processor architecture. You can see the project compiling in the `View > Tool Windows > Gradle Console`. 
 
 More information about building and distributing this project in [DISTRIBUTE.md][https://github.com/mapbox/mapbox-gl-native/blob/master/platform/android/DISTRIBUTE.md].
+
+#### Symbolicating native crashes
+
+When hitting native crashes you can use ndk-stack to symbolicate crashes. 
+More information in [this](https://github.com/mapbox/mapbox-gl-native/wiki/Getting-line-numbers-from-an-Android-crash-with-ndk-stack) guide.

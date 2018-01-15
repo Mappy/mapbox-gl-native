@@ -14,7 +14,7 @@
 #include <mbgl/util/size.hpp>
 #include <mbgl/style/layers/symbol_layer_properties.hpp>
 #include <mbgl/style/layers/symbol_layer_impl.hpp>
-#include <mbgl/renderer/render_symbol_layer.hpp>
+#include <mbgl/renderer/layers/render_symbol_layer.hpp>
 
 
 #include <cmath>
@@ -30,12 +30,9 @@ class RenderTile;
 class TransformState;
 
 namespace uniforms {
-MBGL_DEFINE_UNIFORM_VECTOR(float, 2, u_texsize);
-MBGL_DEFINE_UNIFORM_SCALAR(bool, u_rotate_with_map);
-MBGL_DEFINE_UNIFORM_SCALAR(bool, u_pitch_with_map);
+MBGL_DEFINE_UNIFORM_MATRIX(double, 4, u_gl_coord_matrix);
+MBGL_DEFINE_UNIFORM_MATRIX(double, 4, u_label_plane_matrix);
 MBGL_DEFINE_UNIFORM_SCALAR(gl::TextureUnit, u_texture);
-MBGL_DEFINE_UNIFORM_SCALAR(gl::TextureUnit, u_fadetexture);
-MBGL_DEFINE_UNIFORM_SCALAR(float, u_aspect_ratio);
 MBGL_DEFINE_UNIFORM_SCALAR(bool, u_is_halo);
 MBGL_DEFINE_UNIFORM_SCALAR(float, u_gamma_scale);
 
@@ -44,50 +41,60 @@ MBGL_DEFINE_UNIFORM_SCALAR(bool, u_is_size_zoom_constant);
 MBGL_DEFINE_UNIFORM_SCALAR(bool, u_is_size_feature_constant);
 MBGL_DEFINE_UNIFORM_SCALAR(float, u_size_t);
 MBGL_DEFINE_UNIFORM_SCALAR(float, u_size);
-MBGL_DEFINE_UNIFORM_SCALAR(float, u_layout_size);
+MBGL_DEFINE_UNIFORM_SCALAR(float, u_max_camera_distance);
+MBGL_DEFINE_UNIFORM_SCALAR(bool, u_rotate_symbol);
+MBGL_DEFINE_UNIFORM_SCALAR(float, u_aspect_ratio);
 } // namespace uniforms
 
 struct SymbolLayoutAttributes : gl::Attributes<
     attributes::a_pos_offset,
     attributes::a_data<uint16_t, 4>>
 {
-    static Vertex vertex(Point<float> a,
+    static Vertex vertex(Point<float> labelAnchor,
                          Point<float> o,
+                         float glyphOffsetY,
                          uint16_t tx,
                          uint16_t ty,
-                         float minzoom,
-                         float maxzoom,
-                         float labelminzoom,
-                         uint8_t labelangle) {
+                         const Range<float>& sizeData) {
         return Vertex {
             // combining pos and offset to reduce number of vertex attributes passed to shader (8 max for some devices)
             {{
-                static_cast<int16_t>(a.x),
-                static_cast<int16_t>(a.y),
+                static_cast<int16_t>(labelAnchor.x),
+                static_cast<int16_t>(labelAnchor.y),
                 static_cast<int16_t>(::round(o.x * 64)),  // use 1/64 pixels for placement
-                static_cast<int16_t>(::round(o.y * 64))
+                static_cast<int16_t>(::round((o.y + glyphOffsetY) * 64))
             }},
             {{
-                static_cast<uint16_t>(tx / 4),
-                static_cast<uint16_t>(ty / 4),
-                mbgl::attributes::packUint8Pair(
-                   static_cast<uint8_t>(labelminzoom * 10), // 1/10 zoom levels: z16 == 160
-                   static_cast<uint8_t>(labelangle)
-                ),
-                mbgl::attributes::packUint8Pair(
-                   static_cast<uint8_t>(minzoom * 10),
-                   static_cast<uint8_t>(::fmin(maxzoom, 25) * 10)
-                )
+                tx,
+                ty,
+                static_cast<uint16_t>(sizeData.min * 10),
+                static_cast<uint16_t>(sizeData.max * 10)
             }}
         };
     }
 };
-    
-class SymbolSizeAttributes : public gl::Attributes<attributes::a_size> {
-public:
-    using Attribute = attributes::a_size::Type;
-};
 
+struct SymbolDynamicLayoutAttributes : gl::Attributes<attributes::a_projected_pos> {
+    static Vertex vertex(Point<float> anchorPoint, float labelAngle, float labelminzoom) {
+        return Vertex {
+            {{
+                 anchorPoint.x,
+                 anchorPoint.y,
+                 static_cast<float>(mbgl::attributes::packUint8Pair(
+                         static_cast<uint8_t>(std::fmod(labelAngle + 2 * M_PI, 2 * M_PI) / (2 * M_PI) * 255),
+                         static_cast<uint8_t>(labelminzoom * 10)))
+             }}
+        };
+    }
+};
+    
+struct ZoomEvaluatedSize {
+    bool isZoomConstant;
+    bool isFeatureConstant;
+    float sizeT;
+    float size;
+    float layoutSize;
+};
 // Mimic the PaintPropertyBinder technique specifically for the {text,icon}-size layout properties
 // in order to provide a 'custom' scheme for encoding the necessary attribute data.  As with
 // PaintPropertyBinder, SymbolSizeBinder is an abstract class whose implementations handle the
@@ -100,18 +107,25 @@ public:
         uniforms::u_is_size_zoom_constant,
         uniforms::u_is_size_feature_constant,
         uniforms::u_size_t,
-        uniforms::u_size,
-        uniforms::u_layout_size>;
+        uniforms::u_size>;
     using UniformValues = Uniforms::Values;
     
     static std::unique_ptr<SymbolSizeBinder> create(const float tileZoom,
                                                     const style::DataDrivenPropertyValue<float>& sizeProperty,
                                                     const float defaultValue);
 
-    virtual SymbolSizeAttributes::Bindings attributeBindings() const = 0;
-    virtual void populateVertexVector(const GeometryTileFeature& feature) = 0;
-    virtual UniformValues uniformValues(float currentZoom) const = 0;
-    virtual void upload(gl::Context&) = 0;
+    virtual Range<float> getVertexSizeData(const GeometryTileFeature& feature) = 0;
+    virtual ZoomEvaluatedSize evaluateForZoom(float currentZoom) const = 0;
+
+    UniformValues uniformValues(float currentZoom) const {
+        const ZoomEvaluatedSize u = evaluateForZoom(currentZoom);
+        return UniformValues {
+            uniforms::u_is_size_zoom_constant::Value{ u.isZoomConstant },
+            uniforms::u_is_size_feature_constant::Value{ u.isFeatureConstant},
+            uniforms::u_size_t::Value{ u.sizeT },
+            uniforms::u_size::Value{ u.size }
+        };
+    }
 };
 
 // Return the smallest range of stops that covers the interval [lowerZoom, upperZoom]
@@ -123,7 +137,7 @@ Range<float> getCoveringStops(Stops s, float lowerZoom, float upperZoom) {
     
     // lower_bound yields first element >= lowerZoom, but we want the *last*
     // element <= lowerZoom, so if we found a stop > lowerZoom, back up by one.
-    if (minIt != s.stops.begin() && minIt->first > lowerZoom) {
+    if (minIt != s.stops.begin() && minIt != s.stops.end() && minIt->first > lowerZoom) {
         minIt--;
     }
     return Range<float> {
@@ -144,9 +158,10 @@ public:
       : layoutSize(function_.evaluate(tileZoom + 1)) {
         function_.stops.match(
             [&] (const style::ExponentialStops<float>& stops) {
+                const auto& zoomLevels = getCoveringStops(stops, tileZoom, tileZoom + 1);
                 coveringRanges = std::make_tuple(
-                    getCoveringStops(stops, tileZoom, tileZoom + 1),
-                    Range<float> { function_.evaluate(tileZoom), function_.evaluate(tileZoom + 1) }
+                    zoomLevels,
+                    Range<float> { function_.evaluate(zoomLevels.min), function_.evaluate(zoomLevels.max) }
                 );
                 functionInterpolationBase = stops.base;
             },
@@ -156,14 +171,9 @@ public:
         );
     }
     
-    SymbolSizeAttributes::Bindings attributeBindings() const override {
-        return SymbolSizeAttributes::Bindings { {} };
-    }
-
-    void upload(gl::Context&) override {}
-    void populateVertexVector(const GeometryTileFeature&) override {};
+    Range<float> getVertexSizeData(const GeometryTileFeature&) override { return { 0.0f, 0.0f }; };
     
-    UniformValues uniformValues(float currentZoom) const override {
+    ZoomEvaluatedSize evaluateForZoom(float currentZoom) const override {
         float size = layoutSize;
         bool isZoomConstant = !(coveringRanges || function);
         if (coveringRanges) {
@@ -182,14 +192,9 @@ public:
         } else if (function) {
             size = function->evaluate(currentZoom);
         }
-        
-        return UniformValues {
-            uniforms::u_is_size_zoom_constant::Value{ isZoomConstant },
-            uniforms::u_is_size_feature_constant::Value{ true },
-            uniforms::u_size_t::Value{ 0.0f },  // unused
-            uniforms::u_size::Value{ size },
-            uniforms::u_layout_size::Value{ layoutSize }
-        };
+
+        const float unused = 0.0f;
+        return { isZoomConstant, true, unused, size, layoutSize };
     }
     
     float layoutSize;
@@ -211,49 +216,22 @@ public:
           defaultValue(defaultValue_) {
     }
 
-    SymbolSizeAttributes::Bindings attributeBindings() const override {
-        return SymbolSizeAttributes::Bindings { SymbolSizeAttributes::Attribute::binding(*buffer, 0, 1) };
-    }
-
-    void populateVertexVector(const GeometryTileFeature& feature) override {
-        const auto sizeVertex = Vertex {
-            {{
-                static_cast<uint16_t>(function.evaluate(feature, defaultValue) * 10)
-            }}
-        };
-        
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
+    Range<float> getVertexSizeData(const GeometryTileFeature& feature) override {
+        const float size = function.evaluate(feature, defaultValue);
+        return { size, size };
     };
     
-    UniformValues uniformValues(float) const override {
-        return UniformValues {
-            uniforms::u_is_size_zoom_constant::Value{ true },
-            uniforms::u_is_size_feature_constant::Value{ false },
-            uniforms::u_size_t::Value{ 0.0f },      // unused
-            uniforms::u_size::Value{ 0.0f },        // unused
-            uniforms::u_layout_size::Value{ 0.0f }  // unused
-        };
-    }
-    
-    void upload(gl::Context& context) override {
-        buffer = VertexBuffer { context.createVertexBuffer(std::move(vertices)) };
+    ZoomEvaluatedSize evaluateForZoom(float) const override {
+        const float unused = 0.0f;
+        return { true, false, unused, unused, unused };
     }
     
     const style::SourceFunction<float>& function;
     const float defaultValue;
-    
-    VertexVector vertices;
-    optional<VertexBuffer> buffer;
 };
 
 class CompositeFunctionSymbolSizeBinder final : public SymbolSizeBinder {
 public:
-    using Vertex = SymbolSizeAttributes::Vertex;
-    using VertexVector = gl::VertexVector<Vertex>;
-    using VertexBuffer = gl::VertexBuffer<Vertex>;
     
     CompositeFunctionSymbolSizeBinder(const float tileZoom, const style::CompositeFunction<float>& function_, const float defaultValue_)
         : function(function_),
@@ -264,51 +242,27 @@ public:
             return getCoveringStops(stops, tileZoom, tileZoom + 1); }))
     {}
 
-    SymbolSizeAttributes::Bindings attributeBindings() const override {
-        return SymbolSizeAttributes::Bindings { SymbolSizeAttributes::Attribute::binding(*buffer, 0) };
-    }
-    
-    void populateVertexVector(const GeometryTileFeature& feature) override {
-        const auto sizeVertex = Vertex {
-            {{
-                static_cast<uint16_t>(function.evaluate(coveringZoomStops.min, feature, defaultValue) * 10),
-                static_cast<uint16_t>(function.evaluate(coveringZoomStops.max, feature, defaultValue) * 10),
-                static_cast<uint16_t>(function.evaluate(layoutZoom, feature, defaultValue) * 10)
-            }}
+    Range<float> getVertexSizeData(const GeometryTileFeature& feature) override {
+        return {
+            function.evaluate(coveringZoomStops.min, feature, defaultValue),
+            function.evaluate(coveringZoomStops.max, feature, defaultValue)
         };
-        
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
-        vertices.emplace_back(sizeVertex);
     };
     
-    UniformValues uniformValues(float currentZoom) const override {
+    ZoomEvaluatedSize evaluateForZoom(float currentZoom) const override {
         float sizeInterpolationT = util::clamp(
             util::interpolationFactor(1.0f, coveringZoomStops, currentZoom),
             0.0f, 1.0f
         );
 
-        return UniformValues {
-            uniforms::u_is_size_zoom_constant::Value{ false },
-            uniforms::u_is_size_feature_constant::Value{ false },
-            uniforms::u_size_t::Value{ sizeInterpolationT },
-            uniforms::u_size::Value{ 0.0f },        // unused
-            uniforms::u_layout_size::Value{ 0.0f }  // unused
-        };
-    }
-    
-    void upload(gl::Context& context) override {
-        buffer = VertexBuffer { context.createVertexBuffer(std::move(vertices)) };
+        const float unused = 0.0f;
+        return { false, false, sizeInterpolationT, unused, unused };
     }
     
     const style::CompositeFunction<float>& function;
     const float defaultValue;
     float layoutZoom;
     Range<float> coveringZoomStops;
-
-    VertexVector vertices;
-    optional<VertexBuffer> buffer;
 };
 
 
@@ -322,7 +276,7 @@ public:
     using LayoutAttributes = LayoutAttrs;
     using LayoutVertex = typename LayoutAttributes::Vertex;
     
-    using LayoutAndSizeAttributes = gl::ConcatenateAttributes<LayoutAttributes, SymbolSizeAttributes>;
+    using LayoutAndSizeAttributes = gl::ConcatenateAttributes<LayoutAttributes, SymbolDynamicLayoutAttributes>;
 
     using PaintProperties = PaintProps;
     using PaintPropertyBinders = typename PaintProperties::Binders;
@@ -355,11 +309,12 @@ public:
               gl::ColorMode colorMode,
               const UniformValues& uniformValues,
               const gl::VertexBuffer<LayoutVertex>& layoutVertexBuffer,
+              const gl::VertexBuffer<SymbolDynamicLayoutAttributes::Vertex>& dynamicLayoutVertexBuffer,
               const SymbolSizeBinder& symbolSizeBinder,
               const gl::IndexBuffer<DrawMode>& indexBuffer,
               const SegmentVector<Attributes>& segments,
               const PaintPropertyBinders& paintPropertyBinders,
-              const typename PaintProperties::Evaluated& currentProperties,
+              const typename PaintProperties::PossiblyEvaluated& currentProperties,
               float currentZoom,
               const std::string& layerID) {
         typename AllUniforms::Values allUniformValues = uniformValues
@@ -367,7 +322,7 @@ public:
             .concat(paintPropertyBinders.uniformValues(currentZoom, currentProperties));
 
         typename Attributes::Bindings allAttributeBindings = LayoutAttributes::bindings(layoutVertexBuffer)
-            .concat(symbolSizeBinder.attributeBindings())
+            .concat(SymbolDynamicLayoutAttributes::bindings(dynamicLayoutVertexBuffer))
             .concat(paintPropertyBinders.attributeBindings(currentProperties));
 
         for (auto& segment : segments) {
@@ -399,13 +354,20 @@ class SymbolIconProgram : public SymbolProgram<
     SymbolLayoutAttributes,
     gl::Uniforms<
         uniforms::u_matrix,
+        uniforms::u_label_plane_matrix,
+        uniforms::u_gl_coord_matrix,
         uniforms::u_extrude_scale,
         uniforms::u_texsize,
-        uniforms::u_zoom,
-        uniforms::u_rotate_with_map,
         uniforms::u_texture,
         uniforms::u_fadetexture,
-        uniforms::u_is_text>,
+        uniforms::u_is_text,
+        uniforms::u_collision_y_stretch,
+        uniforms::u_camera_to_center_distance,
+        uniforms::u_pitch,
+        uniforms::u_pitch_with_map,
+        uniforms::u_max_camera_distance,
+        uniforms::u_rotate_symbol,
+        uniforms::u_aspect_ratio>,
     style::IconPaintProperties>
 {
 public:
@@ -415,6 +377,7 @@ public:
                                        const style::SymbolPropertyValues&,
                                        const Size& texsize,
                                        const std::array<float, 2>& pixelsToGLUnits,
+                                       const bool alongLine,
                                        const RenderTile&,
                                        const TransformState&);
 };
@@ -431,18 +394,21 @@ class SymbolSDFProgram : public SymbolProgram<
     SymbolLayoutAttributes,
     gl::Uniforms<
         uniforms::u_matrix,
+        uniforms::u_label_plane_matrix,
+        uniforms::u_gl_coord_matrix,
         uniforms::u_extrude_scale,
         uniforms::u_texsize,
-        uniforms::u_zoom,
-        uniforms::u_rotate_with_map,
         uniforms::u_texture,
         uniforms::u_fadetexture,
         uniforms::u_is_text,
-        uniforms::u_gamma_scale,
+        uniforms::u_collision_y_stretch,
+        uniforms::u_camera_to_center_distance,
         uniforms::u_pitch,
-        uniforms::u_bearing,
-        uniforms::u_aspect_ratio,
         uniforms::u_pitch_with_map,
+        uniforms::u_max_camera_distance,
+        uniforms::u_rotate_symbol,
+        uniforms::u_aspect_ratio,
+        uniforms::u_gamma_scale,
         uniforms::u_is_halo>,
     PaintProperties>
 {
@@ -452,18 +418,21 @@ public:
         SymbolLayoutAttributes,
         gl::Uniforms<
             uniforms::u_matrix,
+            uniforms::u_label_plane_matrix,
+            uniforms::u_gl_coord_matrix,
             uniforms::u_extrude_scale,
             uniforms::u_texsize,
-            uniforms::u_zoom,
-            uniforms::u_rotate_with_map,
             uniforms::u_texture,
             uniforms::u_fadetexture,
             uniforms::u_is_text,
-            uniforms::u_gamma_scale,
+            uniforms::u_collision_y_stretch,
+            uniforms::u_camera_to_center_distance,
             uniforms::u_pitch,
-            uniforms::u_bearing,
+            uniforms::u_pitch_with_map,            
+            uniforms::u_max_camera_distance,
+            uniforms::u_rotate_symbol,
             uniforms::u_aspect_ratio,
-            uniforms::u_pitch_with_map,
+            uniforms::u_gamma_scale,
             uniforms::u_is_halo>,
         PaintProperties>;
     
@@ -477,6 +446,7 @@ public:
                                        const style::SymbolPropertyValues&,
                                        const Size& texsize,
                                        const std::array<float, 2>& pixelsToGLUnits,
+                                       const bool alongLine,
                                        const RenderTile&,
                                        const TransformState&,
                                        const SymbolSDFPart);

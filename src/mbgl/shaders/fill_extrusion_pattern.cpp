@@ -39,6 +39,7 @@ varying lowp float base;
 uniform lowp float u_base;
 #endif
 
+
 #ifndef HAS_UNIFORM_u_height
 uniform lowp float a_height_t;
 attribute lowp vec2 a_height;
@@ -47,19 +48,22 @@ varying lowp float height;
 uniform lowp float u_height;
 #endif
 
-void main() {
 
+void main() {
+    
 #ifndef HAS_UNIFORM_u_base
     base = unpack_mix_vec2(a_base, a_base_t);
 #else
     lowp float base = u_base;
 #endif
 
+    
 #ifndef HAS_UNIFORM_u_height
     height = unpack_mix_vec2(a_height, a_height_t);
 #else
     lowp float height = u_height;
 #endif
+
 
     base = max(0.0, base);
     height = max(0.0, height);
@@ -93,6 +97,7 @@ uniform vec2 u_pattern_tl_a;
 uniform vec2 u_pattern_br_a;
 uniform vec2 u_pattern_tl_b;
 uniform vec2 u_pattern_br_b;
+uniform vec2 u_texsize;
 uniform float u_mix;
 
 uniform sampler2D u_image;
@@ -108,28 +113,32 @@ varying lowp float base;
 uniform lowp float u_base;
 #endif
 
+
 #ifndef HAS_UNIFORM_u_height
 varying lowp float height;
 #else
 uniform lowp float u_height;
 #endif
 
-void main() {
 
+void main() {
+    
 #ifdef HAS_UNIFORM_u_base
     lowp float base = u_base;
 #endif
 
+    
 #ifdef HAS_UNIFORM_u_height
     lowp float height = u_height;
 #endif
 
+
     vec2 imagecoord = mod(v_pos_a, 1.0);
-    vec2 pos = mix(u_pattern_tl_a, u_pattern_br_a, imagecoord);
+    vec2 pos = mix(u_pattern_tl_a / u_texsize, u_pattern_br_a / u_texsize, imagecoord);
     vec4 color1 = texture2D(u_image, pos);
 
     vec2 imagecoord_b = mod(v_pos_b, 1.0);
-    vec2 pos2 = mix(u_pattern_tl_b, u_pattern_br_b, imagecoord_b);
+    vec2 pos2 = mix(u_pattern_tl_b / u_texsize, u_pattern_br_b / u_texsize, imagecoord_b);
     vec4 color2 = texture2D(u_image, pos2);
 
     vec4 mixedColor = mix(color1, color2, u_mix);

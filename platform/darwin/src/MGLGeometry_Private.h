@@ -8,6 +8,7 @@
 #import <mbgl/util/geo.hpp>
 #import <mbgl/util/geometry.hpp>
 
+#import <array>
 typedef double MGLLocationRadians;
 typedef double MGLRadianDistance;
 typedef double MGLRadianDirection;
@@ -56,6 +57,20 @@ NS_INLINE mbgl::LatLngBounds MGLLatLngBoundsFromCoordinateBounds(MGLCoordinateBo
                                     MGLLatLngFromLocationCoordinate2D(coordinateBounds.ne));
 }
 
+NS_INLINE std::array<mbgl::LatLng, 4> MGLLatLngArrayFromCoordinateQuad(MGLCoordinateQuad quad) {
+    return { MGLLatLngFromLocationCoordinate2D(quad.topLeft),
+    MGLLatLngFromLocationCoordinate2D(quad.topRight),
+    MGLLatLngFromLocationCoordinate2D(quad.bottomRight),
+    MGLLatLngFromLocationCoordinate2D(quad.bottomLeft) };
+}
+
+NS_INLINE MGLCoordinateQuad MGLCoordinateQuadFromLatLngArray(std::array<mbgl::LatLng, 4> quad) {
+    return { MGLLocationCoordinate2DFromLatLng(quad[0]),
+    MGLLocationCoordinate2DFromLatLng(quad[3]),
+    MGLLocationCoordinate2DFromLatLng(quad[2]),
+    MGLLocationCoordinate2DFromLatLng(quad[1]) };
+}
+
 #if TARGET_OS_IPHONE
 NS_INLINE mbgl::EdgeInsets MGLEdgeInsetsFromNSEdgeInsets(UIEdgeInsets insets) {
     return { insets.top, insets.left, insets.bottom, insets.right };
@@ -90,36 +105,26 @@ NS_INLINE MGLRadianCoordinate2D MGLRadianCoordinateFromLocationCoordinate(CLLoca
                                      MGLRadiansFromDegrees(locationCoordinate.longitude));
 }
 
-/*
+/**
  Returns the distance in radians given two coordinates.
  */
-NS_INLINE MGLRadianDistance MGLDistanceBetweenRadianCoordinates(MGLRadianCoordinate2D from, MGLRadianCoordinate2D to)
-{
-    double a = pow(sin((to.latitude - from.latitude) / 2), 2)
-                + pow(sin((to.longitude - from.longitude) / 2), 2) * cos(from.latitude) * cos(to.latitude);
-    
-    return 2 * atan2(sqrt(a), sqrt(1 - a));
-}
+MGLRadianDistance MGLDistanceBetweenRadianCoordinates(MGLRadianCoordinate2D from, MGLRadianCoordinate2D to);
 
-/*
+/**
  Returns direction in radians given two coordinates.
  */
-NS_INLINE MGLRadianDirection MGLRadianCoordinatesDirection(MGLRadianCoordinate2D from, MGLRadianCoordinate2D to) {
-    double a = sin(to.longitude - from.longitude) * cos(to.latitude);
-    double b = cos(from.latitude) * sin(to.latitude)
-                - sin(from.latitude) * cos(to.latitude) * cos(to.longitude - from.longitude);
-    return atan2(a, b);
-}
+MGLRadianDirection MGLRadianCoordinatesDirection(MGLRadianCoordinate2D from, MGLRadianCoordinate2D to);
 
-/*
- Returns coordinate at a given distance and direction away from coordinate.
+/**
+ Returns a coordinate at a given distance and direction away from coordinate.
  */
-NS_INLINE MGLRadianCoordinate2D MGLRadianCoordinateAtDistanceFacingDirection(MGLRadianCoordinate2D coordinate,
-                                                                             MGLRadianDistance distance,
-                                                                             MGLRadianDirection direction) {
-    double otherLatitude = asin(sin(coordinate.latitude) * cos(distance)
-                                + cos(coordinate.latitude) * sin(distance) * cos(direction));
-    double otherLongitude = coordinate.longitude + atan2(sin(direction) * sin(distance) * cos(coordinate.latitude),
-                                                         cos(distance) - sin(coordinate.latitude) * sin(otherLatitude));
-    return MGLRadianCoordinate2DMake(otherLatitude, otherLongitude);
-}
+MGLRadianCoordinate2D MGLRadianCoordinateAtDistanceFacingDirection(MGLRadianCoordinate2D coordinate,
+                                                                   MGLRadianDistance distance,
+                                                                   MGLRadianDirection direction);
+
+/**
+ Returns the direction from one coordinate to another.
+ */
+CLLocationDirection MGLDirectionBetweenCoordinates(CLLocationCoordinate2D firstCoordinate, CLLocationCoordinate2D secondCoordinate);
+
+CGPoint MGLPointRounded(CGPoint point);

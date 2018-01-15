@@ -10,17 +10,15 @@ set(MBGL_TEST_FILES
     test/algorithm/generate_clip_ids.test.cpp
     test/algorithm/mock.hpp
     test/algorithm/update_renderables.test.cpp
+    test/algorithm/update_tile_masks.test.cpp
 
     # api
     test/api/annotations.test.cpp
     test/api/api_misuse.test.cpp
     test/api/custom_layer.test.cpp
     test/api/query.test.cpp
-    test/api/render_missing.test.cpp
-    test/api/repeated_render.test.cpp
-
-    # geometry
-    test/geometry/binpack.test.cpp
+    test/api/recycle_map.cpp
+    test/api/zoom_history.cpp
 
     # gl
     test/gl/bucket.test.cpp
@@ -31,6 +29,7 @@ set(MBGL_TEST_FILES
 
     # map
     test/map/map.test.cpp
+    test/map/prefetch.test.cpp
     test/map/transform.test.cpp
 
     # math
@@ -40,13 +39,15 @@ set(MBGL_TEST_FILES
 
     # programs
     test/programs/binary_program.test.cpp
+    test/programs/symbol_program.test.cpp
 
     # renderer
     test/renderer/backend_scope.test.cpp
     test/renderer/group_by_layout.test.cpp
+    test/renderer/image_manager.test.cpp
 
     # sprite
-    test/sprite/sprite_atlas.test.cpp
+    test/sprite/sprite_loader.test.cpp
     test/sprite/sprite_parser.test.cpp
 
     # src/mbgl/test
@@ -93,10 +94,12 @@ set(MBGL_TEST_FILES
     # style/function
     test/style/function/camera_function.test.cpp
     test/style/function/composite_function.test.cpp
+    test/style/function/exponential_stops.test.cpp
+    test/style/function/interval_stops.test.cpp
     test/style/function/source_function.test.cpp
 
     # style
-    test/style/paint_property.test.cpp
+    test/style/properties.test.cpp
     test/style/source.test.cpp
     test/style/style.test.cpp
     test/style/style_image.test.cpp
@@ -104,7 +107,7 @@ set(MBGL_TEST_FILES
     test/style/style_parser.test.cpp
 
     # text
-    test/text/glyph_atlas.test.cpp
+    test/text/glyph_loader.test.cpp
     test/text/glyph_pbf.test.cpp
     test/text/quads.test.cpp
 
@@ -119,6 +122,7 @@ set(MBGL_TEST_FILES
 
     # util
     test/util/async_task.test.cpp
+    test/util/dtoa.test.cpp
     test/util/geo.test.cpp
     test/util/http_timeout.test.cpp
     test/util/image.test.cpp
@@ -137,5 +141,4 @@ set(MBGL_TEST_FILES
     test/util/timer.test.cpp
     test/util/token.test.cpp
     test/util/url.test.cpp
-    test/util/work_queue.test.cpp
 )

@@ -2,13 +2,15 @@ apply plugin: 'com.android.library'
 
 dependencies {
     compile rootProject.ext.dep.supportAnnotations
-    compile rootProject.ext.dep.supportV4
-    compile rootProject.ext.dep.supportDesign
+    compile rootProject.ext.dep.supportFragmentV4
     compile rootProject.ext.dep.timber
     compile rootProject.ext.dep.okhttp3
-    compile(rootProject.ext.dep.lost) {
-        exclude group: 'com.google.guava'
+    provided(rootProject.ext.dep.lost) {
+        exclude group: 'com.android.support'
     }
+    testCompile rootProject.ext.dep.junit
+    testCompile rootProject.ext.dep.mockito
+    testCompile rootProject.ext.dep.robolectric
 
     // Mapbox Android Services (GeoJSON support)
     compile(rootProject.ext.dep.mapboxJavaGeoJSON) {
@@ -18,6 +20,7 @@ dependencies {
     // Mapbox Android Services (Telemetry support)
     compile(rootProject.ext.dep.mapboxAndroidTelemetry) {
         transitive = true
+        exclude group: 'com.android.support'
     }
 }
 
@@ -39,11 +42,14 @@ android {
     // to invoke the Java tests. When we explicitly specify an ABI of 'none', no native dependencies are
     // added. When another ABI is specified explicitly, we're just going to build that ABI. In all other
     // cases, all ABIs are built.
-    // When invoking from the command line, set `-Pmapbox.abis=...` to only build the desired architectures.
+    //
+    // When invoking from the command line or to override the device default, set `-Pmapbox.abis=...` to
+    // only build the desired architectures.
+    //
     // When building from Android Studio, gradle.properties sets `android.buildOnlyTargetAbi=true` so that
     // only the architecture for the device you're running on gets built.
     def abi = 'all'
-    if (!project.hasProperty('android.injected.invoked.from.ide')) {
+    if (!project.hasProperty('android.injected.invoked.from.ide') || project.hasProperty("mapbox.abis")) {
         // Errors when the user invokes Gradle from the command line and didn't set mapbox.abis
         abi = project.getProperty("mapbox.abis")
     }
@@ -114,8 +120,16 @@ android {
     }
 
     lintOptions {
+        disable 'MissingTranslation', 'TypographyQuotes'
+        baseline file("lint-baseline-local.xml")
         checkAllWarnings true
-        warningsAsErrors true
+        warningsAsErrors false
+    }
+
+    testOptions {
+        unitTests{
+            returnDefaultValues = true
+        }
     }
 
     buildTypes {
@@ -145,3 +159,5 @@ configurations {
 apply from: 'gradle-javadoc.gradle'
 apply from: 'gradle-publish.gradle'
 apply from: 'gradle-checkstyle.gradle'
+apply from: 'gradle-tests-staticblockremover.gradle'
+apply from: '../gradle-lint.gradle'

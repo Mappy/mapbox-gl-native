@@ -21,7 +21,8 @@ import java.util.List;
  */
 class InfoWindowManager {
 
-  private List<InfoWindow> infoWindows;
+  private final List<InfoWindow> infoWindows = new ArrayList<>();
+
   private MapboxMap.InfoWindowAdapter infoWindowAdapter;
   private boolean allowConcurrentMultipleInfoWindows;
 
@@ -29,13 +30,11 @@ class InfoWindowManager {
   private MapboxMap.OnInfoWindowLongClickListener onInfoWindowLongClickListener;
   private MapboxMap.OnInfoWindowCloseListener onInfoWindowCloseListener;
 
-  InfoWindowManager() {
-    this.infoWindows = new ArrayList<>();
-  }
-
   void update() {
-    for (InfoWindow infoWindow : infoWindows) {
-      infoWindow.update();
+    if (!infoWindows.isEmpty()) {
+      for (InfoWindow infoWindow : infoWindows) {
+        infoWindow.update();
+      }
     }
   }
 

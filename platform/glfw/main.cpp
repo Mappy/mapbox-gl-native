@@ -1,4 +1,5 @@
 #include "glfw_view.hpp"
+#include "glfw_renderer_frontend.hpp"
 #include "settings_json.hpp"
 
 #include <mbgl/util/default_styles.hpp>
@@ -6,8 +7,10 @@
 #include <mbgl/util/platform.hpp>
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/storage/default_file_source.hpp>
+#include <mbgl/style/style.hpp>
+#include <mbgl/renderer/renderer.hpp>
 
-#include <signal.h>
+#include <csignal>
 #include <getopt.h>
 #include <fstream>
 #include <sstream>
@@ -19,7 +22,7 @@ namespace {
 
 GLFWView* view = nullptr;
 
-}
+} // namespace
 
 void quit_handler(int) {
     if (view) {
@@ -31,23 +34,24 @@ void quit_handler(int) {
 }
 
 int main(int argc, char *argv[]) {
+    // Load settings
+    mbgl::Settings_JSON settings;
+
     bool fullscreen = false;
     bool benchmark = false;
     std::string style;
-    double latitude = 0, longitude = 0;
-    double bearing = 0, zoom = 1, pitch = 0;
-    bool skipConfig = false;
 
     const struct option long_options[] = {
-        {"fullscreen", no_argument, 0, 'f'},
-        {"benchmark", no_argument, 0, 'b'},
-        {"style", required_argument, 0, 's'},
-        {"lon", required_argument, 0, 'x'},
-        {"lat", required_argument, 0, 'y'},
-        {"zoom", required_argument, 0, 'z'},
-        {"bearing", required_argument, 0, 'r'},
-        {"pitch", required_argument, 0, 'p'},
-        {0, 0, 0, 0}
+        {"fullscreen", no_argument, nullptr, 'f'},
+        {"benchmark", no_argument, nullptr, 'b'},
+        {"offline", no_argument, nullptr, 'o'},
+        {"style", required_argument, nullptr, 's'},
+        {"lon", required_argument, nullptr, 'x'},
+        {"lat", required_argument, nullptr, 'y'},
+        {"zoom", required_argument, nullptr, 'z'},
+        {"bearing", required_argument, nullptr, 'r'},
+        {"pitch", required_argument, nullptr, 'p'},
+        {nullptr, 0, nullptr, 0}
     };
 
     while (true) {
@@ -56,37 +60,32 @@ int main(int argc, char *argv[]) {
         if (opt == -1) break;
         switch (opt)
         {
-        case 0:
-            if (long_options[option_index].flag != 0)
-                break;
         case 'f':
             fullscreen = true;
             break;
         case 'b':
             benchmark = true;
             break;
+        case 'o':
+            settings.online = false;
+            break;
         case 's':
-            style = std::string("asset://") + std::string(optarg);
+            style = std::string(optarg);
             break;
         case 'x':
-            longitude = atof(optarg);
-            skipConfig = true;
+            settings.longitude = atof(optarg);
             break;
         case 'y':
-            latitude = atof(optarg);
-            skipConfig = true;
+            settings.latitude = atof(optarg);
             break;
         case 'z':
-            zoom = atof(optarg);
-            skipConfig = true;
+            settings.zoom = atof(optarg);
             break;
         case 'r':
-            bearing = atof(optarg);
-            skipConfig = true;
+            settings.bearing = atof(optarg);
             break;
         case 'p':
-            pitch = atof(optarg);
-            skipConfig = true;
+            settings.pitch = atof(optarg);
             break;
         default:
             break;
@@ -99,7 +98,7 @@ int main(int argc, char *argv[]) {
     sigIntHandler.sa_handler = quit_handler;
     sigemptyset(&sigIntHandler.sa_mask);
     sigIntHandler.sa_flags = 0;
-    sigaction(SIGINT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, nullptr);
 
     if (benchmark) {
         mbgl::Log::Info(mbgl::Event::General, "BENCHMARK MODE: Some optimizations are disabled.");
@@ -109,6 +108,10 @@ int main(int argc, char *argv[]) {
     view = &backend;
 
     mbgl::DefaultFileSource fileSource("/tmp/mbgl-cache.db", ".");
+    if (!settings.online) {
+        fileSource.setOnlineStatus(false);
+        mbgl::Log::Warning(mbgl::Event::Setup, "Application is offline. Press `O` to toggle online status.");
+    }
 
     // Set access token if present
     const char *token = getenv("MAPBOX_ACCESS_TOKEN");
@@ -119,25 +122,25 @@ int main(int argc, char *argv[]) {
     }
 
     mbgl::ThreadPool threadPool(4);
-
-    mbgl::Map map(backend, view->getSize(), view->getPixelRatio(), fileSource, threadPool);
+    GLFWRendererFrontend rendererFrontend { std::make_unique<mbgl::Renderer>(backend, view->getPixelRatio(), fileSource, threadPool), backend };
+    mbgl::Map map(rendererFrontend, backend, view->getSize(), view->getPixelRatio(), fileSource, threadPool);
 
     backend.setMap(&map);
 
-    // Load settings
-    mbgl::Settings_JSON settings;
-
-    if (skipConfig) {
-        map.setLatLngZoom(mbgl::LatLng(latitude, longitude), zoom);
-        map.setBearing(bearing);
-        map.setPitch(pitch);
-        mbgl::Log::Info(mbgl::Event::General, "Location: %f/%f (z%.2f, %.2f deg)", latitude, longitude, zoom, bearing);
-    } else {
-        map.setLatLngZoom(mbgl::LatLng(settings.latitude, settings.longitude), settings.zoom);
-        map.setBearing(settings.bearing);
-        map.setPitch(settings.pitch);
-        map.setDebug(mbgl::MapDebugOptions(settings.debug));
+    if (!style.empty() && style.find("://") == std::string::npos) {
+        style = std::string("file://") + style;
     }
+
+    map.setLatLngZoom(mbgl::LatLng(settings.latitude, settings.longitude), settings.zoom);
+    map.setBearing(settings.bearing);
+    map.setPitch(settings.pitch);
+    map.setDebug(mbgl::MapDebugOptions(settings.debug));
+
+    view->setOnlineStatusCallback([&settings, &fileSource]() {
+        settings.online = !settings.online;
+        fileSource.setOnlineStatus(settings.online);
+        mbgl::Log::Info(mbgl::Event::Setup, "Application is %s. Press `O` to toggle online status.", settings.online ? "online" : "offline");
+    });
 
     view->setChangeStyleCallback([&map] () {
         static uint8_t currentStyleIndex;
@@ -147,7 +150,7 @@ int main(int argc, char *argv[]) {
         }
 
         mbgl::util::default_styles::DefaultStyle newStyle = mbgl::util::default_styles::orderedStyles[currentStyleIndex];
-        map.setStyleURL(newStyle.url);
+        map.getStyle().loadURL(newStyle.url);
         view->setWindowTitle(newStyle.name);
 
         mbgl::Log::Info(mbgl::Event::Setup, "Changed style to: %s", newStyle.name);
@@ -178,7 +181,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    map.setStyleURL(style);
+    map.getStyle().loadURL(style);
 
     view->run();
 
@@ -190,11 +193,9 @@ int main(int argc, char *argv[]) {
     settings.bearing = map.getBearing();
     settings.pitch = map.getPitch();
     settings.debug = mbgl::EnumType(map.getDebug());
-    if (!skipConfig) {
-        settings.save();
-    }
+    settings.save();
     mbgl::Log::Info(mbgl::Event::General,
-                    "Exit location: --lat=\"%f\" --lon=\"%f\" --zoom=\"%f\" --bearing \"%f\"",
+                    R"(Exit location: --lat="%f" --lon="%f" --zoom="%f" --bearing "%f")",
                     settings.latitude, settings.longitude, settings.zoom, settings.bearing);
 
     view = nullptr;

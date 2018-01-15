@@ -57,7 +57,7 @@ public:
               const gl::IndexBuffer<DrawMode>& indexBuffer,
               const SegmentVector<Attributes>& segments,
               const PaintPropertyBinders& paintPropertyBinders,
-              const typename PaintProperties::Evaluated& currentProperties,
+              const typename PaintProperties::PossiblyEvaluated& currentProperties,
               float currentZoom,
               const std::string& layerID) {
         typename AllUniforms::Values allUniformValues = uniformValues
@@ -101,7 +101,7 @@ public:
           parameters(std::move(parameters_)) {
     }
 
-    Program& get(const typename PaintProperties::Evaluated& currentProperties) {
+    Program& get(const typename PaintProperties::PossiblyEvaluated& currentProperties) {
         Bitset bits = PaintPropertyBinders::constants(currentProperties);
         auto it = programs.find(bits);
         if (it != programs.end()) {

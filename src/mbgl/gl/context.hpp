@@ -25,9 +25,6 @@
 #include <string>
 
 namespace mbgl {
-
-class View;
-
 namespace gl {
 
 constexpr size_t TextureMax = 64;
@@ -64,11 +61,17 @@ public:
     optional<std::pair<BinaryProgramFormat, std::string>> getBinaryProgram(ProgramID) const;
 
     template <class Vertex, class DrawMode>
-    VertexBuffer<Vertex, DrawMode> createVertexBuffer(VertexVector<Vertex, DrawMode>&& v) {
+    VertexBuffer<Vertex, DrawMode> createVertexBuffer(VertexVector<Vertex, DrawMode>&& v, const BufferUsage usage=BufferUsage::StaticDraw) {
         return VertexBuffer<Vertex, DrawMode> {
             v.vertexSize(),
-            createVertexBuffer(v.data(), v.byteSize())
+            createVertexBuffer(v.data(), v.byteSize(), usage)
         };
+    }
+
+    template <class Vertex, class DrawMode>
+    void updateVertexBuffer(VertexBuffer<Vertex, DrawMode>& buffer, VertexVector<Vertex, DrawMode>&& v) {
+        assert(v.vertexSize() == buffer.vertexCount);
+        updateVertexBuffer(buffer.buffer, v.data(), v.byteSize());
     }
 
     template <class DrawMode>
@@ -187,7 +190,13 @@ public:
         return vertexArray.get();
     }
 
+    void setCleanupOnDestruction(bool cleanup) {
+        cleanupOnDestruction = cleanup;
+    }
+
 private:
+    bool cleanupOnDestruction = true;
+
     std::unique_ptr<extension::Debugging> debugging;
     std::unique_ptr<extension::VertexArray> vertexArray;
 #if MBGL_HAS_BINARY_PROGRAMS
@@ -195,9 +204,10 @@ private:
 #endif
 
 public:
-    State<value::ActiveTexture> activeTexture;
+    State<value::ActiveTextureUnit> activeTextureUnit;
     State<value::BindFramebuffer> bindFramebuffer;
     State<value::Viewport> viewport;
+    State<value::ScissorTest> scissorTest;
     std::array<State<value::BindTexture>, 2> texture;
     State<value::Program> program;
     State<value::BindVertexBuffer> vertexBuffer;
@@ -205,11 +215,12 @@ public:
     State<value::BindVertexArray, const Context&> bindVertexArray { *this };
     VertexArrayState globalVertexArrayState { UniqueVertexArray(0, { this }), *this };
 
+    State<value::PixelStorePack> pixelStorePack;
+    State<value::PixelStoreUnpack> pixelStoreUnpack;
+
 #if not MBGL_USE_GLES2
     State<value::PixelZoom> pixelZoom;
     State<value::RasterPos> rasterPos;
-    State<value::PixelStorePack> pixelStorePack;
-    State<value::PixelStoreUnpack> pixelStoreUnpack;
     State<value::PixelTransferDepth> pixelTransferDepth;
     State<value::PixelTransferStencil> pixelTransferStencil;
 #endif // MBGL_USE_GLES2
@@ -237,7 +248,8 @@ private:
     State<value::PointSize> pointSize;
 #endif // MBGL_USE_GLES2
 
-    UniqueBuffer createVertexBuffer(const void* data, std::size_t size);
+    UniqueBuffer createVertexBuffer(const void* data, std::size_t size, const BufferUsage usage);
+    void updateVertexBuffer(UniqueBuffer& buffer, const void* data, std::size_t size);
     UniqueBuffer createIndexBuffer(const void* data, std::size_t size);
     UniqueTexture createTexture(Size size, const void* data, TextureFormat, TextureUnit);
     void updateTexture(TextureID, Size size, const void* data, TextureFormat, TextureUnit);

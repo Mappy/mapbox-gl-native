@@ -2,6 +2,7 @@
 
 #include "value.hpp"
 
+#include <mbgl/util/feature.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/style/conversion.hpp>
 #include <mbgl/util/optional.hpp>
@@ -61,6 +62,14 @@ inline optional<float> toNumber(const mbgl::android::Value& value) {
     if (value.isNumber()) {
         auto num = value.toFloat();
         return num;
+    } else {
+        return {};
+    }
+}
+
+inline optional<double> toDouble(const mbgl::android::Value& value) {
+    if (value.isNumber()) {
+        return value.toDouble();
     } else {
         return {};
     }

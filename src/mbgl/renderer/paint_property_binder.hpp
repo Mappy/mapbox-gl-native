@@ -5,6 +5,7 @@
 #include <mbgl/gl/uniform.hpp>
 #include <mbgl/gl/context.hpp>
 #include <mbgl/util/type_list.hpp>
+#include <mbgl/renderer/possibly_evaluated_property_value.hpp>
 #include <mbgl/renderer/paint_property_statistics.hpp>
 
 #include <bitset>
@@ -217,7 +218,11 @@ public:
     }
 
     float interpolationFactor(float currentZoom) const override {
-        return util::interpolationFactor(1.0f, { rangeOfCoveringRanges.min.zoom, rangeOfCoveringRanges.max.zoom }, currentZoom);
+        if (function.useIntegerZoom) {
+            return util::interpolationFactor(1.0f, { rangeOfCoveringRanges.min.zoom, rangeOfCoveringRanges.max.zoom }, std::floor(currentZoom));
+        } else {
+            return util::interpolationFactor(1.0f, { rangeOfCoveringRanges.min.zoom, rangeOfCoveringRanges.max.zoom }, currentZoom);
+        }
     }
 
     T uniformValue(const PossiblyEvaluatedPropertyValue<T>& currentValue) const override {

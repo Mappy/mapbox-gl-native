@@ -20,6 +20,7 @@ class CollisionTile;
 class SymbolBucket;
 class Anchor;
 class RenderLayer;
+class PlacedSymbol;
 
 namespace style {
 class Filter;
@@ -29,32 +30,26 @@ class SymbolLayout {
 public:
     SymbolLayout(const BucketParameters&,
                  const std::vector<const RenderLayer*>&,
-                 const GeometryTileLayer&,
-                 IconDependencies&,
+                 std::unique_ptr<GeometryTileLayer>,
+                 ImageDependencies&,
                  GlyphDependencies&);
 
-    void prepare(const GlyphPositionMap& glyphs, const IconMap& icons);
+    void prepare(const GlyphMap&, const GlyphPositions&,
+                 const ImageMap&, const ImagePositions&);
 
     std::unique_ptr<SymbolBucket> place(CollisionTile&);
 
     bool hasSymbolInstances() const;
 
-    enum State {
-        Pending,  // Waiting for the necessary glyphs or icons to be available.
-        Placed    // The final positions have been determined, taking into account prior layers.
-    };
-
-    State state = Pending;
-
     std::map<std::string,
-        std::pair<style::IconPaintProperties::Evaluated, style::TextPaintProperties::Evaluated>> layerPaintProperties;
+        std::pair<style::IconPaintProperties::PossiblyEvaluated, style::TextPaintProperties::PossiblyEvaluated>> layerPaintProperties;
 
 private:
     void addFeature(const size_t,
                     const SymbolFeature&,
                     const std::pair<Shaping, Shaping>& shapedTextOrientations,
                     optional<PositionedIcon> shapedIcon,
-                    const GlyphPositions& face);
+                    const GlyphPositionMap&);
 
     bool anchorIsTooClose(const std::u16string& text, const float repeatDistance, const Anchor&);
     std::map<std::u16string, std::vector<Anchor>> compareText;
@@ -64,20 +59,22 @@ private:
     // Adds placed items to the buffer.
     template <typename Buffer>
     void addSymbol(Buffer&,
-                   SymbolSizeBinder& sizeBinder,
+                   const Range<float> sizeData,
                    const SymbolQuad&,
-                   const SymbolFeature& feature,
                    float scale,
                    const bool keepUpright,
                    const style::SymbolPlacementType,
-                   const float placementAngle,
-                   WritingModeType writingModes);
+                   const Anchor& labelAnchor,
+                   PlacedSymbol& placedSymbol);
 
-    const std::string sourceLayerName;
+    // Stores the layer so that we can hold on to GeometryTileFeature instances in SymbolFeature,
+    // which may reference data from this object.
+    const std::unique_ptr<GeometryTileLayer> sourceLayer;
     const std::string bucketName;
     const float overscaling;
     const float zoom;
     const MapMode mode;
+    const float pixelRatio;
 
     style::SymbolLayoutProperties::PossiblyEvaluated layout;
 

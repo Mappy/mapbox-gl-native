@@ -24,7 +24,7 @@ template <class T>
 class CompositeFunction {
 public:
     using InnerStops = std::conditional_t<
-        util::Interpolatable<T>,
+        util::Interpolatable<T>::value,
         variant<
             ExponentialStops<T>,
             IntervalStops<T>,
@@ -34,7 +34,7 @@ public:
             CategoricalStops<T>>>;
 
     using Stops = std::conditional_t<
-        util::Interpolatable<T>,
+        util::Interpolatable<T>::value,
         variant<
             CompositeExponentialStops<T>,
             CompositeIntervalStops<T>,
@@ -67,7 +67,7 @@ public:
                 
                 // lower_bound yields first element >= zoom, but we want the *last*
                 // element <= zoom, so if we found a stop > zoom, back up by one.
-                if (minIt != s.stops.begin() && minIt->first > zoom) {
+                if (minIt != s.stops.begin() && minIt != s.stops.end() && minIt->first > zoom) {
                     minIt--;
                 }
                 
@@ -135,6 +135,7 @@ public:
     std::string property;
     Stops stops;
     optional<T> defaultValue;
+    bool useIntegerZoom = false;
 
 private:
     T evaluateFinal(const CoveringRanges& ranges, const Value& value, T finalDefaultValue) const {

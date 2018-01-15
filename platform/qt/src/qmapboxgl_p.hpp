@@ -1,10 +1,10 @@
 #pragma once
 
 #include "qmapboxgl.hpp"
+#include "qmapboxgl_renderer_frontend_p.hpp"
 
 #include <mbgl/map/map.hpp>
-#include <mbgl/map/backend.hpp>
-#include <mbgl/map/view.hpp>
+#include <mbgl/renderer/renderer_backend.hpp>
 #include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/util/geo.hpp>
@@ -12,7 +12,7 @@
 #include <QObject>
 #include <QSize>
 
-class QMapboxGLPrivate : public QObject, public mbgl::View, public mbgl::Backend
+class QMapboxGLPrivate : public QObject, public mbgl::RendererBackend, public mbgl::MapObserver
 {
     Q_OBJECT
 
@@ -20,14 +20,11 @@ public:
     explicit QMapboxGLPrivate(QMapboxGL *, const QMapboxGLSettings &, const QSize &size, qreal pixelRatio);
     virtual ~QMapboxGLPrivate();
 
-    mbgl::Size framebufferSize() const;
 
-    // mbgl::View implementation.
+    // mbgl::RendererBackend implementation.
     void bind() final;
-
-    // mbgl::Backend implementation.
+    mbgl::Size getFramebufferSize() const final;
     void updateAssumedState() final;
-    void invalidate() final;
     void activate() final {}
     void deactivate() final {}
 
@@ -52,8 +49,9 @@ public:
 
     QMapboxGL *q_ptr { nullptr };
 
-    std::unique_ptr<mbgl::DefaultFileSource> fileSourceObj;
+    std::shared_ptr<mbgl::DefaultFileSource> fileSourceObj;
     std::shared_ptr<mbgl::ThreadPool> threadPool;
+    std::unique_ptr<QMapboxGLRendererFrontend> frontend;
     std::unique_ptr<mbgl::Map> mapObj;
 
     bool dirty { false };
@@ -63,6 +61,8 @@ private:
 
 public slots:
     void connectionEstablished();
+    void invalidate();
+    void render();
 
 signals:
     void needsRendering();

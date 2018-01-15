@@ -10,7 +10,8 @@ enum class SourceType : uint8_t {
     Raster,
     GeoJSON,
     Video,
-    Annotations
+    Annotations,
+    Image
 };
 
 namespace style {
@@ -67,7 +68,7 @@ enum class TextJustifyType : uint8_t {
     Right
 };
 
-enum class TextAnchorType : uint8_t {
+enum class SymbolAnchorType : uint8_t {
     Center,
     Left,
     Right,

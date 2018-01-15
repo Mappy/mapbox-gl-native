@@ -5,6 +5,9 @@
 #include <mbgl/util/rect.hpp>
 #include <mbgl/util/traits.hpp>
 #include <mbgl/util/optional.hpp>
+#include <mbgl/util/immutable.hpp>
+#include <mbgl/util/image.hpp>
+#include <mbgl/util/util.hpp>
 
 #include <cstdint>
 #include <vector>
@@ -13,8 +16,8 @@
 
 namespace mbgl {
 
-typedef char16_t GlyphID;
-typedef std::set<GlyphID> GlyphIDs;
+using GlyphID = char16_t;
+using GlyphIDs = std::set<GlyphID>;
     
 // Note: this only works for the BMP
 GlyphRange getGlyphRange(GlyphID glyph);
@@ -35,37 +38,47 @@ inline bool operator==(const GlyphMetrics& lhs, const GlyphMetrics& rhs) {
         lhs.advance == rhs.advance;
 }
 
-struct Glyph {
-    Rect<uint16_t> rect;
+class Glyph {
+public:
+    // We're using this value throughout the Mapbox GL ecosystem. If this is different, the glyphs
+    // also need to be reencoded.
+    static constexpr const uint8_t borderSize = 3;
+
+    GlyphID id = 0;
+
+    // A signed distance field of the glyph with a border (see above).
+    AlphaImage bitmap;
+
+    // Glyph metrics
     GlyphMetrics metrics;
 };
 
-typedef std::map<GlyphID, optional<Glyph>> GlyphPositions;
-typedef std::map<FontStack, GlyphPositions> GlyphPositionMap;
+using Glyphs = std::map<GlyphID, optional<Immutable<Glyph>>>;
+using GlyphMap = std::map<FontStack, Glyphs>;
 
 class PositionedGlyph {
 public:
-    explicit PositionedGlyph(GlyphID glyph_, float x_, float y_, float angle_)
-        : glyph(glyph_), x(x_), y(y_), angle(angle_) {}
+    explicit PositionedGlyph(GlyphID glyph_, float x_, float y_, bool vertical_)
+        : glyph(glyph_), x(x_), y(y_), vertical(vertical_) {}
 
     GlyphID glyph = 0;
     float x = 0;
     float y = 0;
-    float angle = 0;
+    bool vertical = false;
 };
 
 enum class WritingModeType : uint8_t;
 
 class Shaping {
     public:
-    explicit Shaping() : top(0), bottom(0), left(0), right(0) {}
+    explicit Shaping() = default;
     explicit Shaping(float x, float y, WritingModeType writingMode_)
         : top(y), bottom(y), left(x), right(x), writingMode(writingMode_) {}
     std::vector<PositionedGlyph> positionedGlyphs;
-    int32_t top;
-    int32_t bottom;
-    int32_t left;
-    int32_t right;
+    int32_t top = 0;
+    int32_t bottom = 0;
+    int32_t left = 0;
+    int32_t right = 0;
     WritingModeType writingMode;
 
     explicit operator bool() const { return !positionedGlyphs.empty(); }
@@ -77,28 +90,27 @@ enum class WritingModeType : uint8_t {
     Vertical = 1 << 1,
 };
 
-constexpr WritingModeType operator|(WritingModeType a, WritingModeType b) {
+MBGL_CONSTEXPR WritingModeType operator|(WritingModeType a, WritingModeType b) {
     return WritingModeType(mbgl::underlying_type(a) | mbgl::underlying_type(b));
 }
 
-constexpr WritingModeType& operator|=(WritingModeType& a, WritingModeType b) {
+MBGL_CONSTEXPR WritingModeType& operator|=(WritingModeType& a, WritingModeType b) {
     return (a = a | b);
 }
 
-constexpr bool operator&(WritingModeType lhs, WritingModeType rhs) {
+MBGL_CONSTEXPR bool operator&(WritingModeType lhs, WritingModeType rhs) {
     return mbgl::underlying_type(lhs) & mbgl::underlying_type(rhs);
 }
 
-constexpr WritingModeType& operator&=(WritingModeType& lhs, WritingModeType rhs) {
+MBGL_CONSTEXPR WritingModeType& operator&=(WritingModeType& lhs, WritingModeType rhs) {
     return (lhs = WritingModeType(mbgl::underlying_type(lhs) & mbgl::underlying_type(rhs)));
 }
 
-constexpr WritingModeType operator~(WritingModeType value) {
+MBGL_CONSTEXPR WritingModeType operator~(WritingModeType value) {
     return WritingModeType(~mbgl::underlying_type(value));
 }
 
-typedef std::map<FontStack,GlyphIDs> GlyphDependencies;
-typedef std::map<FontStack,GlyphRangeSet> GlyphRangeDependencies;
-
+using GlyphDependencies = std::map<FontStack,GlyphIDs>;
+using GlyphRangeDependencies = std::map<FontStack,GlyphRangeSet>;
 
 } // end namespace mbgl

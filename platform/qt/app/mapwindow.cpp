@@ -79,8 +79,6 @@ void MapWindow::changeStyle()
 
 void MapWindow::keyPressEvent(QKeyEvent *ev)
 {
-    static const qint64 transitionDuration = 300;
-
     switch (ev->key()) {
     case Qt::Key_S:
         changeStyle();
@@ -91,6 +89,9 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
             }
 
             m_sourceAdded = true;
+
+            // Not in all styles, but will work on streets
+            QString before = "waterway-label";
 
             QFile geojson(":source1.geojson");
             geojson.open(QIODevice::ReadOnly);
@@ -106,7 +107,7 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
             routeCase["id"] = "routeCase";
             routeCase["type"] = "line";
             routeCase["source"] = "routeSource";
-            m_map->addLayer(routeCase);
+            m_map->addLayer(routeCase, before);
 
             m_map->setPaintProperty("routeCase", "line-color", QColor("white"));
             m_map->setPaintProperty("routeCase", "line-width", 20.0);
@@ -118,7 +119,7 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
             route["id"] = "route";
             route["type"] = "line";
             route["source"] = "routeSource";
-            m_map->addLayer(route);
+            m_map->addLayer(route, before);
 
             m_map->setPaintProperty("route", "line-color", QColor("blue"));
             m_map->setPaintProperty("route", "line-width", 8.0);
@@ -253,8 +254,13 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
             if (m_lineAnnotationId.isNull()) {
                 QMapbox::Coordinate topLeft     = m_map->coordinateForPixel({ 0, 0 });
                 QMapbox::Coordinate bottomRight = m_map->coordinateForPixel({ qreal(size().width()), qreal(size().height()) });
-                QMapbox::CoordinatesCollections geometry { { { topLeft, bottomRight } } };
-                QMapbox::LineAnnotation line { { QMapbox::ShapeAnnotationGeometry::LineStringType, geometry }, 0.5f, 1.0f, Qt::red };
+                QMapbox::CoordinatesCollections lineGeometry { { { topLeft, bottomRight } } };
+                QMapbox::ShapeAnnotationGeometry annotationGeometry { QMapbox::ShapeAnnotationGeometry::LineStringType, lineGeometry };
+                QMapbox::LineAnnotation line;
+                line.geometry = annotationGeometry;
+                line.opacity = 0.5f;
+                line.width = 1.0f;
+                line.color = Qt::red;
                 m_lineAnnotationId = m_map->addAnnotation(QVariant::fromValue<QMapbox::LineAnnotation>(line));
             } else {
                 m_map->removeAnnotation(m_lineAnnotationId.toUInt());
@@ -268,27 +274,17 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
                 QMapbox::Coordinate topRight    = m_map->coordinateForPixel({ 0, qreal(size().height()) });
                 QMapbox::Coordinate bottomLeft  = m_map->coordinateForPixel({ qreal(size().width()), 0 });
                 QMapbox::Coordinate bottomRight = m_map->coordinateForPixel({ qreal(size().width()), qreal(size().height()) });
-                QMapbox::CoordinatesCollections geometry { { { bottomLeft, bottomRight, topRight, topLeft, bottomLeft } } };
-                QMapbox::FillAnnotation fill { { QMapbox::ShapeAnnotationGeometry::PolygonType, geometry }, 0.5f, Qt::green, QVariant::fromValue<QColor>(QColor(Qt::black)) };
+                QMapbox::CoordinatesCollections fillGeometry { { { bottomLeft, bottomRight, topRight, topLeft, bottomLeft } } };
+                QMapbox::ShapeAnnotationGeometry annotationGeometry { QMapbox::ShapeAnnotationGeometry::PolygonType, fillGeometry };
+                QMapbox::FillAnnotation fill;
+                fill.geometry = annotationGeometry;
+                fill.opacity = 0.5f;
+                fill.color = Qt::green;
+                fill.outlineColor = QVariant::fromValue<QColor>(QColor(Qt::black));
                 m_fillAnnotationId = m_map->addAnnotation(QVariant::fromValue<QMapbox::FillAnnotation>(fill));
             } else {
                 m_map->removeAnnotation(m_fillAnnotationId.toUInt());
                 m_fillAnnotationId.clear();
-            }
-        }
-        break;
-    case Qt::Key_4: {
-            if (m_styleSourcedAnnotationId.isNull()) {
-                QMapbox::Coordinate topLeft     = m_map->coordinateForPixel({ 0, 0 });
-                QMapbox::Coordinate topRight    = m_map->coordinateForPixel({ 0, qreal(size().height()) });
-                QMapbox::Coordinate bottomLeft  = m_map->coordinateForPixel({ qreal(size().width()), 0 });
-                QMapbox::Coordinate bottomRight = m_map->coordinateForPixel({ qreal(size().width()), qreal(size().height()) });
-                QMapbox::CoordinatesCollections geometry { { { bottomLeft, bottomRight, topRight, topLeft, bottomLeft } } };
-                QMapbox::StyleSourcedAnnotation styleSourced { { QMapbox::ShapeAnnotationGeometry::PolygonType, geometry }, "water" };
-                m_styleSourcedAnnotationId = m_map->addAnnotation(QVariant::fromValue<QMapbox::StyleSourcedAnnotation>(styleSourced));
-            } else {
-                m_map->removeAnnotation(m_styleSourcedAnnotationId.toUInt());
-                m_styleSourcedAnnotationId.clear();
             }
         }
         break;
@@ -297,8 +293,8 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
                 m_map->removeLayer("circleLayer");
                 m_map->removeSource("circleSource");
             } else {
-                QMapbox::CoordinatesCollections geometry { { { m_map->coordinate() } } };
-                QMapbox::Feature feature { QMapbox::Feature::PointType, geometry, {}, {} };
+                QMapbox::CoordinatesCollections point { { { m_map->coordinate() } } };
+                QMapbox::Feature feature { QMapbox::Feature::PointType, point, {}, {} };
 
                 QVariantMap circleSource;
                 circleSource["type"] = "geojson";
@@ -319,14 +315,6 @@ void MapWindow::keyPressEvent(QKeyEvent *ev)
     case Qt::Key_Tab:
         m_map->cycleDebugOptions();
         break;
-    case Qt::Key_R: {
-        m_map->setTransitionOptions(transitionDuration);
-        if (m_map->hasClass("night")) {
-            m_map->removeClass("night");
-        } else {
-            m_map->addClass("night");
-        }
-    } break;
     default:
         break;
     }

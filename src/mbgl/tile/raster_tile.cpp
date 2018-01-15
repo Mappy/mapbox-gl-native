@@ -7,8 +7,8 @@
 #include <mbgl/storage/response.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
-#include <mbgl/renderer/raster_bucket.hpp>
-#include <mbgl/util/run_loop.hpp>
+#include <mbgl/renderer/buckets/raster_bucket.hpp>
+#include <mbgl/actor/scheduler.hpp>
 
 namespace mbgl {
 
@@ -17,7 +17,7 @@ RasterTile::RasterTile(const OverscaledTileID& id_,
                        const Tileset& tileset)
     : Tile(id_),
       loader(*this, id_, parameters, tileset),
-      mailbox(std::make_shared<Mailbox>(*util::RunLoop::Get())),
+      mailbox(std::make_shared<Mailbox>(*Scheduler::GetCurrent())),
       worker(parameters.workerScheduler,
              ActorRef<RasterTile>(*this, mailbox)) {
 }
@@ -32,18 +32,18 @@ void RasterTile::setError(std::exception_ptr err) {
     observer->onTileError(*this, err);
 }
 
-void RasterTile::setData(std::shared_ptr<const std::string> data,
-                             optional<Timestamp> modified_,
-                             optional<Timestamp> expires_) {
+void RasterTile::setMetadata(optional<Timestamp> modified_, optional<Timestamp> expires_) {
     modified = modified_;
     expires = expires_;
+}
 
+void RasterTile::setData(std::shared_ptr<const std::string> data) {
     pending = true;
     ++correlationID;
     worker.invoke(&RasterTileWorker::parse, data, correlationID);
 }
 
-void RasterTile::onParsed(std::unique_ptr<Bucket> result, const uint64_t resultCorrelationID) {
+void RasterTile::onParsed(std::unique_ptr<RasterBucket> result, const uint64_t resultCorrelationID) {
     bucket = std::move(result);
     loaded = true;
     if (resultCorrelationID == correlationID) {
@@ -61,11 +61,23 @@ void RasterTile::onError(std::exception_ptr err, const uint64_t resultCorrelatio
     observer->onTileError(*this, err);
 }
 
-Bucket* RasterTile::getBucket(const RenderLayer&) const {
+void RasterTile::upload(gl::Context& context) {
+    if (bucket) {
+        bucket->upload(context);
+    }
+}
+
+Bucket* RasterTile::getBucket(const style::Layer::Impl&) const {
     return bucket.get();
 }
 
-void RasterTile::setNecessity(Necessity necessity) {
+void RasterTile::setMask(TileMask&& mask) {
+    if (bucket) {
+        bucket->setMask(std::move(mask));
+    }
+}
+
+void RasterTile::setNecessity(TileNecessity necessity) {
     loader.setNecessity(necessity);
 }
 
