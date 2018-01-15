@@ -21,7 +21,7 @@ make ipackage-strip FORMAT=$1 BUILDTYPE=Release
 if [[ $1 = "static" ]]; then
 	cd build/ios/pkg
 	mv static/Mapbox.framework mapbox-ios-sdk
-	cp -r static/Mapbox.bundle/* mapbox-ios-sdk
+	cp -r static/Mapbox.bundle mapbox-ios-sdk
 	tar -zcf mapbox-ios-sdk-static.tar.gz mapbox-ios-sdk
 elif [[ $1 = "dynamic" ]]; then
 	cd build/ios
