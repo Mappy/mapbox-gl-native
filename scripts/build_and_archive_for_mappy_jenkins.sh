@@ -25,7 +25,6 @@ if [[ $1 = "static" ]]; then
 	tar -zcf mapbox-ios-sdk-static.tar.gz mapbox-ios-sdk
 elif [[ $1 = "dynamic" ]]; then
 	cd build/ios
-	mv pkg mapbox-ios-sdk
-	zip -r mapbox-ios-sdk-dynamic mapbox-ios-sdk
+	zip -r mapbox-ios-sdk-dynamic pkg
 fi 
 
