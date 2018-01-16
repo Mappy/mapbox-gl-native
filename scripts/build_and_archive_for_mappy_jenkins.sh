@@ -26,6 +26,6 @@ if [[ $1 = "static" ]]; then
 elif [[ $1 = "dynamic" ]]; then
 	cd build/ios
 	mv pkg mapbox-ios-sdk
-	tar -zcf mapbox-ios-sdk-dynamic.tar.gz mapbox-ios-sdk
+	zip -r mapbox-ios-sdk-dynamic mapbox-ios-sdk
 fi 
 
