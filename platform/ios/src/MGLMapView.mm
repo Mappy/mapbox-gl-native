@@ -279,7 +279,6 @@ public:
     BOOL _delegateHasStrokeColorsForShapeAnnotations;
     BOOL _delegateHasFillColorsForShapeAnnotations;
     BOOL _delegateHasLineWidthsForShapeAnnotations;
-	BOOL _delegateHasWhiteStrokeForShapeAnnotations;
 
     MGLCompassDirectionFormatter *_accessibilityCompassFormatter;
     NS_ARRAY_OF(id <MGLFeature>) *_visiblePlaceFeatures;
@@ -702,7 +701,6 @@ public:
     _delegateHasStrokeColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:strokeColorForShapeAnnotation:)];
     _delegateHasFillColorsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:fillColorForPolygonAnnotation:)];
     _delegateHasLineWidthsForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:lineWidthForPolylineAnnotation:)];
-	_delegateHasWhiteStrokeForShapeAnnotations = [_delegate respondsToSelector:@selector(mapView:whiteStrokeForPolylineAnnotation:)];
 }
 
 - (void)didReceiveMemoryWarning
@@ -1750,7 +1748,7 @@ public:
         
         MGLMapCamera *oldCamera = self.camera;
         MGLMapCamera *toCamera = [self cameraByZoomingToZoomLevel:newZoom aroundAnchorPoint:centerPoint];
-
+        
         if (![self.delegate respondsToSelector:@selector(mapView:shouldChangeFromCamera:toCamera:)] ||
             [self.delegate mapView:self shouldChangeFromCamera:oldCamera toCamera:toCamera])
         {
@@ -2082,7 +2080,7 @@ public:
         participateTitle = NSLocalizedStringWithDefaultValue(@"TELEMETRY_DISABLED_ON", nil, nil, @"Participate", @"Telemetry prompt button");
         declineTitle = NSLocalizedStringWithDefaultValue(@"TELEMETRY_DISABLED_OFF", nil, nil, @"Don’t Participate", @"Telemetry prompt button");
     }
-
+    
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:title
                                                                              message:message
                                                                       preferredStyle:UIAlertControllerStyleAlert];
@@ -2109,7 +2107,7 @@ public:
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MGLMapboxMetricsEnabled"];
     }];
     [alertController addAction:participateAction];
-
+    
     UIViewController *viewController = [self.window.rootViewController mgl_topMostViewController];
     [viewController presentViewController:alertController
                                  animated:YES
@@ -3870,15 +3868,6 @@ public:
     return 3.0;
 }
 
-- (BOOL)whiteStrokeForPolylineAnnotation:(MGLPolyline *)annotation
-{
-	if (_delegateHasWhiteStrokeForShapeAnnotations)
-	{
-		return [self.delegate mapView:self whiteStrokeForPolylineAnnotation:annotation];
-	}
-	return NO;
-}
-
 - (void)installAnnotationImage:(MGLAnnotationImage *)annotationImage
 {
     NSString *iconIdentifier = annotationImage.styleIconIdentifier;
@@ -4031,6 +4020,7 @@ public:
     MGLAnnotationView *reusableView = annotationViewReuseQueue.firstObject;
     [reusableView prepareForReuse];
     [annotationViewReuseQueue removeObject:reusableView];
+
     return reusableView;
 }
 
