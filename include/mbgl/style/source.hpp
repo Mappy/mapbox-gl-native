@@ -58,7 +58,7 @@ public:
     SourceType getType() const;
     std::string getID() const;
     optional<std::string> getAttribution() const;
-    
+
     // Private implementation
     class Impl;
     Immutable<Impl> baseImpl;

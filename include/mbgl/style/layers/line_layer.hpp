@@ -116,10 +116,6 @@ public:
     void setLinePatternTransition(const TransitionOptions&);
     TransitionOptions getLinePatternTransition() const;
 
-    // Mappy path
-    bool getLineIsMappyPath () const;
-    void setLineIsMappyPath(bool);
-
     // Private implementation
 
     class Impl;
