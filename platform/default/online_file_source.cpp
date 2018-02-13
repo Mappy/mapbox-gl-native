@@ -370,6 +370,7 @@ void OnlineFileRequest::completed(Response response) {
     }
 
     if (response.error) {
+		Log::Error(Event::HttpRequest, "%s - Reason: %d - %s" , resource.url.c_str(), response.error->reason, response.error->message.c_str());
         failedRequests++;
         failedRequestReason = response.error->reason;
         retryAfter = response.error->retryAfter;

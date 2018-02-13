@@ -87,6 +87,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousShowSnapshots,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
+	MBXSettingsMiscellaneousShowMappyLogFile,
+	MBXSettingsMiscellaneousDeleteMappyLogFile,
 };
 
 @interface MBXDroppedPinAnnotation : MGLPointAnnotation
@@ -161,7 +163,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
     [self restoreState:nil];
 
-    self.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
+	BOOL debugLogging = NO;
+	[[NSUserDefaults standardUserDefaults] setBool:debugLogging forKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
+	self.debugLoggingEnabled = debugLogging;
     self.mapView.scaleBar.hidden = NO;
     self.mapView.showsUserHeadingIndicator = YES;
     self.hudLabel.hidden = YES;
@@ -371,6 +375,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 [settingsTitles addObjectsFromArray:@[
                     @"Print Telemetry Logfile",
                     @"Delete Telemetry Logfile",
+					@"Show / hide Mappy logs",
+					@"Delete Mappy logs"
                 ]];
             };
 
@@ -549,6 +555,12 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 case MBXSettingsMiscellaneousDeleteLogFile:
                     [self deleteTelemetryLogFile];
                     break;
+				case MBXSettingsMiscellaneousShowMappyLogFile:
+					[self showMappyLogFile];
+					break;
+				case MBXSettingsMiscellaneousDeleteMappyLogFile:
+					[self deleteMappyLogFile];
+					break;
                 case MBXSettingsMiscellaneousShowReuseQueueStats:
                 {
                     self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
@@ -1553,6 +1565,47 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:[NSString stringWithFormat:@"telemetry_log-%@.json", [dateFormatter stringFromDate:[NSDate date]]]];
 
     return filePath;
+}
+
+- (void)showMappyLogFile
+{
+	UIView *logView = [self.view viewWithTag:123];
+	if (logView == nil) {
+		NSString *fileContents = [NSString stringWithContentsOfFile:[self mappyLogFilePath] encoding:NSUTF8StringEncoding error:nil];
+		UITextView *textView = [[UITextView alloc] initWithFrame:self.view.bounds];
+		textView.translatesAutoresizingMaskIntoConstraints = NO;
+		[self.view addSubview:textView];
+		[textView.topAnchor constraintEqualToAnchor:self.topLayoutGuide.bottomAnchor].active = YES;
+		[textView.leftAnchor constraintEqualToAnchor:self.view.leftAnchor].active = YES;
+		[textView.rightAnchor constraintEqualToAnchor:self.view.rightAnchor].active = YES;
+		[textView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor].active = YES;
+		textView.tag = 123;
+		textView.text = fileContents;
+	}
+	else {
+		[logView removeFromSuperview];
+	}
+}
+
+- (void)deleteMappyLogFile
+{
+	NSString *filePath = [self mappyLogFilePath];
+	if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath])
+	{
+		NSError *error;
+		BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
+		if (success) {
+			NSLog(@"Deleted mappy log.");
+		} else {
+			NSLog(@"Error deleting mappy log: %@", error.localizedDescription);
+		}
+	}
+}
+
+- (NSString *)mappyLogFilePath
+{
+	NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"mappy_log.txt"];
+	return filePath;
 }
 
 #pragma mark - User Actions

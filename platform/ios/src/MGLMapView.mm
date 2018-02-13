@@ -5562,6 +5562,10 @@ public:
     {
         [self.delegate mapView:self didFinishLoadingStyle:self.style];
     }
+
+#if DEBUG
+	_mbglMap->dumpDebugLogs();
+#endif
 }
 
 - (void)updateUserLocationAnnotationView
