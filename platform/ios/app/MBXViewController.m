@@ -89,6 +89,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousDeleteLogFile,
 	MBXSettingsMiscellaneousShowMappyLogFile,
 	MBXSettingsMiscellaneousDeleteMappyLogFile,
+	MBXSettingsMiscellaneousMappyDownloadStress
 };
 
 @interface MBXDroppedPinAnnotation : MGLPointAnnotation
@@ -124,6 +125,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 @property (nonatomic) BOOL usingLocaleBasedCountryLabels;
 @property (nonatomic) BOOL reuseQueueStatsEnabled;
 @property (nonatomic) BOOL showZoomLevelEnabled;
+@property (nonatomic, assign) NSInteger mappyStressIndex;
 
 @end
 
@@ -376,7 +378,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                     @"Print Telemetry Logfile",
                     @"Delete Telemetry Logfile",
 					@"Show / hide Mappy logs",
-					@"Delete Mappy logs"
+					@"Delete Mappy logs",
+					@"Mappy donwload stress"
                 ]];
             };
 
@@ -560,6 +563,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 					break;
 				case MBXSettingsMiscellaneousDeleteMappyLogFile:
 					[self deleteMappyLogFile];
+					break;
+				case MBXSettingsMiscellaneousMappyDownloadStress:
+					[self startMappyDownloadStress];
 					break;
                 case MBXSettingsMiscellaneousShowReuseQueueStats:
                 {
@@ -1606,6 +1612,31 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 {
 	NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"mappy_log.txt"];
 	return filePath;
+}
+
+- (void)startMappyDownloadStress
+{
+	self.mappyStressIndex = 15;
+	[self updateMappyDownloadStress];
+}
+
+- (void)updateMappyDownloadStress
+{
+	[[MGLOfflineStorage sharedOfflineStorage] cleanAmbientCache];
+	__block CLLocationCoordinate2D coordinates = CLLocationCoordinate2DMake(48.4084597, -4.5346199);
+	[self.mapView setCenterCoordinate:coordinates zoomLevel:13 animated:NO];
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		coordinates = CLLocationCoordinate2DMake(48.8288155, 2.2280493);
+		[self.mapView setCenterCoordinate:coordinates zoomLevel:13 animated:YES];
+
+		if (self.mappyStressIndex > 0)
+		{
+			self.mappyStressIndex--;
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+				[self updateMappyDownloadStress];
+			});
+		}
+	});
 }
 
 #pragma mark - User Actions
