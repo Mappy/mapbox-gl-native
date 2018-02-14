@@ -1622,13 +1622,12 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 
 - (void)updateMappyDownloadStress
 {
+	CGFloat offset = self.mappyStressIndex * 0.01;
+	CLLocationCoordinate2D coordinates = CLLocationCoordinate2DMake(48.8288155 + offset, 2.2280493 + offset);
+	[self.mapView setCenterCoordinate:coordinates zoomLevel:5 animated:NO];
 	[[MGLOfflineStorage sharedOfflineStorage] cleanAmbientCache];
-	__block CLLocationCoordinate2D coordinates = CLLocationCoordinate2DMake(48.4084597, -4.5346199);
-	[self.mapView setCenterCoordinate:coordinates zoomLevel:13 animated:NO];
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-		coordinates = CLLocationCoordinate2DMake(48.8288155, 2.2280493);
-		[self.mapView setCenterCoordinate:coordinates zoomLevel:13 animated:YES];
-
+		[self.mapView setCenterCoordinate:coordinates zoomLevel:15 animated:YES];
 		if (self.mappyStressIndex > 0)
 		{
 			self.mappyStressIndex--;
