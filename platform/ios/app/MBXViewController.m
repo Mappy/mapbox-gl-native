@@ -1617,6 +1617,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 - (void)startMappyDownloadStress
 {
 	self.mappyStressIndex = 15;
+	[[MGLOfflineStorage sharedOfflineStorage] cleanAmbientCache];
 	[self updateMappyDownloadStress];
 }
 
@@ -1625,7 +1626,6 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 	CGFloat offset = self.mappyStressIndex * 0.01;
 	CLLocationCoordinate2D coordinates = CLLocationCoordinate2DMake(48.8288155 + offset, 2.2280493 + offset);
 	[self.mapView setCenterCoordinate:coordinates zoomLevel:5 animated:NO];
-	[[MGLOfflineStorage sharedOfflineStorage] cleanAmbientCache];
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 		[self.mapView setCenterCoordinate:coordinates zoomLevel:15 animated:YES];
 		if (self.mappyStressIndex > 0)
