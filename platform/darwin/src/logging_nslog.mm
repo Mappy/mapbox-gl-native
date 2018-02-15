@@ -14,7 +14,7 @@ void Log::platformRecord(EventSeverity severity, const std::string &msg) {
 	BOOL logInFile = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
 	if (logInFile)
 	{
-		NSString *messageToWrite = [NSString stringWithFormat:@"%@\r\n", message];
+		NSString *messageToWrite = [NSString stringWithFormat:@"%@: %@\r\n",[NSDate date], message];
 		NSString *logFilePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:[NSString stringWithFormat:@"mappy_log.txt"]];
 		NSFileManager *fileManager = [[NSFileManager alloc] init];
 		if ([fileManager fileExistsAtPath:logFilePath]) {

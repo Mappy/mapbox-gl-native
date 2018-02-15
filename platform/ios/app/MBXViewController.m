@@ -1672,6 +1672,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     dispatch_once(&onceToken, ^{
         styleNames = @[
 			@"Mappy r7",
+			@"Mappy qt",
 			@"Mappy prod",
             @"Streets",
             @"Outdoors",
@@ -1684,6 +1685,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
         ];
         styleURLs = @[
 			[NSURL URLWithString:@"https://map.mappyrecette.net/map/1.0/vector/standard.json"],
+			[NSURL URLWithString:@"http://qt-tornik-vecto-001.th2.prod/map/1.0/vector/standard.json"],
 			[NSURL URLWithString:@"https://map.mappy.net/map/1.0/vector/standard.json"],
             [MGLStyle streetsStyleURL],
             [MGLStyle outdoorsStyleURL],
@@ -1711,7 +1713,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 }
             }
         }
-        NSAssert(numStyleURLMethods == styleNames.count - 2,
+        NSAssert(numStyleURLMethods == styleNames.count - 3,
                  @"MGLStyle provides %u default styles but iosapp only knows about %lu of them.",
                  numStyleURLMethods, (unsigned long)styleNames.count);
     });
