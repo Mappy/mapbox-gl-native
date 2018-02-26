@@ -22,7 +22,6 @@ import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ZoomButtonsController;
-
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.annotations.Annotation;
 import com.mapbox.mapboxsdk.annotations.MarkerViewManager;
@@ -37,18 +36,17 @@ import com.mapbox.mapboxsdk.maps.widgets.MyLocationViewSettings;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.services.android.telemetry.MapboxTelemetry;
+import timber.log.Timber;
 
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import javax.microedition.khronos.egl.EGLConfig;
-import javax.microedition.khronos.opengles.GL10;
-
-import timber.log.Timber;
 
 import static com.mapbox.mapboxsdk.maps.widgets.CompassView.TIME_MAP_NORTH_ANIMATION;
 import static com.mapbox.mapboxsdk.maps.widgets.CompassView.TIME_WAIT_IDLE;
@@ -75,6 +73,7 @@ public class MapView extends FrameLayout {
   private NativeMapView nativeMapView;
   private MapboxMapOptions mapboxMapOptions;
   private boolean destroyed;
+  private boolean hasSurface;
 
   private MyLocationView myLocationView;
   private CompassView compassView;
@@ -132,17 +131,7 @@ public class MapView extends FrameLayout {
     setContentDescription(context.getString(R.string.mapbox_mapActionDescription));
     setWillNotDraw(false);
 
-    getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-      @Override
-      public void onGlobalLayout() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-          getViewTreeObserver().removeOnGlobalLayoutListener(this);
-        } else {
-          getViewTreeObserver().removeGlobalOnLayoutListener(this);
-        }
-        initialiseDrawingSurface(options);
-      }
-    });
+    getViewTreeObserver().addOnGlobalLayoutListener(new MapViewLayoutListener(this, options));
   }
 
   private void initialiseMap() {
@@ -303,7 +292,7 @@ public class MapView extends FrameLayout {
 
       addView(textureView, 0);
     } else {
-      GLSurfaceView glSurfaceView = (GLSurfaceView) findViewById(R.id.surfaceView);
+      GLSurfaceView glSurfaceView = new GLSurfaceView(getContext());
       glSurfaceView.setZOrderMediaOverlay(mapboxMapOptions.getRenderSurfaceOnTop());
       mapRenderer = new GLSurfaceViewMapRenderer(getContext(), glSurfaceView, options.getLocalIdeographFontFamily()) {
         @Override
@@ -313,7 +302,7 @@ public class MapView extends FrameLayout {
         }
       };
 
-      glSurfaceView.setVisibility(View.VISIBLE);
+      addView(glSurfaceView, 0);
     }
 
     nativeMapView = new NativeMapView(this, mapRenderer);
@@ -321,6 +310,7 @@ public class MapView extends FrameLayout {
   }
 
   private void initRenderSurface() {
+    hasSurface = true;
     post(new Runnable() {
       @Override
       public void run() {
@@ -409,7 +399,7 @@ public class MapView extends FrameLayout {
     destroyed = true;
     mapCallback.clearOnMapReadyCallbacks();
 
-    if (nativeMapView != null) {
+    if (nativeMapView != null && hasSurface) {
       // null when destroying an activity programmatically mapbox-navigation-android/issues/503
       nativeMapView.destroy();
       nativeMapView = null;
@@ -487,7 +477,9 @@ public class MapView extends FrameLayout {
    */
   @UiThread
   public void onLowMemory() {
-    nativeMapView.onLowMemory();
+    if (nativeMapView != null) {
+      nativeMapView.onLowMemory();
+    }
   }
 
   /**
@@ -878,6 +870,30 @@ public class MapView extends FrameLayout {
      *               {@link #DID_FINISH_RENDERING_MAP_FULLY_RENDERED}.
      */
     void onMapChanged(@MapChange int change);
+  }
+
+  private static class MapViewLayoutListener implements ViewTreeObserver.OnGlobalLayoutListener {
+
+    private WeakReference<MapView> mapViewWeakReference;
+    private MapboxMapOptions options;
+
+    MapViewLayoutListener(MapView mapView, MapboxMapOptions options) {
+      this.mapViewWeakReference = new WeakReference<>(mapView);
+      this.options = options;
+    }
+
+    @Override
+    public void onGlobalLayout() {
+      MapView mapView = mapViewWeakReference.get();
+      if (mapView != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+          mapView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+        } else {
+          mapView.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+        }
+        mapView.initialiseDrawingSurface(options);
+      }
+    }
   }
 
   private class FocalPointInvalidator implements FocalPointChangeListener {

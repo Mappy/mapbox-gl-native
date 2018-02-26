@@ -2,6 +2,41 @@
 
 Mapbox welcomes participation and contributions from everyone.  If you'd like to do so please see the [`Contributing Guide`](https://github.com/mapbox/mapbox-gl-native/blob/master/CONTRIBUTING.md) first to get started.
 
+## 5.4.1 - February 9, 2018
+ - Don't recreate TextureView surface as part of view resizing, solves OOM crashes [#11148](https://github.com/mapbox/mapbox-gl-native/pull/11148)
+ - Don't invoke OnLowMemory before map is ready, solves startup crash on low memory devices [#11109](https://github.com/mapbox/mapbox-gl-native/pull/11109)
+ - Programmatically create GLSurfaceView, solves fragment bug [#11124](https://github.com/mapbox/mapbox-gl-native/pull/11124)
+ - Proguard config for optional location provider, solves obfuscation warnings [#11127](https://github.com/mapbox/mapbox-gl-native/pull/11127)
+ - MapView weak reference in global layout listener, solves memory leak [#11128](https://github.com/mapbox/mapbox-gl-native/pull/11128)
+
+## 5.4.0 - January 30, 2018
+ - Blacklist Adreno 2xx GPU for VAO support [#11047](https://github.com/mapbox/mapbox-gl-native/pull/11047)
+ - Bearing tracking mode GPS_NORTH_FACING [#11095](https://github.com/mapbox/mapbox-gl-native/pull/11095)
+ - Disable logging missing location permissons [#11084](https://github.com/mapbox/mapbox-gl-native/pull/11084)
+ - Create offline handler using the main thread looper [#11021](https://github.com/mapbox/mapbox-gl-native/pull/11021)
+
+## 6.0.0-beta.1 - January 26, 2018
+ - Binding integration for expressions [#10654](https://github.com/mapbox/mapbox-gl-native/pull/10654)
+ - CustomGeometrySource [#9983](https://github.com/mapbox/mapbox-gl-native/pull/9983)
+ - HillshadeLayer and RasterDemSource [#11031](https://github.com/mapbox/mapbox-gl-native/pull/11031)
+ - Revisit marker placement for snapshot [#11029](https://github.com/mapbox/mapbox-gl-native/pull/11029)
+ - SafeVarargs annotation for expressions [#11027](https://github.com/mapbox/mapbox-gl-native/pull/11027)
+ - Expression#toString [#11024](https://github.com/mapbox/mapbox-gl-native/pull/11024)
+ - Rename initRenderSurface to onSurfaceCreated [#11023](https://github.com/mapbox/mapbox-gl-native/pull/11023)
+ - Expose attribution manager as public API [#10942](https://github.com/mapbox/mapbox-gl-native/pull/10942)
+ - Replace Mapzen vector source example with Mapillary [#10931](https://github.com/mapbox/mapbox-gl-native/pull/10931)
+ - Add Hebrew localization [#10967](https://github.com/mapbox/mapbox-gl-native/pull/10967)
+
+## 5.3.2 - January 22, 2018
+ - Validate surface creation before destroying [#10890](https://github.com/mapbox/mapbox-gl-native/pull/10890)
+ - Add filesource activation ot OfflineRegion [#10904](https://github.com/mapbox/mapbox-gl-native/pull/10904)
+ - Save configuration of UiSettings [#10908](https://github.com/mapbox/mapbox-gl-native/pull/10908)
+ - Do not overwrite user-set focal point [#10910](https://github.com/mapbox/mapbox-gl-native/pull/10910)
+ - Camera callbacks for velocity animated movements [#10925](https://github.com/mapbox/mapbox-gl-native/pull/10925)
+ - Allow changing the used OkHttpClient [#10948](https://github.com/mapbox/mapbox-gl-native/pull/10948)
+ - Validate zoom level before creating telemetry event [#10959](https://github.com/mapbox/mapbox-gl-native/pull/10959)
+ - Handle null call instances in HttpRequest [#10987](https://github.com/mapbox/mapbox-gl-native/pull/10987)
+ 
 ## 5.3.1 - January 10, 2018
  - Blacklist binary program loading for Vivante GC4000 GPUs [#10862](https://github.com/mapbox/mapbox-gl-native/pull/10862)
  - Support Genymotion [#10841](https://github.com/mapbox/mapbox-gl-native/pull/10841)
