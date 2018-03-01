@@ -55,11 +55,17 @@ void Style::Impl::loadURL(const std::string& url_) {
     styleRequest = fileSource.request(Resource::style(url), [this](Response res) {
         // Once we get a fresh style, or the style is mutated, stop revalidating.
         if (res.isFresh() || mutated) {
+			std::string myFresh = res.isFresh() ? "yes" : "no";
+			std::string myMutated = mutated ? "yes" : "no";
+			Log::Warning(Event::Style, "loading style reset request because fresh (%s) or mutated (%s)", myFresh.c_str(), myMutated.c_str());
             styleRequest.reset();
         }
 
         // Don't allow a loaded, mutated style to be overwritten with a new version.
         if (mutated && loaded) {
+			std::string myloaded = loaded ? "yes" : "no";
+			std::string myMutated = mutated ? "yes" : "no";
+			Log::Warning(Event::Style, "loading style not applied because loaded (%s) or mutated (%s)", myloaded.c_str(), myMutated.c_str());
             return;
         }
 
@@ -69,8 +75,12 @@ void Style::Impl::loadURL(const std::string& url_) {
             observer->onStyleError(std::make_exception_ptr(util::StyleLoadException(message)));
             observer->onResourceError(std::make_exception_ptr(std::runtime_error(res.error->message)));
         } else if (res.notModified || res.noContent) {
+			std::string notModified = res.notModified ? "yes" : "no";
+			std::string noContent = res.noContent ? "yes" : "no";
+			Log::Warning(Event::Style, "loading style not applied because res is not modified (%s) or has no content (%s)", notModified.c_str(), noContent.c_str());
             return;
         } else {
+			Log::Warning(Event::Style, "loading style will parse data from response");
             parse(*res.data);
         }
     });
