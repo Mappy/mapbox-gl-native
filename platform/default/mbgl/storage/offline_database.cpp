@@ -557,8 +557,9 @@ bool OfflineDatabase::putTile(const Resource::TileData& tile,
     return true;
 }
     
-void OfflineDatabase::deleteAllTiles(void) {
+void OfflineDatabase::deleteAllTilesAndStyles(void) {
     db->exec("DELETE FROM tiles");
+	db->exec("DELETE FROM resources");
     db->exec("VACUUM");
 }
 

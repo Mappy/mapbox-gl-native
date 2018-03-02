@@ -186,7 +186,7 @@ public:
     }
 
     void cleanAmbientCache(void) {
-        offlineDatabase->deleteAllTiles();
+        offlineDatabase->deleteAllTilesAndStyles();
     }
 
 private:
