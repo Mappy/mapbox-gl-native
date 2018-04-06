@@ -395,4 +395,10 @@ NSString * const MGLOfflinePackMaximumCountUserInfoKey = MGLOfflinePackUserInfoK
     _mbglFileSource->cleanAmbientCache();
 }
 
+#pragma mark - offline tiles
+
+- (void)setUseMBTilesFile:(NSString *)filePath {
+	self.mbglFileSource->setMBTilesFilePath(std::string([filePath cStringUsingEncoding:NSUTF8StringEncoding]));
+}
+
 @end

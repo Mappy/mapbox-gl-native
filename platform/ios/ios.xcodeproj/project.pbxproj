@@ -151,6 +151,8 @@
 		35E208A71D24210F00EC9A46 /* MGLNSDataAdditionsTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 35E208A61D24210F00EC9A46 /* MGLNSDataAdditionsTests.m */; };
 		35E79F201D41266300957B9E /* MGLStyleLayer_Private.h in Headers */ = {isa = PBXBuildFile; fileRef = 35E79F1F1D41266300957B9E /* MGLStyleLayer_Private.h */; };
 		35E79F211D41266300957B9E /* MGLStyleLayer_Private.h in Headers */ = {isa = PBXBuildFile; fileRef = 35E79F1F1D41266300957B9E /* MGLStyleLayer_Private.h */; };
+		364325A92077BE40007DB976 /* OSMLibertyStyle.json in Resources */ = {isa = PBXBuildFile; fileRef = 364325A72077BE40007DB976 /* OSMLibertyStyle.json */; };
+		364325AA2077BE40007DB976 /* paris_france.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = 364325A82077BE40007DB976 /* paris_france.mbtiles */; };
 		36F1153D1D46080700878E1A /* libmbgl-core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 36F1153B1D46080700878E1A /* libmbgl-core.a */; };
 		3EA93369F61CF70AFA50465D /* MGLRendererConfiguration.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3EA931BC4F087E166D538F21 /* MGLRendererConfiguration.mm */; };
 		3EA934623AD0000B7D99C3FB /* MGLRendererConfiguration.h in Headers */ = {isa = PBXBuildFile; fileRef = 3EA9337830C7738BF7F5493C /* MGLRendererConfiguration.h */; };
@@ -667,6 +669,8 @@
 		35E1A4D71D74336F007AA97F /* MGLValueEvaluator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MGLValueEvaluator.h; sourceTree = "<group>"; };
 		35E208A61D24210F00EC9A46 /* MGLNSDataAdditionsTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MGLNSDataAdditionsTests.m; sourceTree = "<group>"; };
 		35E79F1F1D41266300957B9E /* MGLStyleLayer_Private.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MGLStyleLayer_Private.h; sourceTree = "<group>"; };
+		364325A72077BE40007DB976 /* OSMLibertyStyle.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = OSMLibertyStyle.json; sourceTree = "<group>"; };
+		364325A82077BE40007DB976 /* paris_france.mbtiles */ = {isa = PBXFileReference; lastKnownFileType = file; path = paris_france.mbtiles; sourceTree = "<group>"; };
 		36F1153B1D46080700878E1A /* libmbgl-core.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libmbgl-core.a"; path = "build/Debug-iphoneos/libmbgl-core.a"; sourceTree = "<group>"; };
 		36F1153C1D46080700878E1A /* libmbgl-platform-ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libmbgl-platform-ios.a"; path = "build/Debug-iphoneos/libmbgl-platform-ios.a"; sourceTree = "<group>"; };
 		3EA931BC4F087E166D538F21 /* MGLRendererConfiguration.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MGLRendererConfiguration.mm; sourceTree = "<group>"; };
@@ -1199,6 +1203,15 @@
 			name = Categories;
 			sourceTree = "<group>";
 		};
+		364325A62077BE01007DB976 /* Offline */ = {
+			isa = PBXGroup;
+			children = (
+				364325A72077BE40007DB976 /* OSMLibertyStyle.json */,
+				364325A82077BE40007DB976 /* paris_france.mbtiles */,
+			);
+			name = Offline;
+			sourceTree = "<group>";
+		};
 		402E9DE21CD3A56500FD4519 /* Playground */ = {
 			isa = PBXGroup;
 			children = (
@@ -1303,6 +1316,7 @@
 				DA1DC99E1CB6E088006E619F /* Assets.xcassets */,
 				DA1DC95E1CB6C1C2006E619F /* Info.plist */,
 				96E027251E57C76E004B8E66 /* Localizable.strings */,
+				364325A62077BE01007DB976 /* Offline */,
 				9604FC341F313A5E003EEA02 /* Fixtures */,
 				DA1DC94D1CB6C1C2006E619F /* Supporting Files */,
 			);
@@ -2176,6 +2190,8 @@
 				DD4823771D94AE6C00EB71B7 /* numeric_filter_style.json in Resources */,
 				DA1DC9701CB6C6CE006E619F /* points.geojson in Resources */,
 				353BAEF61D646370009A8DA9 /* amsterdam.geojson in Resources */,
+				364325A92077BE40007DB976 /* OSMLibertyStyle.json in Resources */,
+				364325AA2077BE40007DB976 /* paris_france.mbtiles in Resources */,
 				DA1DC9711CB6C6CE006E619F /* polyline.geojson in Resources */,
 				DD4823761D94AE6C00EB71B7 /* line_filter_style.json in Resources */,
 				DA821D071CCC6D59007508D4 /* Main.storyboard in Resources */,

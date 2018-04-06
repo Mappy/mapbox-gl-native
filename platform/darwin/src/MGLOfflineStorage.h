@@ -291,6 +291,11 @@ MGL_EXPORT
 
 - (void)cleanAmbientCache;
 
+/**
+ 	Offline MBTiles support
+ */
+- (void)setUseMBTilesFile:(NSString *)filePath;
+
 @end
 
 /**

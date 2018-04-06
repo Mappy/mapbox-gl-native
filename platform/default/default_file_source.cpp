@@ -14,6 +14,7 @@
 #include <mbgl/util/work_request.hpp>
 
 #include <cassert>
+#include <iostream>
 
 namespace {
 
@@ -133,6 +134,7 @@ public:
             tasks[req] = assetFileSource->request(resource, callback);
 		} else if (isMBTilesURL(resource.url)) {
 			// mbtiles request
+			tasks[req] = mbtilesFileSource.request(resource, callback);
 			// todo
 		} else if (LocalFileSource::acceptsURL(resource.url)) {
             //Local file request

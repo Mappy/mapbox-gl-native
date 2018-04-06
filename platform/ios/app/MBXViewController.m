@@ -1682,6 +1682,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 			@"Mappy r7",
 			@"Mappy qt",
 			@"Mappy prod",
+			@"OSM Offline",
             @"Streets",
             @"Outdoors",
             @"Light",
@@ -1691,10 +1692,13 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
             @"Traffic Day",
             @"Traffic Night",
         ];
+		NSString *localOSMStylePath = [[NSBundle mainBundle] pathForResource:@"OSMLibertyStyle" ofType:@"json"];
+		NSURL *OSM = [NSURL fileURLWithPath:localOSMStylePath];
         styleURLs = @[
 			[NSURL URLWithString:@"https://map.mappyrecette.net/map/1.0/vector/standard.json"],
 			[NSURL URLWithString:@"http://qt-tornik-vecto-001.th2.prod/map/1.0/vector/standard.json"],
 			[NSURL URLWithString:@"https://map.mappy.net/map/1.0/vector/standard.json"],
+			OSM,
             [MGLStyle streetsStyleURL],
             [MGLStyle outdoorsStyleURL],
             [MGLStyle lightStyleURL],
@@ -1721,14 +1725,20 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 }
             }
         }
-        NSAssert(numStyleURLMethods == styleNames.count - 3,
+        NSAssert(numStyleURLMethods == styleNames.count - 4,
                  @"MGLStyle provides %u default styles but iosapp only knows about %lu of them.",
                  numStyleURLMethods, (unsigned long)styleNames.count);
     });
 
     self.styleIndex = (self.styleIndex + 1) % styleNames.count;
 
-    self.mapView.styleURL = styleURLs[self.styleIndex];
+	NSURL *style = styleURLs[self.styleIndex];
+	if ([style.scheme hasPrefix:@"file"])
+	{
+		NSString *mbtilesPath = [[NSBundle mainBundle] pathForResource:@"paris_france" ofType:@"mbtiles"];
+		[[MGLOfflineStorage sharedOfflineStorage] setUseMBTilesFile:mbtilesPath];
+	}
+    self.mapView.styleURL = style;
 
     UIButton *titleButton = (UIButton *)self.navigationItem.titleView;
     [titleButton setTitle:styleNames[self.styleIndex] forState:UIControlStateNormal];
