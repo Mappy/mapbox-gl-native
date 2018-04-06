@@ -44,6 +44,8 @@ public:
     void setAccessToken(const std::string&);
     std::string getAccessToken();
 
+	void setMBTilesFilePath(const std::string&);
+
     void setResourceTransform(optional<ActorRef<ResourceTransform>>&&);
 
     std::unique_ptr<AsyncRequest> request(const Resource&, Callback) override;
@@ -160,6 +162,7 @@ private:
 
     std::mutex cachedAccessTokenMutex;
     std::string cachedAccessToken;
+	std::string mbtilesFilePath;
 };
 
 } // namespace mbgl

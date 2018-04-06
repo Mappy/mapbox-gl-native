@@ -6,6 +6,7 @@
 #include <mbgl/storage/offline_database.hpp>
 #include <mbgl/storage/offline_download.hpp>
 #include <mbgl/storage/resource_transform.hpp>
+#include <mbgl/storage/mbtiles_file_source.hpp>
 
 #include <mbgl/util/platform.hpp>
 #include <mbgl/util/url.hpp>
@@ -17,9 +18,14 @@
 namespace {
 
 const std::string assetProtocol = "asset://";
+const std::string mbtilesProtocol = "mbtiles://";
 
 bool isAssetURL(const std::string& url) {
     return std::equal(assetProtocol.begin(), assetProtocol.end(), url.begin());
+}
+
+bool isMBTilesURL(const std::string& url) {
+	return std::equal(mbtilesProtocol.begin(), mbtilesProtocol.end(), url.begin());
 }
 
 } // namespace
@@ -54,6 +60,10 @@ public:
     std::string getAccessToken() const {
         return onlineFileSource.getAccessToken();
     }
+
+	void setMBTilesPath(const std::string& url) {
+		mbtilesFileSource.setMBTilesPath(url);
+	}
 
     void setResourceTransform(optional<ActorRef<ResourceTransform>>&& transform) {
         onlineFileSource.setResourceTransform(std::move(transform));
@@ -121,7 +131,10 @@ public:
         if (isAssetURL(resource.url)) {
             //Asset request
             tasks[req] = assetFileSource->request(resource, callback);
-        } else if (LocalFileSource::acceptsURL(resource.url)) {
+		} else if (isMBTilesURL(resource.url)) {
+			// mbtiles request
+			// todo
+		} else if (LocalFileSource::acceptsURL(resource.url)) {
             //Local file request
             tasks[req] = localFileSource->request(resource, callback);
         } else {
@@ -204,6 +217,7 @@ private:
     const std::unique_ptr<FileSource> localFileSource;
     std::unique_ptr<OfflineDatabase> offlineDatabase;
     OnlineFileSource onlineFileSource;
+	MBTilesFileSource mbtilesFileSource;
     std::unordered_map<AsyncRequest*, std::unique_ptr<AsyncRequest>> tasks;
     std::unordered_map<int64_t, std::unique_ptr<OfflineDownload>> downloads;
 };
@@ -249,6 +263,10 @@ void DefaultFileSource::setAccessToken(const std::string& accessToken) {
 std::string DefaultFileSource::getAccessToken() {
     std::lock_guard<std::mutex> lock(cachedAccessTokenMutex);
     return cachedAccessToken;
+}
+
+void DefaultFileSource::setMBTilesFilePath(const std::string& filePath) {
+	impl->actor().invoke(&Impl::setMBTilesPath, filePath);
 }
 
 void DefaultFileSource::setResourceTransform(optional<ActorRef<ResourceTransform>>&& transform) {
