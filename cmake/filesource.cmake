@@ -22,6 +22,10 @@ add_library(mbgl-filesource STATIC
 
     # Database
     platform/default/sqlite3.hpp
+
+    # MBTiles
+    src/mbgl/storage/mbtiles_file_source.hpp
+    platform/default/mbtiles_file_source.cpp
 )
 
 target_add_mason_package(mbgl-filesource PUBLIC geometry)
