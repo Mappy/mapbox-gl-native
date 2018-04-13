@@ -18,6 +18,11 @@ static const CLLocationCoordinate2D WorldTourDestinations[] = {
     { .latitude = -13.15589555, .longitude = -74.2178961777998 },
 };
 
+static const MGLCoordinateBounds colorado = {
+    .sw = { .latitude = 36.986207, .longitude = -109.049896},
+    .ne = { .latitude = 40.989329, .longitude = -102.062592},
+};
+
 static NSString * const MBXViewControllerAnnotationViewReuseIdentifer = @"MBXViewControllerAnnotationViewReuseIdentifer";
 
 typedef NS_ENUM(NSInteger, MBXSettingsSections) {
@@ -86,6 +91,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousCountryLabels,
     MBXSettingsMiscellaneousShowSnapshots,
 	MBXSettingsMiscellaneousShowMappySnapshots,
+    MBXSettingsMiscellaneousShouldLimitCameraChanges,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
 	MBXSettingsMiscellaneousShowMappyLogFile,
@@ -127,6 +133,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 @property (nonatomic) BOOL reuseQueueStatsEnabled;
 @property (nonatomic) BOOL showZoomLevelEnabled;
 @property (nonatomic, assign) NSInteger mappyStressIndex;
+@property (nonatomic) BOOL shouldLimitCameraChanges;
 
 @end
 
@@ -371,7 +378,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
                 [NSString stringWithFormat:@"Show Labels in %@", (_usingLocaleBasedCountryLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
 				@"Show Snapshots",
-				@"Show Mappy Snapshot"
+				@"Show Mappy Snapshot",
+                [NSString stringWithFormat:@"%@ Camera Changes", (_shouldLimitCameraChanges ? @"Unlimit" : @"Limit")]
             ]];
 
             if (self.debugLoggingEnabled)
@@ -677,6 +685,14 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
 					[self performSegueWithIdentifier:@"ShowMappySnapshots" sender:nil];
 					break;
 				}
+                case MBXSettingsMiscellaneousShouldLimitCameraChanges:
+                {
+                    self.shouldLimitCameraChanges = !self.shouldLimitCameraChanges;
+                    if (self.shouldLimitCameraChanges) {
+                        [self.mapView setCenterCoordinate:CLLocationCoordinate2DMake(39.748947, -104.995882) zoomLevel:10 direction:0 animated:NO];
+                    }
+                    break;
+                }
                 default:
                     NSAssert(NO, @"All miscellaneous setting rows should be implemented");
                     break;
@@ -1991,6 +2007,31 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     // that a device with an English-language locale is already effectively
     // using locale-based country labels.
     _usingLocaleBasedCountryLabels = [[self bestLanguageForUser] isEqualToString:@"en"];
+}
+
+- (BOOL)mapView:(MGLMapView *)mapView shouldChangeFromCamera:(MGLMapCamera *)oldCamera toCamera:(MGLMapCamera *)newCamera {
+    if (_shouldLimitCameraChanges) {
+        // Get the current camera to restore it after.
+        MGLMapCamera *currentCamera = mapView.camera;
+
+        // From the new camera obtain the center to test if it’s inside the boundaries.
+        CLLocationCoordinate2D newCameraCenter = newCamera.centerCoordinate;
+
+        // Set the map’s visible bounds to newCamera.
+        mapView.camera = newCamera;
+        MGLCoordinateBounds newVisibleCoordinates = mapView.visibleCoordinateBounds;
+
+        // Revert the camera.
+        mapView.camera = currentCamera;
+
+        // Test if the newCameraCenter and newVisibleCoordinates are inside Colorado.
+        BOOL inside = MGLCoordinateInCoordinateBounds(newCameraCenter, colorado);
+        BOOL intersects = MGLCoordinateInCoordinateBounds(newVisibleCoordinates.ne, colorado) && MGLCoordinateInCoordinateBounds(newVisibleCoordinates.sw, colorado);
+
+        return inside && intersects;
+    } else {
+        return YES;
+    }
 }
 
 - (void)mapViewRegionIsChanging:(MGLMapView *)mapView

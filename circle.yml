@@ -33,6 +33,12 @@ workflows:
       - ios-debug
       #- ios-sanitize-address
       - ios-sanitize-thread
+      - ios-release:
+          filters:
+            tags:
+              only: /ios-.*/
+            branches:
+              ignore: /.*/
       - macos-debug
       - macos-debug-qt5
       - macos-release-node4:
@@ -654,7 +660,7 @@ jobs:
 # ------------------------------------------------------------------------------
   ios-debug:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: Debug
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -672,7 +678,7 @@ jobs:
 # ------------------------------------------------------------------------------
   ios-sanitize-address:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: Debug
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -691,7 +697,7 @@ jobs:
 # ------------------------------------------------------------------------------
   ios-sanitize-thread:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: Debug
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -708,9 +714,37 @@ jobs:
       - *save-cache
 
 # ------------------------------------------------------------------------------
+  ios-release:
+    macos:
+      xcode: "9.2.0"
+    environment:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    shell: /bin/bash --login -eo pipefail
+    steps:
+      - checkout
+      - *install-macos-dependencies
+      - run:
+          name: Install packaging dependencies
+          command: |
+            echo "ruby-2.3" > ~/.ruby-version
+            sudo gem install jazzy --no-document
+            brew install awscli wget
+      - *generate-cache-key
+      - *restore-cache
+      - *reset-ccache-stats
+      - run:
+          name: Build, package, and upload iOS release
+          command: |
+            export VERSION_TAG=${CIRCLE_TAG}
+            export GITHUB_TOKEN=${DANGER_GITHUB_API_TOKEN}
+            platform/ios/scripts/deploy-packages.sh
+      - *show-ccache-stats
+      - *save-cache
+
+# ------------------------------------------------------------------------------
   macos-debug:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: Debug
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -731,7 +765,7 @@ jobs:
 # ------------------------------------------------------------------------------
   macos-debug-qt5:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: Debug
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -756,7 +790,7 @@ jobs:
 # ------------------------------------------------------------------------------
   macos-release-node4:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: RelWithDebInfo
       HOMEBREW_NO_AUTO_UPDATE: 1
@@ -777,7 +811,7 @@ jobs:
 # ------------------------------------------------------------------------------
   macos-release-node6:
     macos:
-      xcode: "9.0"
+      xcode: "9.2.0"
     environment:
       BUILDTYPE: RelWithDebInfo
       HOMEBREW_NO_AUTO_UPDATE: 1
