@@ -378,8 +378,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
                 [NSString stringWithFormat:@"Show Labels in %@", (_usingLocaleBasedCountryLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
 				@"Show Snapshots",
-				@"Show Mappy Snapshot"
-                [NSString stringWithFormat:@"%@ Camera Changes", (_shouldLimitCameraChanges ? @"Unlimit" : @"Limit")],
+				@"Show Mappy Snapshot",
+                [NSString stringWithFormat:@"%@ Camera Changes", (_shouldLimitCameraChanges ? @"Unlimit" : @"Limit")]
             ]];
 
             if (self.debugLoggingEnabled)
