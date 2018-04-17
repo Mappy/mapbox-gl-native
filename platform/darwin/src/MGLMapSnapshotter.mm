@@ -192,7 +192,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
         CGPoint attributionOrigin = CGPointMake(mglImage.size.width - 10 - attributionBackgroundSize.width,
                                                 logoImageRect.origin.y + (logoImageRect.size.height / 2) - (attributionBackgroundSize.height / 2) + 1);
         if (!logoImage) {
-            CGSize defaultLogoSize = [self mapboxLongStyleLogo].size;
+            CGSize defaultLogoSize = [self mappyLongStyleLogo].size;
             logoImageRect = CGRectMake(0, mglImage.size.height - (MGLLogoImagePosition.y + defaultLogoSize.height), 0, defaultLogoSize.height);
             attributionOrigin = CGPointMake(10, logoImageRect.origin.y + (logoImageRect.size.height / 2) - (attributionBackgroundSize.height / 2) + 1);
         }
@@ -253,7 +253,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
         CGPoint attributionOrigin = CGPointMake(targetFrame.size.width - 10 - attributionBackgroundSize.width,
                                                 MGLLogoImagePosition.y + 1);
         if (!logoImage) {
-            CGSize defaultLogoSize = [self mapboxLongStyleLogo].size;
+            CGSize defaultLogoSize = [self mappyLongStyleLogo].size;
             logoImageRect = CGRectMake(0, MGLLogoImagePosition.y, 0, defaultLogoSize.height);
             attributionOrigin = CGPointMake(10, attributionOrigin.y);
         }
@@ -352,7 +352,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     MGLImage *logoImage;
     switch (style) {
         case MGLAttributionInfoStyleLong:
-            logoImage = [self mapboxLongStyleLogo];
+            logoImage = [self mappyLongStyleLogo];
             break;
         case MGLAttributionInfoStyleMedium:
 #if TARGET_OS_IPHONE
@@ -368,13 +368,13 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     return logoImage;
 }
 
-- (MGLImage *)mapboxLongStyleLogo
+- (MGLImage *)mappyLongStyleLogo
 {
     MGLImage *logoImage;
 #if TARGET_OS_IPHONE
-    logoImage =[UIImage imageNamed:@"mapbox" inBundle:[NSBundle mgl_frameworkBundle] compatibleWithTraitCollection:nil];
+    logoImage =[UIImage imageNamed:@"mappy" inBundle:[NSBundle mgl_frameworkBundle] compatibleWithTraitCollection:nil];
 #else
-    logoImage = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mgl_frameworkBundle] pathForResource:@"mapbox" ofType:@"pdf"]];
+    logoImage = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mgl_frameworkBundle] pathForResource:@"mappy" ofType:@"png"]];
 #endif
     return logoImage;
 }
