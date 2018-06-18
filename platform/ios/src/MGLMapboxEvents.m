@@ -24,7 +24,7 @@ static NSString * const MGLTelemetryBaseURL = @"MGLTelemetryBaseURL";
         NSBundle *bundle = [NSBundle mainBundle];
         NSNumber *accountTypeNumber = [bundle objectForInfoDictionaryKey:MGLMapboxAccountType];
         [[NSUserDefaults standardUserDefaults] registerDefaults:@{MGLMapboxAccountType: accountTypeNumber ?: @0,
-                                                                  MGLMapboxMetricsEnabled: @YES,
+                                                                  MGLMapboxMetricsEnabled: @NO,
                                                                   MGLMapboxMetricsDebugLoggingEnabled: @NO}];
     }
 }
@@ -45,7 +45,7 @@ static NSString * const MGLTelemetryBaseURL = @"MGLTelemetryBaseURL";
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _eventsManager = [[MMEEventsManager alloc] init];
+//        _eventsManager = [[MMEEventsManager alloc] init];
         _eventsManager.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:MGLMapboxMetricsDebugLoggingEnabled];
         _eventsManager.accountType = [[NSUserDefaults standardUserDefaults] integerForKey:MGLMapboxAccountType];
         _eventsManager.metricsEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:MGLMapboxMetricsEnabled];
@@ -152,35 +152,35 @@ static NSString * const MGLTelemetryBaseURL = @"MGLTelemetryBaseURL";
 }
 
 + (void)ensureMetricsOptoutExists {
-    NSNumber *shownInAppNumber = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxMetricsEnabledSettingShownInApp"];
-    BOOL metricsEnabledSettingShownInAppFlag = [shownInAppNumber boolValue];
-    
-    if (!metricsEnabledSettingShownInAppFlag &&
-        [[NSUserDefaults standardUserDefaults] integerForKey:MGLMapboxAccountType] == 0) {
-        // Opt-out is not configured in UI, so check for Settings.bundle
-        id defaultEnabledValue;
-        NSString *appSettingsBundle = [[NSBundle mainBundle] pathForResource:@"Settings" ofType:@"bundle"];
-        
-        if (appSettingsBundle) {
-            // Dynamic Settings.bundle loading based on http://stackoverflow.com/a/510329/2094275
-            NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:[appSettingsBundle stringByAppendingPathComponent:@"Root.plist"]];
-            NSArray *preferences = settings[@"PreferenceSpecifiers"];
-            for (NSDictionary *prefSpecification in preferences) {
-                if ([prefSpecification[@"Key"] isEqualToString:MGLMapboxMetricsEnabled]) {
-                    defaultEnabledValue = prefSpecification[@"DefaultValue"];
-                }
-            }
-        }
-        
-        if (!defaultEnabledValue) {
-            [NSException raise:@"Telemetry opt-out missing" format:
-             @"End users must be able to opt out of Mapbox Telemetry in your app, either inside Settings (via Settings.bundle) or inside this app. "
-             @"By default, this opt-out control is included as a menu item in the attribution action sheet. "
-             @"If you reimplement the opt-out control inside this app, disable this assertion by setting MGLMapboxMetricsEnabledSettingShownInApp to YES in Info.plist."
-             @"\n\nSee https://www.mapbox.com/ios-sdk/#telemetry_opt_out for more information."
-             @"\n\nAdditionally, by hiding this attribution control you agree to display the required attribution elsewhere in this app."];
-        }
-    }
+//    NSNumber *shownInAppNumber = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLMapboxMetricsEnabledSettingShownInApp"];
+//    BOOL metricsEnabledSettingShownInAppFlag = [shownInAppNumber boolValue];
+//
+//    if (!metricsEnabledSettingShownInAppFlag &&
+//        [[NSUserDefaults standardUserDefaults] integerForKey:MGLMapboxAccountType] == 0) {
+//        // Opt-out is not configured in UI, so check for Settings.bundle
+//        id defaultEnabledValue;
+//        NSString *appSettingsBundle = [[NSBundle mainBundle] pathForResource:@"Settings" ofType:@"bundle"];
+//
+//        if (appSettingsBundle) {
+//            // Dynamic Settings.bundle loading based on http://stackoverflow.com/a/510329/2094275
+//            NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:[appSettingsBundle stringByAppendingPathComponent:@"Root.plist"]];
+//            NSArray *preferences = settings[@"PreferenceSpecifiers"];
+//            for (NSDictionary *prefSpecification in preferences) {
+//                if ([prefSpecification[@"Key"] isEqualToString:MGLMapboxMetricsEnabled]) {
+//                    defaultEnabledValue = prefSpecification[@"DefaultValue"];
+//                }
+//            }
+//        }
+//
+//        if (!defaultEnabledValue) {
+//            [NSException raise:@"Telemetry opt-out missing" format:
+//             @"End users must be able to opt out of Mapbox Telemetry in your app, either inside Settings (via Settings.bundle) or inside this app. "
+//             @"By default, this opt-out control is included as a menu item in the attribution action sheet. "
+//             @"If you reimplement the opt-out control inside this app, disable this assertion by setting MGLMapboxMetricsEnabledSettingShownInApp to YES in Info.plist."
+//             @"\n\nSee https://www.mapbox.com/ios-sdk/#telemetry_opt_out for more information."
+//             @"\n\nAdditionally, by hiding this attribution control you agree to display the required attribution elsewhere in this app."];
+//        }
+//    }
 }
 
 @end

@@ -99,6 +99,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousShouldLimitCameraChanges,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
+	MBXSettingsMiscellaneousShowMappyLogFile,
+	MBXSettingsMiscellaneousDeleteMappyLogFile
 };
 
 @interface MBXDroppedPinAnnotation : MGLPointAnnotation
@@ -395,6 +397,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 [settingsTitles addObjectsFromArray:@[
                     @"Print Telemetry Logfile",
                     @"Delete Telemetry Logfile",
+					@"Show / hide Mappy logs",
+					@"Delete Mappy logs"
                 ]];
             };
 
@@ -591,6 +595,12 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 case MBXSettingsMiscellaneousDeleteLogFile:
                     [self deleteTelemetryLogFile];
                     break;
+				case MBXSettingsMiscellaneousShowMappyLogFile:
+					[self showMappyLogFile];
+					break;
+				case MBXSettingsMiscellaneousDeleteMappyLogFile:
+					[self deleteMappyLogFile];
+					break;
                 case MBXSettingsMiscellaneousShowReuseQueueStats:
                 {
                     self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
@@ -1686,6 +1696,47 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     return filePath;
 }
 
+- (void)showMappyLogFile
+{
+	UIView *logView = [self.view viewWithTag:123];
+	if (logView == nil) {
+		NSString *fileContents = [NSString stringWithContentsOfFile:[self mappyLogFilePath] encoding:NSUTF8StringEncoding error:nil];
+		UITextView *textView = [[UITextView alloc] initWithFrame:self.view.bounds];
+		textView.translatesAutoresizingMaskIntoConstraints = NO;
+		[self.view addSubview:textView];
+		[textView.topAnchor constraintEqualToAnchor:self.topLayoutGuide.bottomAnchor].active = YES;
+		[textView.leftAnchor constraintEqualToAnchor:self.view.leftAnchor].active = YES;
+		[textView.rightAnchor constraintEqualToAnchor:self.view.rightAnchor].active = YES;
+		[textView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor].active = YES;
+		textView.tag = 123;
+		textView.text = fileContents;
+	}
+	else {
+		[logView removeFromSuperview];
+	}
+}
+
+- (void)deleteMappyLogFile
+{
+	NSString *filePath = [self mappyLogFilePath];
+	if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath])
+	{
+		NSError *error;
+		BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
+		if (success) {
+			NSLog(@"Deleted mappy log.");
+		} else {
+			NSLog(@"Error deleting mappy log: %@", error.localizedDescription);
+		}
+	}
+}
+
+- (NSString *)mappyLogFilePath
+{
+	NSString *filePath = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"mappy_log.txt"];
+	return filePath;
+}
+
 #pragma mark - User Actions
 
 - (IBAction)handleLongPress:(UILongPressGestureRecognizer *)longPress
@@ -1725,6 +1776,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         styleNames = @[
+			@"Mappy r7",
+			@"Mappy qt",
+			@"Mappy prod",
             @"Streets",
             @"Outdoors",
             @"Light",
@@ -1733,6 +1787,9 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
             @"Satellite Streets",
         ];
         styleURLs = @[
+			[NSURL URLWithString:@"https://map.mappyrecette.net/map/1.0/vector/standard.json"],
+			[NSURL URLWithString:@"http://qt-tornik-vecto-001.th2.prod/map/1.0/vector/standard.json"],
+			[NSURL URLWithString:@"https://map.mappy.net/map/1.0/vector/standard.json"],
             [MGLStyle streetsStyleURL],
             [MGLStyle outdoorsStyleURL],
             [MGLStyle lightStyleURL],
@@ -1757,7 +1814,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
                 }
             }
         }
-        NSAssert(numStyleURLMethods == styleNames.count,
+        NSAssert(numStyleURLMethods == styleNames.count - 3,
                  @"MGLStyle provides %u default styles but iosapp only knows about %lu of them.",
                  numStyleURLMethods, (unsigned long)styleNames.count);
     });
