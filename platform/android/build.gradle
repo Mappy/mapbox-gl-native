@@ -1,26 +1,30 @@
 buildscript {
+
     repositories {
         jcenter()
+        google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.3.1'
+        classpath 'com.android.tools.build:gradle:3.0.1'
     }
 }
 
 allprojects {
     repositories {
+        mavenCentral()
         jcenter()
-        maven { url 'https://maven.google.com' }
-        maven { url "http://oss.sonatype.org/content/repositories/snapshots/" }
+        google()
+        // Snapshot repository
+        //maven { url "http://oss.sonatype.org/content/repositories/snapshots/" }
     }
 }
 
-task wrapper(type: Wrapper) {
-    gradleVersion = '3.2.1'
+subprojects {
+    apply from: "${rootDir}/gradle/dependencies.gradle"
 }
 
-apply from: rootProject.file('dependencies.gradle')
+apply from: "${rootDir}/gradle/dependencies.gradle"
 
 // Load build system information. If this file does not exist, run
-// `make platform/android/configuration.gradle`
-apply from: rootProject.file('configuration.gradle')
+// `make platform/android/gradle/configuration.gradle`
+apply from: "${rootDir}/gradle/configuration.gradle"

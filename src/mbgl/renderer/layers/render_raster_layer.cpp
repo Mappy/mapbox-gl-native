@@ -73,16 +73,15 @@ void RenderRasterLayer::render(PaintParameters& parameters, RenderSource* source
     if (parameters.pass != RenderPass::Translucent)
         return;
 
+    RasterProgram::PaintPropertyBinders paintAttributeData{ evaluated, 0 };
+
     auto draw = [&] (const mat4& matrix,
                      const auto& vertexBuffer,
                      const auto& indexBuffer,
                      const auto& segments) {
-        parameters.programs.raster.draw(
-            parameters.context,
-            gl::Triangles(),
-            parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
-            gl::StencilMode::disabled(),
-            parameters.colorModeForRenderPass(),
+        auto& programInstance = parameters.programs.raster;
+
+        const auto allUniformValues = programInstance.computeAllUniformValues(
             RasterProgram::UniformValues {
                 uniforms::u_matrix::Value{ matrix },
                 uniforms::u_image0::Value{ 0 },
@@ -98,12 +97,28 @@ void RenderRasterLayer::render(PaintParameters& parameters, RenderSource* source
                 uniforms::u_scale_parent::Value{ 1.0f },
                 uniforms::u_tl_parent::Value{ std::array<float, 2> {{ 0.0f, 0.0f }} },
             },
+            paintAttributeData,
+            evaluated,
+            parameters.state.getZoom()
+        );
+        const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
             vertexBuffer,
+            paintAttributeData,
+            evaluated
+        );
+
+        checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
+
+        programInstance.draw(
+            parameters.context,
+            gl::Triangles(),
+            parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
+            gl::StencilMode::disabled(),
+            parameters.colorModeForRenderPass(),
             indexBuffer,
             segments,
-            RasterProgram::PaintPropertyBinders { evaluated, 0 },
-            evaluated,
-            parameters.state.getZoom(),
+            allUniformValues,
+            allAttributeBindings,
             getID()
         );
     };
@@ -137,13 +152,13 @@ void RenderRasterLayer::render(PaintParameters& parameters, RenderSource* source
 
             if (bucket.vertexBuffer && bucket.indexBuffer && !bucket.segments.empty()) {
                 // Draw only the parts of the tile that aren't drawn by another tile in the layer.
-                draw(tile.matrix,
+                draw(parameters.matrixForTile(tile.id, true),
                      *bucket.vertexBuffer,
                      *bucket.indexBuffer,
                      bucket.segments);
             } else {
                 // Draw the full tile.
-                draw(tile.matrix,
+                draw(parameters.matrixForTile(tile.id, true),
                      parameters.staticData.rasterVertexBuffer,
                      parameters.staticData.quadTriangleIndexBuffer,
                      parameters.staticData.rasterSegments);

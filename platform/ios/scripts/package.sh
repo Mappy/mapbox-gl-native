@@ -195,7 +195,6 @@ if [[ ${BUILD_DYNAMIC} == true && ${BUILDTYPE} == Release ]]; then
         "${OUTPUT}/dynamic/${NAME}.framework.dSYM/Contents/Resources/DWARF/${NAME}" \
         "${OUTPUT}/dynamic/${NAME}.framework/${NAME}"
 
-        # To-do: remove this in 4.0.0, as we intend to remove support for i386 entirely.
         step "Removing i386 slice from dSYM"
         lipo -remove i386 "${OUTPUT}/dynamic/${NAME}.framework.dSYM/Contents/Resources/DWARF/${NAME}" -o "${OUTPUT}/dynamic/${NAME}.framework.dSYM/Contents/Resources/DWARF/${NAME}"
         lipo -info "${OUTPUT}/dynamic/${NAME}.framework.dSYM/Contents/Resources/DWARF/${NAME}"

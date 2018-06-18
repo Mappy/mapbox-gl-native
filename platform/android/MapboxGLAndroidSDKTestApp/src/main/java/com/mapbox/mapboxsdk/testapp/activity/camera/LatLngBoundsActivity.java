@@ -13,7 +13,6 @@ import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.http.HttpRequestUtil;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
 import com.mapbox.mapboxsdk.testapp.view.LockableBottomSheetBehavior;
 
@@ -57,12 +56,9 @@ public class LatLngBoundsActivity extends AppCompatActivity implements View.OnCl
     setContentView(R.layout.activity_latlngbounds);
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @Override
-      public void onMapReady(final MapboxMap map) {
-        mapboxMap = map;
-        initMap();
-      }
+    mapView.getMapAsync(map -> {
+      mapboxMap = map;
+      initMap();
     });
   }
 

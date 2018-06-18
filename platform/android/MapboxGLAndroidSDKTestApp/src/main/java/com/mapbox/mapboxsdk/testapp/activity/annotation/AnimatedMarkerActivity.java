@@ -7,12 +7,12 @@ import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.os.Bundle;
 import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
 import android.support.v4.content.res.ResourcesCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
+import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
@@ -24,11 +24,9 @@ import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
 import com.mapbox.mapboxsdk.testapp.utils.IconUtils;
-import com.mapbox.services.api.utils.turf.TurfMeasurement;
-import com.mapbox.services.commons.models.Position;
+import com.mapbox.turf.TurfMeasurement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,25 +57,18 @@ public class AnimatedMarkerActivity extends AppCompatActivity {
 
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
+    mapView.getMapAsync(mapboxMap -> {
+      AnimatedMarkerActivity.this.mapboxMap = mapboxMap;
+      setupMap();
 
-      @Override
-      public void onMapReady(@NonNull final MapboxMap mapboxMap) {
-        AnimatedMarkerActivity.this.mapboxMap = mapboxMap;
-        setupMap();
-
-        animationRunnable = new Runnable() {
-          @Override
-          public void run() {
-            for (int i = 0; i < 10; i++) {
-              addRandomCar();
-            }
-            addPassenger();
-            addMainCar();
-          }
-        };
-        mapView.post(animationRunnable);
-      }
+      animationRunnable = () -> {
+        for (int i = 0; i < 10; i++) {
+          addRandomCar();
+        }
+        addPassenger();
+        addMainCar();
+      };
+      mapView.post(animationRunnable);
     });
   }
 
@@ -116,13 +107,10 @@ public class AnimatedMarkerActivity extends AppCompatActivity {
 
     if (carMarker == null) {
       carMarker = createCarMarker(randomLatLng, R.drawable.ic_taxi_top,
-        new MarkerViewManager.OnMarkerViewAddedListener() {
-          @Override
-          public void onViewAdded(@NonNull MarkerView markerView) {
-            // Make sure the car marker is selected so that it's always brought to the front (#5285)
-            mapboxMap.selectMarker(carMarker);
-            animateMoveToPassenger(carMarker);
-          }
+        markerView -> {
+          // Make sure the car marker is selected so that it's always brought to the front (#5285)
+          mapboxMap.selectMarker(carMarker);
+          animateMoveToPassenger(carMarker);
         });
       markerViews.add(carMarker);
     } else {
@@ -147,12 +135,7 @@ public class AnimatedMarkerActivity extends AppCompatActivity {
 
   protected void addRandomCar() {
     markerViews.add(createCarMarker(getLatLngInBounds(), R.drawable.ic_car_top,
-      new MarkerViewManager.OnMarkerViewAddedListener() {
-        @Override
-        public void onViewAdded(@NonNull MarkerView markerView) {
-          randomlyMoveMarker(markerView);
-        }
-      }));
+      markerView -> randomlyMoveMarker(markerView)));
   }
 
   private void randomlyMoveMarker(final MarkerView marker) {
@@ -289,8 +272,8 @@ public class AnimatedMarkerActivity extends AppCompatActivity {
 
   private double getBearing(LatLng from, LatLng to) {
     return TurfMeasurement.bearing(
-      Position.fromCoordinates(from.getLongitude(), from.getLatitude()),
-      Position.fromCoordinates(to.getLongitude(), to.getLatitude())
+      Point.fromLngLat(from.getLongitude(), from.getLatitude()),
+      Point.fromLngLat(to.getLongitude(), to.getLatitude())
     );
   }
 

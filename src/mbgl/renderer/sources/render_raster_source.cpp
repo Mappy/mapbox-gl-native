@@ -76,7 +76,8 @@ std::unordered_map<std::string, std::vector<Feature>>
 RenderRasterSource::queryRenderedFeatures(const ScreenLineString&,
                                           const TransformState&,
                                           const std::vector<const RenderLayer*>&,
-                                          const RenderedQueryOptions&) const {
+                                          const RenderedQueryOptions&,
+                                          const mat4&) const {
     return std::unordered_map<std::string, std::vector<Feature>> {};
 }
 
@@ -84,8 +85,8 @@ std::vector<Feature> RenderRasterSource::querySourceFeatures(const SourceQueryOp
     return {};
 }
 
-void RenderRasterSource::onLowMemory() {
-    tilePyramid.onLowMemory();
+void RenderRasterSource::reduceMemoryUse() {
+    tilePyramid.reduceMemoryUse();
 }
 
 void RenderRasterSource::dumpDebugLogs() const {

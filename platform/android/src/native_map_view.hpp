@@ -19,7 +19,7 @@
 #include "geometry/lat_lng.hpp"
 #include "geometry/projected_meters.hpp"
 #include "style/layers/layers.hpp"
-#include "style/sources/sources.hpp"
+#include "style/sources/source.hpp"
 #include "geometry/lat_lng_bounds.hpp"
 #include "map/camera_position.hpp"
 #include "map/image.hpp"
@@ -104,9 +104,9 @@ public:
 
     void setLatLng(jni::JNIEnv&, jni::jdouble, jni::jdouble, jni::jlong);
 
-    jni::Object<CameraPosition> getCameraForLatLngBounds(jni::JNIEnv&, jni::Object<mbgl::android::LatLngBounds>);
+    jni::Object<CameraPosition> getCameraForLatLngBounds(jni::JNIEnv&, jni::Object<mbgl::android::LatLngBounds>, double top, double left, double bottom, double right);
 
-    jni::Object<CameraPosition> getCameraForGeometry(jni::JNIEnv&, jni::Object<geojson::Geometry>, double bearing);
+    jni::Object<CameraPosition> getCameraForGeometry(jni::JNIEnv&, jni::Object<geojson::Geometry>, double bearing, double top, double left, double bottom, double right);
 
     void setReachability(jni::JNIEnv&, jni::jboolean);
 
@@ -230,13 +230,13 @@ public:
 
     jni::Object<Source> getSource(JNIEnv&, jni::String);
 
-    void addSource(JNIEnv&, jni::jlong);
+    void addSource(JNIEnv&, jni::Object<Source>, jlong nativePtr);
 
     jni::Object<Source> removeSourceById(JNIEnv&, jni::String);
 
-    void removeSource(JNIEnv&, jlong);
+    void removeSource(JNIEnv&, jni::Object<Source>, jlong nativePtr);
 
-    void addImage(JNIEnv&, jni::String, jni::jint, jni::jint, jni::jfloat, jni::Array<jbyte>);
+    void addImage(JNIEnv&, jni::String, jni::Object<Bitmap> bitmap, jni::jfloat);
 
     void addImages(JNIEnv&, jni::Array<jni::Object<mbgl::android::Image>>);
 
@@ -257,7 +257,6 @@ private:
     MapRenderer& mapRenderer;
 
     std::string styleUrl;
-    std::string apiKey;
 
     float pixelRatio;
 

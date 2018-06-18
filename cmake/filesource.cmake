@@ -26,17 +26,9 @@ add_library(mbgl-filesource STATIC
 
 target_add_mason_package(mbgl-filesource PUBLIC geometry)
 target_add_mason_package(mbgl-filesource PUBLIC variant)
-target_add_mason_package(mbgl-filesource PUBLIC any)
 target_add_mason_package(mbgl-filesource PRIVATE rapidjson)
 target_add_mason_package(mbgl-filesource PRIVATE boost)
 target_add_mason_package(mbgl-filesource PRIVATE geojson)
-
-set_xcode_property(mbgl-filesource GCC_SYMBOLS_PRIVATE_EXTERN YES)
-
-target_compile_options(mbgl-filesource
-    PRIVATE -fPIC
-    PRIVATE -fvisibility-inlines-hidden
-)
 
 target_include_directories(mbgl-filesource
     PRIVATE include

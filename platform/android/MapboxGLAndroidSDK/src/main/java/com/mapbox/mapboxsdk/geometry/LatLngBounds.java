@@ -2,11 +2,12 @@ package com.mapbox.mapboxsdk.geometry;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.mapbox.mapboxsdk.constants.GeometryConstants;
 import com.mapbox.mapboxsdk.exceptions.InvalidLatLngBoundsException;
-import com.mapbox.services.android.telemetry.constants.GeoConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,10 @@ public class LatLngBounds implements Parcelable {
   /**
    * Construct a new LatLngBounds based on its corners, given in NESW
    * order.
+   * <p>
+   * If eastern longitude is smaller than the western one, bounds will include antimeridian.
+   * For example, if the NE point is (10, -170) and the SW point is (-10, 170), then bounds will span over 20 degrees
+   * and cross the antimeridian.
    *
    * @param northLatitude Northern Latitude
    * @param eastLongitude Eastern Longitude
@@ -47,10 +52,9 @@ public class LatLngBounds implements Parcelable {
    * @return the bounds representing the world
    */
   public static LatLngBounds world() {
-    return new LatLngBounds.Builder()
-      .include(new LatLng(GeoConstants.MAX_LATITUDE, GeoConstants.MAX_LONGITUDE))
-      .include(new LatLng(GeoConstants.MIN_LATITUDE, GeoConstants.MIN_LONGITUDE))
-      .build();
+    return LatLngBounds.from(
+      GeometryConstants.MAX_LATITUDE, GeometryConstants.MAX_LONGITUDE,
+      GeometryConstants.MIN_LATITUDE, GeometryConstants.MIN_LONGITUDE);
   }
 
   /**
@@ -60,8 +64,20 @@ public class LatLngBounds implements Parcelable {
    * @return LatLng center of this LatLngBounds
    */
   public LatLng getCenter() {
-    return new LatLng((this.latitudeNorth + this.latitudeSouth) / 2,
-      (this.longitudeEast + this.longitudeWest) / 2);
+    double latCenter = (this.latitudeNorth + this.latitudeSouth) / 2.0;
+    double longCenter;
+
+    if (this.longitudeEast >= this.longitudeWest) {
+      longCenter = (this.longitudeEast + this.longitudeWest) / 2;
+    } else {
+      double halfSpan = (GeometryConstants.LONGITUDE_SPAN + this.longitudeEast - this.longitudeWest) / 2.0;
+      longCenter = this.longitudeWest + halfSpan;
+      if (longCenter >= GeometryConstants.MAX_LONGITUDE) {
+        longCenter = this.longitudeEast - halfSpan;
+      }
+    }
+
+    return new LatLng(latCenter, longCenter);
   }
 
   /**
@@ -162,9 +178,24 @@ public class LatLngBounds implements Parcelable {
    * @return Span distance
    */
   public double getLongitudeSpan() {
-    return Math.abs(this.longitudeEast - this.longitudeWest);
+    double longSpan = Math.abs(this.longitudeEast - this.longitudeWest);
+    if (this.longitudeEast >= this.longitudeWest) {
+      return longSpan;
+    }
+
+    // shortest span contains antimeridian
+    return GeometryConstants.LONGITUDE_SPAN - longSpan;
   }
 
+  static double getLongitudeSpan(final double longEast, final double longWest) {
+    double longSpan = Math.abs(longEast - longWest);
+    if (longEast >= longWest) {
+      return longSpan;
+    }
+
+    // shortest span contains antimeridian
+    return GeometryConstants.LONGITUDE_SPAN - longSpan;
+  }
 
   /**
    * Validate if LatLngBounds is empty, determined if absolute distance is
@@ -194,22 +225,44 @@ public class LatLngBounds implements Parcelable {
    * @return LatLngBounds
    */
   static LatLngBounds fromLatLngs(final List<? extends ILatLng> latLngs) {
-    double minLat = 90;
-    double minLon = 180;
-    double maxLat = -90;
-    double maxLon = -180;
+    double minLat = GeometryConstants.MAX_LATITUDE;
+    double maxLat = GeometryConstants.MIN_LATITUDE;
+
+    double eastLon = latLngs.get(0).getLongitude();
+    double westLon = latLngs.get(1).getLongitude();
+    double lonSpan = Math.abs(eastLon - westLon);
+    if (lonSpan < GeometryConstants.LONGITUDE_SPAN / 2) {
+      if (eastLon < westLon) {
+        double temp = eastLon;
+        eastLon = westLon;
+        westLon = temp;
+      }
+    } else {
+      if (westLon < eastLon) {
+        double temp = eastLon;
+        eastLon = westLon;
+        westLon = temp;
+      }
+    }
 
     for (final ILatLng gp : latLngs) {
       final double latitude = gp.getLatitude();
-      final double longitude = gp.getLongitude();
-
       minLat = Math.min(minLat, latitude);
-      minLon = Math.min(minLon, longitude);
       maxLat = Math.max(maxLat, latitude);
-      maxLon = Math.max(maxLon, longitude);
+
+      final double longitude = gp.getLongitude();
+      if (!containsLongitude(eastLon, westLon, longitude)) {
+        final double eastSpan = getLongitudeSpan(longitude, westLon);
+        final double westSpan = getLongitudeSpan(eastLon, longitude);
+        if (eastSpan <= westSpan) {
+          eastLon = longitude;
+        } else {
+          westLon = longitude;
+        }
+      }
     }
 
-    return new LatLngBounds(maxLat, maxLon, minLat, minLon);
+    return new LatLngBounds(maxLat, eastLon, minLat, westLon);
   }
 
   /**
@@ -224,11 +277,71 @@ public class LatLngBounds implements Parcelable {
   /**
    * Constructs a LatLngBounds from doubles representing a LatLng pair.
    * <p>
+   * This values of latNorth and latSouth should be in the range of [-90, 90],
+   * see {@link GeometryConstants#MIN_LATITUDE} and {@link GeometryConstants#MAX_LATITUDE},
+   * otherwise IllegalArgumentException will be thrown.
+   * latNorth should be greater or equal latSouth, otherwise  IllegalArgumentException will be thrown.
+   * <p>
    * This method doesn't recalculate most east or most west boundaries.
+   * Note that lonEast and lonWest will be wrapped to be in the range of [-180, 180],
+   * see {@link GeometryConstants#MIN_LONGITUDE} and {@link GeometryConstants#MAX_LONGITUDE}
    * </p>
    */
-  public static LatLngBounds from(double latNorth, double lonEast, double latSouth, double lonWest) {
+  public static LatLngBounds from(
+    @FloatRange(from = GeometryConstants.MIN_LATITUDE, to = GeometryConstants.MAX_LATITUDE) double latNorth,
+    double lonEast,
+    @FloatRange(from = GeometryConstants.MIN_LATITUDE, to = GeometryConstants.MAX_LATITUDE) double latSouth,
+    double lonWest) {
+
+    if (Double.isNaN(latNorth) || Double.isNaN(latSouth)) {
+      throw new IllegalArgumentException("latitude must not be NaN");
+    }
+
+    if (Double.isNaN(lonEast) || Double.isNaN(lonWest)) {
+      throw new IllegalArgumentException("longitude must not be NaN");
+    }
+
+    if (Double.isInfinite(lonEast) || Double.isInfinite(lonWest)) {
+      throw new IllegalArgumentException("longitude must not be infinite");
+    }
+
+    if (latNorth > GeometryConstants.MAX_LATITUDE || latNorth < GeometryConstants.MIN_LATITUDE
+      || latSouth > GeometryConstants.MAX_LATITUDE || latSouth < GeometryConstants.MIN_LATITUDE) {
+      throw new IllegalArgumentException("latitude must be between -90 and 90");
+    }
+
+    if (latNorth < latSouth) {
+      throw new IllegalArgumentException("LatSouth cannot be less than latNorth");
+    }
+
+    lonEast = LatLng.wrap(lonEast, GeometryConstants.MIN_LONGITUDE, GeometryConstants.MAX_LONGITUDE);
+    lonWest = LatLng.wrap(lonWest, GeometryConstants.MIN_LONGITUDE, GeometryConstants.MAX_LONGITUDE);
+
     return new LatLngBounds(latNorth, lonEast, latSouth, lonWest);
+  }
+
+  private static double lat_(int z, int y) {
+    double n = Math.PI - 2.0 * Math.PI * y / Math.pow(2.0, z);
+    return Math.toDegrees(Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+  }
+
+  private static double lon_(int z, int x) {
+    return x / Math.pow(2.0, z) * 360.0 - GeometryConstants.MAX_LONGITUDE;
+  }
+
+  /**
+   * Constructs a LatLngBounds from a Tile identifier.
+   * <p>
+   * Returned bounds will have latitude in the range of Mercator projection.
+   *
+   * @param z Tile zoom level.
+   * @param x Tile X coordinate.
+   * @param y Tile Y coordinate.
+   * @see GeometryConstants#MIN_MERCATOR_LATITUDE
+   * @see GeometryConstants#MAX_MERCATOR_LATITUDE
+   */
+  public static LatLngBounds from(int z, int x, int y) {
+    return new LatLngBounds(lat_(z, y), lon_(z, x + 1), lat_(z, y + 1), lon_(z, x));
   }
 
   /**
@@ -266,6 +379,24 @@ public class LatLngBounds implements Parcelable {
     return false;
   }
 
+
+  private boolean containsLatitude(final double latitude) {
+    return (latitude <= this.latitudeNorth)
+      && (latitude >= this.latitudeSouth);
+  }
+
+  private boolean containsLongitude(final double longitude) {
+    return containsLongitude(this.longitudeEast, this.longitudeWest, longitude);
+  }
+
+  static boolean containsLongitude(final double eastLon, final double westLon, final double longitude) {
+    if (eastLon >= westLon) {
+      return (longitude <= eastLon)
+        && (longitude >= westLon);
+    }
+    return (longitude < eastLon) || (longitude > westLon);
+  }
+
   /**
    * Determines whether this LatLngBounds contains a point.
    *
@@ -273,12 +404,8 @@ public class LatLngBounds implements Parcelable {
    * @return true, if the point is contained within the bounds
    */
   public boolean contains(final ILatLng latLng) {
-    final double latitude = latLng.getLatitude();
-    final double longitude = latLng.getLongitude();
-    return ((latitude <= this.latitudeNorth)
-      && (latitude >= this.latitudeSouth))
-      && ((longitude <= this.longitudeEast)
-      && (longitude >= this.longitudeWest));
+    return containsLatitude(latLng.getLatitude())
+      && containsLongitude(latLng.getLongitude());
   }
 
   /**
@@ -288,7 +415,8 @@ public class LatLngBounds implements Parcelable {
    * @return true, if the bounds is contained within the bounds
    */
   public boolean contains(final LatLngBounds other) {
-    return contains(other.getNorthEast()) && contains(other.getSouthWest());
+    return contains(other.getNorthEast())
+      && contains(other.getSouthWest());
   }
 
   /**
@@ -305,17 +433,28 @@ public class LatLngBounds implements Parcelable {
    * Returns a new LatLngBounds that stretches to include another LatLngBounds,
    * given by corner points.
    *
-   * @param lonNorth Northern Longitude
-   * @param latEast  Eastern Latitude
-   * @param lonSouth Southern Longitude
-   * @param latWest  Western Longitude
+   * @param latNorth Northern Latitude
+   * @param lonEast  Eastern Longitude
+   * @param latSouth Southern Latitude
+   * @param lonWest  Western Longitude
    * @return BoundingBox
    */
-  public LatLngBounds union(final double lonNorth, final double latEast, final double lonSouth, final double latWest) {
-    return new LatLngBounds((this.latitudeNorth < lonNorth) ? lonNorth : this.latitudeNorth,
-      (this.longitudeEast < latEast) ? latEast : this.longitudeEast,
-      (this.latitudeSouth > lonSouth) ? lonSouth : this.latitudeSouth,
-      (this.longitudeWest > latWest) ? latWest : this.longitudeWest);
+  public LatLngBounds union(final double latNorth, final double lonEast, final double latSouth, final double lonWest) {
+    double north = (this.latitudeNorth < latNorth) ? latNorth : this.latitudeNorth;
+    double south = (this.latitudeSouth > latSouth) ? latSouth : this.latitudeSouth;
+
+    if (LatLngSpan.getLongitudeSpan(lonEast, this.longitudeWest)
+      < LatLngSpan.getLongitudeSpan(this.longitudeEast, lonWest)) {
+      return new LatLngBounds(north,
+        lonEast,
+        south,
+        this.longitudeWest);
+    }
+
+    return new LatLngBounds(north,
+      this.longitudeEast,
+      south,
+      lonWest);
   }
 
   /**
@@ -326,13 +465,13 @@ public class LatLngBounds implements Parcelable {
    */
   @Nullable
   public LatLngBounds intersect(LatLngBounds box) {
-    double minLatWest = Math.max(getLonWest(), box.getLonWest());
-    double maxLatEast = Math.min(getLonEast(), box.getLonEast());
-    if (maxLatEast > minLatWest) {
-      double minLonSouth = Math.max(getLatSouth(), box.getLatSouth());
-      double maxLonNorth = Math.min(getLatNorth(), box.getLatNorth());
-      if (maxLonNorth > minLonSouth) {
-        return new LatLngBounds(maxLonNorth, maxLatEast, minLonSouth, minLatWest);
+    double minLonWest = Math.max(getLonWest(), box.getLonWest());
+    double maxLonEast = Math.min(getLonEast(), box.getLonEast());
+    if (maxLonEast > minLonWest) {
+      double minLatSouth = Math.max(getLatSouth(), box.getLatSouth());
+      double maxLatNorth = Math.min(getLatNorth(), box.getLatNorth());
+      if (maxLatNorth > minLatSouth) {
+        return new LatLngBounds(maxLatNorth, maxLonEast, minLatSouth, minLonWest);
       }
     }
     return null;

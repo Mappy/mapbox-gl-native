@@ -5,14 +5,14 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.style.functions.stops.Stops;
 import com.mapbox.mapboxsdk.style.layers.FillLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 import com.mapbox.mapboxsdk.style.sources.Source;
@@ -23,13 +23,18 @@ import java.io.IOException;
 
 import timber.log.Timber;
 
-import static com.mapbox.mapboxsdk.style.functions.Function.composite;
-import static com.mapbox.mapboxsdk.style.functions.Function.property;
-import static com.mapbox.mapboxsdk.style.functions.Function.zoom;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stop.stop;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stops.categorical;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stops.exponential;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stops.interval;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.exponential;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.get;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.interpolate;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.linear;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.literal;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.match;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.rgb;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.rgba;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.step;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.stop;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.zoom;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.color;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillAntialias;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillOpacity;
@@ -53,21 +58,31 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
 
+    mapView.getMapAsync(map -> {
+      // Store for later
+      mapboxMap = map;
 
-    mapView.getMapAsync(new OnMapReadyCallback() {
+      // Add a parks layer
+      addParksLayer();
+
+      // Add debug overlay
+      setupDebugZoomView();
+
+      // Center and Zoom (Amsterdam, zoomed to streets)
+      mapboxMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(52.379189, 4.899431), 14));
+    });
+  }
+
+  private void setupDebugZoomView() {
+    final TextView textView = (TextView) findViewById(R.id.textZoom);
+    mapboxMap.setOnCameraChangeListener(new MapboxMap.OnCameraChangeListener() {
       @Override
-      public void onMapReady(MapboxMap map) {
-        // Store for later
-        mapboxMap = map;
-
-        // Add a parks layer
-        addParksLayer();
-
-        // Center and Zoom (Amsterdam, zoomed to streets)
-        mapboxMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(52.379189, 4.899431), 14));
+      public void onCameraChange(CameraPosition position) {
+        textView.setText(String.format(getString(R.string.debug_zoom), position.zoom));
       }
     });
   }
+
 
   @Override
   public boolean onCreateOptionsMenu(Menu menu) {
@@ -152,19 +167,17 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     }
   }
 
-
   private void addExponentialZoomFunction() {
     Timber.i("Add exponential zoom function");
     FillLayer layer = mapboxMap.getLayerAs("water");
     assert layer != null;
     layer.setProperties(
       fillColor(
-        zoom(
-          exponential(
-            stop(1, fillColor(Color.RED)),
-            stop(5, fillColor(Color.BLUE)),
-            stop(10, fillColor(Color.GREEN))
-          ).withBase(0.5f)
+        interpolate(
+          exponential(0.5f), zoom(),
+          stop(1, color(Color.RED)),
+          stop(5, color(Color.BLUE)),
+          stop(10, color(Color.GREEN))
         )
       )
     );
@@ -178,12 +191,11 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        zoom(
-          interval(
-            stop(1, fillColor(Color.RED)),
-            stop(5, fillColor(Color.BLUE)),
-            stop(10, fillColor(Color.GREEN))
-          )
+        step(zoom(),
+          rgba(0.0f, 255.0f, 255.0f, 1.0f),
+          stop(1, rgba(255.0f, 0.0f, 0.0f, 1.0f)),
+          stop(5, rgba(0.0f, 0.0f, 255.0f, 1.0f)),
+          stop(10, rgba(0.0f, 255.0f, 0.0f, 1.0f))
         )
       )
     );
@@ -197,13 +209,12 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        property(
-          "stroke-width",
-          exponential(
-            stop(1f, fillColor(Color.RED)),
-            stop(5f, fillColor(Color.BLUE)),
-            stop(10f, fillColor(Color.GREEN))
-          ).withBase(0.5f)
+        interpolate(
+          exponential(0.5f),
+          get("stroke-width"),
+          stop(1f, rgba(255.0f, 0.0f, 0.0f, 1.0f)),
+          stop(5f, rgba(0.0f, 0.0f, 255.0f, 1.0f)),
+          stop(10f, rgba(0.0f, 255.0f, 0.0f, 1.0f))
         )
       )
     );
@@ -217,13 +228,13 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        property(
-          "name",
-          categorical(
-            stop("Westerpark", fillColor(Color.RED)),
-            stop("Jordaan", fillColor(Color.BLUE)),
-            stop("Prinseneiland", fillColor(Color.GREEN))
-          ))
+        match(
+          get("name"),
+          literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+          literal("Jordaan"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+          literal("Prinseneiland"), rgba(0.0f, 255.0f, 0.0f, 1.0f),
+          rgba(0.0f, 255.0f, 255.0f, 1.0f)
+        )
       )
     );
 
@@ -236,9 +247,7 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillOpacity(
-        property(
-          "fill-opacity",
-          Stops.<Float>identity())
+        get("fill-opacity")
       )
     );
 
@@ -251,13 +260,13 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        property(
-          "stroke-width",
-          interval(
-            stop(1f, fillColor(Color.RED)),
-            stop(5f, fillColor(Color.BLUE)),
-            stop(10f, fillColor(Color.GREEN))
-          ))
+        step(
+          get("stroke-width"),
+          rgba(0.0f, 255.0f, 255.0f, 1.0f),
+          stop(1f, rgba(255.0f, 0.0f, 0.0f, 1.0f)),
+          stop(2f, rgba(0.0f, 0.0f, 255.0f, 1.0f)),
+          stop(3f, rgba(0.0f, 255.0f, 0.0f, 1.0f))
+        )
       )
     );
 
@@ -270,16 +279,30 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        composite(
-          "stroke-width",
-          exponential(
-            stop(1, 1, fillColor(Color.RED)),
-            stop(10, 2, fillColor(Color.BLUE)),
-            stop(22, 3, fillColor(Color.GREEN)),
-            stop(1, 1, fillColor(Color.CYAN)),
-            stop(10, 2, fillColor(Color.GRAY)),
-            stop(22, 3, fillColor(Color.YELLOW))
-          ).withBase(1f)
+        interpolate(
+          exponential(1f),
+          zoom(),
+          stop(12, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(255.0f, 0.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(0.0f, 0.0f, 0.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 0.0f, 255.0f, 1.0f))
+          )),
+          stop(15, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(255.0f, 255.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(211.0f, 211.0f, 211.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 255.0f, 255.0f, 1.0f))
+          )),
+          stop(18, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(0.0f, 0.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(128.0f, 128.0f, 128.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 255.0f, 0.0f, 1.0f)))
+          )
         )
       )
     );
@@ -288,21 +311,36 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
   }
 
   private void addCompositeIntervalFunction() {
-    Timber.i("Add composite exponential function");
+    Timber.i("Add composite interval function");
     FillLayer layer = mapboxMap.getLayerAs(AMSTERDAM_PARKS_LAYER);
     assert layer != null;
     layer.setProperties(
       fillColor(
-        composite(
-          "stroke-width",
-          interval(
-            stop(1, 1, fillColor(Color.RED)),
-            stop(10, 2, fillColor(Color.BLUE)),
-            stop(22, 3, fillColor(Color.GREEN)),
-            stop(1, 1, fillColor(Color.CYAN)),
-            stop(10, 2, fillColor(Color.GRAY)),
-            stop(22, 3, fillColor(Color.YELLOW))
+        interpolate(
+          linear(),
+          zoom(),
+          stop(12, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(255.0f, 0.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(0.0f, 0.0f, 0.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 0.0f, 255.0f, 1.0f))
+          )),
+          stop(15, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(255.0f, 255.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(211.0f, 211.0f, 211.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 255.0f, 255.0f, 1.0f))
+          )),
+          stop(18, step(
+            get("stroke-width"),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f),
+            stop(1f, rgba(0.0f, 0.0f, 0.0f, 1.0f)),
+            stop(2f, rgba(128.0f, 128.0f, 128.0f, 1.0f)),
+            stop(3f, rgba(0.0f, 255.0f, 0.0f, 1.0f))
           ))
+        )
       )
     );
 
@@ -315,30 +353,92 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
     assert layer != null;
     layer.setProperties(
       fillColor(
-        composite(
-          "name",
-          categorical(
-            stop(7f, "Westerpark", fillColor(Color.RED)),
-            stop(8f, "Westerpark", fillColor(Color.BLUE)),
-            stop(9f, "Westerpark", fillColor(Color.RED)),
-            stop(10f, "Westerpark", fillColor(Color.BLUE)),
-            stop(11f, "Westerpark", fillColor(Color.RED)),
-            stop(12f, "Westerpark", fillColor(Color.BLUE)),
-            stop(13f, "Westerpark", fillColor(Color.RED)),
-            stop(14f, "Westerpark", fillColor(Color.BLUE)),
-            stop(15f, "Westerpark", fillColor(Color.RED)),
-            stop(16f, "Westerpark", fillColor(Color.BLUE)),
-            stop(17f, "Westerpark", fillColor(Color.RED)),
-            stop(18f, "Westerpark", fillColor(Color.BLUE)),
-            stop(19f, "Westerpark", fillColor(Color.RED)),
-            stop(20f, "Westerpark", fillColor(Color.BLUE)),
-            stop(21f, "Westerpark", fillColor(Color.RED)),
-            stop(22f, "Westerpark", fillColor(Color.BLUE)),
-            stop(14f, "Jordaan", fillColor(Color.GREEN)),
-            stop(18f, "Jordaan", fillColor(Color.CYAN)),
-            stop(14f, "Prinseneiland", fillColor(Color.WHITE)),
-            stop(18f, "Prinseneiland", fillColor(Color.BLACK))
+        step(zoom(),
+          rgba(255.0f, 255.0f, 255.0f, 1.0f),
+          stop(7f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(8f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(9f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(10f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(11f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(12f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(13f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(14f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            literal("Jordaan"), rgba(0.0f, 255.0f, 0.0f, 1.0f),
+            literal("PrinsenEiland"), rgba(0.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(15f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(16f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(17f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(18f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            literal("Jordaan"), rgba(0.0f, 255.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(19f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(20f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(21f, match(
+            get("name"),
+            literal("Westerpark"), rgba(255.0f, 0.0f, 0.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
+          )),
+          stop(22f, match(
+            get("name"),
+            literal("Westerpark"), rgba(0.0f, 0.0f, 255.0f, 1.0f),
+            rgba(255.0f, 255.0f, 255.0f, 1.0f)
           ))
+        )
       )
     );
 
@@ -359,12 +459,11 @@ public class DataDrivenStyleActivity extends AppCompatActivity {
       return;
     }
 
-
     // Add a fill layer
     mapboxMap.addLayer(new FillLayer(AMSTERDAM_PARKS_LAYER, source.getId())
       .withProperties(
-        fillColor(Color.BLACK),
-        fillOutlineColor(Color.BLUE),
+        fillColor(color(Color.GREEN)),
+        fillOutlineColor(rgb(0, 0, 255)),
         fillAntialias(true)
       )
     );

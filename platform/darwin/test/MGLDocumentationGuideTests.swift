@@ -1,3 +1,4 @@
+import XCTest
 import Foundation
 import Mapbox
 #if os(iOS)
@@ -49,31 +50,32 @@ class MGLDocumentationGuideTests: XCTestCase, MGLMapViewDelegate {
         styleLoadingExpectation.fulfill()
     }
     
-    func testUsingStyleFunctionsAtRuntime$Stops() {
+    func testMigratingToExpressions$Stops() {
         //#-example-code
         #if os(macOS)
-            let stops = [
-                0: MGLStyleValue<NSColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: NSColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
         #else
-            let stops = [
-                0: MGLStyleValue<UIColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: UIColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
         #endif
         //#-end-example-code
         
-        let _ = MGLStyleValue(interpolationMode: .exponential, cameraStops: stops, options: nil)
+        let _ = NSExpression(format: "mgl_step:from:stops:(mag, %@, %@)",
+                             stops[0]!, stops)
     }
     
-    func testUsingStyleFunctionsAtRuntime$Linear() {
+    func testMigratingToExpressions$Linear() {
         //#-example-code
         let url = URL(string: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson")!
         let symbolSource = MGLSource(identifier: "source")
@@ -83,132 +85,192 @@ class MGLDocumentationGuideTests: XCTestCase, MGLMapViewDelegate {
         mapView.style?.addSource(source)
         
         #if os(macOS)
-            let stops = [
-                0: MGLStyleValue<NSColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: NSColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
         #else
-            let stops = [
-                0: MGLStyleValue<UIColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: UIColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
         #endif
         
         let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
         #if os(macOS)
-            layer.circleColor = MGLStyleValue(interpolationMode: .exponential,
-                                              sourceStops: stops,
-                                              attributeName: "mag",
-                                              options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .green)])
+            layer.circleColor = NSExpression(format: "mgl_interpolate:withCurveType:parameters:stops:(mag, 'linear', nil, %@)",
+                                             stops)
         #else
-            layer.circleColor = MGLStyleValue(interpolationMode: .exponential,
-                                              sourceStops: stops,
-                                              attributeName: "mag",
-                                              options: [.defaultValue: MGLStyleValue<UIColor>(rawValue: .green)])
+            layer.circleColor = NSExpression(format: "mgl_interpolate:withCurveType:parameters:stops:(mag, 'linear', nil, %@)",
+                                             stops)
         #endif
-        layer.circleRadius = MGLStyleValue(rawValue: 10)
+        layer.circleRadius = NSExpression(forConstantValue: 10)
         mapView.style?.insertLayer(layer, below: symbolLayer)
         //#-end-example-code
     }
     
-    func testUsingStyleFunctionsAtRuntime$Exponential() {
+    func testMigratingToExpressions$LinearConvenience() {
+        let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
+        let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
+        
+        #if os(macOS)
+        let stops: [NSNumber: NSColor] = [
+            0: .yellow,
+            2.5: .orange,
+            5: .red,
+            7.5: .blue,
+            10: .white,
+            ]
+        #else
+        let stops: [NSNumber: UIColor] = [
+            0: .yellow,
+            2.5: .orange,
+            5: .red,
+            7.5: .blue,
+            10: .white,
+            ]
+        #endif
+        
+        //#-example-code
+        layer.circleColor = NSExpression(forMGLInterpolating: NSExpression(forKeyPath: "mag"), curveType: .linear, parameters: nil, stops: NSExpression(forConstantValue: stops))
+        //#-end-example-code
+        
+        layer.circleRadius = NSExpression(forConstantValue: 10)
+        mapView.style?.addLayer(layer)
+        
+    }
+    func testMigratingToExpressions$Exponential() {
         let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
         let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
         
         //#-example-code
         let stops = [
-            12: MGLStyleValue<NSNumber>(rawValue: 0.5),
-            14: MGLStyleValue(rawValue: 2),
-            18: MGLStyleValue(rawValue: 18),
+            12: 0.5,
+            14: 2,
+            18: 18,
         ]
         
-        layer.circleRadius = MGLStyleValue(interpolationMode: .exponential,
-                                           cameraStops: stops,
-                                           options: [.interpolationBase: 1.5])
+        layer.circleRadius = NSExpression(format: "mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'exponential', 1.5, %@)",
+                                          stops)
         //#-end-example-code
     }
     
-    func testUsingStyleFunctionsAtRuntime$Interval() {
+    func testMigratingToExpressions$ExponentialConvenience() {
+        let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
+        let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
+        
+        //#-example-code
+        let stops = [
+            12: 0.5,
+            14: 2,
+            18: 18,
+            ]
+        
+        layer.circleRadius =  NSExpression(forMGLInterpolating: NSExpression.zoomLevelVariable, curveType: MGLExpressionInterpolationMode.exponential, parameters: NSExpression(forConstantValue: 1.5), stops: NSExpression(forConstantValue: stops))
+        //#-end-example-code
+    }
+    func testMigratingToExpressions$Interval() {
         let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
         let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
         
         //#-example-code
         #if os(macOS)
-            let stops = [
-                0: MGLStyleValue<NSColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: NSColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
             
-            layer.circleColor = MGLStyleValue(interpolationMode: .interval,
-                                              sourceStops: stops,
-                                              attributeName: "mag",
-                                              options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .green)])
+            layer.circleColor = NSExpression(format: "mgl_step:from:stops:(mag, %@, %@)",
+                                             NSColor.green, stops)
         #else
-            let stops = [
-                0: MGLStyleValue<UIColor>(rawValue: .yellow),
-                2.5: MGLStyleValue(rawValue: .orange),
-                5: MGLStyleValue(rawValue: .red),
-                7.5: MGLStyleValue(rawValue: .blue),
-                10: MGLStyleValue(rawValue: .white),
+            let stops: [NSNumber: UIColor] = [
+                0: .yellow,
+                2.5: .orange,
+                5: .red,
+                7.5: .blue,
+                10: .white,
             ]
             
-            layer.circleColor = MGLStyleValue(interpolationMode: .interval,
-                                              sourceStops: stops,
-                                              attributeName: "mag",
-                                              options: [.defaultValue: MGLStyleValue<UIColor>(rawValue: .green)])
+            layer.circleColor = NSExpression(format: "mgl_step:from:stops:(mag, %@, %@)",
+                                             UIColor.green, stops)
         #endif
         //#-end-example-code
     }
     
-    func testUsingStyleFunctionsAtRuntime$Categorical() {
+    func testMigratingToExpressions$Categorical() {
         let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
         let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
         
         //#-example-code
         #if os(macOS)
-            let categoricalStops = [
-                "earthquake": MGLStyleValue<NSColor>(rawValue: .orange),
-                "explosion": MGLStyleValue(rawValue: .red),
-                "quarry blast": MGLStyleValue(rawValue: .yellow),
-            ]
-            
-            layer.circleColor = MGLStyleValue(interpolationMode: .categorical,
-                                              sourceStops: categoricalStops,
-                                              attributeName: "type",
-                                              options: [.defaultValue: MGLStyleValue<NSColor>(rawValue: .blue)])
+            let defaultColor = NSColor.blue
+            layer.circleColor = NSExpression(
+            format: "MGL_MATCH(type, 'earthquake', %@, 'explosion', %@, 'quarry blast', %@, %@)",
+                NSColor.orange, NSColor.red, NSColor.yellow, defaultColor)
         #else
-            let categoricalStops = [
-                "earthquake": MGLStyleValue<UIColor>(rawValue: .orange),
-                "explosion": MGLStyleValue(rawValue: .red),
-                "quarry blast": MGLStyleValue(rawValue: .yellow),
-            ]
-            
-            layer.circleColor = MGLStyleValue(interpolationMode: .categorical,
-                                              sourceStops: categoricalStops,
-                                              attributeName: "type",
-                                              options: [.defaultValue: MGLStyleValue<UIColor>(rawValue: .blue)])
+            let defaultColor = UIColor.blue
+            layer.circleColor = NSExpression(format: "MGL_MATCH(type, 'earthquake', %@, 'explosion', %@, 'quarry blast', %@, %@)",
+                UIColor.orange, UIColor.red, UIColor.yellow, defaultColor)
         #endif
         //#-end-example-code
     }
     
-    func testUsingStyleFunctionsAtRuntime$Identity() {
+    func testMigratingToExpressions$CategoricalValue() {
         let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
         let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
         
         //#-example-code
-        layer.circleRadius = MGLStyleValue(interpolationMode: .identity,
-                                           sourceStops: nil,
-                                           attributeName: "mag",
-                                           options: [.defaultValue: MGLStyleValue<NSNumber>(rawValue: 0)])
+        #if os(macOS)
+        let stops : [String : NSColor] = ["earthquake" : NSColor.orange,
+                                          "explosion" : NSColor.red,
+                                          "quarry blast" : NSColor.yellow]
+        layer.circleColor = NSExpression(
+            format: "FUNCTION(%@, 'valueForKeyPath:', type)",
+            stops)
+        #else
+        let stops : [String : UIColor] = ["earthquake" : UIColor.orange,
+                                          "explosion" : UIColor.red,
+                                          "quarry blast" : UIColor.yellow]
+        layer.circleColor = NSExpression(
+            format: "FUNCTION(%@, 'valueForKeyPath:', type)",
+            stops)
+        #endif
+        //#-end-example-code
+    }
+    func testMigratingToExpressions$Identity() {
+        let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
+        let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
+        
+        //#-example-code
+        layer.circleRadius = NSExpression(forKeyPath: "mag")
+        //#-end-example-code
+    }
+    
+    func testMigratingToExpressions$Multiply() {
+        let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
+        let layer = MGLCircleStyleLayer(identifier: "circles", source: source)
+        
+        //#-example-code
+        layer.circleRadius = NSExpression(forFunction: "multiply:by:", arguments: [NSExpression(forKeyPath: "mag"), 3])
+        //#-end-example-code
+    }
+    
+    func testMigratingToExpressions$Cast() {
+        let source = MGLShapeSource(identifier: "circles", shape: nil, options: nil)
+        
+        //#-example-code
+        let magnitudeLayer = MGLSymbolStyleLayer(identifier: "mag-layer", source: source)
+        magnitudeLayer.text = NSExpression(format: "CAST(mag, 'NSString')")
+        mapView.style?.addLayer(magnitudeLayer)
         //#-end-example-code
     }
 }

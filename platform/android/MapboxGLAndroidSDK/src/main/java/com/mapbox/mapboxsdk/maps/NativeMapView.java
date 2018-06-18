@@ -5,12 +5,15 @@ import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.os.AsyncTask;
+import android.os.Handler;
 import android.support.annotation.IntRange;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 
+import com.mapbox.geojson.Feature;
+import com.mapbox.geojson.Geometry;
 import com.mapbox.mapboxsdk.LibraryLoader;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.Marker;
@@ -22,15 +25,13 @@ import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.geometry.ProjectedMeters;
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer;
 import com.mapbox.mapboxsdk.storage.FileSource;
+import com.mapbox.mapboxsdk.style.expressions.Expression;
 import com.mapbox.mapboxsdk.style.layers.CannotAddLayerException;
-import com.mapbox.mapboxsdk.style.layers.Filter;
 import com.mapbox.mapboxsdk.style.layers.Layer;
 import com.mapbox.mapboxsdk.style.light.Light;
 import com.mapbox.mapboxsdk.style.sources.CannotAddSourceException;
 import com.mapbox.mapboxsdk.style.sources.Source;
 import com.mapbox.mapboxsdk.utils.BitmapUtils;
-import com.mapbox.services.commons.geojson.Feature;
-import com.mapbox.services.commons.geojson.Geometry;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -38,11 +39,24 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import timber.log.Timber;
 
 // Class that wraps the native methods for convenience
 final class NativeMapView {
+
+  //Hold a reference to prevent it from being GC'd as long as it's used on the native side
+  private final FileSource fileSource;
+
+  // Used to schedule work on the MapRenderer Thread
+  private final MapRenderer mapRenderer;
+
+  // Used for callbacks
+  private ViewCallback viewCallback;
+
+  // Device density
+  private final float pixelRatio;
 
   // Flag to indicating destroy was called
   private boolean destroyed = false;
@@ -50,20 +64,10 @@ final class NativeMapView {
   // Holds the pointer to JNI NativeMapView
   private long nativePtr = 0;
 
-  // Used for callbacks
-  private MapView mapView;
-
-  //Hold a reference to prevent it from being GC'd as long as it's used on the native side
-  private final FileSource fileSource;
-
-  // Used to schedule work on the MapRenderer Thread
-  private MapRenderer mapRenderer;
-
-  // Device density
-  private final float pixelRatio;
-
   // Listener invoked to return a bitmap of the map
   private MapboxMap.SnapshotReadyCallback snapshotReadyCallback;
+
+  private final CopyOnWriteArrayList<MapView.OnMapChangedListener> onMapChangedListeners = new CopyOnWriteArrayList<>();
 
   static {
     LibraryLoader.load();
@@ -73,14 +77,16 @@ final class NativeMapView {
   // Constructors
   //
 
-  public NativeMapView(final MapView mapView, MapRenderer mapRenderer) {
+  public NativeMapView(final Context context, final ViewCallback viewCallback, final MapRenderer mapRenderer) {
+    this(context, context.getResources().getDisplayMetrics().density, viewCallback, mapRenderer);
+  }
+
+  public NativeMapView(final Context context, float pixelRatio,
+                       final ViewCallback viewCallback, final MapRenderer mapRenderer) {
     this.mapRenderer = mapRenderer;
-    this.mapView = mapView;
-
-    Context context = mapView.getContext();
-    fileSource = FileSource.getInstance(context);
-    pixelRatio = context.getResources().getDisplayMetrics().density;
-
+    this.viewCallback = viewCallback;
+    this.fileSource = FileSource.getInstance(context);
+    this.pixelRatio = pixelRatio;
     nativeInitialize(this, fileSource, mapRenderer, pixelRatio);
   }
 
@@ -99,9 +105,10 @@ final class NativeMapView {
   }
 
   public void destroy() {
-    nativeDestroy();
-    mapView = null;
     destroyed = true;
+    onMapChangedListeners.clear();
+    viewCallback = null;
+    nativeDestroy();
   }
 
   public void update() {
@@ -229,18 +236,28 @@ final class NativeMapView {
     return nativeGetLatLng().wrap();
   }
 
-  public CameraPosition getCameraForLatLngBounds(LatLngBounds latLngBounds) {
+  public CameraPosition getCameraForLatLngBounds(LatLngBounds latLngBounds, int[] padding) {
     if (isDestroyedOn("getCameraForLatLngBounds")) {
       return null;
     }
-    return nativeGetCameraForLatLngBounds(latLngBounds);
+    return nativeGetCameraForLatLngBounds(
+      latLngBounds,
+      padding[1] / pixelRatio,
+      padding[0] / pixelRatio,
+      padding[3] / pixelRatio,
+      padding[2] / pixelRatio);
   }
 
-  public CameraPosition getCameraForGeometry(Geometry geometry, double bearing) {
+  public CameraPosition getCameraForGeometry(Geometry geometry, double bearing, int[] padding) {
     if (isDestroyedOn("getCameraForGeometry")) {
       return null;
     }
-    return nativeGetCameraForGeometry(geometry, bearing);
+    return nativeGetCameraForGeometry(
+      geometry, bearing,
+      padding[1] / pixelRatio,
+      padding[0] / pixelRatio,
+      padding[3] / pixelRatio,
+      padding[2] / pixelRatio);
   }
 
   public void resetPosition() {
@@ -733,7 +750,7 @@ final class NativeMapView {
     if (isDestroyedOn("addSource")) {
       return;
     }
-    nativeAddSource(source.getNativePtr());
+    nativeAddSource(source, source.getNativePtr());
   }
 
   @Nullable
@@ -741,14 +758,19 @@ final class NativeMapView {
     if (isDestroyedOn("removeSource")) {
       return null;
     }
-    return nativeRemoveSourceById(sourceId);
+    Source source = getSource(sourceId);
+    if (source != null) {
+      return removeSource(source);
+    }
+    return null;
   }
 
+  @Nullable
   public Source removeSource(@NonNull Source source) {
     if (isDestroyedOn("removeSource")) {
       return null;
     }
-    nativeRemoveSource(source.getNativePtr());
+    nativeRemoveSource(source, source.getNativePtr());
     return source;
   }
 
@@ -757,20 +779,8 @@ final class NativeMapView {
       return;
     }
 
-    // Check/correct config
-    if (image.getConfig() != Bitmap.Config.ARGB_8888) {
-      image = image.copy(Bitmap.Config.ARGB_8888, false);
-    }
-
-    // Get pixels
-    ByteBuffer buffer = ByteBuffer.allocate(image.getByteCount());
-    image.copyPixelsToBuffer(buffer);
-
     // Determine pixel ratio
-    float density = image.getDensity() == Bitmap.DENSITY_NONE ? Bitmap.DENSITY_NONE : image.getDensity();
-    float pixelRatio = density / DisplayMetrics.DENSITY_DEFAULT;
-
-    nativeAddImage(name, image.getWidth(), image.getHeight(), pixelRatio, buffer.array());
+    nativeAddImage(name, image, image.getDensity() / DisplayMetrics.DENSITY_DEFAULT);
   }
 
   public void addImages(@NonNull HashMap<String, Bitmap> bitmapHashMap) {
@@ -800,7 +810,7 @@ final class NativeMapView {
   @NonNull
   public List<Feature> queryRenderedFeatures(@NonNull PointF coordinates,
                                              @Nullable String[] layerIds,
-                                             @Nullable Filter.Statement filter) {
+                                             @Nullable Expression filter) {
     if (isDestroyedOn("queryRenderedFeatures")) {
       return new ArrayList<>();
     }
@@ -812,7 +822,7 @@ final class NativeMapView {
   @NonNull
   public List<Feature> queryRenderedFeatures(@NonNull RectF coordinates,
                                              @Nullable String[] layerIds,
-                                             @Nullable Filter.Statement filter) {
+                                             @Nullable Expression filter) {
     if (isDestroyedOn("queryRenderedFeatures")) {
       return new ArrayList<>();
     }
@@ -858,8 +868,12 @@ final class NativeMapView {
   //
 
   protected void onMapChanged(int rawChange) {
-    if (mapView != null) {
-      mapView.onMapChange(rawChange);
+    for (MapView.OnMapChangedListener onMapChangedListener : onMapChangedListeners) {
+      try {
+        onMapChangedListener.onMapChanged(rawChange);
+      } catch (RuntimeException err) {
+        Timber.e(err, "Exception in MapView.OnMapChangedListener");
+      }
     }
   }
 
@@ -868,7 +882,7 @@ final class NativeMapView {
       return;
     }
 
-    Bitmap viewContent = BitmapUtils.createBitmapFromView(mapView);
+    Bitmap viewContent = viewCallback.getViewContent();
     if (snapshotReadyCallback != null && mapContent != null && viewContent != null) {
       snapshotReadyCallback.onSnapshotReady(BitmapUtils.mergeBitmap(mapContent, viewContent));
     }
@@ -907,9 +921,11 @@ final class NativeMapView {
 
   private native LatLng nativeGetLatLng();
 
-  private native CameraPosition nativeGetCameraForLatLngBounds(LatLngBounds latLngBounds);
+  private native CameraPosition nativeGetCameraForLatLngBounds(
+    LatLngBounds latLngBounds, double top, double left, double bottom, double right);
 
-  private native CameraPosition nativeGetCameraForGeometry(Geometry geometry, double bearing);
+  private native CameraPosition nativeGetCameraForGeometry(
+    Geometry geometry, double bearing, double top, double left, double bottom, double right);
 
   private native void nativeResetPosition();
 
@@ -1027,14 +1043,11 @@ final class NativeMapView {
 
   private native Source nativeGetSource(String sourceId);
 
-  private native void nativeAddSource(long nativeSourcePtr) throws CannotAddSourceException;
+  private native void nativeAddSource(Source source, long sourcePtr) throws CannotAddSourceException;
 
-  private native Source nativeRemoveSourceById(String sourceId);
+  private native void nativeRemoveSource(Source source, long sourcePtr);
 
-  private native void nativeRemoveSource(long sourcePtr);
-
-  private native void nativeAddImage(String name, int width, int height, float pixelRatio,
-                                     byte[] array);
+  private native void nativeAddImage(String name, Bitmap bitmap, float pixelRatio);
 
   private native void nativeAddImages(Image[] images);
 
@@ -1067,14 +1080,14 @@ final class NativeMapView {
     if (isDestroyedOn("")) {
       return 0;
     }
-    return mapView.getWidth();
+    return viewCallback.getWidth();
   }
 
   int getHeight() {
     if (isDestroyedOn("")) {
       return 0;
     }
-    return mapView.getHeight();
+    return viewCallback.getHeight();
   }
 
   //
@@ -1082,13 +1095,13 @@ final class NativeMapView {
   //
 
   void addOnMapChangedListener(@NonNull MapView.OnMapChangedListener listener) {
-    if (mapView != null) {
-      mapView.addOnMapChangedListener(listener);
-    }
+    onMapChangedListeners.add(listener);
   }
 
   void removeOnMapChangedListener(@NonNull MapView.OnMapChangedListener listener) {
-    mapView.removeOnMapChangedListener(listener);
+    if (onMapChangedListeners.contains(listener)) {
+      onMapChangedListeners.remove(listener);
+    }
   }
 
   //
@@ -1104,15 +1117,15 @@ final class NativeMapView {
   }
 
   public void setOnFpsChangedListener(final MapboxMap.OnFpsChangedListener listener) {
+    final Handler handler = new Handler();
     mapRenderer.queueEvent(new Runnable() {
 
       @Override
       public void run() {
         mapRenderer.setOnFpsChangedListener(new MapboxMap.OnFpsChangedListener() {
-
           @Override
           public void onFpsChanged(final double fps) {
-            mapView.post(new Runnable() {
+            handler.post(new Runnable() {
 
               @Override
               public void run() {
@@ -1121,13 +1134,11 @@ final class NativeMapView {
 
             });
           }
-
         });
       }
 
     });
   }
-
 
   //
   // Image conversion
@@ -1177,5 +1188,13 @@ final class NativeMapView {
         nativeMapView.nativeAddImages(images.toArray(new Image[images.size()]));
       }
     }
+  }
+
+  public interface ViewCallback {
+    int getWidth();
+
+    int getHeight();
+
+    Bitmap getViewContent();
   }
 }

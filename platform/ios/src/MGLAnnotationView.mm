@@ -11,7 +11,9 @@
 
 @property (nonatomic, readwrite, nullable) NSString *reuseIdentifier;
 @property (nonatomic, readwrite) CATransform3D lastAppliedScaleTransform;
-@property (nonatomic, readwrite) CATransform3D lastAppliedRotateTransform;
+@property (nonatomic, readwrite) CGFloat lastPitch;
+@property (nonatomic, readwrite) CATransform3D lastAppliedRotationTransform;
+@property (nonatomic, readwrite) CGFloat lastDirection;
 @property (nonatomic, weak) UIPanGestureRecognizer *panGestureRecognizer;
 @property (nonatomic, weak) UILongPressGestureRecognizer *longPressRecognizer;
 @property (nonatomic, weak) MGLMapView *mapView;
@@ -42,9 +44,9 @@
 
 - (void)commonInitWithAnnotation:(nullable id<MGLAnnotation>)annotation reuseIdentifier:(nullable NSString *)reuseIdentifier {
     _lastAppliedScaleTransform = CATransform3DIdentity;
+    _lastAppliedRotationTransform = CATransform3DIdentity;
     _annotation = annotation;
     _reuseIdentifier = [reuseIdentifier copy];
-    _scalesWithViewingDistance = YES;
     _enabled = YES;
 	_zOrder = 0;
 }
@@ -140,12 +142,18 @@
         // along the y axis of its superview.
         CGFloat maxScaleReduction = 1.0 - self.center.y / superviewHeight;
 
+        // Since it is possible for the map view to report a pitch less than 0 due to the nature of
+        // how the gesture information is captured, the value is guarded with MAX.
+        CGFloat pitch = MAX(self.mapView.camera.pitch, 0);
+
+        // Return early if the map view currently has no pitch and was not previously pitched.
+        if (!pitch && !_lastPitch) return;
+        _lastPitch = pitch;
+
         // The pitch intensity represents how much the map view is actually pitched compared to
         // what is possible. The value will range from 0% (not pitched at all) to 100% (pitched as much
         // as the map view will allow). The map view's maximum pitch is defined in `mbgl::util::PITCH_MAX`.
-        // Since it is possible for the map view to report a pitch less than 0 due to the nature of
-        // how the gesture information is captured, the value is guarded with MAX.
-        CGFloat pitchIntensity = MAX(self.mapView.camera.pitch, 0) / MGLDegreesFromRadians(mbgl::util::PITCH_MAX);
+        CGFloat pitchIntensity = pitch / MGLDegreesFromRadians(mbgl::util::PITCH_MAX);
 
         // The pitch adjusted scale is the inverse proportion of the maximum possible scale reduction
         // multiplied by the pitch intensity. For example, if the maximum scale reduction is 75% and the
@@ -155,7 +163,7 @@
 
         // We keep track of each viewing distance scale transform that we apply. Each iteration,
         // we can account for it so that we don't get cumulative scaling every time we move.
-        // We also avoid clobbering any existing transform passed in by the client, too.
+        // We also avoid clobbering any existing transform passed in by the client or this SDK.
         CATransform3D undoOfLastScaleTransform = CATransform3DInvert(_lastAppliedScaleTransform);
         CATransform3D newScaleTransform = CATransform3DMakeScale(pitchAdjustedScale, pitchAdjustedScale, 1);
         CATransform3D effectiveTransform = CATransform3DConcat(undoOfLastScaleTransform, newScaleTransform);
@@ -177,11 +185,20 @@
 {
     if (self.rotatesToMatchCamera == NO) return;
 
-    CGFloat directionRad = self.mapView.direction * M_PI / 180.0;
-    CATransform3D newRotateTransform = CATransform3DMakeRotation(-directionRad, 0, 0, 1);
-    self.layer.transform = CATransform3DConcat(CATransform3DIdentity, newRotateTransform);
-    
-    _lastAppliedRotateTransform = newRotateTransform;
+    CGFloat direction = -MGLRadiansFromDegrees(self.mapView.direction);
+
+    // Return early if the map view has the same rotation as the already-applied transform.
+    if (direction == _lastDirection) return;
+    _lastDirection = direction;
+
+    // We keep track of each rotation transform that we apply. Each iteration,
+    // we can account for it so that we don't get cumulative rotation every time we move.
+    // We also avoid clobbering any existing transform passed in by the client or this SDK.
+    CATransform3D undoOfLastRotationTransform = CATransform3DInvert(_lastAppliedRotationTransform);
+    CATransform3D newRotationTransform = CATransform3DMakeRotation(direction, 0, 0, 1);
+    CATransform3D effectiveTransform = CATransform3DConcat(undoOfLastRotationTransform, newRotationTransform);
+    self.layer.transform = CATransform3DConcat(self.layer.transform, effectiveTransform);
+    _lastAppliedRotationTransform = newRotationTransform;
 }
 
 #pragma mark - Draggable

@@ -17,6 +17,8 @@ import com.mapbox.mapboxsdk.testapp.R;
 
 import java.util.Locale;
 
+import timber.log.Timber;
+
 /**
  * Test activity showcasing the Snapshot API to create and display a bitmap of the current shown Map.
  */
@@ -49,18 +51,15 @@ public class SnapshotActivity extends AppCompatActivity implements OnMapReadyCal
   @Override
   public void onClick(View view) {
     final long startTime = System.nanoTime();
-    mapboxMap.snapshot(new MapboxMap.SnapshotReadyCallback() {
-      @Override
-      public void onSnapshotReady(Bitmap snapshot) {
-        long endTime = System.nanoTime();
-        long duration = (long) ((endTime - startTime) / 1e6);
-        ImageView snapshotView = (ImageView) findViewById(R.id.imageView);
-        snapshotView.setImageBitmap(snapshot);
-        Toast.makeText(
-          SnapshotActivity.this,
-          String.format(Locale.getDefault(), "Snapshot taken in %d ms", duration),
-          Toast.LENGTH_LONG).show();
-      }
+    mapboxMap.snapshot(snapshot -> {
+      long endTime = System.nanoTime();
+      long duration = (long) ((endTime - startTime) / 1e6);
+      ImageView snapshotView = (ImageView) findViewById(R.id.imageView);
+      snapshotView.setImageBitmap(snapshot);
+      Toast.makeText(
+        SnapshotActivity.this,
+        String.format(Locale.getDefault(), "Snapshot taken in %d ms", duration),
+        Toast.LENGTH_LONG).show();
     });
   }
 
@@ -79,6 +78,12 @@ public class SnapshotActivity extends AppCompatActivity implements OnMapReadyCal
   @Override
   protected void onPause() {
     super.onPause();
+    mapboxMap.snapshot(new MapboxMap.SnapshotReadyCallback() {
+      @Override
+      public void onSnapshotReady(Bitmap snapshot) {
+        Timber.e("Regression test for https://github.com/mapbox/mapbox-gl-native/pull/11358");
+      }
+    });
     mapView.onPause();
   }
 

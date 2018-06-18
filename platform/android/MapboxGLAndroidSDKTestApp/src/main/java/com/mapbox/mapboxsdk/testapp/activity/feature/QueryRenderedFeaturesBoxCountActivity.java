@@ -7,11 +7,10 @@ import android.view.View;
 import android.widget.Toast;
 
 import com.google.gson.JsonElement;
+import com.mapbox.geojson.Feature;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.testapp.R;
-import com.mapbox.services.commons.geojson.Feature;
 
 import java.util.List;
 import java.util.Map;
@@ -36,32 +35,25 @@ public class QueryRenderedFeaturesBoxCountActivity extends AppCompatActivity {
     // Initialize map as normal
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @SuppressWarnings("ConstantConditions")
-      @Override
-      public void onMapReady(final MapboxMap mapboxMap) {
-        QueryRenderedFeaturesBoxCountActivity.this.mapboxMap = mapboxMap;
-        selectionBox.setOnClickListener(new View.OnClickListener() {
-          @Override
-          public void onClick(View view) {
-            // Query
-            int top = selectionBox.getTop() - mapView.getTop();
-            int left = selectionBox.getLeft() - mapView.getLeft();
-            RectF box = new RectF(left, top, left + selectionBox.getWidth(), top + selectionBox.getHeight());
-            Timber.i("Querying box %s", box);
-            List<Feature> features = mapboxMap.queryRenderedFeatures(box);
+    mapView.getMapAsync(mapboxMap -> {
+      QueryRenderedFeaturesBoxCountActivity.this.mapboxMap = mapboxMap;
+      selectionBox.setOnClickListener(view -> {
+        // Query
+        int top = selectionBox.getTop() - mapView.getTop();
+        int left = selectionBox.getLeft() - mapView.getLeft();
+        RectF box = new RectF(left, top, left + selectionBox.getWidth(), top + selectionBox.getHeight());
+        Timber.i("Querying box %s", box);
+        List<Feature> features = mapboxMap.queryRenderedFeatures(box);
 
-            // Show count
-            Toast.makeText(
-              QueryRenderedFeaturesBoxCountActivity.this,
-              String.format("%s features in box", features.size()),
-              Toast.LENGTH_SHORT).show();
+        // Show count
+        Toast.makeText(
+          QueryRenderedFeaturesBoxCountActivity.this,
+          String.format("%s features in box", features.size()),
+          Toast.LENGTH_SHORT).show();
 
-            // Debug output
-            debugOutput(features);
-          }
-        });
-      }
+        // Debug output
+        debugOutput(features);
+      });
     });
   }
 
@@ -70,12 +62,12 @@ public class QueryRenderedFeaturesBoxCountActivity extends AppCompatActivity {
     for (Feature feature : features) {
       if (feature != null) {
         Timber.i("Got feature %s with %s properties and Geometry %s",
-          feature.getId(),
-          feature.getProperties() != null ? feature.getProperties().entrySet().size() : "<null>",
-          feature.getGeometry() != null ? feature.getGeometry().getClass().getSimpleName() : "<null>"
+          feature.id(),
+          feature.properties() != null ? feature.properties().entrySet().size() : "<null>",
+          feature.geometry() != null ? feature.geometry().getClass().getSimpleName() : "<null>"
         );
-        if (feature.getProperties() != null) {
-          for (Map.Entry<String, JsonElement> entry : feature.getProperties().entrySet()) {
+        if (feature.properties() != null) {
+          for (Map.Entry<String, JsonElement> entry : feature.properties().entrySet()) {
             Timber.i("Prop %s - %s", entry.getKey(), entry.getValue());
           }
         }

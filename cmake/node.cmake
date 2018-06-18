@@ -13,6 +13,7 @@ set_target_properties("mbgl-node" PROPERTIES CXX_STANDARD 14)
 target_sources(mbgl-node
     PRIVATE platform/node/src/node_logging.hpp
     PRIVATE platform/node/src/node_logging.cpp
+    PRIVATE platform/node/src/node_conversion.hpp
     PRIVATE platform/node/src/node_map.hpp
     PRIVATE platform/node/src/node_map.cpp
     PRIVATE platform/node/src/node_request.hpp
@@ -21,12 +22,9 @@ target_sources(mbgl-node
     PRIVATE platform/node/src/node_feature.cpp
     PRIVATE platform/node/src/node_thread_pool.hpp
     PRIVATE platform/node/src/node_thread_pool.cpp
+    PRIVATE platform/node/src/node_expression.hpp
+    PRIVATE platform/node/src/node_expression.cpp
     PRIVATE platform/node/src/util/async_queue.hpp
-)
-
-target_compile_options(mbgl-node
-    PRIVATE -fPIC
-    PRIVATE -fvisibility-inlines-hidden
 )
 
 target_include_directories(mbgl-node
@@ -85,6 +83,17 @@ xcode_create_scheme(
     NAME "node query tests"
     ARGS
         "platform/node/test/query.test.js"
+    OPTIONAL_ARGS
+        "group"
+        "test"
+)
+
+xcode_create_scheme(
+    TARGET mbgl-node
+    TYPE node
+    NAME "node expression tests"
+    ARGS
+        "platform/node/test/expression.test.js"
     OPTIONAL_ARGS
         "group"
         "test"

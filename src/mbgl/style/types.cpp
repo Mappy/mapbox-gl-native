@@ -12,6 +12,7 @@ MBGL_DEFINE_ENUM(SourceType, {
     { SourceType::Video, "video" },
     { SourceType::Annotations, "annotations" },
     { SourceType::Image, "image" },
+    { SourceType::CustomVector, "customvector" }
 });
 
 MBGL_DEFINE_ENUM(VisibilityType, {
@@ -22,6 +23,11 @@ MBGL_DEFINE_ENUM(VisibilityType, {
 MBGL_DEFINE_ENUM(TranslateAnchorType, {
     { TranslateAnchorType::Map, "map" },
     { TranslateAnchorType::Viewport, "viewport" },
+});
+
+MBGL_DEFINE_ENUM(HillshadeIlluminationAnchorType, {
+    { HillshadeIlluminationAnchorType::Map, "map" },
+    { HillshadeIlluminationAnchorType::Viewport, "viewport" },
 });
 
 MBGL_DEFINE_ENUM(RotateAnchorType, {

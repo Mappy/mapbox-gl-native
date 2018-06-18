@@ -4,6 +4,7 @@
 #include <mbgl/style/layer_impl.hpp>
 #include <mbgl/style/layer_type.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
+#include <mbgl/util/mat4.hpp>
 
 #include <memory>
 #include <string>
@@ -17,6 +18,7 @@ class PropertyEvaluationParameters;
 class PaintParameters;
 class RenderSource;
 class RenderTile;
+class TransformState;
 
 class RenderLayer {
 protected:
@@ -69,8 +71,9 @@ public:
             const GeometryCoordinates&,
             const GeometryTileFeature&,
             const float,
+            const TransformState&,
             const float,
-            const float) const { return false; };
+            const mat4&) const { return false; };
 
     virtual std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const = 0;
 
@@ -82,13 +85,27 @@ public:
     friend std::string layoutKey(const RenderLayer&);
 
 protected:
+    // Checks whether the current hardware can render this layer. If it can't, we'll show a warning
+    // in the console to inform the developer.
+    void checkRenderability(const PaintParameters&, uint32_t activeBindingCount);
+
+protected:
+    // renderTiles are exposed directly to CrossTileSymbolIndex and Placement so they
+    // can update opacities in the symbol buckets immediately before rendering
+    friend class CrossTileSymbolIndex;
+    friend class Placement;
+    // Stores current set of tiles to be rendered for this layer.
+    std::vector<std::reference_wrapper<RenderTile>> renderTiles;
+
     // Stores what render passes this layer is currently enabled for. This depends on the
     // evaluated StyleProperties object and is updated accordingly.
     RenderPass passes = RenderPass::None;
 
-    //Stores current set of tiles to be rendered for this layer.
-    std::vector<std::reference_wrapper<RenderTile>> renderTiles;
-
+private:
+    // Some layers may not render correctly on some hardware when the vertex attribute limit of
+    // that GPU is exceeded. More attributes are used when adding many data driven paint properties
+    // to a layer.
+    bool hasRenderFailures = false;
 };
 
 } // namespace mbgl

@@ -149,8 +149,8 @@ void Map::renderStill(StillImageCallback callback) {
         return;
     }
 
-    if (impl->mode != MapMode::Still) {
-        callback(std::make_exception_ptr(util::MisuseException("Map is not in still image render mode")));
+    if (impl->mode != MapMode::Static && impl->mode != MapMode::Tile) {
+        callback(std::make_exception_ptr(util::MisuseException("Map is not in static or tile image render modes")));
         return;
     }
 
@@ -450,7 +450,6 @@ CameraOptions Map::cameraForGeometry(const Geometry<double>& geometry, const Edg
         latLngs.push_back({ pt.y, pt.x });
     });
     return cameraForLatLngs(latLngs, padding, bearing);
-
 }
 
 LatLngBounds Map::latLngBoundsForCamera(const CameraOptions& camera) const {
@@ -621,6 +620,35 @@ ViewportMode Map::getViewportMode() const {
     return impl->transform.getViewportMode();
 }
 
+#pragma mark - Projection mode
+
+void Map::setAxonometric(bool axonometric) {
+    impl->transform.setAxonometric(axonometric);
+    impl->onUpdate();
+}
+
+bool Map::getAxonometric() const {
+    return impl->transform.getAxonometric();
+}
+
+void Map::setXSkew(double xSkew) {
+    impl->transform.setXSkew(xSkew);
+    impl->onUpdate();
+}
+
+double Map::getXSkew() const {
+    return impl->transform.getXSkew();
+}
+
+void Map::setYSkew(double ySkew) {
+    impl->transform.setYSkew(ySkew);
+    impl->onUpdate();
+}
+
+double Map::getYSkew() const {
+    return impl->transform.getYSkew();
+}
+
 #pragma mark - Projection
 
 ScreenCoordinate Map::pixelForLatLng(const LatLng& latLng) const {
@@ -769,7 +797,7 @@ void Map::Impl::onStyleError(std::exception_ptr error) {
 }
 
 void Map::Impl::onResourceError(std::exception_ptr error) {
-    if (mode == MapMode::Still && stillImageRequest) {
+    if (mode != MapMode::Continuous && stillImageRequest) {
         auto request = std::move(stillImageRequest);
         request->callback(error);
     }

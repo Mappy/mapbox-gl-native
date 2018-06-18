@@ -1,8 +1,9 @@
+#!/usr/bin/env node
 'use strict';
 
 const fs = require('fs');
 const ejs = require('ejs');
-const spec = require('../../../mapbox-gl-js/src/style-spec/reference/v8');
+const spec = require('../../../scripts/style-spec');
 const _ = require('lodash');
 
 require('../../../scripts/style-code');
@@ -12,6 +13,7 @@ const lightProperties = Object.keys(spec[`light`]).reduce((memo, name) => {
   var property = spec[`light`][name];
   property.name = name;
   property['light-property'] = true;
+  property.doc = property.doc.replace(/°/g,'&#xB0;');
   memo.push(property);
   return memo;
 }, []);
@@ -146,6 +148,24 @@ global.propertyTypeAnnotation = function propertyTypeAnnotation(property) {
         return "";
   }
 };
+
+global.defaultExpressionJava = function(property) {
+    switch (property.type) {
+      case 'boolean':
+        return 'boolean';
+      case 'number':
+        return 'number';
+      case 'string':
+        return "string";
+      case 'enum':
+        return "string";
+      case 'color':
+        return 'toColor';
+      case 'array':
+        return "array";
+      default: return "string";
+      }
+}
 
 global.defaultValueJava = function(property) {
     if(property.name.endsWith("-pattern")) {

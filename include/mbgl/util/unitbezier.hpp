@@ -26,6 +26,7 @@
 #pragma once
 
 #include <cmath>
+#include <tuple>
 
 namespace mbgl {
 namespace util {
@@ -39,6 +40,17 @@ struct UnitBezier {
         , cy(3.0 * p1y)
         , by(3.0 * (p2y - p1y) - (3.0 * p1y))
         , ay(1.0 - (3.0 * p1y) - (3.0 * (p2y - p1y) - (3.0 * p1y))) {
+    }
+
+    std::pair<double, double> getP1() const {
+        return { cx / 3.0, cy / 3.0 };
+    }
+
+    std::pair<double, double> getP2() const {
+        return {
+            (bx + (3.0 * cx / 3.0) + cx) / 3.0,
+            (by + (3.0 * cy / 3.0) + cy) / 3.0,
+        };
     }
 
     double sampleCurveX(double t) const {
@@ -101,6 +113,11 @@ struct UnitBezier {
 
     double solve(double x, double epsilon) const {
         return sampleCurveY(solveCurveX(x, epsilon));
+    }
+    
+    bool operator==(const UnitBezier& rhs) const {
+        return std::tie(cx, bx, ax, cy, by, ay) ==
+            std::tie(rhs.cx, rhs.bx, rhs.ax, rhs.cy, rhs.by, rhs.ay);
     }
 
 private:

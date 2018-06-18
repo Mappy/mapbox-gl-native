@@ -7,6 +7,8 @@
 #include <mbgl/style/image.hpp>
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/layers/fill_extrusion_layer.hpp>
+#include <mbgl/style/expression/compound_expression.hpp>
+#include <mbgl/style/expression/literal.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/platform.hpp>
 #include <mbgl/util/string.hpp>
@@ -288,6 +290,7 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         case GLFW_KEY_8: view->addRandomShapeAnnotations(10); break;
         case GLFW_KEY_9: view->addRandomShapeAnnotations(100); break;
         case GLFW_KEY_0: view->addRandomShapeAnnotations(1000); break;
+        case GLFW_KEY_M: view->addAnimatedAnnotation(); break;
         }
     }
 }
@@ -379,12 +382,36 @@ void GLFWView::addRandomShapeAnnotations(int count) {
     }
 }
 
+void GLFWView::addAnimatedAnnotation() {
+    const double started = glfwGetTime();
+    animatedAnnotationIDs.push_back(map->addAnnotation(mbgl::SymbolAnnotation { { 0, 0 } , "default_marker" }));
+    animatedAnnotationAddedTimes.push_back(started);
+}
+
+void GLFWView::updateAnimatedAnnotations() {
+    const double time = glfwGetTime();
+    for (size_t i = 0; i < animatedAnnotationIDs.size(); i++) {
+        auto dt = time - animatedAnnotationAddedTimes[i];
+
+        const double period = 10;
+        const double x = dt / period * 360 - 180;
+        const double y = std::sin(dt/ period * M_PI * 2.0) * 80;
+        map->updateAnnotation(animatedAnnotationIDs[i], mbgl::SymbolAnnotation { {x, y }, "default_marker" });
+    }
+}
+
 void GLFWView::clearAnnotations() {
     for (const auto& id : annotationIDs) {
         map->removeAnnotation(id);
     }
 
     annotationIDs.clear();
+
+    for (const auto& id : animatedAnnotationIDs) {
+        map->removeAnnotation(id);
+    }
+
+    animatedAnnotationIDs.clear();
 }
 
 void GLFWView::popAnnotation() {
@@ -506,6 +533,8 @@ void GLFWView::run() {
             if (animateRouteCallback)
                 animateRouteCallback(map);
 
+            updateAnimatedAnnotations();
+
             activate();
 
             rendererFrontend->render();
@@ -540,7 +569,7 @@ mbgl::Size GLFWView::getFramebufferSize() const {
     return { static_cast<uint32_t>(fbWidth), static_cast<uint32_t>(fbHeight) };
 }
 
-mbgl::gl::ProcAddress GLFWView::initializeExtension(const char* name) {
+mbgl::gl::ProcAddress GLFWView::getExtensionFunctionPointer(const char* name) {
     return glfwGetProcAddress(name);
 }
 
@@ -592,6 +621,9 @@ void GLFWView::onDidFinishLoadingStyle() {
 }
 
 void GLFWView::toggle3DExtrusions(bool visible) {
+    using namespace mbgl::style;
+    using namespace mbgl::style::expression;
+    
     show3DExtrusions = visible;
 
     // Satellite-only style does not contain building extrusions data.
@@ -607,7 +639,9 @@ void GLFWView::toggle3DExtrusions(bool visible) {
     auto extrusionLayer = std::make_unique<mbgl::style::FillExtrusionLayer>("3d-buildings", "composite");
     extrusionLayer->setSourceLayer("building");
     extrusionLayer->setMinZoom(15.0f);
-    extrusionLayer->setFilter(mbgl::style::EqualsFilter { "extrude", { std::string("true") } });
+    
+    ParsingContext parsingContext;
+    extrusionLayer->setFilter(Filter(createCompoundExpression("filter-==", createLiteral("extrude"), createLiteral("true"), parsingContext)));
 
     auto colorFn = mbgl::style::SourceFunction<mbgl::Color> { "height",
         mbgl::style::ExponentialStops<mbgl::Color> {

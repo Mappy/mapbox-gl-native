@@ -2,20 +2,26 @@ cmake_minimum_required(VERSION 3.4)
 project(mbgl LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 14)
 
-include(cmake/mbgl.cmake)
-include(cmake/mason.cmake)
-include(cmake/xcode.cmake)
-
 option(WITH_CXX11ABI "Use cxx11abi mason packages" OFF)
 option(WITH_COVERAGE "Enable coverage reports" OFF)
 option(WITH_OSMESA   "Use OSMesa headless backend" OFF)
 option(WITH_EGL      "Use EGL backend" OFF)
+option(WITH_NODEJS   "Download test dependencies like NPM and Node.js" ON)
+option(WITH_ERROR    "Add -Werror flag to build (turns warnings into errors)" ON)
+
+include(cmake/mbgl.cmake)
+include(cmake/mason.cmake)
+include(cmake/xcode.cmake)
 
 if(WITH_CXX11ABI)
     set(MASON_CXXABI_SUFFIX -cxx11abi)
-    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
+    if(CMAKE_COMPILER_IS_GNUCXX)
+        add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
+    endif()
 else()
-    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+    if(CMAKE_COMPILER_IS_GNUCXX)
+        add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+    endif()
 endif()
 
 if(WITH_OSMESA AND WITH_EGL)
@@ -44,10 +50,9 @@ set_source_files_properties(src/mbgl/util/version.cpp PROPERTIES COMPILE_DEFINIT
 
 mason_use(geometry VERSION 0.9.2 HEADER_ONLY)
 mason_use(variant VERSION 1.1.4 HEADER_ONLY)
-mason_use(any VERSION 8fef1e9 HEADER_ONLY)
 mason_use(unique_resource VERSION cba309e HEADER_ONLY)
 mason_use(rapidjson VERSION 1.1.0 HEADER_ONLY)
-mason_use(boost VERSION 1.62.0 HEADER_ONLY)
+mason_use(boost VERSION 1.65.1 HEADER_ONLY)
 mason_use(geojsonvt VERSION 6.3.0 HEADER_ONLY)
 mason_use(supercluster VERSION 0.2.2 HEADER_ONLY)
 mason_use(kdbush VERSION 0.1.1-1 HEADER_ONLY)
@@ -70,14 +75,21 @@ endif(WITH_COVERAGE)
 
 set(CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebugInfo Sanitize)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -ftemplate-depth=1024 -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Werror -Wno-variadic-macros -Wno-unknown-pragmas")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -ftemplate-depth=1024 -fPIC -fvisibility=hidden -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wno-variadic-macros -Wno-unknown-pragmas")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -fvisibility=hidden -Wall -Wextra -Wshadow -Wno-variadic-macros -Wno-unknown-pragmas")
+
+if (WITH_ERROR)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -Werror")
+endif()
+
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
     # -Wno-error=unused-command-line-argument is required due to https://llvm.org/bugs/show_bug.cgi?id=7798
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=unused-command-line-argument")
 endif()
-set(CMAKE_CXX_FLAGS_RELEASE "-Os -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_SANITIZE "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Os -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_SANITIZE "${CMAKE_CXX_FLAGS_SANITIZE} -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls")
 
 
 if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")

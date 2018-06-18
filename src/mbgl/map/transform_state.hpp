@@ -25,7 +25,7 @@ public:
 
     // Matrix
     void matrixFor(mat4&, const UnwrappedTileID&) const;
-    void getProjMatrix(mat4& matrix, uint16_t nearZ = 1) const;
+    void getProjMatrix(mat4& matrix, uint16_t nearZ = 1, bool aligned = false) const;
 
     // Dimensions
     Size getSize() const;
@@ -87,6 +87,7 @@ public:
     }
 
     float getCameraToTileDistance(const UnwrappedTileID&) const;
+    float maxPitchScaleFactor() const;
 
 private:
     bool rotatedNorth() const;
@@ -134,6 +135,9 @@ private:
     // `fov = 2 * arctan((height / 2) / (height * 1.5))`
     double fov = 0.6435011087932844;
     double pitch = 0.0;
+    double xSkew = 0.0;
+    double ySkew = 1.0;
+    bool axonometric = false;
 
     // cache values for spherical mercator math
     double Bc = Projection::worldSize(scale) / util::DEGREES_MAX;

@@ -61,7 +61,7 @@ public:
     optional<std::pair<BinaryProgramFormat, std::string>> getBinaryProgram(ProgramID) const;
 
     template <class Vertex, class DrawMode>
-    VertexBuffer<Vertex, DrawMode> createVertexBuffer(VertexVector<Vertex, DrawMode>&& v, const BufferUsage usage=BufferUsage::StaticDraw) {
+    VertexBuffer<Vertex, DrawMode> createVertexBuffer(VertexVector<Vertex, DrawMode>&& v, const BufferUsage usage = BufferUsage::StaticDraw) {
         return VertexBuffer<Vertex, DrawMode> {
             v.vertexSize(),
             createVertexBuffer(v.data(), v.byteSize(), usage)
@@ -75,10 +75,17 @@ public:
     }
 
     template <class DrawMode>
-    IndexBuffer<DrawMode> createIndexBuffer(IndexVector<DrawMode>&& v) {
+    IndexBuffer<DrawMode> createIndexBuffer(IndexVector<DrawMode>&& v, const BufferUsage usage = BufferUsage::StaticDraw) {
         return IndexBuffer<DrawMode> {
-            createIndexBuffer(v.data(), v.byteSize())
+            v.indexSize(),
+            createIndexBuffer(v.data(), v.byteSize(), usage)
         };
+    }
+    
+    template <class DrawMode>
+    void updateIndexBuffer(IndexBuffer<DrawMode>& buffer, IndexVector<DrawMode>&& v) {
+        assert(v.indexSize() == buffer.indexCount);
+        updateIndexBuffer(buffer.buffer, v.data(), v.byteSize());
     }
 
     template <RenderbufferType type>
@@ -118,23 +125,29 @@ public:
 
     // Create a texture from an image with data.
     template <typename Image>
-    Texture createTexture(const Image& image, TextureUnit unit = 0) {
+    Texture createTexture(const Image& image,
+                          TextureUnit unit = 0,
+                          TextureType type = TextureType::UnsignedByte) {
         auto format = image.channels == 4 ? TextureFormat::RGBA : TextureFormat::Alpha;
-        return { image.size, createTexture(image.size, image.data.get(), format, unit) };
+        return { image.size, createTexture(image.size, image.data.get(), format, unit, type) };
     }
 
     template <typename Image>
-    void updateTexture(Texture& obj, const Image& image, TextureUnit unit = 0) {
+    void updateTexture(Texture& obj,
+                       const Image& image,
+                       TextureUnit unit = 0,
+                       TextureType type = TextureType::UnsignedByte) {
         auto format = image.channels == 4 ? TextureFormat::RGBA : TextureFormat::Alpha;
-        updateTexture(obj.texture.get(), image.size, image.data.get(), format, unit);
+        updateTexture(obj.texture.get(), image.size, image.data.get(), format, unit, type);
         obj.size = image.size;
     }
 
     // Creates an empty texture with the specified dimensions.
     Texture createTexture(const Size size,
                           TextureFormat format = TextureFormat::RGBA,
-                          TextureUnit unit = 0) {
-        return { size, createTexture(size, nullptr, format, unit) };
+                          TextureUnit unit = 0,
+                          TextureType type = TextureType::UnsignedByte) {
+        return { size, createTexture(size, nullptr, format, unit, type) };
     }
 
     void bindTexture(Texture&,
@@ -213,7 +226,7 @@ public:
     State<value::BindVertexBuffer> vertexBuffer;
 
     State<value::BindVertexArray, const Context&> bindVertexArray { *this };
-    VertexArrayState globalVertexArrayState { UniqueVertexArray(0, { this }), *this };
+    VertexArrayState globalVertexArrayState { UniqueVertexArray(0, { this }) };
 
     State<value::PixelStorePack> pixelStorePack;
     State<value::PixelStoreUnpack> pixelStoreUnpack;
@@ -225,6 +238,10 @@ public:
     State<value::PixelTransferStencil> pixelTransferStencil;
 #endif // MBGL_USE_GLES2
 
+    bool supportsHalfFloatTextures = false;
+    const uint32_t maximumVertexBindingCount;
+    static constexpr const uint32_t minimumRequiredVertexBindingCount = 8;
+    
 private:
     State<value::StencilFunc> stencilFunc;
     State<value::StencilMask> stencilMask;
@@ -250,9 +267,10 @@ private:
 
     UniqueBuffer createVertexBuffer(const void* data, std::size_t size, const BufferUsage usage);
     void updateVertexBuffer(UniqueBuffer& buffer, const void* data, std::size_t size);
-    UniqueBuffer createIndexBuffer(const void* data, std::size_t size);
-    UniqueTexture createTexture(Size size, const void* data, TextureFormat, TextureUnit);
-    void updateTexture(TextureID, Size size, const void* data, TextureFormat, TextureUnit);
+    UniqueBuffer createIndexBuffer(const void* data, std::size_t size, const BufferUsage usage);
+    void updateIndexBuffer(UniqueBuffer& buffer, const void* data, std::size_t size);
+    UniqueTexture createTexture(Size size, const void* data, TextureFormat, TextureUnit, TextureType);
+    void updateTexture(TextureID, Size size, const void* data, TextureFormat, TextureUnit, TextureType);
     UniqueFramebuffer createFramebuffer();
     UniqueRenderbuffer createRenderbuffer(RenderbufferType, Size size);
     std::unique_ptr<uint8_t[]> readFramebuffer(Size, TextureFormat, bool flip);
@@ -281,8 +299,13 @@ private:
     std::vector<RenderbufferID> abandonedRenderbuffers;
 
 public:
-    // For testing
+    // For testing and Windows because Qt + ANGLE
+    // crashes with VAO enabled.
+#if defined(_WINDOWS)
+    bool disableVAOExtension = true;
+#else
     bool disableVAOExtension = false;
+#endif
 };
 
 } // namespace gl

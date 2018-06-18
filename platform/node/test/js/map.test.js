@@ -114,6 +114,7 @@ test('Map', function(t) {
             'removeLayer',
             'addImage',
             'removeImage',
+            'setLayerZoomRange',
             'setLayoutProperty',
             'setPaintProperty',
             'setFilter',
@@ -121,6 +122,10 @@ test('Map', function(t) {
             'setZoom',
             'setBearing',
             'setPitch',
+            'setLight',
+            'setAxonometric',
+            'setXSkew',
+            'setYSkew',
             'dumpDebugLogs',
             'queryRenderedFeatures'
         ]);

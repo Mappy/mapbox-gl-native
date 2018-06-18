@@ -64,16 +64,17 @@ std::unordered_map<std::string, std::vector<Feature>>
 RenderAnnotationSource::queryRenderedFeatures(const ScreenLineString& geometry,
                                               const TransformState& transformState,
                                               const std::vector<const RenderLayer*>& layers,
-                                              const RenderedQueryOptions& options) const {
-    return tilePyramid.queryRenderedFeatures(geometry, transformState, layers, options);
+                                              const RenderedQueryOptions& options,
+                                              const mat4& projMatrix) const {
+    return tilePyramid.queryRenderedFeatures(geometry, transformState, layers, options, projMatrix);
 }
 
 std::vector<Feature> RenderAnnotationSource::querySourceFeatures(const SourceQueryOptions&) const {
     return {};
 }
 
-void RenderAnnotationSource::onLowMemory() {
-    tilePyramid.onLowMemory();
+void RenderAnnotationSource::reduceMemoryUse() {
+    tilePyramid.reduceMemoryUse();
 }
 
 void RenderAnnotationSource::dumpDebugLogs() const {

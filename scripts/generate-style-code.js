@@ -1,8 +1,9 @@
+#!/usr/bin/env node
 'use strict';
 
 const fs = require('fs');
 const ejs = require('ejs');
-const spec = require('../mapbox-gl-js/src/style-spec/reference/v8');
+const spec = require('./style-spec');
 const colorParser = require('csscolorparser');
 
 require('./style-code');
@@ -96,6 +97,8 @@ global.paintPropertyType = function (property, type) {
 global.propertyValueType = function (property) {
   if (isDataDriven(property)) {
     return `DataDrivenPropertyValue<${evaluatedType(property)}>`;
+  } else if (property.name === 'heatmap-color') {
+    return `HeatmapColorPropertyValue`;
   } else {
     return `PropertyValue<${evaluatedType(property)}>`;
   }
@@ -109,6 +112,10 @@ global.defaultValue = function (property) {
 
   if (property.name === 'fill-outline-color') {
     return '{}';
+  }
+
+  if (property.name === 'heatmap-color') {
+      return '{}';
   }
 
   switch (property.type) {
@@ -186,8 +193,8 @@ for (const layer of layers) {
   writeIfModified(`src/mbgl/style/layers/${layerFileName}_layer_properties.cpp`, propertiesCpp(layer));
 }
 
-const propertySettersHpp = ejs.compile(fs.readFileSync('include/mbgl/style/conversion/make_property_setters.hpp.ejs', 'utf8'), {strict: true});
-writeIfModified('include/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));
+const propertySettersHpp = ejs.compile(fs.readFileSync('src/mbgl/style/conversion/make_property_setters.hpp.ejs', 'utf8'), {strict: true});
+writeIfModified('src/mbgl/style/conversion/make_property_setters.hpp', propertySettersHpp({layers: layers}));
 
 // Light
 const lightProperties = Object.keys(spec[`light`]).reduce((memo, name) => {

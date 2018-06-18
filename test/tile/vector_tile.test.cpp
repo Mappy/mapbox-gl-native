@@ -11,7 +11,6 @@
 #include <mbgl/renderer/tile_parameters.hpp>
 #include <mbgl/renderer/buckets/symbol_bucket.hpp>
 #include <mbgl/renderer/query.hpp>
-#include <mbgl/text/collision_tile.hpp>
 #include <mbgl/geometry/feature_index.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/renderer/image_manager.hpp>
@@ -64,39 +63,6 @@ TEST(VectorTile, onError) {
     EXPECT_FALSE(tile.isRenderable());
     EXPECT_TRUE(tile.isLoaded());
     EXPECT_TRUE(tile.isComplete());
-}
-
-TEST(VectorTile, Issue7615) {
-    VectorTileTest test;
-    VectorTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, test.tileset);
-
-    style::SymbolLayer symbolLayer("symbol", "source");
-    auto symbolBucket = std::make_shared<SymbolBucket>(
-        style::SymbolLayoutProperties::PossiblyEvaluated(),
-        std::map<
-            std::string,
-            std::pair<style::IconPaintProperties::PossiblyEvaluated, style::TextPaintProperties::PossiblyEvaluated>>(),
-        16.0f, 1.0f, 0.0f, false, false);
-    
-    // Simulate placement of a symbol layer.
-    tile.onPlacement(GeometryTile::PlacementResult {
-        {{
-            symbolLayer.getID(),
-            symbolBucket
-        }},
-        nullptr,
-        {},
-        {},
-    }, 0);
-
-    // Subsequent onLayout should not cause the existing symbol bucket to be discarded.
-    tile.onLayout(GeometryTile::LayoutResult {
-        std::unordered_map<std::string, std::shared_ptr<Bucket>>(),
-        nullptr,
-        nullptr,
-    }, 0);
-
-    EXPECT_EQ(symbolBucket.get(), tile.getBucket(*symbolLayer.baseImpl));
 }
 
 TEST(VectorTile, Issue8542) {

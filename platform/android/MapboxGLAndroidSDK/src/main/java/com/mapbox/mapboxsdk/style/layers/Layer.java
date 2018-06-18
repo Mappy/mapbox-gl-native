@@ -2,7 +2,9 @@ package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.NonNull;
 
-import com.mapbox.mapboxsdk.style.functions.Function;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.mapbox.mapboxsdk.style.expressions.Expression;
 
 /**
  * Base class for the different Layer types
@@ -71,6 +73,8 @@ public abstract class Layer {
 
   protected native void nativeSetFilter(Object[] filter);
 
+  protected native JsonElement nativeGetFilter();
+
   protected native void nativeSetSourceLayer(String sourceLayer);
 
   protected native String nativeGetSourceLayer();
@@ -88,6 +92,10 @@ public abstract class Layer {
   }
 
   private Object convertValue(Object value) {
-    return value != null && value instanceof Function ? ((Function) value).toValueObject() : value;
+    if (value != null && value instanceof Expression) {
+      return ((Expression) value).toArray();
+    }
+    return value;
   }
+
 }

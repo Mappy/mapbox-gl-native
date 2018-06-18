@@ -3,11 +3,10 @@ package com.mapbox.mapboxsdk.testapp.utils;
 import android.content.Context;
 import android.text.TextUtils;
 
+import com.mapbox.geojson.Feature;
+import com.mapbox.geojson.FeatureCollection;
+import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,34 +28,13 @@ public class GeoParseUtil {
     return readAll(rd);
   }
 
-  public static List<LatLng> parseGeoJsonCoordinates(String geojsonStr) throws JSONException {
+  public static List<LatLng> parseGeoJsonCoordinates(String geojsonStr) {
     List<LatLng> latLngs = new ArrayList<>();
-    JSONObject jsonObject = new JSONObject(geojsonStr);
-    JSONArray features = jsonObject.getJSONArray("features");
-    int featureLength = features.length();
-    for (int j = 0; j < featureLength; ++j) {
-      JSONObject feature = features.getJSONObject(j);
-      JSONObject geometry = feature.getJSONObject("geometry");
-      String type = geometry.getString("type");
-      JSONArray coordinates;
-      if (type.equals("Polygon")) {
-        coordinates = geometry.getJSONArray("coordinates").getJSONArray(0);
-      } else {
-        coordinates = geometry.getJSONArray("coordinates");
-      }
-      int len = coordinates.length();
-      for (int i = 0; i < len; ++i) {
-        if (coordinates.get(i) instanceof JSONArray) {
-          JSONArray coord = coordinates.getJSONArray(i);
-          double lng = coord.getDouble(0);
-          double lat = coord.getDouble(1);
-          latLngs.add(new LatLng(lat, lng));
-        } else {
-          double lng = coordinates.getDouble(0);
-          double lat = coordinates.getDouble(1);
-          latLngs.add(new LatLng(lat, lng));
-          break;
-        }
+    FeatureCollection featureCollection = FeatureCollection.fromJson(geojsonStr);
+    for (Feature feature : featureCollection.features()) {
+      if (feature.geometry() instanceof Point) {
+        Point point = (Point) feature.geometry();
+        latLngs.add(new LatLng(point.latitude(), point.longitude()));
       }
     }
     return latLngs;

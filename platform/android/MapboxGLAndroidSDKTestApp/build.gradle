@@ -1,21 +1,21 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdkVersion androidVersions.compileSdkVersion
+    buildToolsVersion androidVersions.buildToolsVersion
 
     defaultConfig {
         applicationId "com.mapbox.mapboxsdk.testapp"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode rootProject.ext.versionCode
-        versionName rootProject.ext.versionName
+        minSdkVersion androidVersions.minSdkVersion
+        targetSdkVersion androidVersions.targetSdkVersion
+        versionCode 13
+        versionName "6.0.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_7
-        targetCompatibility JavaVersion.VERSION_1_7
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     packagingOptions {
@@ -28,7 +28,7 @@ android {
         baseline file("lint-baseline-local.xml")
         checkAllWarnings true
         warningsAsErrors true
-        disable  'MissingTranslation', 'GoogleAppIndexingWarning', 'UnpackedNativeCode', 'IconDipSize', 'TypographyQuotes'
+        disable 'MissingTranslation', 'GoogleAppIndexingWarning', 'UnpackedNativeCode', 'IconDipSize', 'TypographyQuotes'
         abortOnError false
     }
 
@@ -39,7 +39,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
@@ -52,36 +52,31 @@ android {
 }
 
 dependencies {
-    compile(project(':MapboxGLAndroidSDK')) {
-        transitive = true
-    }
+    api(project(':MapboxGLAndroidSDK'))
+    implementation dependenciesList.mapboxJavaServices
 
-    // Support libraries
-    compile rootProject.ext.dep.supportAppcompatV7
-    compile rootProject.ext.dep.supportRecyclerView
-    compile rootProject.ext.dep.supportDesign
+    implementation dependenciesList.mapboxJavaTurf
 
-    // Leak Canary
-    debugCompile rootProject.ext.dep.leakCanaryDebug
-    releaseCompile rootProject.ext.dep.leakCanaryRelease
+    implementation dependenciesList.supportAppcompatV7
+    implementation dependenciesList.supportRecyclerView
+    implementation dependenciesList.supportDesign
 
-    // Mapbox Android Services (Java component)
-    compile(rootProject.ext.dep.mapboxJavaServices) {
-        transitive = true
-    }
-    compile rootProject.ext.dep.lost
+    // implementation dependenciesList.lost
+    implementation dependenciesList.gmsLocation
+    implementation dependenciesList.timber
+    debugImplementation dependenciesList.leakCanaryDebug
+    releaseImplementation dependenciesList.leakCanaryRelease
 
-    // Testing dependencies
-    androidTestCompile rootProject.ext.dep.supportAnnotations
-    androidTestCompile rootProject.ext.dep.testRunner
-    androidTestCompile rootProject.ext.dep.testRules
-    androidTestCompile rootProject.ext.dep.testEspressoCore
-    androidTestCompile rootProject.ext.dep.testEspressoIntents
+    androidTestImplementation dependenciesList.supportAnnotations
+    androidTestImplementation dependenciesList.testRunner
+    androidTestImplementation dependenciesList.testRules
+    androidTestImplementation dependenciesList.testEspressoCore
+    androidTestImplementation dependenciesList.testEspressoIntents
 }
 
-apply from: 'gradle-make.gradle'
-apply from: 'gradle-config.gradle'
-apply from: 'gradle-checkstyle.gradle'
-apply from: '../gradle-lint.gradle'
+apply from: "${rootDir}/gradle/gradle-make.gradle"
+apply from: "${rootDir}/gradle/gradle-config.gradle"
+apply from: "${rootDir}/gradle/gradle-checkstyle.gradle"
+apply from: "${rootDir}/gradle/gradle-lint.gradle"
 
 

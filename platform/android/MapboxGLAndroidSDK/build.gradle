@@ -1,37 +1,28 @@
 apply plugin: 'com.android.library'
 
 dependencies {
-    compile rootProject.ext.dep.supportAnnotations
-    compile rootProject.ext.dep.supportFragmentV4
-    compile rootProject.ext.dep.timber
-    compile rootProject.ext.dep.okhttp3
-    provided(rootProject.ext.dep.lost) {
-        exclude group: 'com.android.support'
-    }
-    testCompile rootProject.ext.dep.junit
-    testCompile rootProject.ext.dep.mockito
-    testCompile rootProject.ext.dep.robolectric
-
-    // Mapbox Android Services (GeoJSON support)
-    compile(rootProject.ext.dep.mapboxJavaGeoJSON) {
-        transitive = true
-    }
-
-    // Mapbox Android Services (Telemetry support)
-    compile(rootProject.ext.dep.mapboxAndroidTelemetry) {
-        transitive = true
-        exclude group: 'com.android.support'
-    }
+    api dependenciesList.mapboxAndroidTelemetry
+    api dependenciesList.mapboxJavaGeoJSON
+    api dependenciesList.mapboxAndroidGestures
+    implementation dependenciesList.supportAnnotations
+    implementation dependenciesList.supportFragmentV4
+    implementation dependenciesList.timber
+    implementation dependenciesList.okhttp3
+    testImplementation dependenciesList.junit
+    testImplementation dependenciesList.mockito
+    testImplementation dependenciesList.robolectric
 }
 
 android {
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdkVersion androidVersions.compileSdkVersion
+    buildToolsVersion androidVersions.buildToolsVersion
 
     defaultConfig {
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion androidVersions.minSdkVersion
+        targetSdkVersion androidVersions.targetSdkVersion
         buildConfigField "String", "GIT_REVISION_SHORT", String.format("\"%s\"", getGitRevision())
+        buildConfigField "String", "MAPBOX_SDK_IDENTIFIER", String.format("\"%s\"", "mapbox-maps-android")
+        buildConfigField "String", "MAPBOX_SDK_VERSION", String.format("\"%s\"", project.VERSION_NAME)
         buildConfigField "String", "MAPBOX_VERSION_STRING", String.format("\"Mapbox/%s\"", project.VERSION_NAME)
         buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT", String.format("\"MapboxEventsAndroid/%s\"", project.VERSION_NAME)
     }
@@ -71,12 +62,12 @@ android {
                     arguments "-DANDROID_CPP_FEATURES=rtti;exceptions"
                     arguments "-DMBGL_PLATFORM=android"
                     arguments "-DMASON_PLATFORM=android"
-                    arguments "-DNodeJS_EXECUTABLE=" + rootProject.ext.node
-                    arguments "-Dnpm_EXECUTABLE=" + rootProject.ext.npm
+                    arguments "-DNodeJS_EXECUTABLE=" + node
+                    arguments "-Dnpm_EXECUTABLE=" + npm
 
                     // Enable ccache if the user has installed it.
-                    if (rootProject.ext.ccache?.trim()) {
-                        arguments "-DANDROID_CCACHE=" + rootProject.ext.ccache
+                    if (ccache?.trim()) {
+                        arguments "-DANDROID_CCACHE=" + ccache
                         // ccache splits up the compile command until multiple invocations and uses -E
                         // with one of them, and clang doesn't like unused arguments in that case.
                         cFlags "-Qunused-arguments"
@@ -120,15 +111,14 @@ android {
     }
 
     lintOptions {
-        disable 'MissingTranslation', 'TypographyQuotes'
-        baseline file("lint-baseline-local.xml")
+        disable 'MissingTranslation', 'TypographyQuotes', 'ObsoleteLintCustomCheck', 'MissingPermission'
         checkAllWarnings true
         warningsAsErrors false
     }
 
     testOptions {
         unitTests {
-            returnDefaultValues = true
+            returnDefaultValues true
         }
     }
 
@@ -136,15 +126,10 @@ android {
         debug {
             jniDebuggable true
         }
-
-        release {
-            // aar proguard configuration
-            jniDebuggable false
-        }
     }
 }
 
-def getGitRevision() {
+def static getGitRevision() {
     def cmd = "git rev-parse --short HEAD"
     def proc = cmd.execute()
     def ref = proc.text.trim()
@@ -156,8 +141,7 @@ configurations {
     all*.exclude group: 'commons-collections', module: 'commons-collections'
 }
 
-apply from: 'gradle-javadoc.gradle'
-apply from: 'gradle-publish.gradle'
-apply from: 'gradle-checkstyle.gradle'
-apply from: 'gradle-tests-staticblockremover.gradle'
-apply from: '../gradle-lint.gradle'
+apply from: "${rootDir}/gradle/gradle-javadoc.gradle"
+apply from: "${rootDir}/gradle/gradle-publish.gradle"
+apply from: "${rootDir}/gradle/gradle-checkstyle.gradle"
+apply from: "${rootDir}/gradle/gradle-tests-staticblockremover.gradle"

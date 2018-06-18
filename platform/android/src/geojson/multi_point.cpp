@@ -8,20 +8,30 @@ namespace mbgl {
 namespace android {
 namespace geojson {
 
+jni::Object<MultiPoint> MultiPoint::New(JNIEnv& env, const mbgl::MultiPoint<double>& multiPoint) {
+    auto jList = asPointsList(env, multiPoint);
+
+    static auto method = javaClass.GetStaticMethod<jni::Object<MultiPoint>(jni::Object<java::util::List>)>(env, "fromLngLats");
+    auto jMultiPoint = javaClass.Call(env, method, jList);
+
+    jni::DeleteLocalRef(env, jList);
+    return jMultiPoint;
+}
+
 mapbox::geojson::multi_point MultiPoint::convert(jni::JNIEnv &env, jni::Object<MultiPoint> jMultiPoint) {
     mapbox::geojson::multi_point multiPoint;
 
     if (jMultiPoint) {
-        auto jPositionListsList = MultiPoint::getCoordinates(env, jMultiPoint);
-        multiPoint = convertExplicit<mapbox::geojson::multi_point>(LineString::convert(env, jPositionListsList));
-        jni::DeleteLocalRef(env, jPositionListsList);
+        auto jPointListsList = MultiPoint::coordinates(env, jMultiPoint);
+        multiPoint = convertExplicit<mapbox::geojson::multi_point>(LineString::convert(env, jPointListsList));
+        jni::DeleteLocalRef(env, jPointListsList);
     }
 
     return multiPoint;
 }
 
-jni::Object<java::util::List> MultiPoint::getCoordinates(jni::JNIEnv &env, jni::Object<MultiPoint> jMultiPoint) {
-    static auto method = MultiPoint::javaClass.GetMethod<jni::Object<java::util::List> ()>(env, "getCoordinates");
+jni::Object<java::util::List> MultiPoint::coordinates(jni::JNIEnv &env, jni::Object<MultiPoint> jMultiPoint) {
+    static auto method = MultiPoint::javaClass.GetMethod<jni::Object<java::util::List> ()>(env, "coordinates");
     return jMultiPoint.Call(env, method);
 }
 

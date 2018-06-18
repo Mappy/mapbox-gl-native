@@ -120,6 +120,7 @@ private:
     std::mutex updateMutex;
 
     bool framebufferSizeChanged = false;
+    std::atomic<bool> destroyed {false};
 
     std::unique_ptr<SnapshotCallback> snapshotCallback;
 };
