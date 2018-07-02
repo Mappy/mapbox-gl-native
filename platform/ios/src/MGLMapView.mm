@@ -6419,7 +6419,7 @@ private:
 
 @implementation MGLMapView (Mappy)
 
-- (void)updateCompassViewWithConstraints:(NS_ARRAY_OF(NSLayoutConstraint *) *)newConstraints
+- (void)updateCompassViewWithConstraints:(NSArray<NSLayoutConstraint *> *)newConstraints
 {
 	[NSLayoutConstraint deactivateConstraints:self.compassViewConstraints];
 	[self.compassViewConstraints removeAllObjects];

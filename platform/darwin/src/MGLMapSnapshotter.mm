@@ -174,7 +174,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     CGPoint attributionOrigin = CGPointMake(mglImage.size.width - 10 - attributionBackgroundSize.width,
                                             logoImageRect.origin.y + (logoImageRect.size.height / 2) - (attributionBackgroundSize.height / 2) + 1);
     if (!logoImage) {
-        CGSize defaultLogoSize = [MGLMapSnapshotter mapboxLongStyleLogo].size;
+        CGSize defaultLogoSize = [MGLMapSnapshotter mappyLongStyleLogo].size;
         logoImageRect = CGRectMake(0, mglImage.size.height - (MGLLogoImagePosition.y + defaultLogoSize.height), 0, defaultLogoSize.height);
         attributionOrigin = CGPointMake(10, logoImageRect.origin.y + (logoImageRect.size.height / 2) - (attributionBackgroundSize.height / 2) + 1);
     }
@@ -235,7 +235,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     CGPoint attributionOrigin = CGPointMake(targetFrame.size.width - 10 - attributionBackgroundSize.width,
                                             MGLLogoImagePosition.y + 1);
     if (!logoImage) {
-        CGSize defaultLogoSize = [MGLMapSnapshotter mapboxLongStyleLogo].size;
+        CGSize defaultLogoSize = [MGLMapSnapshotter mappyLongStyleLogo].size;
         logoImageRect = CGRectMake(0, MGLLogoImagePosition.y, 0, defaultLogoSize.height);
         attributionOrigin = CGPointMake(10, attributionOrigin.y);
     }
@@ -365,7 +365,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     MGLImage *logoImage;
     switch (style) {
         case MGLAttributionInfoStyleLong:
-            logoImage = [self mappyLongStyleLogo];
+            logoImage = [MGLMapSnapshotter mappyLongStyleLogo];
             break;
         case MGLAttributionInfoStyleMedium:
 #if TARGET_OS_IPHONE
@@ -381,7 +381,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     return logoImage;
 }
 
-+ (MGLImage *))mappyLongStyleLogo
++ (MGLImage *)mappyLongStyleLogo
 {
     MGLImage *logoImage;
 #if TARGET_OS_IPHONE

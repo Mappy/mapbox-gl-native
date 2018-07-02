@@ -1481,7 +1481,7 @@ MGL_EXPORT IB_DESIGNABLE
 
 @interface MGLMapView (Mappy)
 
-- (void)updateCompassViewWithConstraints:(NS_ARRAY_OF(NSLayoutConstraint *) *)newConstraints;
+- (void)updateCompassViewWithConstraints:(NSArray<NSLayoutConstraint *> *)newConstraints;
 
 @end
 
