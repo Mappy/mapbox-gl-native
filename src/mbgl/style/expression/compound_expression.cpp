@@ -3,6 +3,7 @@
 #include <mbgl/style/expression/util.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/math/log2.hpp>
+#include <mbgl/util/i18n.hpp>
 #include <mbgl/util/ignore.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/util/platform.hpp>
@@ -450,7 +451,7 @@ std::unordered_map<std::string, CompoundExpressionRegistry::Definition> initiali
     define("sqrt", [](double x) -> Result<double> { return sqrt(x); });
     define("log10", [](double x) -> Result<double> { return log10(x); });
     define("ln", [](double x) -> Result<double> { return log(x); });
-    define("log2", [](double x) -> Result<double> { return util::log2(x); });
+    define("log2", [](double x) -> Result<double> { return log2(x); });
     define("sin", [](double x) -> Result<double> { return sin(x); });
     define("cos", [](double x) -> Result<double> { return cos(x); });
     define("tan", [](double x) -> Result<double> { return tan(x); });
@@ -472,8 +473,8 @@ std::unordered_map<std::string, CompoundExpressionRegistry::Definition> initiali
         }
         return result;
     });
-
-    define("round", [](double x) -> Result<double> { return std::round(x); });
+    
+    define("round", [](double x) -> Result<double> { return ::round(x); });
     define("floor", [](double x) -> Result<double> { return std::floor(x); });
     define("ceil", [](double x) -> Result<double> { return std::ceil(x); });
     define("abs", [](double x) -> Result<double> { return std::abs(x); });
@@ -488,6 +489,10 @@ std::unordered_map<std::string, CompoundExpressionRegistry::Definition> initiali
     define("<=", [](const std::string& lhs, const std::string& rhs) -> Result<bool> { return lhs <= rhs; });
 
     define("!", [](bool e) -> Result<bool> { return !e; });
+    
+    define("is-supported-script", [](const std::string& x) -> Result<bool> {
+        return util::i18n::isStringInSupportedScript(x);
+    });
 
     define("upcase", [](const std::string& input) -> Result<std::string> {
         return platform::uppercase(input);

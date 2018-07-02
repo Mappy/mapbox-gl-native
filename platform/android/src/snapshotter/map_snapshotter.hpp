@@ -34,6 +34,7 @@ public:
                    jni::jint width,
                    jni::jint height,
                    jni::String styleURL,
+                   jni::String styleJSON,
                    jni::Object<LatLngBounds> region,
                    jni::Object<CameraPosition> position,
                    jni::jboolean showLogo,
@@ -42,6 +43,8 @@ public:
     ~MapSnapshotter();
 
     void setStyleUrl(JNIEnv&, jni::String styleURL);
+
+    void setStyleJson(JNIEnv&, jni::String styleJSON);
 
     void setSize(JNIEnv&, jni::jint width, jni::jint height);
 

@@ -6,6 +6,7 @@ import android.support.annotation.ColorInt;
 
 import com.mapbox.mapboxsdk.style.expressions.Expression;
 
+import java.text.DecimalFormat;
 import java.util.Locale;
 
 /**
@@ -166,7 +167,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing image fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing image fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -176,7 +177,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing image fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing image fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param expression an expression statement
    * @return property wrapper around an expression statement
@@ -356,7 +357,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Specifies the lengths of the alternating dashes and gaps that form the dash pattern. The lengths are later scaled by the line width. To convert a dash length to density-independent pixels, multiply the length by the current line width.
+   * Specifies the lengths of the alternating dashes and gaps that form the dash pattern. The lengths are later scaled by the line width. To convert a dash length to density-independent pixels, multiply the length by the current line width. Note that GeoJSON sources with `lineMetrics: true` specified won't render dashed lines to the expected scale. Also note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param value a Float[] value
    * @return property wrapper around Float[]
@@ -366,7 +367,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Specifies the lengths of the alternating dashes and gaps that form the dash pattern. The lengths are later scaled by the line width. To convert a dash length to density-independent pixels, multiply the length by the current line width.
+   * Specifies the lengths of the alternating dashes and gaps that form the dash pattern. The lengths are later scaled by the line width. To convert a dash length to density-independent pixels, multiply the length by the current line width. Note that GeoJSON sources with `lineMetrics: true` specified won't render dashed lines to the expected scale. Also note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param expression an expression statement
    * @return property wrapper around an expression statement
@@ -376,7 +377,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing image lines. For seamless patterns, image width must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing image lines. For seamless patterns, image width must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -386,7 +387,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing image lines. For seamless patterns, image width must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing image lines. For seamless patterns, image width must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param expression an expression statement
    * @return property wrapper around an expression statement
@@ -1156,7 +1157,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing images on extruded fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing images on extruded fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -1166,7 +1167,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing images on extruded fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing images on extruded fills. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param expression an expression statement
    * @return property wrapper around an expression statement
@@ -1536,7 +1537,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing an image background. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing an image background. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -1546,7 +1547,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Name of image in sprite to use for drawing an image background. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512).
+   * Name of image in sprite to use for drawing an image background. For seamless patterns, image width and height must be a factor of two (2, 4, 8, ..., 512). Note that zoom-dependent expressions will be evaluated only at integer zoom levels.
    *
    * @param expression an expression statement
    * @return property wrapper around an expression statement
@@ -2375,9 +2376,31 @@ public class PropertyFactory {
     return new LayoutPropertyValue<>("text-optional", value);
   }
 
-  public static String colorToRgbaString(@ColorInt int value) {
-    return String.format(Locale.US,"rgba(%d, %d, %d, %d)",
-      (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF, (value >> 24) & 0xFF);
+  /**
+   * Converts Android color int to "rbga(r, g, b, a)" String equivalent.
+   * <p>
+   * Alpha value will be converted from 0-255 range to 0-1.
+   * </p>
+   *
+   * @param color Android color int
+   * @return String rgba color
+   */
+  public static String colorToRgbaString(@ColorInt int color) {
+    String alpha = new DecimalFormat("#.###").format(((float)((color >> 24) & 0xFF)) / 255.0f);
+    return String.format(Locale.US, "rgba(%d, %d, %d, %s)",
+      (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, alpha);
   }
 
+  /**
+   * Converts Android color int to rgba float array.
+   * <p>
+   * Alpha value will be converted from 0-255 range to 0-1.
+   * </p>
+   *
+   * @param color Android color int
+   * @return int rgba array
+   */
+  public static float[] colorToRgbaArray(@ColorInt int color) {
+    return new float[] {(color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, ((color >> 24) & 0xFF) / 255.0f};
+  }
 }

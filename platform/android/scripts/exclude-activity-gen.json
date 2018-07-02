@@ -2,6 +2,7 @@
   "BaseLocationActivity",
   "MapSnapshotterMarkerActivity",
   "MapSnapshotterReuseActivity",
+  "MapSnapshotterLocalStyleActivity",
   "LatLngBoundsActivity",
   "BottomSheetActivity",
   "MapSnapshotterActivity",
@@ -18,7 +19,7 @@
   "LocationPickerActivity",
   "GeoJsonClusteringActivity",
   "RuntimeStyleTestActivity",
-  "AnimatedMarkerActivity",
+  "AnimatedSymbolLayerActivity",
   "ViewPagerActivity",
   "MapFragmentActivity",
   "SupportMapFragmentActivity",
@@ -33,5 +34,6 @@
   "ZoomFunctionSymbolLayerActivity",
   "SymbolGeneratorActivity",
   "TextureViewTransparentBackgroundActivity",
-  "SimpleMapActivity"
+  "SimpleMapActivity",
+  "RenderTestActivity"
 ]

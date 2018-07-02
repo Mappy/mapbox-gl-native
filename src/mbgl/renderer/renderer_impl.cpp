@@ -85,11 +85,6 @@ void Renderer::Impl::setObserver(RendererObserver* observer_) {
 
 void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     if (updateParameters.mode != MapMode::Continuous) {
-        // Don't load/render anyting in still mode until explicitly requested.
-        if (!updateParameters.stillImageRequest) {
-            return;
-        }
-
         // Reset zoom history state.
         zoomHistory.first = true;
     }
@@ -385,12 +380,15 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     }
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         if (it->layer.is<RenderSymbolLayer>()) {
-            if (crossTileSymbolIndex.addLayer(*it->layer.as<RenderSymbolLayer>())) symbolBucketsChanged = true;
+            const float lng = parameters.state.getLatLng().longitude();
+            if (crossTileSymbolIndex.addLayer(*it->layer.as<RenderSymbolLayer>(), lng)) symbolBucketsChanged = true;
         }
     }
 
     bool placementChanged = false;
     if (!placement->stillRecent(parameters.timePoint)) {
+        placementChanged = true;
+
         auto newPlacement = std::make_unique<Placement>(parameters.state, parameters.mapMode);
         std::set<std::string> usedSymbolLayers;
         for (auto it = order.rbegin(); it != order.rend(); ++it) {
@@ -400,13 +398,9 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
             }
         }
 
-        placementChanged = newPlacement->commit(*placement, parameters.timePoint);
+        newPlacement->commit(*placement, parameters.timePoint);
         crossTileSymbolIndex.pruneUnusedLayers(usedSymbolLayers);
-        if (placementChanged || symbolBucketsChanged) {
-            placement = std::move(newPlacement);
-        }
-
-        placement->setRecent(parameters.timePoint);
+        placement = std::move(newPlacement);
         
         updateFadingTiles();
     } else {

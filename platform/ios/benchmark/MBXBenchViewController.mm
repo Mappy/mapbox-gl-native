@@ -77,10 +77,8 @@
             [self startBenchmarkIteration];
         }];
         [alertController addAction:OKAction];
+        alertController.preferredAction = OKAction;
 
-        if ([alertController respondsToSelector:@selector(setPreferredAction:)]) {
-            alertController.preferredAction = OKAction;
-        }
         [self presentViewController:alertController animated:YES completion:nil];
     }
 }

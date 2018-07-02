@@ -29,7 +29,6 @@ public:
     jni::String getURL(jni::JNIEnv&);
 
     void setImage(jni::JNIEnv&, jni::Object<Bitmap>);
-    void setCoordinates(jni::JNIEnv&, jni::Object<LatLngQuad>);
 
     void setCoordinates(jni::JNIEnv&, jni::Object<LatLngQuad>);
 

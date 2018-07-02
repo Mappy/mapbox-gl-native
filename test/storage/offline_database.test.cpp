@@ -38,6 +38,10 @@ void writeFile(const char* name, const std::string& data) {
     mbgl::util::write_file(name, data);
 }
 
+void copyFile(const char* orig, const char* dest) {
+    mbgl::util::write_file(dest, mbgl::util::read_file(orig));
+}
+
 } // namespace
 
 TEST(OfflineDatabase, TEST_REQUIRES_WRITE(Create)) {
@@ -62,7 +66,7 @@ TEST(OfflineDatabase, TEST_REQUIRES_WRITE(SchemaVersion)) {
     std::string path("test/fixtures/offline_database/offline.db");
 
     {
-        mapbox::sqlite::Database db(path, mapbox::sqlite::Create | mapbox::sqlite::ReadWrite);
+        mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::Create | mapbox::sqlite::ReadWrite);
         db.exec("PRAGMA user_version = 1");
     }
 
@@ -141,6 +145,36 @@ TEST(OfflineDatabase, PutResource) {
     auto updateGetResult = db.get(resource);
     EXPECT_EQ(nullptr, updateGetResult->error.get());
     EXPECT_EQ("second", *updateGetResult->data);
+}
+
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(GetResourceFromOfflineRegion)) {
+    using namespace mbgl;
+
+    createDir("test/fixtures/offline_database");
+    deleteFile("test/fixtures/offline_database/satellite.db");
+    copyFile("test/fixtures/offline_database/satellite_test.db", "test/fixtures/offline_database/satellite.db");
+
+    OfflineDatabase db("test/fixtures/offline_database/satellite.db", mapbox::sqlite::ReadOnly);
+
+    Resource resource = Resource::style("mapbox://styles/mapbox/satellite-v9");
+    ASSERT_TRUE(db.get(resource));
+}
+
+TEST(OfflineDatabase, PutAndGetResource) {
+    using namespace mbgl;
+
+    OfflineDatabase db(":memory:");
+
+    Response response1;
+    response1.data = std::make_shared<std::string>("foobar");
+
+    Resource resource = Resource::style("mapbox://example.com/style");
+
+    db.put(resource, response1);
+
+    auto response2 = db.get(resource);
+
+    ASSERT_EQ(*response1.data, *(*response2).data);
 }
 
 TEST(OfflineDatabase, PutTile) {
@@ -564,41 +598,100 @@ TEST(OfflineDatabase, OfflineMapboxTileCount) {
     EXPECT_EQ(0u, db.getOfflineMapboxTileCount());
 }
 
+
+TEST(OfflineDatabase, BatchInsertion) {
+    using namespace mbgl;
+
+    OfflineDatabase db(":memory:", 1024 * 100);
+    OfflineRegionDefinition definition { "", LatLngBounds::world(), 0, INFINITY, 1.0 };
+    OfflineRegion region = db.createRegion(definition, OfflineRegionMetadata());
+
+    Response response;
+    response.data = randomString(1024);
+    std::list<std::tuple<Resource, Response>> resources;
+
+    for (uint32_t i = 1; i <= 100; i++) {
+        resources.emplace_back(Resource::style("http://example.com/"s + util::toString(i)), response);
+    }
+
+    OfflineRegionStatus status;
+    db.putRegionResources(region.getID(), resources, status);
+
+    for (uint32_t i = 1; i <= 100; i++) {
+        EXPECT_TRUE(bool(db.get(Resource::style("http://example.com/"s + util::toString(i)))));
+    }
+}
+
+TEST(OfflineDatabase, BatchInsertionMapboxTileCountExceeded) {
+    using namespace mbgl;
+    
+    OfflineDatabase db(":memory:", 1024 * 100);
+    db.setOfflineMapboxTileCountLimit(1);
+    OfflineRegionDefinition definition { "", LatLngBounds::world(), 0, INFINITY, 1.0 };
+    OfflineRegion region = db.createRegion(definition, OfflineRegionMetadata());
+    
+    Response response;
+    response.data = randomString(1024);
+    std::list<std::tuple<Resource, Response>> resources;
+    
+    resources.emplace_back(Resource::style("http://example.com/"), response);
+    resources.emplace_back(Resource::tile("mapbox://tiles/1", 1.0, 0, 0, 0, Tileset::Scheme::XYZ), response);
+    resources.emplace_back(Resource::tile("mapbox://tiles/2", 1.0, 0, 0, 0, Tileset::Scheme::XYZ), response);
+    
+    OfflineRegionStatus status;
+    try {
+        db.putRegionResources(region.getID(), resources, status);
+        EXPECT_FALSE(true);
+    } catch (MapboxTileLimitExceededException) {
+        // Expected
+    }
+    
+    EXPECT_EQ(status.completedTileCount, 1u);
+    EXPECT_EQ(status.completedResourceCount, 2u);
+    EXPECT_EQ(db.getRegionCompletedStatus(region.getID()).completedTileCount, 1u);
+    EXPECT_EQ(db.getRegionCompletedStatus(region.getID()).completedResourceCount, 2u);
+}
+
 static int databasePageCount(const std::string& path) {
-    mapbox::sqlite::Database db(path, mapbox::sqlite::ReadOnly);
-    mapbox::sqlite::Statement stmt = db.prepare("pragma page_count");
-    stmt.run();
-    return stmt.get<int>(0);
+    mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::ReadOnly);
+    mapbox::sqlite::Statement stmt{ db, "pragma page_count" };
+    mapbox::sqlite::Query query{ stmt };
+    query.run();
+    return query.get<int>(0);
 }
 
 static int databaseUserVersion(const std::string& path) {
-    mapbox::sqlite::Database db(path, mapbox::sqlite::ReadOnly);
-    mapbox::sqlite::Statement stmt = db.prepare("pragma user_version");
-    stmt.run();
-    return stmt.get<int>(0);
+    mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::ReadOnly);
+    mapbox::sqlite::Statement stmt{ db, "pragma user_version" };
+    mapbox::sqlite::Query query{ stmt };
+    query.run();
+    return query.get<int>(0);
 }
 
 static std::string databaseJournalMode(const std::string& path) {
-    mapbox::sqlite::Database db(path, mapbox::sqlite::ReadOnly);
-    mapbox::sqlite::Statement stmt = db.prepare("pragma journal_mode");
-    stmt.run();
-    return stmt.get<std::string>(0);
+    mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::ReadOnly);
+    mapbox::sqlite::Statement stmt{ db, "pragma journal_mode" };
+    mapbox::sqlite::Query query{ stmt };
+    query.run();
+    return query.get<std::string>(0);
 }
 
 static int databaseSyncMode(const std::string& path) {
-    mapbox::sqlite::Database db(path, mapbox::sqlite::ReadOnly);
-    mapbox::sqlite::Statement stmt = db.prepare("pragma synchronous");
-    stmt.run();
-    return stmt.get<int>(0);
+    mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::ReadOnly);
+    mapbox::sqlite::Statement stmt{ db, "pragma synchronous" };
+    mapbox::sqlite::Query query{ stmt };
+    query.run();
+    return query.get<int>(0);
 }
 
 static std::vector<std::string> databaseTableColumns(const std::string& path, const std::string& name) {
-    mapbox::sqlite::Database db(path, mapbox::sqlite::ReadOnly);
+    mapbox::sqlite::Database db = mapbox::sqlite::Database::open(path, mapbox::sqlite::ReadOnly);
     const auto sql = std::string("pragma table_info(") + name + ")";
-    mapbox::sqlite::Statement stmt = db.prepare(sql.c_str());
+    mapbox::sqlite::Statement stmt{ db, sql.c_str() };
+    mapbox::sqlite::Query query{ stmt };
     std::vector<std::string> columns;
-    while (stmt.run()) {
-        columns.push_back(stmt.get<std::string>(1));
+    while (query.run()) {
+        columns.push_back(query.get<std::string>(1));
     }
     return columns;
 }

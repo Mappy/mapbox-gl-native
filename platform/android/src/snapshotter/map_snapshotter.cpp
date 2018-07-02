@@ -20,6 +20,7 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
                                jni::jint width,
                                jni::jint height,
                                jni::String styleURL,
+                               jni::String styleJSON,
                                jni::Object<LatLngBounds> region,
                                jni::Object<CameraPosition> position,
                                jni::jboolean _showLogo,
@@ -37,17 +38,29 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
     jFileSource = FileSource::getNativePeer(_env, _jFileSource);
     auto& fileSource = mbgl::android::FileSource::getDefaultFileSource(_env, _jFileSource);
     auto size = mbgl::Size { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
-    auto cameraOptions = position ? CameraPosition::getCameraOptions(_env, position) : CameraOptions();
+
+    optional<mbgl::CameraOptions> cameraOptions;
+    if (position) {
+        cameraOptions = CameraPosition::getCameraOptions(_env, position);
+    }
+
     optional<mbgl::LatLngBounds> bounds;
     if (region) {
         bounds = LatLngBounds::getLatLngBounds(_env, region);
+    }
+
+    std::pair<bool, std::string> style;
+    if (styleJSON) {
+        style = std::make_pair(true, jni::Make<std::string>(_env, styleJSON));
+    } else {
+        style = std::make_pair(false, jni::Make<std::string>(_env, styleURL));
     }
     
     showLogo = _showLogo;
     // Create the core snapshotter
     snapshotter = std::make_unique<mbgl::MapSnapshotter>(fileSource,
                                                          *threadPool,
-                                                         jni::Make<std::string>(_env, styleURL),
+                                                         style,
                                                          size,
                                                          pixelRatio,
                                                          cameraOptions,
@@ -99,6 +112,10 @@ void MapSnapshotter::setStyleUrl(JNIEnv& env, jni::String styleURL) {
     snapshotter->setStyleURL(jni::Make<std::string>(env, styleURL));
 }
 
+void MapSnapshotter::setStyleJson(JNIEnv& env, jni::String styleJSON) {
+    snapshotter->setStyleJSON(jni::Make<std::string>(env, styleJSON));
+}
+
 void MapSnapshotter::setSize(JNIEnv&, jni::jint width, jni::jint height) {
     auto size = mbgl::Size { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
     snapshotter->setSize(size);
@@ -112,6 +129,7 @@ void MapSnapshotter::setCameraPosition(JNIEnv& env, jni::Object<CameraPosition> 
 void MapSnapshotter::setRegion(JNIEnv& env, jni::Object<LatLngBounds> region) {
     snapshotter->setRegion(LatLngBounds::getLatLngBounds(env, region));
 }
+
 
 // Private methods //
 
@@ -141,10 +159,11 @@ void MapSnapshotter::registerNative(jni::JNIEnv& env) {
 
     // Register the peer
     jni::RegisterNativePeer<MapSnapshotter>(env, MapSnapshotter::javaClass, "nativePtr",
-                                            std::make_unique<MapSnapshotter, JNIEnv&, jni::Object<MapSnapshotter>, jni::Object<FileSource>, jni::jfloat, jni::jint, jni::jint, jni::String, jni::Object<LatLngBounds>, jni::Object<CameraPosition>, jni::jboolean, jni::String>,
+                                            std::make_unique<MapSnapshotter, JNIEnv&, jni::Object<MapSnapshotter>, jni::Object<FileSource>, jni::jfloat, jni::jint, jni::jint, jni::String, jni::String, jni::Object<LatLngBounds>, jni::Object<CameraPosition>, jni::jboolean, jni::String>,
                                            "nativeInitialize",
                                            "finalize",
                                             METHOD(&MapSnapshotter::setStyleUrl, "setStyleUrl"),
+                                            METHOD(&MapSnapshotter::setStyleJson, "setStyleJson"),
                                             METHOD(&MapSnapshotter::setSize, "setSize"),
                                             METHOD(&MapSnapshotter::setCameraPosition, "setCameraPosition"),
                                             METHOD(&MapSnapshotter::setRegion, "setRegion"),

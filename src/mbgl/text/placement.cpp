@@ -38,7 +38,6 @@ Placement::Placement(const TransformState& state_, MapMode mapMode_)
     : collisionIndex(state_)
     , state(state_)
     , mapMode(mapMode_)
-    , recentUntil(TimePoint::min())
 {}
 
 void Placement::placeLayer(RenderSymbolLayer& symbolLayer, const mat4& projMatrix, bool showCollisionBoxes) {
@@ -56,6 +55,11 @@ void Placement::placeLayer(RenderSymbolLayer& symbolLayer, const mat4& projMatri
         auto bucket = geometryTile.getBucket(*symbolLayer.baseImpl);
         assert(dynamic_cast<SymbolBucket*>(bucket));
         SymbolBucket& symbolBucket = *reinterpret_cast<SymbolBucket*>(bucket);
+        
+        if (symbolBucket.bucketLeaderID != symbolLayer.getID()) {
+            // Only place this layer if it's the "group leader" for the bucket
+            continue;
+        }
 
         auto& layout = symbolBucket.layout;
 
@@ -183,7 +187,7 @@ void Placement::placeLayerBucket(
     bucket.justReloaded = false;
 }
 
-bool Placement::commit(const Placement& prevPlacement, TimePoint now) {
+void Placement::commit(const Placement& prevPlacement, TimePoint now) {
     commitTime = now;
 
     bool placementChanged = false;
@@ -217,7 +221,7 @@ bool Placement::commit(const Placement& prevPlacement, TimePoint now) {
         }
     }
 
-    return placementChanged;
+    fadeStartTime = placementChanged ? commitTime : prevPlacement.fadeStartTime;
 }
 
 void Placement::updateLayerOpacities(RenderSymbolLayer& symbolLayer) {
@@ -230,6 +234,10 @@ void Placement::updateLayerOpacities(RenderSymbolLayer& symbolLayer) {
         auto bucket = renderTile.tile.getBucket(*symbolLayer.baseImpl);
         assert(dynamic_cast<SymbolBucket*>(bucket));
         SymbolBucket& symbolBucket = *reinterpret_cast<SymbolBucket*>(bucket);
+        if (symbolBucket.bucketLeaderID != symbolLayer.getID()) {
+            // Only update opacities this layer if it's the "group leader" for the bucket
+            continue;
+        }
         updateBucketOpacities(symbolBucket, seenCrossTileIDs);
     }
 }
@@ -330,18 +338,15 @@ float Placement::symbolFadeChange(TimePoint now) const {
 }
 
 bool Placement::hasTransitions(TimePoint now) const {
-    return symbolFadeChange(now) < 1.0 || stale;
+    if (mapMode == MapMode::Continuous) {
+        return stale || std::chrono::duration<float>(now - fadeStartTime) < Duration(std::chrono::milliseconds(300));
+    } else {
+        return false;
+    }
 }
 
 bool Placement::stillRecent(TimePoint now) const {
-    return mapMode == MapMode::Continuous && recentUntil > now;
-}
-void Placement::setRecent(TimePoint now) {
-    stale = false;
-    if (mapMode == MapMode::Continuous) {
-        // Only set in continuous mode because "now" isn't defined in still mode
-        recentUntil = now + Duration(std::chrono::milliseconds(300));
-    }
+    return mapMode == MapMode::Continuous && commitTime + Duration(std::chrono::milliseconds(300)) > now;
 }
 
 void Placement::setStale() {
