@@ -899,13 +899,14 @@ public:
         UILayoutGuide *safeAreaLayoutGuide = self.safeAreaLayoutGuide;
 
         // compass view
-        [self removeConstraints:self.compassViewConstraints];
-        [self.compassViewConstraints removeAllObjects];
-        [self.compassViewConstraints addObject:[self constraintForYAxisAnchor:self.compassView.topAnchor belowAnchor:safeAreaLayoutGuide.topAnchor]];
-        [self.compassViewConstraints addObject:[safeAreaLayoutGuide.rightAnchor constraintEqualToAnchor:self.compassView.rightAnchor
-                                                                                          constant:8.0 + self.contentInset.right]];
-        [self addConstraints:self.compassViewConstraints];
-        
+		if (self.compassViewConstraints.count == 0)
+		{
+			[self.compassViewConstraints addObject:[self constraintForYAxisAnchor:self.compassView.topAnchor belowAnchor:safeAreaLayoutGuide.topAnchor]];
+			[self.compassViewConstraints addObject:[safeAreaLayoutGuide.rightAnchor constraintEqualToAnchor:self.compassView.rightAnchor
+																							  constant:8.0 + self.contentInset.right]];
+			[self addConstraints:self.compassViewConstraints];
+		}
+
         // scale bar view
         [self removeConstraints:self.scaleBarConstraints];
         [self.scaleBarConstraints removeAllObjects];
