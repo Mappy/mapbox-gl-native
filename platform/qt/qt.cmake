@@ -38,6 +38,11 @@ set(MBGL_QT_CORE_FILES
     PRIVATE platform/qt/src/timer.cpp
     PRIVATE platform/qt/src/timer_impl.hpp
     PRIVATE platform/qt/src/utf.cpp
+
+    PRIVATE platform/default/local_glyph_rasterizer.cpp
+    PRIVATE platform/default/collator.cpp
+    PRIVATE platform/default/unaccent.cpp
+    PRIVATE platform/default/unaccent.hpp
 )
 
 set(MBGL_QT_FILESOURCE_FILES
@@ -65,8 +70,10 @@ add_library(qmapboxgl SHARED
     platform/qt/src/qmapboxgl_map_observer.hpp
     platform/qt/src/qmapboxgl_map_renderer.cpp
     platform/qt/src/qmapboxgl_map_renderer.hpp
-    platform/qt/src/qmapboxgl_renderer_backend.hpp
     platform/qt/src/qmapboxgl_renderer_backend.cpp
+    platform/qt/src/qmapboxgl_renderer_backend.hpp
+    platform/qt/src/qmapboxgl_scheduler.cpp
+    platform/qt/src/qmapboxgl_scheduler.hpp
     platform/default/mbgl/util/default_styles.hpp
 )
 

@@ -1,4 +1,5 @@
 buildscript {
+    apply from: "${rootDir}/gradle/dependencies.gradle"
 
     repositories {
         jcenter()
@@ -6,6 +7,8 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.1.2'
+        classpath dependenciesList.licensesPlugin
+        classpath dependenciesList.kotlinPlugin
     }
 }
 
@@ -22,8 +25,6 @@ allprojects {
 subprojects {
     apply from: "${rootDir}/gradle/dependencies.gradle"
 }
-
-apply from: "${rootDir}/gradle/dependencies.gradle"
 
 // Load build system information. If this file does not exist, run
 // `make platform/android/gradle/configuration.gradle`

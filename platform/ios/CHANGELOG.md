@@ -2,9 +2,36 @@
 
 Mapbox welcomes participation and contributions from everyone. Please read [CONTRIBUTING.md](../../CONTRIBUTING.md) to get started.
 
-## 4.1.1 - June 28, 2018
+## 4.2.0 - July 18, 2018
 
-* Improved compatibility with Mapbox China APIs. ([#12233](https://github.com/mapbox/mapbox-gl-native/pull/12233))
+### Packaging
+
+* When integrating this framework using CocoaPods, the included bcsymbolmap files are now preserved. If you have bitcode enabled and you are seeing incorrectly symbolicated crash logs, you should create a build phase in your Xcode project that copies these bcsymbolmap files to your app’s Products Directory when installing. ([#12257](https://github.com/mapbox/mapbox-gl-native/pull/12257))
+
+### Styles and rendering
+
+* Added an `MGLRasterStyleLayer.rasterResamplingMode` property for configuring how raster style layers are overscaled. ([#12176](https://github.com/mapbox/mapbox-gl-native/pull/12176))
+* `-[MGLStyle localizeLabelsIntoLocale:]` and `-[NSExpression mgl_expressionLocalizedIntoLocale:]` can automatically localize labels into Japanese or Korean based on the system’s language settings. ([#12286](https://github.com/mapbox/mapbox-gl-native/pull/12286))
+* The `c` and `d` options are supported within comparison predicates for case and diacritic insensitivity, respectively. ([#12329](https://github.com/mapbox/mapbox-gl-native/pull/12329))
+* Added the `collator` and `resolved-locale` expression operators to more precisely compare strings in style JSON. A subset of this functionality is available through predicate options when creating an `NSPredicate`. ([#11869](https://github.com/mapbox/mapbox-gl-native/pull/11869))
+* Fixed a crash when trying to parse expressions containing legacy filters. ([#12263](https://github.com/mapbox/mapbox-gl-native/pull/12263))
+* Fixed a crash that occurred when creating an `MGL_MATCH` expression using non-expressions as arguments. ([#12332](https://github.com/mapbox/mapbox-gl-native/pull/12332))
+
+### Networking and storage
+
+* Improved caching performance. ([#12072](https://github.com/mapbox/mapbox-gl-native/pull/12072))
+
+### Other changes
+
+* Added `-[MGLMapView camera:fittingShape:edgePadding:]` and `-[MGLMapView camera:fittingCoordinateBounds:edgePadding:]` allowing you specify the pitch and direction for the calculated camera. ([#12213](https://github.com/mapbox/mapbox-gl-native/pull/12213))
+* Added `-[MGLMapSnapshot coordinateForPoint:]` that returns a map coordinate for a specified snapshot image point. ([#12221](https://github.com/mapbox/mapbox-gl-native/pull/12221))
+* Reduced memory usage when collision debug mode is disabled. ([#12294](https://github.com/mapbox/mapbox-gl-native/issues/12294))
+* Fixed a bug with annotation view touch handling when a non-zero `centerOffset` is specified. ([#12234](https://github.com/mapbox/mapbox-gl-native/pull/12234))
+
+## 4.0.3 - June 22, 2018
+
+* Fixed a crash in `-[MGLStyle localizeLabelsIntoLocale:]` on iOS 9._x_. ([#12123](https://github.com/mapbox/mapbox-gl-native/pull/12123))
+* Improved compatibility with Mapbox China APIs. ([#11845](https://github.com/mapbox/mapbox-gl-native/pull/11845))
 
 ## 4.1.0 - June 20, 2018
 
@@ -32,7 +59,7 @@ Mapbox welcomes participation and contributions from everyone. Please read [CONT
 * Fixed a crash that could occur when reusing `MGLMapSnapshotter` or using multiple snapshotters at the same time. ([#11831](https://github.com/mapbox/mapbox-gl-native/pull/11831))
 * Fixed an issue where an empty `MGLFeature` array caused high CPU utilization. ([#11985](https://github.com/mapbox/mapbox-gl-native/pull/11985))
 * Improved offline download performance. ([#11284](https://github.com/mapbox/mapbox-gl-native/pull/11284))
-* Fixed an issue that caused -[MGLMapView visibleFeaturesAtPoint:] to return an empty array when adding or removing features. ([#12076](https://github.com/mapbox/mapbox-gl-native/pull/12076))
+* Fixed an issue that caused `-[MGLMapView visibleFeaturesAtPoint:]` to return an empty array when adding or removing features. ([#12076](https://github.com/mapbox/mapbox-gl-native/pull/12076))
 * Improved application launch performance. ([#11784](https://github.com/mapbox/mapbox-gl-native/pull/11784))
 
 ## 4.0.2 - May 29, 2018

@@ -174,7 +174,7 @@ inline auto makePaintPropertySetters() {
     result["heatmap-weight-transition"] = &setTransition<HeatmapLayer, &HeatmapLayer::setHeatmapWeightTransition>;
     result["heatmap-intensity"] = &setProperty<HeatmapLayer, PropertyValue<float>, &HeatmapLayer::setHeatmapIntensity>;
     result["heatmap-intensity-transition"] = &setTransition<HeatmapLayer, &HeatmapLayer::setHeatmapIntensityTransition>;
-    result["heatmap-color"] = &setProperty<HeatmapLayer, HeatmapColorPropertyValue, &HeatmapLayer::setHeatmapColor>;
+    result["heatmap-color"] = &setProperty<HeatmapLayer, ColorRampPropertyValue, &HeatmapLayer::setHeatmapColor>;
     result["heatmap-color-transition"] = &setTransition<HeatmapLayer, &HeatmapLayer::setHeatmapColorTransition>;
     result["heatmap-opacity"] = &setProperty<HeatmapLayer, PropertyValue<float>, &HeatmapLayer::setHeatmapOpacity>;
     result["heatmap-opacity-transition"] = &setTransition<HeatmapLayer, &HeatmapLayer::setHeatmapOpacityTransition>;
@@ -206,6 +206,8 @@ inline auto makePaintPropertySetters() {
     result["raster-saturation-transition"] = &setTransition<RasterLayer, &RasterLayer::setRasterSaturationTransition>;
     result["raster-contrast"] = &setProperty<RasterLayer, PropertyValue<float>, &RasterLayer::setRasterContrast>;
     result["raster-contrast-transition"] = &setTransition<RasterLayer, &RasterLayer::setRasterContrastTransition>;
+    result["raster-resampling"] = &setProperty<RasterLayer, PropertyValue<RasterResamplingType>, &RasterLayer::setRasterResampling>;
+    result["raster-resampling-transition"] = &setTransition<RasterLayer, &RasterLayer::setRasterResamplingTransition>;
     result["raster-fade-duration"] = &setProperty<RasterLayer, PropertyValue<float>, &RasterLayer::setRasterFadeDuration>;
     result["raster-fade-duration-transition"] = &setTransition<RasterLayer, &RasterLayer::setRasterFadeDurationTransition>;
 

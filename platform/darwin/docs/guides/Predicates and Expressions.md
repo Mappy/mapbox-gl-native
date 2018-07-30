@@ -53,9 +53,17 @@ The following aggregate operators are supported:
 `NSInPredicateOperatorType`       | `key IN { 'iOS', 'macOS', 'tvOS', 'watchOS' }`
 `NSContainsPredicateOperatorType` | `{ 'iOS', 'macOS', 'tvOS', 'watchOS' } CONTAINS key`
 
-Operator modifiers such as `c` (for case insensitivity), `d` (for diacritic
-insensitivity), and `l` (for locale sensitivity) are unsupported for comparison
-and aggregate operators that are used in the predicate.
+The following comparison predicate options are supported for comparison and
+aggregate operators that are used in the predicate:
+
+`NSComparisonPredicateOptions`          | Format string syntax
+----------------------------------------|---------------------
+`NSCaseInsensitivePredicateOption`      | `'QUEBEC' =[c] 'Quebec'`
+`NSDiacriticInsensitivePredicateOption` | `'Québec' =[d] 'Quebec'`
+
+Other comparison predicate options are unsupported, namely `l`
+(for locale sensitivity) and `n` (for normalization). A comparison is
+locale-sensitive as long as it is case- or diacritic-insensitive.
 
 ### Operands
 
@@ -530,7 +538,7 @@ expression that contains references to those variables.
 <dt>Selector:</dt>
 <dd><code>MGL_MATCH:</code></dd>
 <dt>Format string syntax:</dt>
-<dd><code>MGL_MATCH(x, 0, 'zero match', 1, 'one match', 'two match', 'default')</code></dd>
+<dd><code>MGL_MATCH(x, 0, 'zero match', 1, 'one match', 2, 'two match', 'default')</code></dd>
 <dt>Arguments:</dt>
 <dd>
    An input expression, then any number of argument pairs, followed by a default
