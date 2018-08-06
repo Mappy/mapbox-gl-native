@@ -250,10 +250,17 @@ void Placement::updateBucketOpacities(SymbolBucket& bucket, std::set<uint32_t>& 
 
     JointOpacityState duplicateOpacityState(false, false, true);
 
-    JointOpacityState defaultOpacityState(
-            bucket.layout.get<style::TextAllowOverlap>(),
-            bucket.layout.get<style::IconAllowOverlap>(),
-            true);
+	const bool textAllowOverlap = bucket.layout.get<style::TextAllowOverlap>();
+	const bool iconAllowOverlap = bucket.layout.get<style::IconAllowOverlap>();
+
+	// If allow-overlap is true, we can show symbols before placement runs on them
+	// But we have to wait for placement if we potentially depend on a paired icon/text
+	// with allow-overlap: false.
+	// See https://github.com/mapbox/mapbox-gl-native/issues/12483
+	JointOpacityState defaultOpacityState(
+										  textAllowOverlap && (iconAllowOverlap || !bucket.hasIconData() || bucket.layout.get<style::IconOptional>()),
+										  iconAllowOverlap && (textAllowOverlap || !bucket.hasTextData() || bucket.layout.get<style::TextOptional>()),
+										  true);
 
     for (SymbolInstance& symbolInstance : bucket.symbolInstances) {
         bool isDuplicate = seenCrossTileIDs.count(symbolInstance.crossTileID) > 0;
