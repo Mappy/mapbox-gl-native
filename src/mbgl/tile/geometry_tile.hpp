@@ -4,8 +4,6 @@
 #include <mbgl/tile/geometry_tile_worker.hpp>
 #include <mbgl/renderer/image_manager.hpp>
 #include <mbgl/text/glyph_manager.hpp>
-#include <mbgl/text/placement_config.hpp>
-#include <mbgl/text/collision_tile.hpp>
 #include <mbgl/util/feature.hpp>
 #include <mbgl/util/throttler.hpp>
 #include <mbgl/actor/actor.hpp>
@@ -36,9 +34,9 @@ public:
     void setError(std::exception_ptr);
     void setData(std::unique_ptr<const GeometryTileData>);
 
-    void setPlacementConfig(const PlacementConfig&) override;
     void setLayers(const std::vector<Immutable<style::Layer::Impl>>&) override;
-    
+    void setShowCollisionBoxes(const bool showCollisionBoxes) override;
+
     void onGlyphsAvailable(GlyphMap) override;
     void onImagesAvailable(ImageMap, uint64_t imageCorrelationID) override;
     
@@ -56,7 +54,8 @@ public:
             const GeometryCoordinates& queryGeometry,
             const TransformState&,
             const std::vector<const RenderLayer*>& layers,
-            const RenderedQueryOptions& options) override;
+            const RenderedQueryOptions& options,
+            const CollisionIndex& collisionIndex) override;
 
     void querySourceFeatures(
         std::vector<Feature>& result,
@@ -66,49 +65,38 @@ public:
 
     class LayoutResult {
     public:
-        std::unordered_map<std::string, std::shared_ptr<Bucket>> nonSymbolBuckets;
+        std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets;
         std::unique_ptr<FeatureIndex> featureIndex;
-        std::unique_ptr<GeometryTileData> tileData;
-
-        LayoutResult(std::unordered_map<std::string, std::shared_ptr<Bucket>> nonSymbolBuckets_,
-                     std::unique_ptr<FeatureIndex> featureIndex_,
-                     std::unique_ptr<GeometryTileData> tileData_)
-            : nonSymbolBuckets(std::move(nonSymbolBuckets_)),
-              featureIndex(std::move(featureIndex_)),
-              tileData(std::move(tileData_)) {}
-    };
-    void onLayout(LayoutResult, uint64_t correlationID);
-
-    class PlacementResult {
-    public:
-        std::unordered_map<std::string, std::shared_ptr<Bucket>> symbolBuckets;
-        std::unique_ptr<CollisionTile> collisionTile;
         optional<AlphaImage> glyphAtlasImage;
         optional<PremultipliedImage> iconAtlasImage;
 
-        PlacementResult(std::unordered_map<std::string, std::shared_ptr<Bucket>> symbolBuckets_,
-                        std::unique_ptr<CollisionTile> collisionTile_,
-                        optional<AlphaImage> glyphAtlasImage_,
-                        optional<PremultipliedImage> iconAtlasImage_)
-            : symbolBuckets(std::move(symbolBuckets_)),
-              collisionTile(std::move(collisionTile_)),
+        LayoutResult(std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets_,
+                     std::unique_ptr<FeatureIndex> featureIndex_,
+                     optional<AlphaImage> glyphAtlasImage_,
+                     optional<PremultipliedImage> iconAtlasImage_)
+            : buckets(std::move(buckets_)),
+              featureIndex(std::move(featureIndex_)),
               glyphAtlasImage(std::move(glyphAtlasImage_)),
               iconAtlasImage(std::move(iconAtlasImage_)) {}
     };
-    void onPlacement(PlacementResult, uint64_t correlationID);
+    void onLayout(LayoutResult, uint64_t correlationID);
 
     void onError(std::exception_ptr, uint64_t correlationID);
     
-    float yStretch() const override;
+    bool holdForFade() const override;
+    void markRenderedIdeal() override;
+    void markRenderedPreviously() override;
+    void performedFadePlacement() override;
+    
+    void commitFeatureIndex() override;
     
 protected:
     const GeometryTileData* getData() {
-        return data.get();
+        return featureIndex ? featureIndex->getData() : nullptr;
     }
 
 private:
     void markObsolete();
-    void invokePlacement();
 
     const std::string sourceID;
 
@@ -122,21 +110,27 @@ private:
     ImageManager& imageManager;
 
     uint64_t correlationID = 0;
-    optional<PlacementConfig> requestedConfig;
 
-    std::unordered_map<std::string, std::shared_ptr<Bucket>> nonSymbolBuckets;
+    std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets;
+    
+    optional<std::unique_ptr<FeatureIndex>> featureIndexPendingCommit;
     std::unique_ptr<FeatureIndex> featureIndex;
-    std::unique_ptr<const GeometryTileData> data;
 
     optional<AlphaImage> glyphAtlasImage;
     optional<PremultipliedImage> iconAtlasImage;
 
-    std::unordered_map<std::string, std::shared_ptr<Bucket>> symbolBuckets;
-    std::unique_ptr<CollisionTile> collisionTile;
-
-    float lastYStretch;
     const MapMode mode;
+    
+    bool showCollisionBoxes;
+    
+    enum class FadeState {
+        Loaded,
+        NeedsFirstPlacement,
+        NeedsSecondPlacement,
+        CanRemove
+    };
 
+    FadeState fadeState = FadeState::Loaded;
 public:
     optional<gl::Texture> glyphAtlasTexture;
     optional<gl::Texture> iconAtlasTexture;

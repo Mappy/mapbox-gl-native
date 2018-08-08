@@ -7,13 +7,16 @@
 // We're using QGLFramebufferObject, which is only available in Qt 5 and up.
 #if QT_VERSION >= 0x050000
 
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+
 QMapboxGLTest::QMapboxGLTest() : size(512, 512), fbo((assert(widget.context()->isValid()), widget.makeCurrent(), size)), map(nullptr, settings, size) {
     connect(&map, SIGNAL(mapChanged(QMapboxGL::MapChange)),
             this, SLOT(onMapChanged(QMapboxGL::MapChange)));
     connect(&map, SIGNAL(needsRendering()),
             this, SLOT(onNeedsRendering()));
-    map.resize(fbo.size(), fbo.size());
-    map.setFramebufferObject(fbo.handle());
+    map.resize(fbo.size());
+    map.setFramebufferObject(fbo.handle(), fbo.size());
     map.setCoordinateZoom(QMapbox::Coordinate(60.170448, 24.942046), 14);
 }
 
@@ -37,7 +40,7 @@ void QMapboxGLTest::onMapChanged(QMapboxGL::MapChange change) {
 void QMapboxGLTest::onNeedsRendering() {
     widget.makeCurrent();
     fbo.bind();
-    glViewport(0, 0, fbo.width(), fbo.height());
+    QOpenGLContext::currentContext()->functions()->glViewport(0, 0, fbo.width(), fbo.height());
     map.render();
 }
 

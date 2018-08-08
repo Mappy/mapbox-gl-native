@@ -11,16 +11,8 @@ using EnumType = uint32_t;
 
 enum class MapMode : EnumType {
     Continuous, // continually updating map
-    Still, // a once-off still image
-};
-
-// We can avoid redundant GL calls when it is known that the GL context is not
-// being shared. In a shared GL context case, we need to make sure that the
-// correct GL configurations are in use - they might have changed between render
-// calls.
-enum class GLContextMode : EnumType {
-    Unique,
-    Shared,
+    Static, // a once-off still image of an arbitrary viewport
+    Tile // a once-off still image of a single tile
 };
 
 // We can choose to constrain the map both horizontally or vertically, or only

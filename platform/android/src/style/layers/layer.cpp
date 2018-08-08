@@ -4,16 +4,28 @@
 #include <jni/jni.hpp>
 
 #include <mbgl/style/style.hpp>
+#include <mbgl/style/filter.hpp>
 #include <mbgl/style/transition_options.hpp>
+#include <mbgl/style/layers/background_layer.hpp>
+#include <mbgl/style/layers/circle_layer.hpp>
+#include <mbgl/style/layers/fill_layer.hpp>
+#include <mbgl/style/layers/fill_extrusion_layer.hpp>
+#include <mbgl/style/layers/heatmap_layer.hpp>
+#include <mbgl/style/layers/hillshade_layer.hpp>
+#include <mbgl/style/layers/line_layer.hpp>
+#include <mbgl/style/layers/raster_layer.hpp>
+#include <mbgl/style/layers/symbol_layer.hpp>
 #include <mbgl/util/logging.hpp>
 
 // Java -> C++ conversion
 #include <mbgl/style/conversion.hpp>
+#include <mbgl/style/conversion/filter.hpp>
 #include <mbgl/style/conversion/layer.hpp>
 #include <mbgl/style/conversion/source.hpp>
 
 // C++ -> Java conversion
 #include "../conversion/property_value.hpp"
+#include <mbgl/style/filter.hpp>
 
 #include <string>
 
@@ -78,10 +90,8 @@ namespace android {
     }
 
     void Layer::setLayoutProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
-        Value value(env, jvalue);
-
         // Convert and set property
-        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setLayoutProperty(layer, jni::Make<std::string>(env, jname), value);
+        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setLayoutProperty(layer, jni::Make<std::string>(env, jname), Value(env, jvalue));
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
             return;
@@ -89,10 +99,8 @@ namespace android {
     }
 
     void Layer::setPaintProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
-        Value value(env, jvalue);
-
         // Convert and set property
-        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setPaintProperty(layer, jni::Make<std::string>(env, jname), value);
+        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setPaintProperty(layer, jni::Make<std::string>(env, jname), Value(env, jvalue));
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
             return;
@@ -105,6 +113,7 @@ namespace android {
         void operator()(style::BackgroundLayer&) { Log::Warning(mbgl::Event::JNI, "BackgroundLayer doesn't support filters"); }
         void operator()(style::CustomLayer&) { Log::Warning(mbgl::Event::JNI, "CustomLayer doesn't support filters"); }
         void operator()(style::RasterLayer&) { Log::Warning(mbgl::Event::JNI, "RasterLayer doesn't support filters"); }
+        void operator()(style::HillshadeLayer&) { Log::Warning(mbgl::Event::JNI, "HillshadeLayer doesn't support filters"); }
 
         template <class LayerType>
         void operator()(LayerType& layer) {
@@ -116,10 +125,8 @@ namespace android {
         using namespace mbgl::style;
         using namespace mbgl::style::conversion;
 
-        Value wrapped(env, jfilter);
-
         Error error;
-        optional<Filter> converted = convert<Filter>(wrapped, error);
+        optional<Filter> converted = convert<Filter>(Value(env, jfilter), error);
         if (!converted) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting filter: " + error.message);
             return;
@@ -128,12 +135,45 @@ namespace android {
         layer.accept(SetFilterEvaluator {std::move(*converted)});
     }
 
+    struct GetFilterEvaluator {
+        mbgl::style::Filter noop(std::string layerType) {
+            Log::Warning(mbgl::Event::JNI, "%s doesn't support filter", layerType.c_str());
+            return {};
+        }
+
+        mbgl::style::Filter operator()(style::BackgroundLayer&) { return noop("BackgroundLayer"); }
+        mbgl::style::Filter operator()(style::CustomLayer&) { return noop("CustomLayer"); }
+        mbgl::style::Filter operator()(style::RasterLayer&) { return noop("RasterLayer"); }
+        mbgl::style::Filter operator()(style::HillshadeLayer&) { return noop("HillshadeLayer"); }
+
+        template <class LayerType>
+            mbgl::style::Filter operator()(LayerType& layer) {
+            return layer.getFilter();
+        }
+    };
+
+    jni::Object<gson::JsonElement> Layer::getFilter(jni::JNIEnv& env) {
+        using namespace mbgl::style;
+        using namespace mbgl::style::conversion;
+
+        Filter filter = layer.accept(GetFilterEvaluator());
+
+        jni::Object<gson::JsonElement> converted;
+        if (filter.is<ExpressionFilter>()) {
+            ExpressionFilter filterExpression = filter.get<ExpressionFilter>();
+            mbgl::Value expressionValue = filterExpression.expression.get()->serialize();
+            converted = gson::JsonElement::New(env, expressionValue);
+        }
+        return converted;
+    }
+
     struct SetSourceLayerEvaluator {
         std::string sourceLayer;
 
         void operator()(style::BackgroundLayer&) { Log::Warning(mbgl::Event::JNI, "BackgroundLayer doesn't support source layer"); }
         void operator()(style::CustomLayer&) { Log::Warning(mbgl::Event::JNI, "CustomLayer doesn't support source layer"); }
         void operator()(style::RasterLayer&) { Log::Warning(mbgl::Event::JNI, "RasterLayer doesn't support source layer"); }
+        void operator()(style::HillshadeLayer&) { Log::Warning(mbgl::Event::JNI, "HillshadeLayer doesn't support source layer"); }
 
         template <class LayerType>
         void operator()(LayerType& layer) {
@@ -154,6 +194,7 @@ namespace android {
         std::string operator()(style::BackgroundLayer&) { return noop("BackgroundLayer"); }
         std::string operator()(style::CustomLayer&) { return noop("CustomLayer"); }
         std::string operator()(style::RasterLayer&) { return noop("RasterLayer"); }
+        std::string operator()(style::HillshadeLayer&) { return noop("HillshadeLayer"); }
 
         template <class LayerType>
         std::string operator()(LayerType& layer) {
@@ -200,6 +241,7 @@ namespace android {
             METHOD(&Layer::setLayoutProperty, "nativeSetLayoutProperty"),
             METHOD(&Layer::setPaintProperty, "nativeSetPaintProperty"),
             METHOD(&Layer::setFilter, "nativeSetFilter"),
+            METHOD(&Layer::getFilter, "nativeGetFilter"),
             METHOD(&Layer::setSourceLayer, "nativeSetSourceLayer"),
             METHOD(&Layer::getSourceLayer, "nativeGetSourceLayer"),
             METHOD(&Layer::getMinZoom, "nativeGetMinZoom"),

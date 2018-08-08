@@ -7,12 +7,12 @@
 
 #import "MGLShape_Private.h"
 #import "MGLPointCollection_Private.h"
-#import "MGLPolyline+MGLAdditions.h"
-#import "MGLPolygon+MGLAdditions.h"
+#import "MGLPolyline_Private.h"
+#import "MGLPolygon_Private.h"
+
 #import "NSDictionary+MGLAdditions.h"
 #import "NSArray+MGLAdditions.h"
-
-#import "NSExpression+MGLAdditions.h"
+#import "NSExpression+MGLPrivateAdditions.h"
 
 #import <mbgl/util/geometry.hpp>
 #import <mbgl/style/conversion/geojson.hpp>

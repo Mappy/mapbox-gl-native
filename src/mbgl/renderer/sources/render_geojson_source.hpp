@@ -31,12 +31,13 @@ public:
     queryRenderedFeatures(const ScreenLineString& geometry,
                           const TransformState& transformState,
                           const std::vector<const RenderLayer*>& layers,
-                          const RenderedQueryOptions& options) const final;
+                          const RenderedQueryOptions& options,
+                          const CollisionIndex&) const final;
 
     std::vector<Feature>
     querySourceFeatures(const SourceQueryOptions&) const final;
 
-    void onLowMemory() final;
+    void reduceMemoryUse() final;
     void dumpDebugLogs() const final;
 
 private:
@@ -48,7 +49,7 @@ private:
 
 template <>
 inline bool RenderSource::is<RenderGeoJSONSource>() const {
-    return baseImpl->type == SourceType::GeoJSON;
+    return baseImpl->type == style::SourceType::GeoJSON;
 }
 
 } // namespace mbgl

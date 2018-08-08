@@ -15,7 +15,6 @@
 #include <mbgl/renderer/image_atlas.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/geometry/feature_index.hpp>
-#include <mbgl/text/collision_tile.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/style/filter_evaluator.hpp>
 #include <mbgl/util/logging.hpp>
@@ -33,7 +32,7 @@ using namespace style;
 
    GeometryTile's 'correlationID' is used for ensuring the tile will be flagged
    as non-pending only when the placement coming from the last operation (as in
-   'setData', 'setLayers',  'setPlacementConfig') occurs. This is important for
+   'setData', 'setLayers',  'setShowCollisionBoxes') occurs. This is important for
    still mode rendering as we want to render only when all layout and placement
    operations are completed.
 
@@ -52,13 +51,15 @@ GeometryTile::GeometryTile(const OverscaledTileID& id_,
       worker(parameters.workerScheduler,
              ActorRef<GeometryTile>(*this, mailbox),
              id_,
+             sourceID,
              obsolete,
              parameters.mode,
-             parameters.pixelRatio),
+             parameters.pixelRatio,
+             parameters.debugOptions & MapDebugOptions::Collision),
       glyphManager(parameters.glyphManager),
       imageManager(parameters.imageManager),
-      lastYStretch(1.0f),
-      mode(parameters.mode) {
+      mode(parameters.mode),
+      showCollisionBoxes(parameters.debugOptions & MapDebugOptions::Collision) {
 }
 
 GeometryTile::~GeometryTile() {
@@ -89,25 +90,6 @@ void GeometryTile::setData(std::unique_ptr<const GeometryTileData> data_) {
     worker.invoke(&GeometryTileWorker::setData, std::move(data_), correlationID);
 }
 
-void GeometryTile::setPlacementConfig(const PlacementConfig& desiredConfig) {
-    if (requestedConfig == desiredConfig) {
-        return;
-    }
-
-    // Mark the tile as pending again if it was complete before to prevent signaling a complete
-    // state despite pending parse operations.
-    pending = true;
-
-    ++correlationID;
-    requestedConfig = desiredConfig;
-    invokePlacement();
-}
-
-void GeometryTile::invokePlacement() {
-    if (requestedConfig) {
-        worker.invoke(&GeometryTileWorker::setPlacementConfig, *requestedConfig, correlationID);
-    }
-}
 
 void GeometryTile::setLayers(const std::vector<Immutable<Layer::Impl>>& layers) {
     // Mark the tile as pending again if it was complete before to prevent signaling a complete
@@ -134,34 +116,32 @@ void GeometryTile::setLayers(const std::vector<Immutable<Layer::Impl>>& layers) 
     worker.invoke(&GeometryTileWorker::setLayers, std::move(impls), correlationID);
 }
 
-void GeometryTile::onLayout(LayoutResult result, const uint64_t resultCorrelationID) {
-    loaded = true;
-    renderable = true;
-    (void)resultCorrelationID;
-    nonSymbolBuckets = std::move(result.nonSymbolBuckets);
-    featureIndex = std::move(result.featureIndex);
-    data = std::move(result.tileData);
-    collisionTile.reset();
-    observer->onTileChanged(*this);
+void GeometryTile::setShowCollisionBoxes(const bool showCollisionBoxes_) {
+    if (showCollisionBoxes != showCollisionBoxes_) {
+        showCollisionBoxes = showCollisionBoxes_;
+        ++correlationID;
+        worker.invoke(&GeometryTileWorker::setShowCollisionBoxes, showCollisionBoxes, correlationID);
+    }
 }
 
-void GeometryTile::onPlacement(PlacementResult result, const uint64_t resultCorrelationID) {
+void GeometryTile::onLayout(LayoutResult result, const uint64_t resultCorrelationID) {
     loaded = true;
     renderable = true;
     if (resultCorrelationID == correlationID) {
         pending = false;
     }
-    symbolBuckets = std::move(result.symbolBuckets);
-    collisionTile = std::move(result.collisionTile);
+    
+    buckets = std::move(result.buckets);
+    
+    featureIndexPendingCommit = { std::move(result.featureIndex) };
+
     if (result.glyphAtlasImage) {
         glyphAtlasImage = std::move(*result.glyphAtlasImage);
     }
     if (result.iconAtlasImage) {
         iconAtlasImage = std::move(*result.iconAtlasImage);
     }
-    if (collisionTile.get()) {
-        lastYStretch = collisionTile->yStretch;
-    }
+
     observer->onTileChanged(*this);
 }
 
@@ -196,11 +176,7 @@ void GeometryTile::upload(gl::Context& context) {
         }
     };
 
-    for (auto& entry : nonSymbolBuckets) {
-        uploadFn(*entry.second);
-    }
-
-    for (auto& entry : symbolBuckets) {
+    for (auto& entry : buckets) {
         uploadFn(*entry.second);
     }
 
@@ -216,7 +192,6 @@ void GeometryTile::upload(gl::Context& context) {
 }
 
 Bucket* GeometryTile::getBucket(const Layer::Impl& layer) const {
-    const auto& buckets = layer.type == LayerType::Symbol ? symbolBuckets : nonSymbolBuckets;
     const auto it = buckets.find(layer.id);
     if (it == buckets.end()) {
         return nullptr;
@@ -226,14 +201,24 @@ Bucket* GeometryTile::getBucket(const Layer::Impl& layer) const {
     return it->second.get();
 }
 
+void GeometryTile::commitFeatureIndex() {
+    // We commit our pending FeatureIndex when a global placement has run,
+    // synchronizing the global CollisionIndex with the latest buckets/FeatureIndex
+    if (featureIndexPendingCommit) {
+        featureIndex = std::move(*featureIndexPendingCommit);
+        featureIndexPendingCommit = nullopt;
+    }
+}
+
 void GeometryTile::queryRenderedFeatures(
     std::unordered_map<std::string, std::vector<Feature>>& result,
     const GeometryCoordinates& queryGeometry,
     const TransformState& transformState,
     const std::vector<const RenderLayer*>& layers,
-    const RenderedQueryOptions& options) {
+    const RenderedQueryOptions& options,
+    const CollisionIndex& collisionIndex) {
 
-    if (!featureIndex || !data) return;
+    if (!getData()) return;
 
     // Determine the additional radius needed factoring in property functions
     float additionalRadius = 0;
@@ -250,10 +235,10 @@ void GeometryTile::queryRenderedFeatures(
                         util::tileSize * id.overscaleFactor(),
                         std::pow(2, transformState.getZoom() - id.overscaledZ),
                         options,
-                        *data,
-                        id.canonical,
+                        id.toUnwrapped(),
+                        sourceID,
                         layers,
-                        collisionTile.get(),
+                        collisionIndex,
                         additionalRadius);
 }
 
@@ -261,8 +246,8 @@ void GeometryTile::querySourceFeatures(
     std::vector<Feature>& result,
     const SourceQueryOptions& options) {
 
-    // Data not yet available
-    if (!data) {
+    // Data not yet available, or tile is empty
+    if (!getData()) {
         return;
     }
     
@@ -275,7 +260,7 @@ void GeometryTile::querySourceFeatures(
     for (auto sourceLayer : *options.sourceLayers) {
         // Go throught all sourceLayers, if any
         // to gather all the features
-        auto layer = data->getLayer(sourceLayer);
+        auto layer = getData()->getLayer(sourceLayer);
         
         if (layer) {
             auto featureCount = layer->featureCount();
@@ -283,7 +268,7 @@ void GeometryTile::querySourceFeatures(
                 auto feature = layer->getFeature(i);
 
                 // Apply filter, if any
-                if (options.filter && !(*options.filter)(*feature)) {
+                if (options.filter && !(*options.filter)(style::expression::EvaluationContext { static_cast<float>(this->id.overscaledZ), feature.get() })) {
                     continue;
                 }
 
@@ -293,11 +278,25 @@ void GeometryTile::querySourceFeatures(
     }
 }
 
-float GeometryTile::yStretch() const {
-    // collisionTile gets reset in onLayout but we don't clear the symbolBuckets
-    // until a new placement result comes along, so keep the yStretch value in
-    // case we need to render them.
-    return lastYStretch;
+bool GeometryTile::holdForFade() const {
+    return mode == MapMode::Continuous &&
+           (fadeState == FadeState::NeedsFirstPlacement || fadeState == FadeState::NeedsSecondPlacement);
+}
+
+void GeometryTile::markRenderedIdeal() {
+    fadeState = FadeState::Loaded;
+}
+void GeometryTile::markRenderedPreviously() {
+    if (fadeState == FadeState::Loaded) {
+        fadeState = FadeState::NeedsFirstPlacement;
+    }
+}
+void GeometryTile::performedFadePlacement() {
+    if (fadeState == FadeState::NeedsFirstPlacement) {
+        fadeState = FadeState::NeedsSecondPlacement;
+    } else if (fadeState == FadeState::NeedsSecondPlacement) {
+        fadeState = FadeState::CanRemove;
+    }
 }
 
 } // namespace mbgl

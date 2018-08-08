@@ -3,15 +3,16 @@ package com.mapbox.mapboxsdk.http;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.os.Build;
-import android.support.annotation.Nullable;
+
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.mapbox.mapboxsdk.BuildConfig;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.services.android.telemetry.utils.TelemetryUtils;
+import com.mapbox.android.telemetry.TelemetryUtils;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -30,7 +31,6 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-
 import okhttp3.ResponseBody;
 import timber.log.Timber;
 
@@ -263,6 +263,7 @@ class HTTPRequest implements Callback {
   public interface HttpRequestHeaderProvider {
     void addHeader(Request.Builder builder);
   }
+
   private native void nativeOnFailure(int type, String message);
 
   private native void nativeOnResponse(int code, String etag, String modified, String cacheControl, String expires,

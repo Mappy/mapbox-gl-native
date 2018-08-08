@@ -6,7 +6,7 @@ namespace style {
 namespace conversion {
 
 bool validateLatitude(const double lat) {
-    return lat < 90 && lat > -90;
+    return lat <= 90 && lat >= -90;
 }
 
 optional<Tileset> Converter<Tileset>::operator()(const Convertible& value, Error& error) const {
@@ -37,6 +37,16 @@ optional<Tileset> Converter<Tileset>::operator()(const Convertible& value, Error
         optional<std::string> scheme = toString(*schemeValue);
         if (scheme && *scheme == "tms") {
             result.scheme = Tileset::Scheme::TMS;
+        }
+    }
+
+    auto encodingValue = objectMember(value, "encoding");
+    if (encodingValue) {
+        optional<std::string> encoding = toString(*encodingValue);
+        if (encoding && *encoding == "terrarium") {
+            result.encoding = Tileset::DEMEncoding::Terrarium;
+        } else if (encoding && *encoding != "mapbox") {
+            error = { "invalid raster-dem encoding type - valid types are 'mapbox' and 'terrarium' " };
         }
     }
 
@@ -93,6 +103,8 @@ optional<Tileset> Converter<Tileset>::operator()(const Convertible& value, Error
             error = { "bounds left longitude should be less than right longitude" };
             return {};
         }
+	*left = util::max(-180.0, *left);
+	*right = util::min(180.0, *right);
         result.bounds = LatLngBounds::hull({ *bottom, *left }, { *top, *right });
     }
 

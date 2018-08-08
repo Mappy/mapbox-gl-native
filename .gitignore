@@ -33,4 +33,9 @@ xcuserdata
 /documentation
 test/fixtures/api/assets.zip
 test/fixtures/storage/assets.zip
-MapboxGLAndroidSDK.zip
+/.circle-week
+
+# Generated list files from code generation
+/scripts/generate-cmake-files.list
+/scripts/generate-shaders.list
+/scripts/generate-style-code.list

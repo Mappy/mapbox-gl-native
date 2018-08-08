@@ -1,0 +1,5 @@
+ext {
+    node = '/usr/local/bin/node'
+    npm = '/usr/local/bin/npm'
+    ccache = ''
+}

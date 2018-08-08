@@ -63,7 +63,7 @@ void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
             parameters.context,
             gl::Triangles(),
             parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
-            parameters.mapMode == MapMode::Still
+            parameters.mapMode != MapMode::Continuous
                 ? parameters.stencilModeForClipping(tile.clip)
                 : gl::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
@@ -108,13 +108,12 @@ bool RenderCircleLayer::queryIntersectsFeature(
             bearing,
             pixelsToTileUnits);
 
-    // Evaluate function
-    auto circleRadius = evaluated.get<style::CircleRadius>()
-                                .evaluate(feature, zoom, style::CircleRadius::defaultValue())
-                        * pixelsToTileUnits;
+    // Evaluate functions
+    auto radius = evaluated.evaluate<style::CircleRadius>(zoom, feature) * pixelsToTileUnits;
+    auto stroke = evaluated.evaluate<style::CircleStrokeWidth>(zoom, feature) * pixelsToTileUnits;
 
     // Test intersection
-    return util::polygonIntersectsBufferedMultiPoint(translatedQueryGeometry.value_or(queryGeometry), feature.getGeometries(), circleRadius);
+    return util::polygonIntersectsBufferedMultiPoint(translatedQueryGeometry.value_or(queryGeometry), feature.getGeometries(), radius + stroke);
 }
 
 } // namespace mbgl

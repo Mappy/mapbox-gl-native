@@ -12,10 +12,6 @@ target_sources(mbgl-glfw
     PRIVATE platform/default/mbgl/util/default_styles.hpp
 )
 
-target_compile_options(mbgl-glfw
-    PRIVATE -fvisibility-inlines-hidden
-)
-
 target_include_directories(mbgl-glfw
     PRIVATE platform/default
 )
@@ -29,6 +25,7 @@ target_add_mason_package(mbgl-glfw PRIVATE geojson)
 target_add_mason_package(mbgl-glfw PRIVATE geometry)
 target_add_mason_package(mbgl-glfw PRIVATE glfw)
 target_add_mason_package(mbgl-glfw PRIVATE variant)
+target_add_mason_package(mbgl-glfw PRIVATE args)
 
 mbgl_platform_glfw()
 

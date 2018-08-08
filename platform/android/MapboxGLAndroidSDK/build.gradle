@@ -1,57 +1,33 @@
 apply plugin: 'com.android.library'
 
+//mappy modif
 apply from: '../configuration.gradle'
-apply from: '../dependencies.gradle'
-
-print "project.ext.dep.supportAnnotations "+ project.ext.dep.supportAnnotations+"\n"
-print "project.ext.dep.supportV4 "+ project.ext.dep.supportV4+"\n"
-print "project.ext.dep.supportDesign "+ project.ext.dep.supportDesign+"\n"
-print "project.ext.dep.timber "+ project.ext.dep.timber+"\n"
-print "project.ext.dep.okhttp3 "+ project.ext.dep.okhttp3+"\n"
-print "project.ext.dep.lost "+ project.ext.dep.lost+"\n"
-
-print "project.ext.node "+ project.ext.node+"\n"
-print "project.ext.npm "+ project.ext.npm+"\n"
-
-print "compileSdkVersion ${compileSdkVersion} / "+project.ext.compileSdkVersion+"\n"
-print "buildToolsVersion ${buildToolsVersion} / "+project.ext.buildToolsVersion+"\n"
-print "minSdkVersion "+project.ext.minSdkVersion.toInteger()+"\n"
-print "targetSdkVersion "+project.ext.targetSdkVersion.toInteger()+"\n"
+apply from: '../gradle/dependencies.gradle'
+//end mappy modif
 
 dependencies {
-    //Mappy modifs
-    compile project.ext.dep.supportAnnotations
-    compile project.ext.dep.supportFragmentV4
-    compile project.ext.dep.supportDesign
-    compile project.ext.dep.timber
-    compile project.ext.dep.okhttp3
-    compile(project.ext.dep.lost) {
-        exclude group: 'com.android.support'
-    }
-    testCompile project.ext.dep.junit
-    testCompile project.ext.dep.mockito
-    testCompile project.ext.dep.robolectric
-
-    // Mapbox Android Services (GeoJSON support)
-    compile(project.ext.dep.mapboxJavaGeoJSON) {
-        transitive = true
-    }
-
-    // Mapbox Android Services (Telemetry support)
-    compile(project.ext.dep.mapboxAndroidTelemetry) {
-        transitive = true
-        exclude group: 'com.android.support'
-    }
+    api dependenciesList.mapboxAndroidTelemetry
+    api dependenciesList.mapboxJavaGeoJSON
+    api dependenciesList.mapboxAndroidGestures
+    implementation dependenciesList.supportAnnotations
+    implementation dependenciesList.supportFragmentV4
+    implementation dependenciesList.timber
+    implementation dependenciesList.okhttp3
+    testImplementation dependenciesList.junit
+    testImplementation dependenciesList.mockito
+    testImplementation dependenciesList.robolectric
 }
 
 android {
-    compileSdkVersion project.ext.compileSdkVersion
-    buildToolsVersion project.ext.buildToolsVersion
+    compileSdkVersion androidVersions.compileSdkVersion
+    buildToolsVersion androidVersions.buildToolsVersion
 
     defaultConfig {
-        minSdkVersion project.ext.minSdkVersion
-        targetSdkVersion project.ext.targetSdkVersion
+        minSdkVersion androidVersions.minSdkVersion
+        targetSdkVersion androidVersions.targetSdkVersion
         buildConfigField "String", "GIT_REVISION_SHORT", String.format("\"%s\"", getGitRevision())
+        buildConfigField "String", "MAPBOX_SDK_IDENTIFIER", String.format("\"%s\"", "mapbox-maps-android")
+        buildConfigField "String", "MAPBOX_SDK_VERSION", String.format("\"%s\"", project.VERSION_NAME)
         buildConfigField "String", "MAPBOX_VERSION_STRING", String.format("\"Mapbox/%s\"", project.VERSION_NAME)
         buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT", String.format("\"MapboxEventsAndroid/%s\"", project.VERSION_NAME)
     }
@@ -93,13 +69,12 @@ android {
                     arguments "-DANDROID_CPP_FEATURES=rtti;exceptions"
                     arguments "-DMBGL_PLATFORM=android"
                     arguments "-DMASON_PLATFORM=android"
-                    arguments "-DNodeJS_EXECUTABLE=" + project.ext.node
-                    arguments "-Dnpm_EXECUTABLE=" + project.ext.npm
-                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                    arguments "-DNodeJS_EXECUTABLE=" + node
+                    arguments "-Dnpm_EXECUTABLE=" + npm
 
                     // Enable ccache if the user has installed it.
-                    if (project.ext.ccache?.trim()) {
-                        arguments "-DANDROID_CCACHE=" + project.ext.ccache
+                    if (ccache?.trim()) {
+                        arguments "-DANDROID_CCACHE=" + ccache
                         // ccache splits up the compile command until multiple invocations and uses -E
                         // with one of them, and clang doesn't like unused arguments in that case.
                         cFlags "-Qunused-arguments"
@@ -143,15 +118,14 @@ android {
     }
 
     lintOptions {
-        disable 'MissingTranslation', 'TypographyQuotes'
-        baseline file("lint-baseline-local.xml")
+        disable 'MissingTranslation', 'TypographyQuotes', 'ObsoleteLintCustomCheck', 'MissingPermission'
         checkAllWarnings true
         warningsAsErrors false
     }
 
     testOptions {
         unitTests {
-            returnDefaultValues = true
+            returnDefaultValues true
         }
     }
 
@@ -159,19 +133,10 @@ android {
         debug {
             jniDebuggable true
         }
-
-        release {
-            // aar proguard configuration
-            shrinkResources false
-            jniDebuggable false
-            minifyEnabled false
-            buildConfigField "String", "MAPBOX_EVENTS_USER_AGENT_BASE", new StringBuilder().append("\"").append("MapboxEventsAndroid/").append(project.VERSION_NAME).append("\"").toString()
-            consumerProguardFiles 'proguard-rules.pro'
-        }
     }
 }
 
-def getGitRevision() {
+def static getGitRevision() {
     def cmd = "git rev-parse --short HEAD"
     def proc = cmd.execute()
     def ref = proc.text.trim()
@@ -183,8 +148,8 @@ configurations {
     all*.exclude group: 'commons-collections', module: 'commons-collections'
 }
 
-//apply from: 'gradle-javadoc.gradle'
-apply from: 'gradle-publish.gradle'
-//apply from: 'gradle-checkstyle.gradle'
-//apply from: 'gradle-tests-staticblockremover.gradle'
-apply from: '../gradle-lint.gradle'
+// mappy modif : ${rootDir} is ..
+//apply from: "../gradle/gradle-javadoc.gradle"
+apply from: "../gradle/gradle-publish.gradle"
+//apply from: "../gradle/gradle-checkstyle.gradle"
+//apply from: "../gradle/gradle-tests-staticblockremover.gradle"

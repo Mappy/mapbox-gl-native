@@ -16,7 +16,7 @@ MapboxGLAndroidSDK/src/main/assets/
 
 # Local settings
 local.properties
-/configuration.gradle
+gradle/configuration.gradle
 
 # Token file
 MapboxGLAndroidSDKTestApp/src/main/res/values/developer-config.xml
@@ -30,3 +30,5 @@ captures/
 # Generated test cases
 MapboxGLAndroidSDKTestApp/src/androidTest/java/com/mapbox/mapboxsdk/testapp/activity/gen/
 
+# Generated list files from code generation
+/scripts/generate-style-code.list

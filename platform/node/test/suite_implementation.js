@@ -14,21 +14,25 @@ mbgl.on('message', function(msg) {
 var maps = new Map();
 
 module.exports = function (style, options, callback) {
+    var tileMode = options.mapMode === 'tile';
     if (options.recycleMap) {
-        if (maps.has(options.pixelRatio)) {
-            var map = maps.get(options.pixelRatio);
+        var key = options.pixelRatio + '/' + tileMode;
+        if (maps.has(key)) {
+            var map = maps.get(key);
             map.request = mapRequest;
         } else {
-            maps.set(options.pixelRatio, new mbgl.Map({
+            maps.set(key, new mbgl.Map({
                 ratio: options.pixelRatio,
-                request: mapRequest
+                request: mapRequest,
+                mode: options.mapMode
             }));
-            var map = maps.get(options.pixelRatio);
+            var map = maps.get(key);
         }
     } else {
         var map = new mbgl.Map({
             ratio: options.pixelRatio,
-            request: mapRequest
+            request: mapRequest,
+            mode: options.mapMode
         });
     }
 
@@ -49,6 +53,7 @@ module.exports = function (style, options, callback) {
     options.zoom = style.zoom || 0;
     options.bearing = style.bearing || 0;
     options.pitch = style.pitch || 0;
+    options.light = style.light || {};
 
     map.load(style, { defaultStyleCamera: true });
 
@@ -90,6 +95,12 @@ module.exports = function (style, options, callback) {
                 applyOperations(operations.slice(1), callback);
             });
 
+        } else if (operation[0] === 'sleep') {
+            // Prefer "wait", which renders until the map is loaded
+            // Use "sleep" when you need to test something that sidesteps the "loaded" logic
+            setTimeout(() => {
+                applyOperations(operations.slice(1), callback);
+            }, operation[1]);
         } else if (operation[0] === 'addImage' || operation[0] === 'updateImage') {
             var img = PNG.sync.read(fs.readFileSync(path.join(__dirname, '../../../mapbox-gl-js/test/integration', operation[2])));
             const testOpts = (operation.length > 3) ? operation[3] : {};
@@ -119,6 +130,8 @@ module.exports = function (style, options, callback) {
                 options.bearing = operation[1];
             } else if (operation[0] === 'setPitch') {
                 options.pitch = operation[1];
+            } else if (operation[0] === 'setLight') {
+                options.light = operation[1];
             }
 
             map[operation[0]].apply(map, operation.slice(1));

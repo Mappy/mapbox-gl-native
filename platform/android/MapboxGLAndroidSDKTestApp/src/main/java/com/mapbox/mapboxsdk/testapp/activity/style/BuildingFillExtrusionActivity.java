@@ -2,17 +2,13 @@ package com.mapbox.mapboxsdk.testapp.activity.style;
 
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.style.functions.Function;
-import com.mapbox.mapboxsdk.style.functions.stops.IdentityStops;
+import com.mapbox.mapboxsdk.style.expressions.Expression;
 import com.mapbox.mapboxsdk.style.layers.FillExtrusionLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.PropertyFactory;
@@ -20,7 +16,9 @@ import com.mapbox.mapboxsdk.style.light.Light;
 import com.mapbox.mapboxsdk.style.light.Position;
 import com.mapbox.mapboxsdk.testapp.R;
 
-import static com.mapbox.mapboxsdk.style.layers.Filter.eq;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.eq;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.get;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.literal;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillExtrusionBase;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillExtrusionColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillExtrusionHeight;
@@ -46,25 +44,22 @@ public class BuildingFillExtrusionActivity extends AppCompatActivity {
     setContentView(R.layout.activity_building_layer);
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @Override
-      public void onMapReady(@NonNull final MapboxMap map) {
-        mapboxMap = map;
-        setupBuildings();
-        setupLight();
-      }
+    mapView.getMapAsync(map -> {
+      mapboxMap = map;
+      setupBuildings();
+      setupLight();
     });
   }
 
   private void setupBuildings() {
     FillExtrusionLayer fillExtrusionLayer = new FillExtrusionLayer("3d-buildings", "composite");
     fillExtrusionLayer.setSourceLayer("building");
-    fillExtrusionLayer.setFilter(eq("extrude", "true"));
+    fillExtrusionLayer.setFilter(eq(get("extrude"), literal("true")));
     fillExtrusionLayer.setMinZoom(15);
     fillExtrusionLayer.setProperties(
       fillExtrusionColor(Color.LTGRAY),
-      fillExtrusionHeight(Function.property("height", new IdentityStops<Float>())),
-      fillExtrusionBase(Function.property("min_height", new IdentityStops<Float>())),
+      fillExtrusionHeight(Expression.get("height")),
+      fillExtrusionBase(Expression.get("min_height")),
       fillExtrusionOpacity(0.9f)
     );
     mapboxMap.addLayer(fillExtrusionLayer);
@@ -73,24 +68,18 @@ public class BuildingFillExtrusionActivity extends AppCompatActivity {
   private void setupLight() {
     light = mapboxMap.getLight();
 
-    findViewById(R.id.fabLightPosition).setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        isInitPosition = !isInitPosition;
-        if (isInitPosition) {
-          light.setPosition(new Position(1.5f, 90, 80));
-        } else {
-          light.setPosition(new Position(1.15f, 210, 30));
-        }
+    findViewById(R.id.fabLightPosition).setOnClickListener(v -> {
+      isInitPosition = !isInitPosition;
+      if (isInitPosition) {
+        light.setPosition(new Position(1.5f, 90, 80));
+      } else {
+        light.setPosition(new Position(1.15f, 210, 30));
       }
     });
 
-    findViewById(R.id.fabLightColor).setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        isRedColor = !isRedColor;
-        light.setColor(PropertyFactory.colorToRgbaString(isRedColor ? Color.RED : Color.BLUE));
-      }
+    findViewById(R.id.fabLightColor).setOnClickListener(v -> {
+      isRedColor = !isRedColor;
+      light.setColor(PropertyFactory.colorToRgbaString(isRedColor ? Color.RED : Color.BLUE));
     });
   }
 

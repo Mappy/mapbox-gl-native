@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <mbgl/storage/default_file_source.hpp>
-#import <mbgl/map/mode.hpp>
+#import <mbgl/renderer/mode.hpp>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MGLRendererConfiguration : NSObject
 
 /** Returns an instance of the current renderer configuration. */
-+ (instancetype)currentConfiguration;
+@property (class, nonatomic, readonly) MGLRendererConfiguration *currentConfiguration;
 
 /** The file source to use. Defaults to `mbgl::DefaultFileSource` */
 @property (nonatomic, readonly) mbgl::DefaultFileSource *fileSource;

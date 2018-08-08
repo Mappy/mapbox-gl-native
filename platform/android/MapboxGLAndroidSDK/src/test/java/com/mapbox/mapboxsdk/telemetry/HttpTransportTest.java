@@ -1,8 +1,8 @@
 package com.mapbox.mapboxsdk.telemetry;
 
-import org.junit.Test;
+import com.mapbox.android.telemetry.TelemetryUtils;
 
-import static com.mapbox.services.android.telemetry.utils.TelemetryUtils.toHumanReadableAscii;
+import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 
 public class HttpTransportTest {
@@ -14,6 +14,6 @@ public class HttpTransportTest {
     final String asciiVersion = "Sveriges Fj?ll/1.0/1 MapboxEventsAndroid/4.0.0-SNAPSHOT";
 
     assertEquals("asciiVersion and swedishUserAgent should match", asciiVersion,
-      toHumanReadableAscii(swedishUserAgent));
+      TelemetryUtils.toHumanReadableAscii(swedishUserAgent));
   }
 }

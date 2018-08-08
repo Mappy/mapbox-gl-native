@@ -11,13 +11,15 @@ import android.support.annotation.NonNull;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
+
+import com.mapbox.android.telemetry.TelemetryEnabler;
+import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.attribution.Attribution;
 import com.mapbox.mapboxsdk.attribution.AttributionParser;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.style.sources.Source;
-import com.mapbox.services.android.telemetry.MapboxTelemetry;
-import com.mapbox.mapboxsdk.Mapbox;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,17 +34,16 @@ import java.util.Set;
  * Additionally an telemetry option item is shown to configure telemetry settings.
  * </p>
  */
-class AttributionDialogManager implements View.OnClickListener, DialogInterface.OnClickListener {
+public class AttributionDialogManager implements View.OnClickListener, DialogInterface.OnClickListener {
 
   private static final String MAP_FEEDBACK_URL = "https://www.mapbox.com/map-feedback";
   private static final String MAP_FEEDBACK_LOCATION_FORMAT = MAP_FEEDBACK_URL + "/#/%f/%f/%d";
 
   private final Context context;
   private final MapboxMap mapboxMap;
-  private String[] attributionTitles;
   private Set<Attribution> attributionSet;
 
-  AttributionDialogManager(@NonNull Context context, @NonNull MapboxMap mapboxMap) {
+  public AttributionDialogManager(@NonNull Context context, @NonNull MapboxMap mapboxMap) {
     this.context = context;
     this.mapboxMap = mapboxMap;
   }
@@ -60,12 +61,11 @@ class AttributionDialogManager implements View.OnClickListener, DialogInterface.
     // check is hosting activity isn't finishing
     // https://github.com/mapbox/mapbox-gl-native/issues/11238
     if (!isActivityFinishing) {
-      showAttributionDialog();
+      showAttributionDialog(getAttributionTitles());
     }
   }
 
-  private void showAttributionDialog() {
-    attributionTitles = getAttributionTitles();
+  protected void showAttributionDialog(String[] attributionTitles) {
     AlertDialog.Builder builder = new AlertDialog.Builder(context);
     builder.setTitle(R.string.mapbox_attributionsDialogTitle);
     builder.setAdapter(new ArrayAdapter<>(context, R.layout.mapbox_attribution_list_item, attributionTitles), this);
@@ -91,7 +91,7 @@ class AttributionDialogManager implements View.OnClickListener, DialogInterface.
   }
 
   private boolean isLatestEntry(int attributionKeyIndex) {
-    return attributionKeyIndex == attributionTitles.length - 1;
+    return attributionKeyIndex == getAttributionTitles().length - 1;
   }
 
   private void showTelemetryDialog() {
@@ -103,7 +103,8 @@ class AttributionDialogManager implements View.OnClickListener, DialogInterface.
       public void onClick(DialogInterface dialog, int which) {
         //Mappy modif
         if(Mapbox.ENABLE_METRICS_ON_MAPPY) {
-          MapboxTelemetry.getInstance().setTelemetryEnabled(true);
+          TelemetryEnabler.updateTelemetryState(TelemetryEnabler.State.ENABLED);
+          Telemetry.obtainTelemetry().enable();
         }
         dialog.cancel();
       }
@@ -120,7 +121,8 @@ class AttributionDialogManager implements View.OnClickListener, DialogInterface.
       public void onClick(DialogInterface dialog, int which) {
         //Mappy modif
         if(Mapbox.ENABLE_METRICS_ON_MAPPY) {
-          MapboxTelemetry.getInstance().setTelemetryEnabled(false);
+          Telemetry.obtainTelemetry().disable();
+          TelemetryEnabler.updateTelemetryState(TelemetryEnabler.State.DISABLED);
         }
         dialog.cancel();
       }

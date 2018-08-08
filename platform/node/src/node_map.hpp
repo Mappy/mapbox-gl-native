@@ -50,6 +50,7 @@ public:
     static void RemoveLayer(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void AddImage(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void RemoveImage(const Nan::FunctionCallbackInfo<v8::Value>&);
+    static void SetLayerZoomRange(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void SetLayoutProperty(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void SetPaintProperty(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void SetFilter(const Nan::FunctionCallbackInfo<v8::Value>&);
@@ -57,6 +58,10 @@ public:
     static void SetZoom(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void SetBearing(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void SetPitch(const Nan::FunctionCallbackInfo<v8::Value>&);
+    static void SetLight(const Nan::FunctionCallbackInfo<v8::Value>&);
+    static void SetAxonometric(const Nan::FunctionCallbackInfo<v8::Value>&);
+    static void SetXSkew(const Nan::FunctionCallbackInfo<v8::Value>&);
+    static void SetYSkew(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void DumpDebugLogs(const Nan::FunctionCallbackInfo<v8::Value>&);
     static void QueryRenderedFeatures(const Nan::FunctionCallbackInfo<v8::Value>&);
 
@@ -71,6 +76,7 @@ public:
     std::unique_ptr<mbgl::AsyncRequest> request(const mbgl::Resource&, mbgl::FileSource::Callback);
 
     const float pixelRatio;
+    mbgl::MapMode mode;
     NodeThreadPool threadpool;
     NodeMapObserver mapObserver;
     std::unique_ptr<mbgl::HeadlessFrontend> frontend;

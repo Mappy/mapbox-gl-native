@@ -2,7 +2,6 @@ package com.mapbox.mapboxsdk.testapp.activity.style;
 
 import android.graphics.Color;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -14,7 +13,7 @@ import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.style.expressions.Expression;
 import com.mapbox.mapboxsdk.style.layers.CircleLayer;
 import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
@@ -25,7 +24,10 @@ import java.net.URL;
 
 import timber.log.Timber;
 
-import static com.mapbox.mapboxsdk.style.layers.Filter.in;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.array;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.get;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.has;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.literal;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.circleColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.circleRadius;
 
@@ -56,16 +58,12 @@ public class CircleLayerActivity extends AppCompatActivity implements View.OnCli
 
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @Override
-      public void onMapReady(@NonNull
-                             final MapboxMap map) {
-        mapboxMap = map;
-        addBusStopSource();
-        addBusStopCircleLayer();
-        initFloatingActionButtons();
-        isLoadingStyle = false;
-      }
+    mapView.getMapAsync(map -> {
+      mapboxMap = map;
+      addBusStopSource();
+      addBusStopCircleLayer();
+      initFloatingActionButtons();
+      isLoadingStyle = false;
     });
   }
 
@@ -123,7 +121,7 @@ public class CircleLayerActivity extends AppCompatActivity implements View.OnCli
   }
 
   private void applyBusRouteFilterToBusStopSource() {
-    layer.setFilter(in("number", (Object[]) Data.STOPS_FOR_ROUTE));
+    layer.setFilter(has(Expression.toString(get("number")), array(literal(Data.STOPS_FOR_ROUTE))));
   }
 
   private void addBusRouteSource() {
@@ -161,12 +159,9 @@ public class CircleLayerActivity extends AppCompatActivity implements View.OnCli
   }
 
   private void loadNewStyle() {
-    mapboxMap.setStyleUrl(getNextStyle(), new MapboxMap.OnStyleLoadedListener() {
-      @Override
-      public void onStyleLoaded(String style) {
-        addBusStop();
-        isLoadingStyle = false;
-      }
+    mapboxMap.setStyleUrl(getNextStyle(), style -> {
+      addBusStop();
+      isLoadingStyle = false;
     });
   }
 

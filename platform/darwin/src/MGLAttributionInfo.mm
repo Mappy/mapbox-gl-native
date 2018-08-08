@@ -49,7 +49,12 @@
         CGFloat blue;
         CGFloat alpha;
 #if !TARGET_OS_IPHONE
-        linkColor = [linkColor colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+        // CSS uses the sRGB color space.
+        if ([NSColor redColor].colorSpaceName == NSCalibratedRGBColorSpace) {
+            linkColor = [linkColor colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+        } else {
+            linkColor = [linkColor colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        }
 #endif
         [linkColor getRed:&red green:&green blue:&blue alpha:&alpha];
         [css appendFormat:
@@ -160,6 +165,7 @@
                 [NSURLQueryItem queryItemWithName:@"owner" value:stylePathComponents[1]],
                 [NSURLQueryItem queryItemWithName:@"id" value:stylePathComponents[2]],
                 [NSURLQueryItem queryItemWithName:@"access_token" value:[MGLAccountManager accessToken]],
+                [NSURLQueryItem queryItemWithName:@"map_sdk_version" value:[NSBundle mgl_frameworkInfoDictionary][@"MGLSemanticVersionString"]],
             ]];
         }
     }

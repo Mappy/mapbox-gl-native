@@ -343,6 +343,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 #else
     image = [[NSImage alloc] initWithCGImage:cgimg size:[backgroundImage extent].size];
 #endif
+
     CGImageRelease(cgimg);
     return image;
 }

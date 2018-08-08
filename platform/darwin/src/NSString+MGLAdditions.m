@@ -1,5 +1,9 @@
 #import "NSString+MGLAdditions.h"
 
+#if TARGET_OS_OSX
+    #import <Availability.h>
+#endif
+
 @implementation NSString (MGLAdditions)
 
 - (NSRange)mgl_wholeRange {
@@ -13,7 +17,7 @@
 - (NSString *)mgl_titleCasedStringWithLocale:(NSLocale *)locale {
     NSMutableString *string = self.mutableCopy;
     NSOrthography *orthography;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000 || __MAC_OS_X_VERSION_MAX_ALLOWED >= 101300
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
     if ([NSOrthography respondsToSelector:@selector(defaultOrthographyForLanguage:)]) {
@@ -39,6 +43,25 @@
         [string replaceCharactersInRange:tokenRange withString:word];
     }];
     return string;
+}
+
+- (NSString *)mgl_stringByTransliteratingIntoScript:(NSString *)script {
+    if (@available(iOS 9.0, *)) {
+        NSMutableString *string = self.mutableCopy;
+        NSStringTransform transform;
+        if ([script isEqualToString:@"Latn"]) {
+            transform = NSStringTransformToLatin;
+        } else if ([script isEqualToString:@"Hans"]) {
+            // No transform available.
+        } else if ([script isEqualToString:@"Cyrl"]) {
+            transform = @"Any-Latin; Latin-Cyrillic";
+        } else if ([script isEqualToString:@"Arab"]) {
+            transform = @"Any-Latin; Latin-Arabic";
+        }
+        return transform ? [string stringByApplyingTransform:transform reverse:NO] : string;
+    } else {
+        return self;
+    }
 }
 
 @end

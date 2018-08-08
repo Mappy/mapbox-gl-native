@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mbgl/util/noncopyable.hpp>
-#include <mbgl/util/any.hpp>
+#include <mbgl/util/unique_any.hpp>
 #include <mbgl/util/immutable.hpp>
 #include <mbgl/style/layer_type.hpp>
 #include <mbgl/style/types.hpp>
@@ -19,9 +19,11 @@ class LineLayer;
 class CircleLayer;
 class SymbolLayer;
 class RasterLayer;
+class HillshadeLayer;
 class BackgroundLayer;
 class CustomLayer;
 class FillExtrusionLayer;
+class HeatmapLayer;
 class LayerObserver;
 
 /**
@@ -86,10 +88,14 @@ public:
             return std::forward<V>(visitor)(*as<RasterLayer>());
         case LayerType::Background:
             return std::forward<V>(visitor)(*as<BackgroundLayer>());
+        case LayerType::Hillshade:
+            return std::forward<V>(visitor)(*as<HillshadeLayer>());
         case LayerType::Custom:
             return std::forward<V>(visitor)(*as<CustomLayer>());
         case LayerType::FillExtrusion:
             return std::forward<V>(visitor)(*as<FillExtrusionLayer>());
+        case LayerType::Heatmap:
+            return std::forward<V>(visitor)(*as<HeatmapLayer>());
         }
 
 
@@ -126,7 +132,7 @@ public:
     // For use in SDK bindings, which store a reference to a platform-native peer
     // object here, so that separately-obtained references to this object share
     // identical platform-native peers.
-    any peer;
+    util::unique_any peer;
 };
 
 } // namespace style

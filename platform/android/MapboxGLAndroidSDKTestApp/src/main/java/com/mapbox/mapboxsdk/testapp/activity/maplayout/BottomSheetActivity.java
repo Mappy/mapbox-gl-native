@@ -1,12 +1,12 @@
 package com.mapbox.mapboxsdk.testapp.activity.maplayout;
 
 import android.content.Context;
-import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.BottomSheetBehavior;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
@@ -35,7 +35,6 @@ public class BottomSheetActivity extends AppCompatActivity {
   private static final String TAG_BOTTOM_FRAGMENT = "com.mapbox.mapboxsdk.fragment.tag.bottom";
 
   private boolean bottomSheetFragmentAdded;
-  private int mapViewCounter;
 
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -45,22 +44,11 @@ public class BottomSheetActivity extends AppCompatActivity {
     ActionBar actionBar = getSupportActionBar();
     if (actionBar != null) {
       actionBar.setDisplayHomeAsUpEnabled(true);
-      actionBar.setDisplayHomeAsUpEnabled(true);
     }
 
-    findViewById(R.id.fabFragment).setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        addMapFragment();
-      }
-    });
+    findViewById(R.id.fabFragment).setOnClickListener(v -> addMapFragment());
 
-    findViewById(R.id.fabBottomSheet).setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        toggleBottomSheetMapFragment();
-      }
-    });
+    findViewById(R.id.fabBottomSheet).setOnClickListener(v -> toggleBottomSheetMapFragment());
 
     BottomSheetBehavior bottomSheetBehavior = BottomSheetBehavior.from(findViewById(R.id.bottom_sheet));
     bottomSheetBehavior.setPeekHeight((int) (64 * getResources().getDisplayMetrics().density));
@@ -78,25 +66,29 @@ public class BottomSheetActivity extends AppCompatActivity {
 
   @Override
   public void onBackPressed() {
-    super.onBackPressed();
-    if (mapViewCounter > 0) {
-      mapViewCounter--;
-      Toast.makeText(this, "Amount of main map fragments: " + mapViewCounter, Toast.LENGTH_SHORT).show();
+    FragmentManager fragmentManager = getSupportFragmentManager();
+
+    if (fragmentManager.getBackStackEntryCount() > 0) {
+      fragmentManager.popBackStack();
+    } else {
+      super.onBackPressed();
     }
   }
 
   private void addMapFragment() {
-    FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
-    MainMapFragment mainMapFragment = MainMapFragment.newInstance(mapViewCounter);
-    if (mapViewCounter == 0) {
+    FragmentManager fragmentManager = getSupportFragmentManager();
+    int fragmentCount = fragmentManager.getBackStackEntryCount();
+
+    FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+    MainMapFragment mainMapFragment = MainMapFragment.newInstance(fragmentCount);
+    if (fragmentCount == 0) {
       fragmentTransaction.add(R.id.fragment_container, mainMapFragment, TAG_MAIN_FRAGMENT);
     } else {
       fragmentTransaction.replace(R.id.fragment_container, mainMapFragment, TAG_MAIN_FRAGMENT);
     }
-    fragmentTransaction.addToBackStack(null);
+    fragmentTransaction.addToBackStack(String.valueOf(mainMapFragment.hashCode()));
     fragmentTransaction.commit();
-    mapViewCounter++;
-    Toast.makeText(this, "Amount of main map fragments: " + mapViewCounter, Toast.LENGTH_SHORT).show();
+    Toast.makeText(this, "Amount of main map fragments: " + (fragmentCount + 1), Toast.LENGTH_SHORT).show();
   }
 
   private void toggleBottomSheetMapFragment() {
@@ -158,10 +150,7 @@ public class BottomSheetActivity extends AppCompatActivity {
 
     @Override
     public void onMapReady(MapboxMap mapboxMap) {
-      Location location = mapboxMap.getMyLocation();
-      if (location != null) {
-        mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location), 15));
-      }
+      mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(37.760545, -122.436055), 15));
     }
 
     @Override
@@ -214,7 +203,6 @@ public class BottomSheetActivity extends AppCompatActivity {
     public static BottomSheetFragment newInstance() {
       BottomSheetFragment mapFragment = new BottomSheetFragment();
       MapboxMapOptions mapboxMapOptions = new MapboxMapOptions();
-      mapboxMapOptions.locationEnabled(true);
       mapboxMapOptions.renderSurfaceOnTop(true);
       mapboxMapOptions.styleUrl(Style.LIGHT);
       mapFragment.setArguments(MapFragmentUtils.createFragmentArgs(mapboxMapOptions));
@@ -237,10 +225,7 @@ public class BottomSheetActivity extends AppCompatActivity {
 
     @Override
     public void onMapReady(MapboxMap mapboxMap) {
-      Location location = mapboxMap.getMyLocation();
-      if (location != null) {
-        mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location), 15));
-      }
+      mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(37.760545, -122.436055), 15));
     }
 
     @Override

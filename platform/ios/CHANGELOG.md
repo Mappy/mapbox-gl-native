@@ -2,11 +2,7 @@
 
 Mapbox welcomes participation and contributions from everyone. Please read [CONTRIBUTING.md](../../CONTRIBUTING.md) to get started.
 
-## 3.7.7 - May 3, 2018
-
-* Fixed a crash when removing an `MGLOfflinePack`. ([#11821](https://github.com/mapbox/mapbox-gl-native/issues/11821))
-
-## 4.0.0 - April 19, 2018
+## 4.0.0
 
 The 4.0._x_ series of releases will be the last to support iOS 8. The minimum iOS deployment version will increase to iOS 9.0 in a future release.
 
@@ -56,7 +52,6 @@ The 4.0._x_ series of releases will be the last to support iOS 8. The minimum iO
 * The `MGLMapView.selectedAnnotations` property (backed by `-[MGLMapView setSelectedAnnotations:]`) now selects annotations that are off-screen. ([#9790](https://github.com/mapbox/mapbox-gl-native/issues/9790))
 * The `animated` parameter to `-[MGLMapView selectAnnotation:animated:]` now controls whether the annotation and its callout are brought on-screen. If `animated` is `NO` then the annotation is selected if offscreen, but the map is not panned. Currently only point annotations are supported. Setting the `MGLMapView.selectedAnnotations` property now animates. ([#3249](https://github.com/mapbox/mapbox-gl-native/issues/3249))
 * Fixed a crash when rapidly adding and removing annotations. ([#11551](https://github.com/mapbox/mapbox-gl-native/issues/11551), [#11575](https://github.com/mapbox/mapbox-gl-native/issues/11575))
-* Marked protocol method `-[MGLCalloutView presentCalloutFromRect:inView:constrainedToView:animated:]` as unavailable. Use `-[MGLCalloutView presentCalloutFromRect:inView:constrainedToRect:animated:]` instead. ([#11738](https://github.com/mapbox/mapbox-gl-native/pull/11738))
 
 ### Map snapshots
 

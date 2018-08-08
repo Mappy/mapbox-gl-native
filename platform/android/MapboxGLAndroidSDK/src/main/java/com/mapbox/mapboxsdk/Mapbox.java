@@ -10,14 +10,8 @@ import android.text.TextUtils;
 
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
-import com.mapbox.mapboxsdk.location.LocationSource;
+import com.mapbox.mapboxsdk.maps.Telemetry;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
-import com.mapbox.services.android.telemetry.location.LocationEngine;
-import com.mapbox.services.android.telemetry.location.LocationEnginePriority;
-import com.mapbox.services.android.telemetry.location.LocationEngineProvider;
-import com.mapbox.services.android.telemetry.MapboxTelemetry;
-
-import timber.log.Timber;
 
 /**
  * The entry point to initialize the Mapbox Android SDK.
@@ -36,7 +30,6 @@ public final class Mapbox {
   private Context context;
   private String accessToken;
   private Boolean connected;
-  private LocationEngine locationEngine;
 
   /**
    * Get an instance of Mapbox.
@@ -59,31 +52,20 @@ public final class Mapbox {
   public static synchronized Mapbox getInstance(@NonNull Context context, @NonNull String accessToken, boolean initWithLocalLocation) {
     if (INSTANCE == null) {
       Context appContext = context.getApplicationContext();
-      LocationEngine locationEngine = null;
-      if(initWithLocalLocation) {
-        LocationEngineProvider locationEngineProvider = new LocationEngineProvider(context);
-        locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
-        locationEngine.setPriority(LocationEnginePriority.NO_POWER);
-      }
-      INSTANCE = new Mapbox(appContext, accessToken, locationEngine);
-
+      INSTANCE = new Mapbox(appContext, accessToken);
+      // Mappy modif
       if(ENABLE_METRICS_ON_MAPPY) {
-        try {
-          MapboxTelemetry.getInstance().initialize(
-                  appContext, accessToken, BuildConfig.MAPBOX_EVENTS_USER_AGENT, locationEngine);
-        } catch (Exception exception) {
-          Timber.e(exception, "Unable to instantiate Mapbox telemetry");
-        }
+        Telemetry.initialize();
       }
       ConnectivityReceiver.instance(appContext);
     }
+
     return INSTANCE;
   }
 
-  Mapbox(@NonNull Context context, @NonNull String accessToken, LocationEngine locationEngine) {
+  Mapbox(@NonNull Context context, @NonNull String accessToken) {
     this.context = context;
     this.accessToken = accessToken;
-    this.locationEngine = locationEngine;
   }
 
   /**
@@ -156,32 +138,4 @@ public final class Mapbox {
     NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
     return (activeNetwork != null && activeNetwork.isConnected());
   }
-
-  /**
-   * Returns a location source instance with empty methods.
-   *
-   * @return an empty location source implementation
-   * @deprecated Replaced by {@link Mapbox#getLocationEngine()}
-   */
-  @Deprecated
-  public static LocationSource getLocationSource() {
-    return new EmptyLocationSource();
-  }
-
-
-  /**
-   * Returns the location engine used by the SDK.
-   *
-   * @return the location engine configured
-   */
-  public static LocationEngine getLocationEngine() {
-    return INSTANCE.locationEngine;
-  }
-
-  public static void setLocationSource(LocationEngine  locSource) {
-    if(INSTANCE!=null){
-      INSTANCE.locationEngine = locSource;
-    }
-  }
-
 }

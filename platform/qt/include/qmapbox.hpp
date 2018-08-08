@@ -9,6 +9,12 @@
 
 // This header follows the Qt coding style: https://wiki.qt.io/Qt_Coding_Style
 
+#if defined(QT_BUILD_MAPBOXGL_LIB)
+    #define Q_MAPBOXGL_EXPORT Q_DECL_EXPORT
+#else
+    #define Q_MAPBOXGL_EXPORT Q_DECL_IMPORT
+#endif
+
 namespace QMapbox {
 
 typedef QPair<double, double> Coordinate;
@@ -20,13 +26,14 @@ typedef QList<Coordinates> CoordinatesCollection;
 
 typedef QList<CoordinatesCollection> CoordinatesCollections;
 
-struct Q_DECL_EXPORT Feature {
+struct Q_MAPBOXGL_EXPORT Feature {
     enum Type {
         PointType = 1,
         LineStringType,
         PolygonType
     };
 
+    /*! Class constructor. */
     Feature(Type type_ = PointType, const CoordinatesCollections& geometry_ = CoordinatesCollections(),
             const QVariantMap& properties_ = QVariantMap(), const QVariant& id_ = QVariant())
         : type(type_), geometry(geometry_), properties(properties_), id(id_) {}
@@ -37,7 +44,7 @@ struct Q_DECL_EXPORT Feature {
     QVariant id;
 };
 
-struct Q_DECL_EXPORT ShapeAnnotationGeometry {
+struct Q_MAPBOXGL_EXPORT ShapeAnnotationGeometry {
     enum Type {
         LineStringType = 1,
         PolygonType,
@@ -45,6 +52,7 @@ struct Q_DECL_EXPORT ShapeAnnotationGeometry {
         MultiPolygonType
     };
 
+    /*! Class constructor. */
     ShapeAnnotationGeometry(Type type_ = LineStringType, const CoordinatesCollections& geometry_ = CoordinatesCollections())
         : type(type_), geometry(geometry_) {}
 
@@ -52,12 +60,13 @@ struct Q_DECL_EXPORT ShapeAnnotationGeometry {
     CoordinatesCollections geometry;
 };
 
-struct Q_DECL_EXPORT SymbolAnnotation {
+struct Q_MAPBOXGL_EXPORT SymbolAnnotation {
     Coordinate geometry;
     QString icon;
 };
 
-struct Q_DECL_EXPORT LineAnnotation {
+struct Q_MAPBOXGL_EXPORT LineAnnotation {
+    /*! Class constructor. */
     LineAnnotation(const ShapeAnnotationGeometry& geometry_ = ShapeAnnotationGeometry(), float opacity_ = 1.0f,
             float width_ = 1.0f, const QColor& color_ = Qt::black)
         : geometry(geometry_), opacity(opacity_), width(width_), color(color_) {}
@@ -68,7 +77,8 @@ struct Q_DECL_EXPORT LineAnnotation {
     QColor color;
 };
 
-struct Q_DECL_EXPORT FillAnnotation {
+struct Q_MAPBOXGL_EXPORT FillAnnotation {
+    /*! Class constructor. */
     FillAnnotation(const ShapeAnnotationGeometry& geometry_ = ShapeAnnotationGeometry(), float opacity_ = 1.0f,
             const QColor& color_ = Qt::black, const QVariant& outlineColor_ = QVariant())
         : geometry(geometry_), opacity(opacity_), color(color_), outlineColor(outlineColor_) {}
@@ -88,13 +98,13 @@ enum NetworkMode {
     Offline,
 };
 
-Q_DECL_EXPORT QList<QPair<QString, QString> >& defaultStyles();
+Q_MAPBOXGL_EXPORT QList<QPair<QString, QString> >& defaultStyles();
 
-Q_DECL_EXPORT NetworkMode networkMode();
-Q_DECL_EXPORT void setNetworkMode(NetworkMode);
+Q_MAPBOXGL_EXPORT NetworkMode networkMode();
+Q_MAPBOXGL_EXPORT void setNetworkMode(NetworkMode);
 
 // This struct is a 1:1 copy of mbgl::CustomLayerRenderParameters.
-struct Q_DECL_EXPORT CustomLayerRenderParameters {
+struct Q_MAPBOXGL_EXPORT CustomLayerRenderParameters {
     double width;
     double height;
     double latitude;
@@ -102,12 +112,16 @@ struct Q_DECL_EXPORT CustomLayerRenderParameters {
     double zoom;
     double bearing;
     double pitch;
-    double altitude;
+    double fieldOfView;
 };
 
-typedef void (*CustomLayerInitializeFunction)(void* context) ;
-typedef void (*CustomLayerRenderFunction)(void* context, const CustomLayerRenderParameters&);
-typedef void (*CustomLayerDeinitializeFunction)(void* context);
+class Q_MAPBOXGL_EXPORT CustomLayerHostInterface {
+public:
+    virtual ~CustomLayerHostInterface() = default;
+    virtual void initialize() = 0;
+    virtual void render(const CustomLayerRenderParameters&) = 0;
+    virtual void deinitialize() = 0;
+};
 
 } // namespace QMapbox
 

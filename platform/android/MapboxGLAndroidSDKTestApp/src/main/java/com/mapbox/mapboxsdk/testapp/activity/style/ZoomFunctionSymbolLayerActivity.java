@@ -2,34 +2,33 @@ package com.mapbox.mapboxsdk.testapp.activity.style;
 
 import android.graphics.PointF;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 
 import com.google.gson.JsonObject;
-import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.geojson.Feature;
+import com.mapbox.geojson.FeatureCollection;
+import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 import com.mapbox.mapboxsdk.testapp.R;
-import com.mapbox.services.commons.geojson.Feature;
-import com.mapbox.services.commons.geojson.FeatureCollection;
-import com.mapbox.services.commons.geojson.Point;
-import com.mapbox.services.commons.models.Position;
+
 
 import java.util.List;
 
 import timber.log.Timber;
 
-import static com.mapbox.mapboxsdk.style.functions.Function.property;
-import static com.mapbox.mapboxsdk.style.functions.Function.zoom;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stop.stop;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stops.categorical;
-import static com.mapbox.mapboxsdk.style.functions.stops.Stops.interval;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.get;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.interpolate;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.linear;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.literal;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.stop;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.switchCase;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.zoom;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconAllowOverlap;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconImage;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconSize;
@@ -64,14 +63,11 @@ public class ZoomFunctionSymbolLayerActivity extends AppCompatActivity {
 
     mapView = (MapView) findViewById(R.id.mapView);
     mapView.onCreate(savedInstanceState);
-    mapView.getMapAsync(new OnMapReadyCallback() {
-      @Override
-      public void onMapReady(@NonNull final MapboxMap map) {
-        mapboxMap = map;
-        updateSource();
-        addLayer();
-        addMapClickListener();
-      }
+    mapView.getMapAsync(map -> {
+      mapboxMap = map;
+      updateSource();
+      addLayer();
+      addMapClickListener();
     });
   }
 
@@ -93,15 +89,13 @@ public class ZoomFunctionSymbolLayerActivity extends AppCompatActivity {
   }
 
   private FeatureCollection createFeatureCollection() {
-    Position position = isInitialPosition
-      ? Position.fromCoordinates(-74.01618140, 40.701745)
-      : Position.fromCoordinates(-73.988097, 40.749864);
+    Point point = isInitialPosition
+      ? Point.fromLngLat(-74.01618140, 40.701745)
+      : Point.fromLngLat(-73.988097, 40.749864);
 
-    Point point = Point.fromCoordinates(position);
-    Feature feature = Feature.fromGeometry(point);
     JsonObject properties = new JsonObject();
     properties.addProperty(KEY_PROPERTY_SELECTED, isSelected);
-    feature.setProperties(properties);
+    Feature feature = Feature.fromGeometry(point, properties);
     return FeatureCollection.fromFeatures(new Feature[] {feature});
   }
 
@@ -109,20 +103,16 @@ public class ZoomFunctionSymbolLayerActivity extends AppCompatActivity {
     layer = new SymbolLayer(LAYER_ID, SOURCE_ID);
     layer.setProperties(
       iconImage(
-        zoom(
-          interval(
-            stop(ZOOM_STOP_MIN_VALUE, iconImage(BUS_MAKI_ICON_ID)),
-            stop(ZOOM_STOP_MAX_VALUE, iconImage(CAFE_MAKI_ICON_ID))
-          )
-        )
+         interpolate(
+           linear(), zoom(),
+           stop(ZOOM_STOP_MIN_VALUE, BUS_MAKI_ICON_ID),
+           stop(ZOOM_STOP_MAX_VALUE, CAFE_MAKI_ICON_ID)
+         )
       ),
       iconSize(
-        property(
-          KEY_PROPERTY_SELECTED,
-          categorical(
-            stop(true, iconSize(3.0f)),
-            stop(false, iconSize(1.0f))
-          )
+        switchCase(
+          get(KEY_PROPERTY_SELECTED), literal(3.0f),
+          literal(1.0f)
         )
       ),
       iconAllowOverlap(true)
@@ -131,19 +121,16 @@ public class ZoomFunctionSymbolLayerActivity extends AppCompatActivity {
   }
 
   private void addMapClickListener() {
-    mapboxMap.setOnMapClickListener(new MapboxMap.OnMapClickListener() {
-      @Override
-      public void onMapClick(@NonNull LatLng point) {
-        PointF screenPoint = mapboxMap.getProjection().toScreenLocation(point);
-        List<Feature> featureList = mapboxMap.queryRenderedFeatures(screenPoint, LAYER_ID);
-        if (!featureList.isEmpty()) {
-          Feature feature = featureList.get(0);
-          boolean selectedNow = feature.getBooleanProperty(KEY_PROPERTY_SELECTED);
-          isSelected = !selectedNow;
-          updateSource();
-        } else {
-          Timber.e("No features found");
-        }
+    mapboxMap.setOnMapClickListener(point -> {
+      PointF screenPoint = mapboxMap.getProjection().toScreenLocation(point);
+      List<Feature> featureList = mapboxMap.queryRenderedFeatures(screenPoint, LAYER_ID);
+      if (!featureList.isEmpty()) {
+        Feature feature = featureList.get(0);
+        boolean selectedNow = feature.getBooleanProperty(KEY_PROPERTY_SELECTED);
+        isSelected = !selectedNow;
+        updateSource();
+      } else {
+        Timber.e("No features found");
       }
     });
   }

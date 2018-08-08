@@ -27,12 +27,13 @@ public:
     queryRenderedFeatures(const ScreenLineString& geometry,
                           const TransformState& transformState,
                           const std::vector<const RenderLayer*>& layers,
-                          const RenderedQueryOptions& options) const final;
+                          const RenderedQueryOptions& options,
+                          const CollisionIndex& collisionIndex) const final;
 
     std::vector<Feature>
     querySourceFeatures(const SourceQueryOptions&) const final;
 
-    void onLowMemory() final;
+    void reduceMemoryUse() final;
     void dumpDebugLogs() const final;
 
 private:
@@ -43,7 +44,7 @@ private:
 
 template <>
 inline bool RenderSource::is<RenderAnnotationSource>() const {
-    return baseImpl->type == SourceType::Annotations;
+    return baseImpl->type == style::SourceType::Annotations;
 }
 
 } // namespace mbgl

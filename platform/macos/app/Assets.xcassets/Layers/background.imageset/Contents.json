@@ -2,7 +2,8 @@
   "images" : [
     {
       "idiom" : "universal",
-      "filename" : "background.pdf"
+      "filename" : "background.pdf",
+      "language-direction" : "left-to-right"
     }
   ],
   "info" : {

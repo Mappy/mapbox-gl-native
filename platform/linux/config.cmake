@@ -1,6 +1,5 @@
 mason_use(glfw VERSION 2017-07-13-67c9155)
 mason_use(mesa VERSION 13.0.4)
-mason_use(boost_libprogram_options VERSION 1.62.0${MASON_CXXABI_SUFFIX})
 mason_use(sqlite VERSION 3.14.2)
 mason_use(libuv VERSION 1.9.1)
 mason_use(nunicode VERSION 1.7.1)
@@ -10,6 +9,7 @@ mason_use(webp VERSION 0.5.1)
 mason_use(gtest VERSION 1.8.0${MASON_CXXABI_SUFFIX})
 mason_use(benchmark VERSION 1.2.0)
 mason_use(icu VERSION 58.1-min-size)
+mason_use(args VERSION 6.2.0 HEADER_ONLY)
 
 include(cmake/loop-uv.cmake)
 
@@ -19,7 +19,6 @@ macro(mbgl_platform_core)
     if(WITH_OSMESA)
         target_sources(mbgl-core
             PRIVATE platform/default/headless_backend_osmesa.cpp
-            PRIVATE platform/default/mbgl/gl/headless_display.cpp
         )
         target_link_libraries(mbgl-core
             PUBLIC -lOSMesa
@@ -27,17 +26,14 @@ macro(mbgl_platform_core)
     elseif(WITH_EGL)
         target_sources(mbgl-core
             PRIVATE platform/linux/src/headless_backend_egl.cpp
-            PRIVATE platform/linux/src/headless_display_egl.cpp
         )
         target_link_libraries(mbgl-core
             PUBLIC -lGLESv2
             PUBLIC -lEGL
-            PUBLIC -lgbm
         )
     else()
         target_sources(mbgl-core
             PRIVATE platform/linux/src/headless_backend_glx.cpp
-            PRIVATE platform/linux/src/headless_display_glx.cpp
         )
         target_link_libraries(mbgl-core
             PUBLIC -lGL
@@ -67,7 +63,6 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/mbgl/gl/headless_frontend.hpp
         PRIVATE platform/default/mbgl/gl/headless_backend.cpp
         PRIVATE platform/default/mbgl/gl/headless_backend.hpp
-        PRIVATE platform/default/mbgl/gl/headless_display.hpp
 
         # Thread pool
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
@@ -77,6 +72,7 @@ macro(mbgl_platform_core)
 
     target_include_directories(mbgl-core
         PRIVATE platform/default
+        PRIVATE platform/linux
     )
 
     target_add_mason_package(mbgl-core PUBLIC nunicode)
@@ -119,7 +115,7 @@ macro(mbgl_platform_glfw)
     add_custom_command(
         TARGET mbgl-glfw POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/common/ca-bundle.crt
+                ${CMAKE_SOURCE_DIR}/misc/ca-bundle.crt
                 ${CMAKE_CURRENT_BINARY_DIR}/ca-bundle.crt
     )
 endmacro()
@@ -148,6 +144,10 @@ endmacro()
 macro(mbgl_platform_test)
     target_sources(mbgl-test
         PRIVATE platform/default/mbgl/test/main.cpp
+    )
+
+    target_include_directories(mbgl-test
+        PRIVATE platform/linux
     )
 
     set_source_files_properties(

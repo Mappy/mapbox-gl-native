@@ -37,7 +37,7 @@ public:
                 bool needsRendering,
                 bool needsRelayout,
                 const TileParameters&,
-                SourceType type,
+                style::SourceType type,
                 uint16_t tileSize,
                 Range<uint8_t> zoomRange,
                 optional<LatLngBounds> bounds,
@@ -47,17 +47,19 @@ public:
     void finishRender(PaintParameters&);
 
     std::vector<std::reference_wrapper<RenderTile>> getRenderTiles();
+    Tile* getTile(const OverscaledTileID&);
 
     std::unordered_map<std::string, std::vector<Feature>>
     queryRenderedFeatures(const ScreenLineString& geometry,
                           const TransformState& transformState,
                           const std::vector<const RenderLayer*>&,
-                          const RenderedQueryOptions& options) const;
+                          const RenderedQueryOptions& options,
+                          const CollisionIndex& collisionIndex) const;
 
     std::vector<Feature> querySourceFeatures(const SourceQueryOptions&) const;
 
     void setCacheSize(size_t);
-    void onLowMemory();
+    void reduceMemoryUse();
 
     void setObserver(TileObserver*);
     void dumpDebugLogs() const;
