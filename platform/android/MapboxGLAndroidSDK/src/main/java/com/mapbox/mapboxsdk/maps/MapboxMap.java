@@ -111,7 +111,7 @@ public final class MapboxMap {
   void onStart() {
     nativeMapView.update();
     trackingSettings.onStart();
-    if (TextUtils.isEmpty(nativeMapView.getStyleUrl())) {
+    if (TextUtils.isEmpty(nativeMapView.getStyleUrl()) && TextUtils.isEmpty(nativeMapView.getStyleJson())) {
       // if user hasn't loaded a Style yet
       nativeMapView.setStyleUrl(Style.MAPBOX_STREETS);
     }
@@ -168,6 +168,7 @@ public final class MapboxMap {
    * Called before the OnMapReadyCallback is invoked.
    */
   void onPreMapReady() {
+    invalidateCameraPosition();
     annotationManager.reloadMarkers();
     annotationManager.adjustTopOffsetPixels(this);
   }
@@ -912,7 +913,7 @@ public final class MapboxMap {
   /**
    * Invalidates the current camera position by reconstructing it from mbgl
    */
-  void invalidateCameraPosition() {
+  private void invalidateCameraPosition() {
     CameraPosition cameraPosition = transform.invalidateCameraPosition();
     if (cameraPosition != null) {
       transform.updateCameraPosition(cameraPosition);
@@ -1900,7 +1901,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the map is scrolled.
    *                 To unset the callback, use null.
-   *
    * @deprecated Use {@link #addOnScrollListener(OnScrollListener)} instead.
    */
   @Deprecated
@@ -1913,7 +1913,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the map is scrolled.
    *                 To unset the callback, use null.
-   *
    */
   public void addOnScrollListener(@Nullable OnScrollListener listener) {
     onRegisterTouchListener.onAddScrollListener(listener);
@@ -1924,7 +1923,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the map is scrolled.
    *                 To unset the callback, use null.
-   *
    */
   public void removeOnScrollListener(@Nullable OnScrollListener listener) {
     onRegisterTouchListener.onRemoveScrollListener(listener);
@@ -1935,7 +1933,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the map is flinged.
    *                 To unset the callback, use null.
-   *
    * @deprecated Use {@link #addOnFlingListener(OnFlingListener)} instead.
    */
   @Deprecated
@@ -1968,7 +1965,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the user clicks on the map view.
    *                 To unset the callback, use null.
-   *
    * @deprecated Use {@link #addOnMapClickListener(OnMapClickListener)} instead.
    */
   @Deprecated
@@ -2006,7 +2002,6 @@ public final class MapboxMap {
    *
    * @param listener The callback that's invoked when the user long clicks on the map view.
    *                 To unset the callback, use null.
-   *
    * @deprecated Use {@link #addOnMapLongClickListener(OnMapLongClickListener)} instead.
    */
   @Deprecated

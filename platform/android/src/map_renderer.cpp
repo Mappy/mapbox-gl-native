@@ -29,6 +29,7 @@ MapRenderer::MapRenderer(jni::JNIEnv& _env, jni::Object<MapRenderer> obj,
 MapRenderer::~MapRenderer() = default;
 
 void MapRenderer::reset() {
+    destroyed = true;
     // Make sure to destroy the renderer on the GL Thread
     auto self = ActorRef<MapRenderer>(*this, mailbox);
     self.ask(&MapRenderer::resetRenderer).wait();
@@ -88,8 +89,10 @@ void MapRenderer::requestSnapshot(SnapshotCallback callback) {
     self.invoke(
             &MapRenderer::scheduleSnapshot,
             std::make_unique<SnapshotCallback>([&, callback=std::move(callback), runloop=util::RunLoop::Get()](PremultipliedImage image) {
-                runloop->invoke([callback=std::move(callback), image=std::move(image)]() mutable {
-                    callback(std::move(image));
+                runloop->invoke([callback=std::move(callback), image=std::move(image), renderer=std::move(this)]() mutable {
+                    if (renderer && !renderer->destroyed) {
+                        callback(std::move(image));
+                    }
                 });
                 snapshotCallback.reset();
             })

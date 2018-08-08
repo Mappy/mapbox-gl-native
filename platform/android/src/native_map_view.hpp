@@ -259,7 +259,6 @@ private:
     MapRenderer& mapRenderer;
 
     std::string styleUrl;
-    std::string apiKey;
 
     float pixelRatio;
 

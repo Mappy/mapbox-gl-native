@@ -2,6 +2,26 @@
 
 Mapbox welcomes participation and contributions from everyone.  If you'd like to do so please see the [`Contributing Guide`](https://github.com/mapbox/mapbox-gl-native/blob/master/CONTRIBUTING.md) first to get started.
 
+## 5.5.3 - May 4, 2018
+ - Check if renderer is not destroyed before delivering snapshot [#11800](https://github.com/mapbox/mapbox-gl-native/pull/11800)
+
+## 5.5.2 - April 10, 2018
+ - Correct animation scale point [#11643](https://github.com/mapbox/mapbox-gl-native/pull/11643)
+ - Re-bind uniform locations after re-linking program [#11583](https://github.com/mapbox/mapbox-gl-native/pull/11583)
+ - Invalidate camera position before delivering onMapReady [#11585](https://github.com/mapbox/mapbox-gl-native/pull/11585)
+ - Null java peer callback [#11358](https://github.com/mapbox/mapbox-gl-native/pull/11358)
+ - Add missing delete local reference [#11608](https://github.com/mapbox/mapbox-gl-native/pull/11608)
+ - Release local refs [#11599](https://github.com/mapbox/mapbox-gl-native/pull/11599)
+
+## 5.5.1 - March 26, 2018
+ - Verify optional access of FileSource deactivation [#11480](https://github.com/mapbox/mapbox-gl-native/pull/11480)
+ - Prevent default style loading when style json was set [#11519](https://github.com/mapbox/mapbox-gl-native/pull/11519)
+ - Delete local reference when convering Image.java [#11350](https://github.com/mapbox/mapbox-gl-native/pull/11350)
+ - Use float for pixel ratio when creating a snapshotter [#11367](https://github.com/mapbox/mapbox-gl-native/pull/11367)
+ - Validate if width and height aren't 0 when creating a snapshot [#11364](https://github.com/mapbox/mapbox-gl-native/pull/11364)
+ - Null check body of http request [#11413](https://github.com/mapbox/mapbox-gl-native/pull/11413)
+ - Clamp TileJSON bounds [#11425](https://github.com/mapbox/mapbox-gl-native/pull/11425)
+
 ## 5.5.0 - March 1, 2018
  - TileJSON Bounds allows values inclusive of world extents [#11178](https://github.com/mapbox/mapbox-gl-native/pull/11178)
  - LatLngBounds returned by VisibleRegion when map is rotated [#11226](https://github.com/mapbox/mapbox-gl-native/pull/11226)

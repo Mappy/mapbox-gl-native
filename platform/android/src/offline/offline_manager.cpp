@@ -107,7 +107,9 @@ void OfflineManager::ListOfflineRegionsCallback::onError(jni::JNIEnv& env,
                                                           std::exception_ptr error) {
     static auto method = javaClass.GetMethod<void (jni::String)>(env, "onError");
     std::string message = mbgl::util::toString(error);
-    callback.Call(env, method, jni::Make<jni::String>(env, message));
+    auto jmessage = jni::Make<jni::String>(env, message);
+    callback.Call(env, method, jmessage);
+    jni::DeleteLocalRef(env, jmessage);
 }
 
 void OfflineManager::ListOfflineRegionsCallback::onList(jni::JNIEnv& env,
@@ -143,7 +145,9 @@ void OfflineManager::CreateOfflineRegionCallback::onError(jni::JNIEnv& env,
                                                           std::exception_ptr error) {
     static auto method = javaClass.GetMethod<void (jni::String)>(env, "onError");
     std::string message = mbgl::util::toString(error);
-    callback.Call(env, method, jni::Make<jni::String>(env, message));
+    auto jmessage = jni::Make<jni::String>(env, message);
+    callback.Call(env, method, jmessage);
+    jni::DeleteLocalRef(env, jmessage);
 }
 
 void OfflineManager::CreateOfflineRegionCallback::onCreate(jni::JNIEnv& env,
