@@ -632,6 +632,24 @@ public class MapView extends FrameLayout {
     }
   }
 
+  // mappy modif
+  /**
+   * Set the minimum zoom
+   * @param zoom minimum zoom
+   */
+  public void setMinZoomPreference(double zoom) {
+    mapboxMap.setMinZoomPreference(zoom);
+  }
+
+  // mappy modif
+  /**
+   * Set the maximum zoom
+   * @param zoom maximum zoom
+   */
+  public void setMaxZoomPreference(double zoom) {
+    mapboxMap.setMaxZoomPreference(zoom);
+  }
+
   private boolean isMapInitialized() {
     return nativeMapView != null;
   }
