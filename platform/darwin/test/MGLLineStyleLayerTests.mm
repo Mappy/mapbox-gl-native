@@ -69,7 +69,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::LineCapType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::LineCapType>(
                 step(zoom(), literal("square"), 18.0, literal("square"))
             );
         }
@@ -101,7 +101,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'miter'"];
         layer.lineJoin = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::style::LineJoinType> propertyValue = { mbgl::style::LineJoinType::Miter };
+        mbgl::style::PropertyValue<mbgl::style::LineJoinType> propertyValue = { mbgl::style::LineJoinType::Miter };
         XCTAssertEqual(rawLayer->getLineJoin(), propertyValue,
                        @"Setting lineJoin to a constant value expression should update line-join.");
         XCTAssertEqualObjects(layer.lineJoin, constantExpression,
@@ -113,7 +113,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::LineJoinType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::LineJoinType>(
                 step(zoom(), literal("miter"), 18.0, literal("miter"))
             );
         }
@@ -151,7 +151,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -195,7 +195,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -227,7 +227,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.lineBlur = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getLineBlur(), propertyValue,
                        @"Setting lineBlur to a constant value expression should update line-blur.");
         XCTAssertEqualObjects(layer.lineBlur, constantExpression,
@@ -239,7 +239,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -254,7 +254,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -270,11 +270,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineBlur(), propertyValue,
                        @"Setting lineBlur to a camera-data expression should update line-blur.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -305,7 +305,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"%@", [MGLColor redColor]];
         layer.lineColor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
+        mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
         XCTAssertEqual(rawLayer->getLineColor(), propertyValue,
                        @"Setting lineColor to a constant value expression should update line-color.");
         XCTAssertEqualObjects(layer.lineColor, constantExpression,
@@ -317,7 +317,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 step(zoom(), literal(mbgl::Color(1, 0, 0, 1)), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -332,7 +332,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -348,11 +348,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1))))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineColor(), propertyValue,
                        @"Setting lineColor to a camera-data expression should update line-color.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -395,7 +395,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::vector<float>>(
+            propertyValue = mbgl::style::PropertyExpression<std::vector<float>>(
                 step(zoom(), literal({1, 2}), 18.0, literal({1, 2}))
             );
         }
@@ -427,7 +427,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.lineGapWidth = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getLineGapWidth(), propertyValue,
                        @"Setting lineGapWidth to a constant value expression should update line-gap-width.");
         XCTAssertEqualObjects(layer.lineGapWidth, constantExpression,
@@ -439,7 +439,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -454,7 +454,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -470,11 +470,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineGapWidth(), propertyValue,
                        @"Setting lineGapWidth to a camera-data expression should update line-gap-width.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -505,7 +505,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.lineOffset = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getLineOffset(), propertyValue,
                        @"Setting lineOffset to a constant value expression should update line-offset.");
         XCTAssertEqualObjects(layer.lineOffset, constantExpression,
@@ -517,7 +517,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -532,7 +532,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -548,11 +548,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineOffset(), propertyValue,
                        @"Setting lineOffset to a camera-data expression should update line-offset.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -583,7 +583,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.lineOpacity = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getLineOpacity(), propertyValue,
                        @"Setting lineOpacity to a constant value expression should update line-opacity.");
         XCTAssertEqualObjects(layer.lineOpacity, constantExpression,
@@ -595,7 +595,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -610,7 +610,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -626,11 +626,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineOpacity(), propertyValue,
                        @"Setting lineOpacity to a camera-data expression should update line-opacity.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -673,7 +673,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::string>(
+            propertyValue = mbgl::style::PropertyExpression<std::string>(
                 step(zoom(), literal("Line Pattern"), 18.0, literal("Line Pattern"))
             );
         }
@@ -689,12 +689,6 @@
                       @"Unsetting linePattern should return line-pattern to the default value.");
         XCTAssertEqualObjects(layer.linePattern, defaultExpression,
                               @"linePattern should return the default value after being unset.");
-
-        functionExpression = [NSExpression expressionForKeyPath:@"bogus"];
-        XCTAssertThrowsSpecificNamed(layer.linePattern = functionExpression, NSException, NSInvalidArgumentException, @"MGLLineLayer should raise an exception if a camera-data expression is applied to a property that does not support key paths to feature attributes.");
-        functionExpression = [NSExpression expressionWithFormat:@"mgl_step:from:stops:(bogus, %@, %@)", constantExpression, @{@18: constantExpression}];
-        functionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: functionExpression}];
-        XCTAssertThrowsSpecificNamed(layer.linePattern = functionExpression, NSException, NSInvalidArgumentException, @"MGLLineLayer should raise an exception if a camera-data expression is applied to a property that does not support key paths to feature attributes.");
         // Transition property test
         layer.linePatternTransition = transitionTest;
         auto toptions = rawLayer->getLinePatternTransition();
@@ -732,7 +726,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 step(zoom(), literal({ 1, 1 }), 18.0, literal({ 1, 1 }))
             );
         }
@@ -776,7 +770,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::TranslateAnchorType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::TranslateAnchorType>(
                 step(zoom(), literal("viewport"), 18.0, literal("viewport"))
             );
         }
@@ -808,7 +802,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.lineWidth = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getLineWidth(), propertyValue,
                        @"Setting lineWidth to a constant value expression should update line-width.");
         XCTAssertEqualObjects(layer.lineWidth, constantExpression,
@@ -820,7 +814,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -835,7 +829,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -851,11 +845,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getLineWidth(), propertyValue,
                        @"Setting lineWidth to a camera-data expression should update line-width.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];

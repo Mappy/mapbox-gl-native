@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.maps.renderer;
 
 import android.content.Context;
 import android.support.annotation.CallSuper;
+import android.support.annotation.Keep;
 
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.storage.FileSource;
@@ -16,6 +17,7 @@ import javax.microedition.khronos.opengles.GL10;
  * render on the one end and acts as a scheduler to request work to
  * be performed on the GL thread on the other.
  */
+@Keep
 public abstract class MapRenderer implements MapRendererScheduler {
 
   // Holds the pointer to the native peer after initialisation
@@ -24,10 +26,10 @@ public abstract class MapRenderer implements MapRendererScheduler {
   private MapboxMap.OnFpsChangedListener onFpsChangedListener;
 
   public MapRenderer(Context context, String localIdeographFontFamily) {
-
     FileSource fileSource = FileSource.getInstance(context);
     float pixelRatio = context.getResources().getDisplayMetrics().density;
-    String programCacheDir = context.getCacheDir().getAbsolutePath();
+    String programCacheDir = FileSource.getInternalCachePath(context);
+
     // Initialise native peer
     nativeInitialize(this, fileSource, pixelRatio, programCacheDir, localIdeographFontFamily);
   }
@@ -63,24 +65,6 @@ public abstract class MapRenderer implements MapRendererScheduler {
 
   @CallSuper
   protected void onSurfaceChanged(GL10 gl, int width, int height) {
-    if (width < 0) {
-      throw new IllegalArgumentException("fbWidth cannot be negative.");
-    }
-
-    if (height < 0) {
-      throw new IllegalArgumentException("fbHeight cannot be negative.");
-    }
-
-    if (width > 65535) {
-      throw new IllegalArgumentException(
-        "fbWidth cannot be greater than 65535.");
-    }
-
-    if (height > 65535) {
-      throw new IllegalArgumentException(
-        "fbHeight cannot be greater than 65535.");
-    }
-
     gl.glViewport(0, 0, width, height);
     nativeOnSurfaceChanged(width, height);
   }
@@ -138,5 +122,4 @@ public abstract class MapRenderer implements MapRendererScheduler {
       frames = 0;
     }
   }
-
 }

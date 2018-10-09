@@ -28,8 +28,14 @@ public:
 
     ~CustomGeometrySource();
 
+    bool removeFromMap(JNIEnv&, jni::Object<Source>, mbgl::Map&) override;
+    void addToMap(JNIEnv&, jni::Object<Source>, mbgl::Map&, AndroidRendererFrontend&) override;
+
     void fetchTile(const mbgl::CanonicalTileID& tileID);
     void cancelTile(const mbgl::CanonicalTileID& tileID);
+    bool isCancelled(jni::jint z, jni::jint x, jni::jint y);
+    void startThreads();
+    void releaseThreads();
     void setTileData(jni::JNIEnv& env, jni::jint z, jni::jint x, jni::jint y, jni::Object<geojson::FeatureCollection> jf);
 
     void invalidateTile(jni::JNIEnv& env, jni::jint z, jni::jint x, jni::jint y);

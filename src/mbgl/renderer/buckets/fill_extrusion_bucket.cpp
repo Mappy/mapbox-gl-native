@@ -34,18 +34,26 @@ using namespace style;
 
 struct GeometryTooLongException : std::exception {};
 
-FillExtrusionBucket::FillExtrusionBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers) {
-    for (const auto& layer : layers) {
-        paintPropertyBinders.emplace(std::piecewise_construct,
-                                     std::forward_as_tuple(layer->getID()),
-                                     std::forward_as_tuple(
-                                                           layer->as<RenderFillExtrusionLayer>()->evaluated,
-                                                           parameters.tileID.overscaledZ));
+FillExtrusionBucket::FillExtrusionBucket(const FillExtrusionBucket::PossiblyEvaluatedLayoutProperties,
+                       std::map<std::string, FillExtrusionBucket::PossiblyEvaluatedPaintProperties> layerPaintProperties,
+                       const float zoom,
+                       const uint32_t)
+    : Bucket(LayerType::FillExtrusion) {
+
+    for (const auto& pair : layerPaintProperties) {
+        paintPropertyBinders.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(pair.first),
+            std::forward_as_tuple(
+                pair.second,
+                zoom));
     }
 }
 
 void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature,
-                                     const GeometryCollection& geometry) {
+                                     const GeometryCollection& geometry,
+                                     const ImagePositions& patternPositions,
+                                     const PatternLayerMap& patternDependencies) {
     for (auto& polygon : classifyRings(geometry)) {
         // Optimize polygons with many interior rings for earcut tesselation.
         limitHoles(polygon, 500);
@@ -142,7 +150,12 @@ void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature,
     }
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.populateVertexVectors(feature, vertices.vertexSize());
+        const auto it = patternDependencies.find(pair.first);
+        if (it != patternDependencies.end()){
+            pair.second.populateVertexVectors(feature, vertices.vertexSize(), patternPositions, it->second);
+        } else {
+            pair.second.populateVertexVectors(feature, vertices.vertexSize(), patternPositions, {});
+        }
     }
 }
 

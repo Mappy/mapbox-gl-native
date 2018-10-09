@@ -51,6 +51,18 @@ public class LineLayerTest extends BaseActivityTest {
   }
 
   @Test
+  public void testSourceId() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("SourceId");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+      // Get source id
+      assertEquals(layer.getSourceId(), "composite");
+    });
+  }
+
+  @Test
   public void testSetVisibility() {
     validateTestSetup();
     setupLayer();
@@ -545,4 +557,20 @@ public class LineLayerTest extends BaseActivityTest {
       assertEquals((String) layer.getLinePattern().getValue(), (String) "pedestrian-polygon");
     });
   }
+
+  @Test
+  public void testLinePatternAsExpression() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("line-pattern-expression");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+
+      // Set and Get
+      Expression expression = string(Expression.get("undefined"));
+      layer.setProperties(linePattern(expression));
+      assertEquals(layer.getLinePattern().getExpression(), expression);
+    });
+  }
+
 }

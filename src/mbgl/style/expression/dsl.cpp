@@ -1,31 +1,32 @@
 #include <mbgl/style/expression/dsl.hpp>
+#include <mbgl/style/expression/error.hpp>
 #include <mbgl/style/expression/literal.hpp>
 #include <mbgl/style/expression/assertion.hpp>
 #include <mbgl/style/expression/coercion.hpp>
-#include <mbgl/style/expression/equals.hpp>
+#include <mbgl/style/expression/comparison.hpp>
 #include <mbgl/style/expression/step.hpp>
 #include <mbgl/style/expression/interpolate.hpp>
 #include <mbgl/style/expression/compound_expression.hpp>
-#include <mbgl/util/ignore.hpp>
 
 namespace mbgl {
 namespace style {
 namespace expression {
 namespace dsl {
 
-template <class... Args>
-static std::vector<std::unique_ptr<Expression>> vec(Args... args) {
-    std::vector<std::unique_ptr<Expression>> result;
-    util::ignore({ (result.push_back(std::move(args)), 0)... });
-    return result;
+static std::unique_ptr<Expression> compound(const char* op, std::vector<std::unique_ptr<Expression>> args) {
+    ParsingContext ctx;
+    ParseResult result =  createCompoundExpression(op, std::move(args), ctx);
+    assert(result);
+    return std::move(*result);
 }
 
 template <class... Args>
 static std::unique_ptr<Expression> compound(const char* op, Args... args) {
-    ParsingContext ctx;
-    ParseResult result =  createCompoundExpression(op, vec(std::move(args)...), ctx);
-    assert(result);
-    return std::move(*result);
+    return compound(op, vec(std::move(args)...));
+}
+
+std::unique_ptr<Expression> error(std::string message) {
+    return std::make_unique<Error>(std::move(message));
 }
 
 std::unique_ptr<Expression> literal(const char* value) {
@@ -52,20 +53,28 @@ std::unique_ptr<Expression> literal(std::initializer_list<const char *> value) {
     return literal(values);
 }
 
+std::unique_ptr<Expression> assertion(type::Type type, std::unique_ptr<Expression> value) {
+    return std::make_unique<Assertion>(type, vec(std::move(value)));
+}
+
 std::unique_ptr<Expression> number(std::unique_ptr<Expression> value) {
-    return std::make_unique<Assertion>(type::Number, vec(std::move(value)));
+    return assertion(type::Number, std::move(value));
 }
 
 std::unique_ptr<Expression> string(std::unique_ptr<Expression> value) {
-    return std::make_unique<Assertion>(type::String, vec(std::move(value)));
+    return assertion(type::String, std::move(value));
 }
 
-std::unique_ptr<Expression> toColor(const char* value) {
-    return toColor(literal(value));
+std::unique_ptr<Expression> boolean(std::unique_ptr<Expression> value) {
+    return assertion(type::Boolean, std::move(value));
 }
 
 std::unique_ptr<Expression> toColor(std::unique_ptr<Expression> value) {
     return std::make_unique<Coercion>(type::Color, vec(std::move(value)));
+}
+
+std::unique_ptr<Expression> toString(std::unique_ptr<Expression> value) {
+    return compound("to-string", std::move(value));
 }
 
 std::unique_ptr<Expression> get(const char* value) {
@@ -86,22 +95,22 @@ std::unique_ptr<Expression> zoom() {
 
 std::unique_ptr<Expression> eq(std::unique_ptr<Expression> lhs,
                                std::unique_ptr<Expression> rhs) {
-    return std::make_unique<Equals>(std::move(lhs), std::move(rhs), nullopt, false);
+    return std::make_unique<BasicComparison>("==", std::move(lhs), std::move(rhs));
 }
 
 std::unique_ptr<Expression> ne(std::unique_ptr<Expression> lhs,
                                std::unique_ptr<Expression> rhs) {
-    return std::make_unique<Equals>(std::move(lhs), std::move(rhs), nullopt, true);
+    return std::make_unique<BasicComparison>("!=", std::move(lhs), std::move(rhs));
 }
 
 std::unique_ptr<Expression> gt(std::unique_ptr<Expression> lhs,
                                std::unique_ptr<Expression> rhs) {
-    return compound(">", std::move(lhs), std::move(rhs));
+    return std::make_unique<BasicComparison>(">", std::move(lhs), std::move(rhs));
 }
 
 std::unique_ptr<Expression> lt(std::unique_ptr<Expression> lhs,
                                std::unique_ptr<Expression> rhs) {
-    return compound("<", std::move(lhs), std::move(rhs));
+    return std::make_unique<BasicComparison>("<", std::move(lhs), std::move(rhs));
 }
 
 std::unique_ptr<Expression> step(std::unique_ptr<Expression> input,
@@ -166,6 +175,10 @@ std::unique_ptr<Expression> interpolate(Interpolator interpolator,
     ParseResult result = createInterpolate(type, interpolator, std::move(input), std::move(stops), ctx);
     assert(result);
     return std::move(*result);
+}
+
+std::unique_ptr<Expression> concat(std::vector<std::unique_ptr<Expression>> inputs) {
+    return compound("concat", std::move(inputs));
 }
 
 } // namespace dsl

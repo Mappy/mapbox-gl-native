@@ -7,13 +7,16 @@ import android.graphics.RectF;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.support.annotation.IntRange;
+import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
+
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.Geometry;
 import com.mapbox.mapboxsdk.LibraryLoader;
+import com.mapbox.mapboxsdk.MapStrictMode;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.Polygon;
@@ -23,6 +26,7 @@ import com.mapbox.mapboxsdk.exceptions.CalledFromWorkerThreadException;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.geometry.ProjectedMeters;
+import com.mapbox.mapboxsdk.log.Logger;
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
@@ -32,7 +36,6 @@ import com.mapbox.mapboxsdk.style.light.Light;
 import com.mapbox.mapboxsdk.style.sources.CannotAddSourceException;
 import com.mapbox.mapboxsdk.style.sources.Source;
 import com.mapbox.mapboxsdk.utils.BitmapUtils;
-import timber.log.Timber;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -44,6 +47,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 // Class that wraps the native methods for convenience
 final class NativeMapView {
+
+  private static final String TAG = "Mbgl-NativeMapView";
 
   //Hold a reference to prevent it from being GC'd as long as it's used on the native side
   private final FileSource fileSource;
@@ -64,7 +69,8 @@ final class NativeMapView {
   private boolean destroyed = false;
 
   // Holds the pointer to JNI NativeMapView
-  private long nativePtr = 0;
+  @Keep
+  long nativePtr = 0;
 
   // Listener invoked to return a bitmap of the map
   private MapboxMap.SnapshotReadyCallback snapshotReadyCallback;
@@ -109,10 +115,12 @@ final class NativeMapView {
 
     // validate if map has already been destroyed
     if (destroyed && !TextUtils.isEmpty(callingMethod)) {
-      Timber.e(
+      String message = String.format(
         "You're calling `%s` after the `MapView` was destroyed, were you invoking it after `onDestroy()`?",
-        callingMethod
-      );
+        callingMethod);
+      Logger.e(TAG, message);
+
+      MapStrictMode.strictModeViolation(message);
     }
     return destroyed;
   }
@@ -149,15 +157,17 @@ final class NativeMapView {
 
     if (width > 65535) {
       // we have seen edge cases where devices return incorrect values #6111
-      Timber.e("Device returned an out of range width size, "
-        + "capping value at 65535 instead of %s", width);
+      Logger.e(TAG, String.format("Device returned an out of range width size, "
+        + "capping value at 65535 instead of %s", width)
+      );
       width = 65535;
     }
 
     if (height > 65535) {
       // we have seen edge cases where devices return incorrect values #6111
-      Timber.e("Device returned an out of range height size, "
-        + "capping value at 65535 instead of %s", height);
+      Logger.e(TAG, String.format("Device returned an out of range height size, "
+        + "capping value at 65535 instead of %s", height)
+      );
       height = 65535;
     }
 
@@ -894,16 +904,19 @@ final class NativeMapView {
   // Callbacks
   //
 
+  @Keep
   protected void onMapChanged(int rawChange) {
     for (MapView.OnMapChangedListener onMapChangedListener : onMapChangedListeners) {
       try {
         onMapChangedListener.onMapChanged(rawChange);
       } catch (RuntimeException err) {
-        Timber.e(err, "Exception in MapView.OnMapChangedListener");
+        Logger.e(TAG, "Exception in MapView.OnMapChangedListener", err);
+        MapStrictMode.strictModeViolation(err);
       }
     }
   }
 
+  @Keep
   protected void onSnapshotReady(Bitmap mapContent) {
     if (checkState("OnSnapshotReady")) {
       return;
@@ -919,188 +932,273 @@ final class NativeMapView {
   // JNI methods
   //
 
+  @Keep
   private native void nativeInitialize(NativeMapView nativeMapView,
                                        FileSource fileSource,
                                        MapRenderer mapRenderer,
                                        float pixelRatio);
 
+  @Keep
   private native void nativeDestroy();
 
+  @Keep
   private native void nativeResizeView(int width, int height);
 
+  @Keep
   private native void nativeSetStyleUrl(String url);
 
+  @Keep
   private native String nativeGetStyleUrl();
 
+  @Keep
   private native void nativeSetStyleJson(String newStyleJson);
 
+  @Keep
   private native String nativeGetStyleJson();
 
+  @Keep
   private native void nativeSetLatLngBounds(LatLngBounds latLngBounds);
 
+  @Keep
   private native void nativeCancelTransitions();
 
+  @Keep
   private native void nativeSetGestureInProgress(boolean inProgress);
 
+  @Keep
   private native void nativeMoveBy(double dx, double dy, long duration);
 
+  @Keep
   private native void nativeSetLatLng(double latitude, double longitude, long duration);
 
+  @Keep
   private native LatLng nativeGetLatLng();
 
+  @Keep
   private native CameraPosition nativeGetCameraForLatLngBounds(
     LatLngBounds latLngBounds, double top, double left, double bottom, double right, double bearing, double tilt);
 
+  @Keep
   private native CameraPosition nativeGetCameraForGeometry(
     Geometry geometry, double top, double left, double bottom, double right, double bearing, double tilt);
 
+  @Keep
   private native void nativeResetPosition();
 
+  @Keep
   private native double nativeGetPitch();
 
+  @Keep
   private native void nativeSetPitch(double pitch, long duration);
 
+  @Keep
   private native void nativeSetZoom(double zoom, double cx, double cy, long duration);
 
+  @Keep
   private native double nativeGetZoom();
 
+  @Keep
   private native void nativeResetZoom();
 
+  @Keep
   private native void nativeSetMinZoom(double zoom);
 
+  @Keep
   private native double nativeGetMinZoom();
 
+  @Keep
   private native void nativeSetMaxZoom(double zoom);
 
+  @Keep
   private native double nativeGetMaxZoom();
 
+  @Keep
   private native void nativeRotateBy(double sx, double sy, double ex, double ey, long duration);
 
+  @Keep
   private native void nativeSetContentPadding(double top, double left, double bottom, double right);
 
+  @Keep
   private native void nativeSetBearing(double degrees, long duration);
 
+  @Keep
   private native void nativeSetBearingXY(double degrees, double fx, double fy, long duration);
 
+  @Keep
   private native double nativeGetBearing();
 
+  @Keep
   private native void nativeResetNorth();
 
+  @Keep
   private native void nativeUpdateMarker(long markerId, double lat, double lon, String iconId);
 
+  @Keep
   private native long[] nativeAddMarkers(Marker[] markers);
 
+  @Keep
   private native long[] nativeAddPolylines(Polyline[] polylines);
 
+  @Keep
   private native long[] nativeAddPolygons(Polygon[] polygons);
 
+  @Keep
   private native void nativeRemoveAnnotations(long[] id);
 
+  @Keep
   private native long[] nativeQueryPointAnnotations(RectF rect);
 
+  @Keep
   private native long[] nativeQueryShapeAnnotations(RectF rect);
 
+  @Keep
   private native void nativeAddAnnotationIcon(String symbol, int width, int height, float scale, byte[] pixels);
 
+  @Keep
   private native void nativeRemoveAnnotationIcon(String symbol);
 
+  @Keep
   private native void nativeSetVisibleCoordinateBounds(LatLng[] coordinates, RectF padding,
                                                        double direction, long duration);
 
+  @Keep
   private native void nativeOnLowMemory();
 
+  @Keep
   private native void nativeSetDebug(boolean debug);
 
+  @Keep
   private native void nativeCycleDebugOptions();
 
+  @Keep
   private native boolean nativeGetDebug();
 
+  @Keep
   private native boolean nativeIsFullyLoaded();
 
+  @Keep
   private native void nativeSetReachability(boolean status);
 
+  @Keep
   private native double nativeGetMetersPerPixelAtLatitude(double lat, double zoom);
 
+  @Keep
   private native ProjectedMeters nativeProjectedMetersForLatLng(double latitude, double longitude);
 
+  @Keep
   private native LatLng nativeLatLngForProjectedMeters(double northing, double easting);
 
+  @Keep
   private native PointF nativePixelForLatLng(double lat, double lon);
 
+  @Keep
   private native LatLng nativeLatLngForPixel(float x, float y);
 
+  @Keep
   private native double nativeGetTopOffsetPixelsForAnnotationSymbol(String symbolName);
 
+  @Keep
   private native void nativeJumpTo(double angle, double latitude, double longitude, double pitch, double zoom);
 
+  @Keep
   private native void nativeEaseTo(double angle, double latitude, double longitude,
                                    long duration, double pitch, double zoom,
                                    boolean easingInterpolator);
 
+  @Keep
   private native void nativeFlyTo(double angle, double latitude, double longitude,
                                   long duration, double pitch, double zoom);
 
+  @Keep
   private native CameraPosition nativeGetCameraPosition();
 
+  @Keep
   private native long nativeGetTransitionDuration();
 
+  @Keep
   private native void nativeSetTransitionDuration(long duration);
 
+  @Keep
   private native long nativeGetTransitionDelay();
 
+  @Keep
   private native void nativeSetTransitionDelay(long delay);
 
+  @Keep
   private native Layer[] nativeGetLayers();
 
+  @Keep
   private native Layer nativeGetLayer(String layerId);
 
+  @Keep
   private native void nativeAddLayer(long layerPtr, String before) throws CannotAddLayerException;
 
+  @Keep
   private native void nativeAddLayerAbove(long layerPtr, String above) throws CannotAddLayerException;
 
+  @Keep
   private native void nativeAddLayerAt(long layerPtr, int index) throws CannotAddLayerException;
 
+  @Keep
   private native Layer nativeRemoveLayerById(String layerId);
 
+  @Keep
   private native void nativeRemoveLayer(long layerId);
 
+  @Keep
   private native Layer nativeRemoveLayerAt(int index);
 
+  @Keep
   private native Source[] nativeGetSources();
 
+  @Keep
   private native Source nativeGetSource(String sourceId);
 
+  @Keep
   private native void nativeAddSource(Source source, long sourcePtr) throws CannotAddSourceException;
 
+  @Keep
   private native void nativeRemoveSource(Source source, long sourcePtr);
 
+  @Keep
   private native void nativeAddImage(String name, Bitmap bitmap, float pixelRatio, boolean sdf);
 
+  @Keep
   private native void nativeAddImages(Image[] images);
 
+  @Keep
   private native void nativeRemoveImage(String name);
 
+  @Keep
   private native Bitmap nativeGetImage(String name);
 
+  @Keep
   private native void nativeUpdatePolygon(long polygonId, Polygon polygon);
 
+  @Keep
   private native void nativeUpdatePolyline(long polylineId, Polyline polyline);
 
+  @Keep
   private native void nativeTakeSnapshot();
 
+  @Keep
   private native Feature[] nativeQueryRenderedFeaturesForPoint(float x, float y,
                                                                String[] layerIds,
                                                                Object[] filter);
 
+  @Keep
   private native Feature[] nativeQueryRenderedFeaturesForBox(float left, float top,
                                                              float right, float bottom,
                                                              String[] layerIds,
                                                              Object[] filter);
 
+  @Keep
   private native Light nativeGetLight();
 
+  @Keep
   private native void nativeSetPrefetchesTiles(boolean enable);
 
+  @Keep
   private native boolean nativeGetPrefetchesTiles();
 
   int getWidth() {

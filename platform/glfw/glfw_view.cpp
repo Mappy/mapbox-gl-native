@@ -54,13 +54,19 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
         height = videoMode->height;
     }
 
+#if __APPLE__
     glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GL_TRUE);
+#endif
+
+#if MBGL_WITH_EGL
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+#endif
 
 #ifdef DEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
 
-#ifdef GL_ES_VERSION_2_0
+#if MBGL_USE_GLES2
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
@@ -637,14 +643,14 @@ void GLFWView::toggle3DExtrusions(bool visible) {
     extrusionLayer->setSourceLayer("building");
     extrusionLayer->setMinZoom(15.0f);
     extrusionLayer->setFilter(Filter(eq(get("extrude"), literal("true"))));
-    extrusionLayer->setFillExtrusionColor(SourceFunction<mbgl::Color>(
+    extrusionLayer->setFillExtrusionColor(PropertyExpression<mbgl::Color>(
         interpolate(linear(), number(get("height")),
-                    0.f, toColor("#160e23"),
-                    50.f, toColor("#00615f"),
-                    100.f, toColor("#55e9ff"))));
+                    0.f, toColor(literal("#160e23")),
+                    50.f, toColor(literal("#00615f")),
+                    100.f, toColor(literal("#55e9ff")))));
     extrusionLayer->setFillExtrusionOpacity(0.6f);
-    extrusionLayer->setFillExtrusionHeight(SourceFunction<float>(get("height")));
-    extrusionLayer->setFillExtrusionBase(SourceFunction<float>(get("min_height")));
+    extrusionLayer->setFillExtrusionHeight(PropertyExpression<float>(get("height")));
+    extrusionLayer->setFillExtrusionBase(PropertyExpression<float>(get("min_height")));
 
     map->getStyle().addLayer(std::move(extrusionLayer));
 }
@@ -652,7 +658,7 @@ void GLFWView::toggle3DExtrusions(bool visible) {
 namespace mbgl {
 namespace platform {
 
-#ifndef GL_ES_VERSION_2_0
+#ifndef MBGL_USE_GLES2
 void showDebugImage(std::string name, const char *data, size_t width, size_t height) {
     glfwInit();
 

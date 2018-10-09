@@ -1,6 +1,6 @@
-add_executable(mbgl-benchmark
-    ${MBGL_BENCHMARK_FILES}
-)
+# Modify cmake/benchmark-files.txt to change the source files for this target.
+load_sources_list(MBGL_BENCHMARK_FILES cmake/benchmark-files.txt)
+add_executable(mbgl-benchmark ${MBGL_BENCHMARK_FILES})
 
 target_include_directories(mbgl-benchmark
     PRIVATE src
@@ -23,6 +23,8 @@ target_add_mason_package(mbgl-benchmark PRIVATE vector-tile)
 mbgl_platform_benchmark()
 
 create_source_groups(mbgl-benchmark)
+
+set_target_properties(mbgl-benchmark PROPERTIES FOLDER "Executables")
 
 initialize_xcode_cxx_build_settings(mbgl-benchmark)
 

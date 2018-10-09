@@ -11,9 +11,9 @@ import java.util.HashMap;
 public class GeoJsonOptions extends HashMap<String, Object> {
 
   /**
-   * Maximum zoom level at which to create vector tiles (higher means greater detail at high zoom levels).
+   * Minimum zoom level at which to create vector tiles (lower means more field of view detail at low zoom levels).
    *
-   * @param minZoom the maximum zoom - Defaults to 18.
+   * @param minZoom the minimum zoom - Defaults to 0.
    * @return the current instance for chaining
    */
   public GeoJsonOptions withMinZoom(int minZoom) {
@@ -24,7 +24,7 @@ public class GeoJsonOptions extends HashMap<String, Object> {
   /**
    * Maximum zoom level at which to create vector tiles (higher means greater detail at high zoom levels).
    *
-   * @param maxZoom the maximum zoom - Defaults to 18.
+   * @param maxZoom the maximum zoom - Defaults to 25.5
    * @return the current instance for chaining
    */
   public GeoJsonOptions withMaxZoom(int maxZoom) {
@@ -41,6 +41,17 @@ public class GeoJsonOptions extends HashMap<String, Object> {
    */
   public GeoJsonOptions withBuffer(int buffer) {
     this.put("buffer", buffer);
+    return this;
+  }
+
+  /**
+   * Initialises whether to calculate line distance metrics.
+   *
+   * @param lineMetrics true to calculate line distance metrics.
+   * @return the current instance for chaining
+   */
+  public GeoJsonOptions withLineMetrics(boolean lineMetrics) {
+    this.put("lineMetrics", lineMetrics);
     return this;
   }
 
@@ -88,5 +99,4 @@ public class GeoJsonOptions extends HashMap<String, Object> {
     this.put("clusterRadius", clusterRadius);
     return this;
   }
-
 }

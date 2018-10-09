@@ -1,4 +1,5 @@
 #include <mbgl/style/conversion/transition_options.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 
 namespace mbgl {
 namespace style {
@@ -6,8 +7,8 @@ namespace conversion {
 
 optional<TransitionOptions> Converter<TransitionOptions>::operator()(const Convertible& value, Error& error) const {
     if (!isObject(value)) {
-        error = { "transition must be an object" };
-        return {};
+        error.message = "transition must be an object";
+        return nullopt;
     }
 
     optional<TransitionOptions> result = TransitionOptions{};
@@ -16,8 +17,8 @@ optional<TransitionOptions> Converter<TransitionOptions>::operator()(const Conve
     if (duration) {
         auto number = toNumber(*duration);
         if (!number) {
-            error = { "duration must be a number" };
-            return {};
+            error.message = "duration must be a number";
+            return nullopt;
         }
         result->duration = { std::chrono::milliseconds(int64_t(*number)) };
     }
@@ -26,8 +27,8 @@ optional<TransitionOptions> Converter<TransitionOptions>::operator()(const Conve
     if (delay) {
         auto number = toNumber(*delay);
         if (!number) {
-            error = { "delay must be a number" };
-            return {};
+            error.message = "delay must be a number";
+            return nullopt;
         }
         result->delay = { std::chrono::milliseconds(int64_t(*number)) };
     }

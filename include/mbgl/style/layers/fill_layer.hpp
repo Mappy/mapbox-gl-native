@@ -5,7 +5,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/data_driven_property_value.hpp>
 
 #include <mbgl/util/color.hpp>
 
@@ -34,6 +33,10 @@ public:
     void setMinZoom(float) final;
     void setMaxZoom(float) final;
 
+    // Dynamic properties
+    optional<conversion::Error> setLayoutProperty(const std::string& name, const conversion::Convertible& value) final;
+    optional<conversion::Error> setPaintProperty(const std::string& name, const conversion::Convertible& value) final;
+
     // Paint properties
 
     static PropertyValue<bool> getDefaultFillAntialias();
@@ -42,21 +45,21 @@ public:
     void setFillAntialiasTransition(const TransitionOptions&);
     TransitionOptions getFillAntialiasTransition() const;
 
-    static DataDrivenPropertyValue<float> getDefaultFillOpacity();
-    DataDrivenPropertyValue<float> getFillOpacity() const;
-    void setFillOpacity(DataDrivenPropertyValue<float>);
+    static PropertyValue<float> getDefaultFillOpacity();
+    PropertyValue<float> getFillOpacity() const;
+    void setFillOpacity(PropertyValue<float>);
     void setFillOpacityTransition(const TransitionOptions&);
     TransitionOptions getFillOpacityTransition() const;
 
-    static DataDrivenPropertyValue<Color> getDefaultFillColor();
-    DataDrivenPropertyValue<Color> getFillColor() const;
-    void setFillColor(DataDrivenPropertyValue<Color>);
+    static PropertyValue<Color> getDefaultFillColor();
+    PropertyValue<Color> getFillColor() const;
+    void setFillColor(PropertyValue<Color>);
     void setFillColorTransition(const TransitionOptions&);
     TransitionOptions getFillColorTransition() const;
 
-    static DataDrivenPropertyValue<Color> getDefaultFillOutlineColor();
-    DataDrivenPropertyValue<Color> getFillOutlineColor() const;
-    void setFillOutlineColor(DataDrivenPropertyValue<Color>);
+    static PropertyValue<Color> getDefaultFillOutlineColor();
+    PropertyValue<Color> getFillOutlineColor() const;
+    void setFillOutlineColor(PropertyValue<Color>);
     void setFillOutlineColorTransition(const TransitionOptions&);
     TransitionOptions getFillOutlineColorTransition() const;
 

@@ -14,6 +14,7 @@
 #include <mbgl/renderer/layers/render_background_layer.hpp>
 #include <mbgl/renderer/layers/render_custom_layer.hpp>
 #include <mbgl/renderer/layers/render_fill_extrusion_layer.hpp>
+#include <mbgl/renderer/layers/render_fill_layer.hpp>
 #include <mbgl/renderer/layers/render_heatmap_layer.hpp>
 #include <mbgl/renderer/layers/render_hillshade_layer.hpp>
 #include <mbgl/renderer/style_diff.hpp>
@@ -173,6 +174,10 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         renderLayers.at(entry.first)->setImpl(entry.second.after);
     }
 
+    if (!layerDiff.removed.empty() || !layerDiff.added.empty() || !layerDiff.changed.empty()) {
+        glyphManager->evict(fontStacks(*updateParameters.layers));
+    }
+
     // Update layers for class and zoom changes.
     for (const auto& entry : renderLayers) {
         RenderLayer& layer = *entry.second;
@@ -185,9 +190,13 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
             if (layer.is<RenderHeatmapLayer>()) {
                 layer.as<RenderHeatmapLayer>()->updateColorRamp();
             }
+
+            if (layer.is<RenderLineLayer>()) {
+                layer.as<RenderLineLayer>()->updateColorRamp();
+            }
         }
 
-        if (layerAdded || layerChanged || zoomChanged || layer.hasTransition()) {
+        if (layerAdded || layerChanged || zoomChanged || layer.hasTransition() || layer.hasCrossfade()) {
             layer.evaluate(evaluationParameters);
         }
     }
@@ -504,7 +513,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
                 parameters.staticData.tileTriangleSegments,
                 program.computeAllUniformValues(
                     ClippingMaskProgram::UniformValues {
-                        uniforms::u_matrix::Value{ parameters.matrixForTile(clipID.first) },
+                        uniforms::u_matrix::Value( parameters.matrixForTile(clipID.first) ),
                     },
                     paintAttributeData,
                     properties,

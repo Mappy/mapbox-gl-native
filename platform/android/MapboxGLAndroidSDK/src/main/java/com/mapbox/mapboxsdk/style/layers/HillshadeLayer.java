@@ -3,6 +3,7 @@
 package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.ColorInt;
+import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
@@ -26,7 +27,8 @@ public class HillshadeLayer extends Layer {
    *
    * @param nativePtr pointer used by core
    */
-  public HillshadeLayer(long nativePtr) {
+  @Keep
+  HillshadeLayer(long nativePtr) {
     super(nativePtr);
   }
 
@@ -41,6 +43,7 @@ public class HillshadeLayer extends Layer {
     initialize(layerId, sourceId);
   }
 
+  @Keep
   protected native void initialize(String layerId, String sourceId);
 
   /**
@@ -62,6 +65,16 @@ public class HillshadeLayer extends Layer {
   public HillshadeLayer withSourceLayer(String sourceLayer) {
     setSourceLayer(sourceLayer);
     return this;
+  }
+
+  /**
+   * Get the source id.
+   *
+   * @return id of the source
+   */
+  public String getSourceId() {
+    checkThread();
+    return nativeGetSourceId();
   }
 
   /**
@@ -274,35 +287,50 @@ public class HillshadeLayer extends Layer {
     nativeSetHillshadeAccentColorTransition(options.getDuration(), options.getDelay());
   }
 
+  @Keep
   private native Object nativeGetHillshadeIlluminationDirection();
 
+  @Keep
   private native Object nativeGetHillshadeIlluminationAnchor();
 
+  @Keep
   private native Object nativeGetHillshadeExaggeration();
 
+  @Keep
   private native TransitionOptions nativeGetHillshadeExaggerationTransition();
 
+  @Keep
   private native void nativeSetHillshadeExaggerationTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetHillshadeShadowColor();
 
+  @Keep
   private native TransitionOptions nativeGetHillshadeShadowColorTransition();
 
+  @Keep
   private native void nativeSetHillshadeShadowColorTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetHillshadeHighlightColor();
 
+  @Keep
   private native TransitionOptions nativeGetHillshadeHighlightColorTransition();
 
+  @Keep
   private native void nativeSetHillshadeHighlightColorTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetHillshadeAccentColor();
 
+  @Keep
   private native TransitionOptions nativeGetHillshadeAccentColorTransition();
 
+  @Keep
   private native void nativeSetHillshadeAccentColorTransition(long duration, long delay);
 
   @Override
+  @Keep
   protected native void finalize() throws Throwable;
 
 }

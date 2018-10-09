@@ -207,7 +207,7 @@ TEST(Map, SetStyleInvalidJSON) {
     EXPECT_TRUE(fail);
 
     auto observer = Log::removeObserver();
-    auto flo = dynamic_cast<FixtureLogObserver*>(observer.get());
+    auto flo = static_cast<FixtureLogObserver*>(observer.get());
     EXPECT_EQ(1u, flo->count({ EventSeverity::Error, Event::ParseStyle, -1,
         "Failed to parse style: 0 - Invalid value." }));
     auto unchecked = flo->unchecked();
@@ -652,4 +652,53 @@ TEST(Map, NoContentTiles) {
                      test.frontend.render(test.map),
                      0.0015,
                      0.1);
+}
+
+// https://github.com/mapbox/mapbox-gl-native/issues/12432
+TEST(Map, Issue12432) {
+    MapTest<> test { 1, MapMode::Continuous };
+
+    test.fileSource.tileResponse = [&](const Resource&) {
+        Response result;
+        result.data = std::make_shared<std::string>(util::read_file("test/fixtures/map/issue12432/0-0-0.mvt"));
+        return result;
+    };
+
+    test.map.getStyle().loadJSON(R"STYLE({
+      "version": 8,
+      "sources": {
+        "mapbox": {
+          "type": "vector",
+          "tiles": ["http://example.com/{z}-{x}-{y}.vector.pbf"]
+        }
+      },
+      "layers": [{
+        "id": "water",
+        "type": "fill",
+        "source": "mapbox",
+        "source-layer": "water"
+      }]
+    })STYLE");
+
+    test.observer.didFinishLoadingMapCallback = [&]() {
+        test.map.getStyle().loadJSON(R"STYLE({
+          "version": 8,
+          "sources": {
+            "mapbox": {
+              "type": "vector",
+              "tiles": ["http://example.com/{z}-{x}-{y}.vector.pbf"]
+            }
+          },
+          "layers": [{
+            "id": "water",
+            "type": "line",
+            "source": "mapbox",
+            "source-layer": "water"
+          }]
+        })STYLE");
+
+        test.runLoop.stop();
+    };
+
+    test.runLoop.run();
 }

@@ -11,7 +11,8 @@ namespace mbgl {
 using namespace style;
 
 CircleBucket::CircleBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers)
-    : mode(parameters.mode) {
+    : Bucket(LayerType::Circle),
+      mode(parameters.mode) {
     for (const auto& layer : layers) {
         paintPropertyBinders.emplace(
             std::piecewise_construct,
@@ -38,7 +39,9 @@ bool CircleBucket::hasData() const {
 }
 
 void CircleBucket::addFeature(const GeometryTileFeature& feature,
-                              const GeometryCollection& geometry) {
+                                 const GeometryCollection& geometry,
+                                 const ImagePositions&,
+                                 const PatternLayerMap&) {
     constexpr const uint16_t vertexLength = 4;
 
     for (auto& circle : geometry) {
@@ -86,7 +89,7 @@ void CircleBucket::addFeature(const GeometryTileFeature& feature,
     }
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.populateVertexVectors(feature, vertices.vertexSize());
+        pair.second.populateVertexVectors(feature, vertices.vertexSize(), {}, {});
     }
 }
 

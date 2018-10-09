@@ -5,7 +5,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/data_driven_property_value.hpp>
 
 #include <mbgl/util/color.hpp>
 
@@ -34,6 +33,10 @@ public:
     void setMinZoom(float) final;
     void setMaxZoom(float) final;
 
+    // Dynamic properties
+    optional<conversion::Error> setLayoutProperty(const std::string& name, const conversion::Convertible& value) final;
+    optional<conversion::Error> setPaintProperty(const std::string& name, const conversion::Convertible& value) final;
+
     // Paint properties
 
     static PropertyValue<float> getDefaultFillExtrusionOpacity();
@@ -42,9 +45,9 @@ public:
     void setFillExtrusionOpacityTransition(const TransitionOptions&);
     TransitionOptions getFillExtrusionOpacityTransition() const;
 
-    static DataDrivenPropertyValue<Color> getDefaultFillExtrusionColor();
-    DataDrivenPropertyValue<Color> getFillExtrusionColor() const;
-    void setFillExtrusionColor(DataDrivenPropertyValue<Color>);
+    static PropertyValue<Color> getDefaultFillExtrusionColor();
+    PropertyValue<Color> getFillExtrusionColor() const;
+    void setFillExtrusionColor(PropertyValue<Color>);
     void setFillExtrusionColorTransition(const TransitionOptions&);
     TransitionOptions getFillExtrusionColorTransition() const;
 
@@ -66,15 +69,15 @@ public:
     void setFillExtrusionPatternTransition(const TransitionOptions&);
     TransitionOptions getFillExtrusionPatternTransition() const;
 
-    static DataDrivenPropertyValue<float> getDefaultFillExtrusionHeight();
-    DataDrivenPropertyValue<float> getFillExtrusionHeight() const;
-    void setFillExtrusionHeight(DataDrivenPropertyValue<float>);
+    static PropertyValue<float> getDefaultFillExtrusionHeight();
+    PropertyValue<float> getFillExtrusionHeight() const;
+    void setFillExtrusionHeight(PropertyValue<float>);
     void setFillExtrusionHeightTransition(const TransitionOptions&);
     TransitionOptions getFillExtrusionHeightTransition() const;
 
-    static DataDrivenPropertyValue<float> getDefaultFillExtrusionBase();
-    DataDrivenPropertyValue<float> getFillExtrusionBase() const;
-    void setFillExtrusionBase(DataDrivenPropertyValue<float>);
+    static PropertyValue<float> getDefaultFillExtrusionBase();
+    PropertyValue<float> getFillExtrusionBase() const;
+    void setFillExtrusionBase(PropertyValue<float>);
     void setFillExtrusionBaseTransition(const TransitionOptions&);
     TransitionOptions getFillExtrusionBaseTransition() const;
 

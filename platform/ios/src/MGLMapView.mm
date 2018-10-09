@@ -53,6 +53,7 @@
 #import "NSProcessInfo+MGLAdditions.h"
 #import "NSString+MGLAdditions.h"
 #import "NSURL+MGLAdditions.h"
+#import "UIDevice+MGLAdditions.h"
 #import "UIImage+MGLAdditions.h"
 #import "UIViewController+MGLAdditions.h"
 
@@ -73,6 +74,7 @@
 #import "MGLAnnotationContainerView_Private.h"
 #import "MGLAttributionInfo_Private.h"
 #import "MGLMapAccessibilityElement.h"
+#import "MGLLocationManager_Private.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -82,9 +84,17 @@
 class MBGLView;
 class MGLAnnotationContext;
 
-const CGFloat MGLMapViewDecelerationRateNormal = UIScrollViewDecelerationRateNormal;
-const CGFloat MGLMapViewDecelerationRateFast = UIScrollViewDecelerationRateFast;
-const CGFloat MGLMapViewDecelerationRateImmediate = 0.0;
+const MGLMapViewDecelerationRate MGLMapViewDecelerationRateNormal = UIScrollViewDecelerationRateNormal;
+const MGLMapViewDecelerationRate MGLMapViewDecelerationRateFast = UIScrollViewDecelerationRateFast;
+const MGLMapViewDecelerationRate MGLMapViewDecelerationRateImmediate = 0.0;
+
+const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondDefault = -1;
+const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondLowPower = 30;
+const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondMaximum = 60;
+
+const MGLExceptionName MGLMissingLocationServicesUsageDescriptionException = @"MGLMissingLocationServicesUsageDescriptionException";
+const MGLExceptionName MGLUserLocationAnnotationTypeException = @"MGLUserLocationAnnotationTypeException";
+const MGLExceptionName MGLResourceNotFoundException = @"MGLResourceNotFoundException";
 
 /// Indicates the manner in which the map view is tracking the user location.
 typedef NS_ENUM(NSUInteger, MGLUserTrackingState) {
@@ -117,8 +127,6 @@ const double MGLMinimumZoomLevelForUserTracking = 10.5;
 /// Initial zoom level when entering user tracking mode from a low zoom level.
 const double MGLDefaultZoomLevelForUserTracking = 14.0;
 
-const NSUInteger MGLTargetFrameInterval = 1;  // Target FPS will be 60 divided by this value
-
 /// Tolerance for snapping to true north, measured in degrees in either direction.
 const CLLocationDirection MGLToleranceForSnappingToNorth = 7;
 
@@ -134,7 +142,7 @@ static NSString * const MGLInvisibleStyleMarkerSymbolName = @"invisible_marker";
 
 /// Prefix that denotes a sprite installed by MGLMapView, to avoid collisions
 /// with style-defined sprites.
-NSString *const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
+NSString * const MGLAnnotationSpritePrefix = @"com.mapbox.sprites.";
 
 /// Slop area around the hit testing point, allowing for imprecise annotation selection.
 const CGFloat MGLAnnotationImagePaddingForHitTest = 5;
@@ -184,7 +192,7 @@ public:
 
 @interface MGLMapView () <UIGestureRecognizerDelegate,
                           GLKViewDelegate,
-                          CLLocationManagerDelegate,
+                          MGLLocationManagerDelegate,
                           MGLSMCalloutViewDelegate,
                           MGLCalloutViewDelegate,
                           MGLMultiPointDelegate,
@@ -225,7 +233,6 @@ public:
 
 /// Indicates how thoroughly the map view is tracking the user location.
 @property (nonatomic) MGLUserTrackingState userTrackingState;
-@property (nonatomic) CLLocationManager *locationManager;
 @property (nonatomic) CGFloat scale;
 @property (nonatomic) CGFloat angle;
 @property (nonatomic) CGFloat quickZoomStart;
@@ -236,6 +243,12 @@ public:
 @property (nonatomic) MGLAnnotationContainerView *annotationContainerView;
 @property (nonatomic) MGLUserLocation *userLocation;
 @property (nonatomic) NSMutableDictionary<NSString *, NSMutableArray<MGLAnnotationView *> *> *annotationViewReuseQueueByIdentifier;
+
+/// Experimental rendering performance measurement.
+@property (nonatomic) BOOL experimental_enableFrameRateMeasurement;
+@property (nonatomic) CGFloat averageFrameRate;
+@property (nonatomic) CFTimeInterval frameTime;
+@property (nonatomic) CFTimeInterval averageFrameTime;
 
 @end
 
@@ -293,6 +306,11 @@ public:
     BOOL _accessibilityValueAnnouncementIsPending;
 
     MGLReachability *_reachability;
+
+    /// Experimental rendering performance measurement.
+    CFTimeInterval _frameCounterStartTime;
+    NSInteger _frameCount;
+    CFTimeInterval _frameDurations;
 }
 
 #pragma mark - Setup & Teardown -
@@ -403,6 +421,9 @@ public:
     self.backgroundColor = [UIColor clearColor];
     self.clipsToBounds = YES;
     if (@available(iOS 11.0, *)) { self.accessibilityIgnoresInvertColors = YES; }
+
+    self.preferredFramesPerSecond = MGLMapViewPreferredFramesPerSecondDefault;
+
     // setup mbgl view
     _mbglView = new MBGLView(self);
 
@@ -436,6 +457,9 @@ public:
         _isWaitingForRedundantReachableNotification = YES;
     }
     [_reachability startNotifier];
+    
+    // setup default location manager
+    self.locationManager = nil;
 
     // Set up annotation management and selection state.
     _annotationImagesByIdentifier = [NSMutableDictionary dictionary];
@@ -699,6 +723,11 @@ public:
     
     [self.attributionButtonConstraints removeAllObjects];
     self.attributionButtonConstraints = nil;
+    
+    [_locationManager stopUpdatingLocation];
+    [_locationManager stopUpdatingHeading];
+    _locationManager.delegate = nil;
+
 }
 
 - (void)setDelegate:(nullable id<MGLMapViewDelegate>)delegate
@@ -1096,6 +1125,27 @@ public:
 
         [self.glView display];
     }
+
+    if (self.experimental_enableFrameRateMeasurement)
+    {
+        CFTimeInterval now = CACurrentMediaTime();
+
+        self.frameTime = now - _displayLink.timestamp;
+        _frameDurations += self.frameTime;
+
+        _frameCount++;
+
+        CFTimeInterval elapsed = now - _frameCounterStartTime;
+
+        if (elapsed >= 1.0) {
+            self.averageFrameRate = _frameCount / elapsed;
+            self.averageFrameTime = (_frameDurations / _frameCount) * 1000;
+
+            _frameCount = 0;
+            _frameDurations = 0;
+            _frameCounterStartTime = now;
+        }
+    }
 }
 
 - (void)setNeedsGLDisplay
@@ -1128,7 +1178,7 @@ public:
         }
 
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
-        _displayLink.frameInterval = MGLTargetFrameInterval;
+        [self updateDisplayLinkPreferredFramesPerSecond];
         [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         _needsDisplayRefresh = YES;
         [self updateFromDisplayLink];
@@ -1138,6 +1188,49 @@ public:
         [_displayLink invalidate];
         _displayLink = nil;
     }
+}
+
+- (void)updateDisplayLinkPreferredFramesPerSecond
+{
+    if (!_displayLink)
+    {
+        return;
+    }
+
+    NSInteger newFrameRate;
+    if (_preferredFramesPerSecond == MGLMapViewPreferredFramesPerSecondDefault)
+    {
+        // On legacy devices that cannot maintain a reasonable frame rate, set
+        // a lower limit to avoid jank.
+        newFrameRate = UIDevice.currentDevice.mgl_isLegacyDevice ? MGLMapViewPreferredFramesPerSecondLowPower : MGLMapViewPreferredFramesPerSecondMaximum;
+    }
+    else
+    {
+        newFrameRate = _preferredFramesPerSecond;
+    }
+
+    if (@available(iOS 10.0, *))
+    {
+        _displayLink.preferredFramesPerSecond = newFrameRate;
+    }
+    else
+    {
+        // CADisplayLink.frameInterval does not support more than 60 FPS (and
+        // no device that supports >60 FPS ever supported iOS 9).
+        NSInteger maximumFrameRate = 60;
+        _displayLink.frameInterval = maximumFrameRate / MIN(newFrameRate, maximumFrameRate);
+    }
+}
+
+- (void)setPreferredFramesPerSecond:(MGLMapViewPreferredFramesPerSecond)preferredFramesPerSecond
+{
+    if (_preferredFramesPerSecond == preferredFramesPerSecond)
+    {
+        return;
+    }
+
+    _preferredFramesPerSecond = preferredFramesPerSecond;
+    [self updateDisplayLinkPreferredFramesPerSecond];
 }
 
 - (void)didMoveToWindow
@@ -1279,7 +1372,6 @@ public:
 		}
 	}
 
-    _changeDelimiterSuppressionDepth = 0;
     _mbglMap->setGestureInProgress(false);
     if (self.userTrackingState == MGLUserTrackingStateBegan)
     {
@@ -4138,7 +4230,11 @@ public:
             {
                 if ([annotation isKindOfClass:[MGLMultiPoint class]])
                 {
-                    return false;
+                    if ([self.delegate respondsToSelector:@selector(mapView:shapeAnnotationIsEnabled:)]) {
+                        return !!(![self.delegate mapView:self shapeAnnotationIsEnabled:(MGLMultiPoint *)annotation]);
+                    } else {
+                        return false;
+                    }
                 }
                 
                 MGLAnnotationImage *annotationImage = [self imageOfAnnotationWithTag:annotationTag];
@@ -4749,15 +4845,26 @@ public:
 
 #pragma mark - User Location -
 
+- (void)setLocationManager:(nullable id<MGLLocationManager>)locationManager
+{
+    if (!locationManager) {
+        locationManager = [[MGLCLLocationManager alloc] init];
+    }
+    [_locationManager stopUpdatingLocation];
+    [_locationManager stopUpdatingHeading];
+    _locationManager.delegate = nil;
+    
+    _locationManager = locationManager;
+    _locationManager.delegate = self;
+}
+
 - (void)validateLocationServices
 {
     BOOL shouldEnableLocationServices = self.showsUserLocation && !self.dormant;
 
-    if (shouldEnableLocationServices && ! self.locationManager)
+    if (shouldEnableLocationServices)
     {
-        self.locationManager = [[CLLocationManager alloc] init];
-
-        if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusNotDetermined)
+        if (self.locationManager.authorizationStatus == kCLAuthorizationStatusNotDetermined)
         {
             BOOL requiresWhenInUseUsageDescription = [NSProcessInfo.processInfo isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){11,0,0}];
             BOOL hasWhenInUseUsageDescription = !![[NSBundle mainBundle] objectForInfoDictionaryKey:@"NSLocationWhenInUseUsageDescription"];
@@ -4784,11 +4891,11 @@ public:
                 NSString *suggestedUsageKeys = requiresWhenInUseUsageDescription ?
                     @"NSLocationWhenInUseUsageDescription and (optionally) NSLocationAlwaysAndWhenInUseUsageDescription" :
                     @"NSLocationWhenInUseUsageDescription and/or NSLocationAlwaysUsageDescription";
-                [NSException raise:@"Missing Location Services usage description" format:@"This app must have a value for %@ in its Info.plist.", suggestedUsageKeys];
+                [NSException raise:MGLMissingLocationServicesUsageDescriptionException
+                            format:@"This app must have a value for %@ in its Info.plist.", suggestedUsageKeys];
             }
         }
 
-        self.locationManager.delegate = self;
         [self.locationManager startUpdatingLocation];
 
         [self validateUserHeadingUpdating];
@@ -4797,8 +4904,6 @@ public:
     {
         [self.locationManager stopUpdatingLocation];
         [self.locationManager stopUpdatingHeading];
-        self.locationManager.delegate = nil;
-        self.locationManager = nil;
     }
 }
 
@@ -4824,7 +4929,7 @@ public:
             userLocationAnnotationView = (MGLUserLocationAnnotationView *)[self.delegate mapView:self viewForAnnotation:self.userLocation];
             if (userLocationAnnotationView && ! [userLocationAnnotationView isKindOfClass:MGLUserLocationAnnotationView.class])
             {
-                [NSException raise:@"MGLUserLocationAnnotationTypeException"
+                [NSException raise:MGLUserLocationAnnotationTypeException
                             format:@"User location annotation view must be a kind of MGLUserLocationAnnotationView. %@", userLocationAnnotationView.debugDescription];
             }
         }
@@ -5028,12 +5133,12 @@ public:
     }
 }
 
-- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations
+- (void)locationManager:(id<MGLLocationManager>)manager didUpdateLocations:(NSArray *)locations
 {
     [self locationManager:manager didUpdateLocations:locations animated:YES];
 }
 
-- (void)locationManager:(__unused CLLocationManager *)manager didUpdateLocations:(NSArray *)locations animated:(BOOL)animated
+- (void)locationManager:(__unused id<MGLLocationManager>)manager didUpdateLocations:(NSArray *)locations animated:(BOOL)animated
 {
     CLLocation *oldLocation = self.userLocation.location;
     CLLocation *newLocation = locations.lastObject;
@@ -5260,16 +5365,21 @@ public:
     return direction;
 }
 
-- (BOOL)locationManagerShouldDisplayHeadingCalibration:(CLLocationManager *)manager
+- (BOOL)locationManagerShouldDisplayHeadingCalibration:(id<MGLLocationManager>)manager
 {
-    if (self.displayHeadingCalibration) [manager performSelector:@selector(dismissHeadingCalibrationDisplay)
-                                                      withObject:nil
+    if (self.displayHeadingCalibration) [self performSelector:@selector(dismissHeadingCalibrationDisplay:)
+                                                      withObject:manager
                                                       afterDelay:10.0];
 
     return self.displayHeadingCalibration;
 }
 
-- (void)locationManager:(__unused CLLocationManager *)manager didUpdateHeading:(CLHeading *)newHeading
+- (void)dismissHeadingCalibrationDisplay:(id<MGLLocationManager>)manager
+{
+    [manager dismissHeadingCalibrationDisplay];
+}
+
+- (void)locationManager:(__unused id<MGLLocationManager>)manager didUpdateHeading:(CLHeading *)newHeading
 {
     if ( ! _showsUserLocation || self.pan.state == UIGestureRecognizerStateBegan || newHeading.headingAccuracy < 0) return;
 
@@ -5304,7 +5414,7 @@ public:
     }
 }
 
-- (void)locationManager:(__unused CLLocationManager *)manager didFailWithError:(NSError *)error
+- (void)locationManager:(__unused id<MGLLocationManager>)manager didFailWithError:(NSError *)error
 {
     if ([error code] == kCLErrorDenied)
     {
@@ -6012,7 +6122,7 @@ public:
 
     if ( ! image)
     {
-        [NSException raise:@"MGLResourceNotFoundException" format:
+        [NSException raise:MGLResourceNotFoundException format:
          @"The resource named “%@” could not be found in the Mapbox framework bundle.", imageName];
     }
 
@@ -6301,8 +6411,8 @@ private:
     NSURL *url = URLString.length ? [NSURL URLWithString:URLString] : nil;
     if (URLString.length && !url)
     {
-        [NSException raise:@"Invalid style URL" format:
-         @"“%@” is not a valid style URL.", URLString];
+        [NSException raise:MGLInvalidStyleURLException
+                    format:@"“%@” is not a valid style URL.", URLString];
     }
     self.styleURL = url;
 }

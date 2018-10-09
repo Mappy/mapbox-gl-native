@@ -1,4 +1,5 @@
 #include <mbgl/style/expression/interpolate.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 #include <mbgl/util/string.hpp>
 
 namespace mbgl {
@@ -170,23 +171,23 @@ ParseResult parseInterpolate(const Convertible& value, ParsingContext& ctx) {
             labelValue->match(
                 [&](uint64_t n) {
                     if (n > std::numeric_limits<double>::max()) {
-                        label = {std::numeric_limits<double>::infinity()};
+                        label = optional<double>{std::numeric_limits<double>::infinity()};
                     } else {
-                        label = {static_cast<double>(n)};
+                        label = optional<double>{static_cast<double>(n)};
                     }
                 },
                 [&](int64_t n) {
                     if (n > std::numeric_limits<double>::max()) {
-                        label = {std::numeric_limits<double>::infinity()};
+                        label = optional<double>{std::numeric_limits<double>::infinity()};
                     } else {
-                        label = {static_cast<double>(n)};
+                        label = optional<double>{static_cast<double>(n)};
                     }
                 },
                 [&](double n) {
                     if (n > std::numeric_limits<double>::max()) {
-                        label = {std::numeric_limits<double>::infinity()};
+                        label = optional<double>{std::numeric_limits<double>::infinity()};
                     } else {
-                        label = {static_cast<double>(n)};
+                        label = optional<double>{n};
                     }
                 },
                 [&](const auto&) {}
@@ -264,7 +265,7 @@ Interpolate::Interpolate(const type::Type& type_,
                          Interpolator interpolator_,
                          std::unique_ptr<Expression> input_,
                          std::map<double, std::unique_ptr<Expression>> stops_)
-  : Expression(type_),
+  : Expression(Kind::Interpolate, type_),
     interpolator(std::move(interpolator_)),
     input(std::move(input_)),
     stops(std::move(stops_)) {

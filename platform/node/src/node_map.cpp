@@ -47,6 +47,7 @@ struct NodeMap::RenderOptions {
 };
 
 Nan::Persistent<v8::Function> NodeMap::constructor;
+Nan::Persistent<v8::Object> NodeMap::parseError;
 
 static const char* releasedMessage() {
     return "Map resources have already been released";
@@ -57,6 +58,20 @@ void NodeMapObserver::onDidFailLoadingMap(std::exception_ptr error) {
 }
 
 void NodeMap::Init(v8::Local<v8::Object> target) {
+    // Define a custom error class for parse errors
+    auto script = Nan::New<v8::UnboundScript>(Nan::New(R"JS(
+class ParseError extends Error {
+  constructor(...params) {
+    super(...params);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ParseError);
+    }
+  }
+}
+ParseError)JS").ToLocalChecked()).ToLocalChecked();
+    parseError.Reset(Nan::To<v8::Object>(Nan::RunScript(script).ToLocalChecked()).ToLocalChecked());
+    Nan::Set(target, Nan::New("ParseError").ToLocalChecked(), Nan::New(parseError));
+
     v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
 
     tpl->SetClassName(Nan::New("Map").ToLocalChecked());
@@ -216,6 +231,8 @@ void NodeMap::Load(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 
     try {
         nodeMap->map->getStyle().loadJSON(style);
+    } catch (const mbgl::util::StyleParseException& ex) {
+        return Nan::ThrowError(ParseError(ex.what()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -408,9 +425,11 @@ void NodeMap::Render(const Nan::FunctionCallbackInfo<v8::Value>& info) {
         nodeMap->req = std::make_unique<RenderRequest>(Nan::To<v8::Function>(info[1]).ToLocalChecked());
 
         nodeMap->startRender(std::move(options));
-    } catch (mbgl::style::conversion::Error& err) {
+    } catch (const mbgl::style::conversion::Error& err) {
         return Nan::ThrowTypeError(err.message.c_str());
-    } catch (mbgl::util::Exception &ex) {
+    } catch (const mbgl::util::StyleParseException& ex) {
+        return Nan::ThrowError(ParseError(ex.what()));
+    } catch (const mbgl::util::Exception &ex) {
         return Nan::ThrowError(ex.what());
     }
 
@@ -459,21 +478,18 @@ void NodeMap::startRender(NodeMap::RenderOptions options) {
     uv_ref(reinterpret_cast<uv_handle_t *>(async));
 }
 
+v8::Local<v8::Value> NodeMap::ParseError(const char* msg) {
+    v8::Local<v8::Value> argv[] = { Nan::New(msg).ToLocalChecked() };
+    return Nan::CallAsConstructor(Nan::New(parseError), 1, argv).ToLocalChecked();
+}
+
 void NodeMap::renderFinished() {
-    if (!req) {
-        // In some situations, the render finishes at the same time as we call cancel. Make sure
-        // we are only finishing a render once.
-        return;
-    }
+    assert(req);
 
     Nan::HandleScope scope;
 
     // We're done with this render call, so we're unrefing so that the loop could close.
     uv_unref(reinterpret_cast<uv_handle_t *>(async));
-
-    // There is no render pending anymore, we the GC could now delete this object if it went out
-    // of scope.
-    Unref();
 
     // Move the callback and image out of the way so that the callback can start a new render call.
     auto request = std::move(req);
@@ -488,16 +504,19 @@ void NodeMap::renderFinished() {
     v8::Local<v8::Object> target = Nan::New<v8::Object>();
 
     if (error) {
-        std::string errorMessage;
+        v8::Local<v8::Value> err;
 
         try {
             std::rethrow_exception(error);
+            assert(false);
+        } catch (const mbgl::util::StyleParseException& ex) {
+            err = ParseError(ex.what());
         } catch (const std::exception& ex) {
-            errorMessage = ex.what();
+            err = Nan::Error(ex.what());
         }
 
         v8::Local<v8::Value> argv[] = {
-            Nan::Error(errorMessage.c_str())
+            err
         };
 
         // This must be empty to be prepared for the next render call.
@@ -527,6 +546,10 @@ void NodeMap::renderFinished() {
         };
         request->runInAsyncScope(target, callback, 1, argv);
     }
+
+    // There is no render pending anymore, we the GC could now delete this object if it went out
+    // of scope.
+    Unref();
 }
 
 /**
@@ -584,6 +607,17 @@ void NodeMap::cancel() {
     
     // Reset map explicitly as it resets the renderer frontend
     map.reset();
+
+    // Remove the existing async handle to flush any scheduled calls to renderFinished.
+    uv_unref(reinterpret_cast<uv_handle_t *>(async));
+    uv_close(reinterpret_cast<uv_handle_t *>(async), [] (uv_handle_t *h) {
+        delete reinterpret_cast<uv_async_t *>(h);
+    });
+    async = new uv_async_t;
+    async->data = this;
+    uv_async_init(uv_default_loop(), async, [](uv_async_t* h) {
+        reinterpret_cast<NodeMap *>(h->data)->renderFinished();
+    });
 
     frontend = std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size{ 256, 256 }, pixelRatio, *this, threadpool);
     map = std::make_unique<mbgl::Map>(*frontend, mapObserver, frontend->getSize(), pixelRatio,
@@ -815,7 +849,7 @@ void NodeMap::SetLayoutProperty(const Nan::FunctionCallbackInfo<v8::Value>& info
         return Nan::ThrowTypeError("Second argument must be a string");
     }
 
-    mbgl::optional<Error> error = setLayoutProperty(*layer, *Nan::Utf8String(info[1]), Convertible(info[2]));
+    mbgl::optional<Error> error = layer->setLayoutProperty(*Nan::Utf8String(info[1]), Convertible(info[2]));
     if (error) {
         return Nan::ThrowTypeError(error->message.c_str());
     }
@@ -847,7 +881,7 @@ void NodeMap::SetPaintProperty(const Nan::FunctionCallbackInfo<v8::Value>& info)
         return Nan::ThrowTypeError("Second argument must be a string");
     }
 
-    mbgl::optional<Error> error = setPaintProperty(*layer, *Nan::Utf8String(info[1]), Convertible(info[2]));
+    mbgl::optional<Error> error = layer->setPaintProperty(*Nan::Utf8String(info[1]), Convertible(info[2]));
     if (error) {
         return Nan::ThrowTypeError(error->message.c_str());
     }

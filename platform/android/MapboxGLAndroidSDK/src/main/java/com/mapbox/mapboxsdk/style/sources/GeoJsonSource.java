@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.style.sources;
 
+import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
@@ -27,7 +28,8 @@ public class GeoJsonSource extends Source {
    *
    * @param nativePtr - pointer to native peer
    */
-  public GeoJsonSource(long nativePtr) {
+  @Keep
+  GeoJsonSource(long nativePtr) {
     super(nativePtr);
   }
 
@@ -186,7 +188,8 @@ public class GeoJsonSource extends Source {
   }
 
   /**
-   * Updates the GeoJson with a single feature
+   * Updates the GeoJson with a single feature. The update is performed asynchronously,
+   * so the data won't be immediately visible or available to query when this method returns.
    *
    * @param feature the GeoJSON {@link Feature} to set
    */
@@ -196,7 +199,8 @@ public class GeoJsonSource extends Source {
   }
 
   /**
-   * Updates the GeoJson with a single geometry
+   * Updates the GeoJson with a single geometry. The update is performed asynchronously,
+   * so the data won't be immediately visible or available to query when this method returns.
    *
    * @param geometry the GeoJSON {@link Geometry} to set
    */
@@ -206,7 +210,8 @@ public class GeoJsonSource extends Source {
   }
 
   /**
-   * Updates the GeoJson
+   * Updates the GeoJson. The update is performed asynchronously,
+   * so the data won't be immediately visible or available to query when this method returns.
    *
    * @param features the GeoJSON FeatureCollection
    */
@@ -216,7 +221,8 @@ public class GeoJsonSource extends Source {
   }
 
   /**
-   * Updates the GeoJson
+   * Updates the GeoJson. The update is performed asynchronously,
+   * so the data won't be immediately visible or available to query when this method returns.
    *
    * @param json the raw GeoJson FeatureCollection string
    */
@@ -267,23 +273,32 @@ public class GeoJsonSource extends Source {
     return features != null ? Arrays.asList(features) : new ArrayList<Feature>();
   }
 
+  @Keep
   protected native void initialize(String layerId, Object options);
 
+  @Keep
   protected native void nativeSetUrl(String url);
 
+  @Keep
   protected native String nativeGetUrl();
 
+  @Keep
   private native void nativeSetGeoJsonString(String geoJson);
 
+  @Keep
   private native void nativeSetFeatureCollection(FeatureCollection geoJson);
 
+  @Keep
   private native void nativeSetFeature(Feature feature);
 
+  @Keep
   private native void nativeSetGeometry(Geometry geometry);
 
+  @Keep
   private native Feature[] querySourceFeatures(Object[] filter);
 
   @Override
+  @Keep
   protected native void finalize() throws Throwable;
 
 }

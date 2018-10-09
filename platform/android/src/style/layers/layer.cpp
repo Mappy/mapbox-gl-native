@@ -18,13 +18,15 @@
 #include <mbgl/util/logging.hpp>
 
 // Java -> C++ conversion
-#include <mbgl/style/conversion.hpp>
 #include <mbgl/style/conversion/filter.hpp>
 #include <mbgl/style/conversion/layer.hpp>
 #include <mbgl/style/conversion/source.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 
 // C++ -> Java conversion
 #include "../conversion/property_value.hpp"
+#include "custom_layer.hpp"
+#include "background_layer.hpp"
 #include <mbgl/style/filter.hpp>
 
 #include <string>
@@ -91,7 +93,7 @@ namespace android {
 
     void Layer::setLayoutProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
         // Convert and set property
-        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setLayoutProperty(layer, jni::Make<std::string>(env, jname), Value(env, jvalue));
+        optional<mbgl::style::conversion::Error> error = layer.setLayoutProperty(jni::Make<std::string>(env, jname), Value(env, jvalue));
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
             return;
@@ -100,7 +102,7 @@ namespace android {
 
     void Layer::setPaintProperty(jni::JNIEnv& env, jni::String jname, jni::Object<> jvalue) {
         // Convert and set property
-        optional<mbgl::style::conversion::Error> error = mbgl::style::conversion::setPaintProperty(layer, jni::Make<std::string>(env, jname), Value(env, jvalue));
+        optional<mbgl::style::conversion::Error> error = layer.setPaintProperty(jni::Make<std::string>(env, jname), Value(env, jvalue));
         if (error) {
             mbgl::Log::Error(mbgl::Event::JNI, "Error setting property: " + jni::Make<std::string>(env, jname) + " " + error->message);
             return;
@@ -204,6 +206,25 @@ namespace android {
         return jni::Make<jni::String>(env, layer.accept(GetSourceLayerEvaluator()));
     }
 
+    struct GetSourceIdEvaluator {
+        std::string noop(std::string layerType) {
+            Log::Warning(mbgl::Event::JNI, "%s doesn't support get source id", layerType.c_str());
+            return {};
+        }
+
+        std::string operator()(style::BackgroundLayer&) { return noop("BackgroundLayer"); }
+        std::string operator()(style::CustomLayer&) { return noop("CustomLayer"); }
+
+        template <class LayerType>
+        std::string operator()(LayerType& layer) {
+            return layer.getSourceID();
+        }
+    };
+
+    jni::String Layer::getSourceId(jni::JNIEnv& env) {
+        return jni::Make<jni::String>(env, layer.accept(GetSourceIdEvaluator()));
+    }
+
     jni::jfloat Layer::getMinZoom(jni::JNIEnv&){
         return layer.getMinZoom();
     }
@@ -242,6 +263,7 @@ namespace android {
             METHOD(&Layer::getFilter, "nativeGetFilter"),
             METHOD(&Layer::setSourceLayer, "nativeSetSourceLayer"),
             METHOD(&Layer::getSourceLayer, "nativeGetSourceLayer"),
+            METHOD(&Layer::getSourceId, "nativeGetSourceId"),
             METHOD(&Layer::getMinZoom, "nativeGetMinZoom"),
             METHOD(&Layer::getMaxZoom, "nativeGetMaxZoom"),
             METHOD(&Layer::setMinZoom, "nativeSetMinZoom"),

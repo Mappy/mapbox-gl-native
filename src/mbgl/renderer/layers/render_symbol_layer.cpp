@@ -36,7 +36,7 @@ std::unique_ptr<Bucket> RenderSymbolLayer::createBucket(const BucketParameters&,
     return nullptr;
 }
 
-std::unique_ptr<SymbolLayout> RenderSymbolLayer::createLayout(const BucketParameters& parameters,
+std::unique_ptr<Layout> RenderSymbolLayer::createLayout(const BucketParameters& parameters,
                                                               const std::vector<const RenderLayer*>& group,
                                                               std::unique_ptr<GeometryTileLayer> layer,
                                                               GlyphDependencies& glyphDependencies,
@@ -69,14 +69,21 @@ bool RenderSymbolLayer::hasTransition() const {
     return unevaluated.hasTransition();
 }
 
+bool RenderSymbolLayer::hasCrossfade() const {
+    return false;
+}
+
 void RenderSymbolLayer::render(PaintParameters& parameters, RenderSource*) {
     if (parameters.pass == RenderPass::Opaque) {
         return;
     }
 
     for (const RenderTile& tile : renderTiles) {
-        assert(dynamic_cast<SymbolBucket*>(tile.tile.getBucket(*baseImpl)));
-        SymbolBucket& bucket = *reinterpret_cast<SymbolBucket*>(tile.tile.getBucket(*baseImpl));
+        auto bucket_ = tile.tile.getBucket<SymbolBucket>(*baseImpl);
+        if (!bucket_) {
+            continue;
+        }
+        SymbolBucket& bucket = *bucket_;
 
         const auto& layout = bucket.layout;
 
@@ -123,14 +130,14 @@ void RenderSymbolLayer::render(PaintParameters& parameters, RenderSource*) {
             );
         };
 
-        assert(dynamic_cast<GeometryTile*>(&tile.tile));
+        assert(tile.tile.kind == Tile::Kind::Geometry);
         GeometryTile& geometryTile = static_cast<GeometryTile&>(tile.tile);
 
         if (bucket.hasIconData()) {
             auto values = iconPropertyValues(layout);
             auto paintPropertyValues = iconPaintProperties();
 
-            const bool alongLine = layout.get<SymbolPlacement>() == SymbolPlacementType::Line &&
+            const bool alongLine = layout.get<SymbolPlacement>() != SymbolPlacementType::Point &&
                 layout.get<IconRotationAlignment>() == AlignmentType::Map;
 
             if (alongLine) {
@@ -191,7 +198,7 @@ void RenderSymbolLayer::render(PaintParameters& parameters, RenderSource*) {
             auto values = textPropertyValues(layout);
             auto paintPropertyValues = textPaintProperties();
 
-            const bool alongLine = layout.get<SymbolPlacement>() == SymbolPlacementType::Line &&
+            const bool alongLine = layout.get<SymbolPlacement>() != SymbolPlacementType::Point &&
                 layout.get<TextRotationAlignment>() == AlignmentType::Map;
 
             if (alongLine) {
@@ -248,9 +255,9 @@ void RenderSymbolLayer::render(PaintParameters& parameters, RenderSource*) {
                 gl::StencilMode::disabled(),
                 parameters.colorModeForRenderPass(),
                 CollisionBoxProgram::UniformValues {
-                    uniforms::u_matrix::Value{ tile.matrix },
-                    uniforms::u_extrude_scale::Value{ extrudeScale },
-                    uniforms::u_camera_to_center_distance::Value{ parameters.state.getCameraToCenterDistance() }
+                    uniforms::u_matrix::Value( tile.matrix ),
+                    uniforms::u_extrude_scale::Value( extrudeScale ),
+                    uniforms::u_camera_to_center_distance::Value( parameters.state.getCameraToCenterDistance() )
                 },
                 *bucket.collisionBox.vertexBuffer,
                 *bucket.collisionBox.dynamicVertexBuffer,
@@ -282,10 +289,10 @@ void RenderSymbolLayer::render(PaintParameters& parameters, RenderSource*) {
                 gl::StencilMode::disabled(),
                 parameters.colorModeForRenderPass(),
                 CollisionCircleProgram::UniformValues {
-                    uniforms::u_matrix::Value{ tile.matrix },
-                    uniforms::u_extrude_scale::Value{ extrudeScale },
-                    uniforms::u_overscale_factor::Value{ float(tile.tile.id.overscaleFactor()) },
-                    uniforms::u_camera_to_center_distance::Value{ parameters.state.getCameraToCenterDistance() }
+                    uniforms::u_matrix::Value( tile.matrix ),
+                    uniforms::u_extrude_scale::Value( extrudeScale ),
+                    uniforms::u_overscale_factor::Value( float(tile.tile.id.overscaleFactor()) ),
+                    uniforms::u_camera_to_center_distance::Value( parameters.state.getCameraToCenterDistance() )
                 },
                 *bucket.collisionCircle.vertexBuffer,
                 *bucket.collisionCircle.dynamicVertexBuffer,
@@ -335,24 +342,11 @@ style::SymbolPropertyValues RenderSymbolLayer::iconPropertyValues(const style::S
             evaluated.get<style::IconTranslateAnchor>(),
             evaluated.get<style::IconHaloColor>().constantOr(Color::black()).a > 0 &&
             evaluated.get<style::IconHaloWidth>().constantOr(1),
-            evaluated.get<style::IconColor>().constantOr(Color::black()).a > 0,
-            10.0f
+            evaluated.get<style::IconColor>().constantOr(Color::black()).a > 0
     };
 }
 
 style::SymbolPropertyValues RenderSymbolLayer::textPropertyValues(const style::SymbolLayoutProperties::PossiblyEvaluated& layout_) const {
-    // We hide line labels with viewport alignment as they move into the distance
-    // because the approximations we use for drawing their glyphs get progressively worse
-    // The "1.5" here means we start hiding them when the distance from the label
-    // to the camera is 50% greater than the distance from the center of the map
-    // to the camera. Depending on viewport properties, you might expect this to filter
-    // the top third of the screen at pitch 60, and do almost nothing at pitch 45
-    // "10" is effectively infinite at any pitch we support
-    const bool limitMaxDistance =
-        layout_.get<style::SymbolPlacement>() == style::SymbolPlacementType::Line
-        && layout_.get<style::TextRotationAlignment>() == style::AlignmentType::Map
-        && layout_.get<style::TextPitchAlignment>() == style::AlignmentType::Viewport;
-
     return style::SymbolPropertyValues {
             layout_.get<style::TextPitchAlignment>(),
             layout_.get<style::TextRotationAlignment>(),
@@ -361,8 +355,7 @@ style::SymbolPropertyValues RenderSymbolLayer::textPropertyValues(const style::S
             evaluated.get<style::TextTranslateAnchor>(),
             evaluated.get<style::TextHaloColor>().constantOr(Color::black()).a > 0 &&
             evaluated.get<style::TextHaloWidth>().constantOr(1),
-            evaluated.get<style::TextColor>().constantOr(Color::black()).a > 0,
-            limitMaxDistance ? 1.5f : 10.0f
+            evaluated.get<style::TextColor>().constantOr(Color::black()).a > 0
     };
 }
 

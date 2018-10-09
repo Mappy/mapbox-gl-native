@@ -3,6 +3,7 @@
 package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.ColorInt;
+import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
@@ -26,7 +27,8 @@ public class LineLayer extends Layer {
    *
    * @param nativePtr pointer used by core
    */
-  public LineLayer(long nativePtr) {
+  @Keep
+  LineLayer(long nativePtr) {
     super(nativePtr);
   }
 
@@ -41,6 +43,7 @@ public class LineLayer extends Layer {
     initialize(layerId, sourceId);
   }
 
+  @Keep
   protected native void initialize(String layerId, String sourceId);
 
   /**
@@ -62,6 +65,16 @@ public class LineLayer extends Layer {
   public LineLayer withSourceLayer(String sourceLayer) {
     setSourceLayer(sourceLayer);
     return this;
+  }
+
+  /**
+   * Get the source id.
+   *
+   * @return id of the source
+   */
+  public String getSourceId() {
+    checkThread();
+    return nativeGetSourceId();
   }
 
   /**
@@ -475,71 +488,135 @@ public class LineLayer extends Layer {
     nativeSetLinePatternTransition(options.getDuration(), options.getDelay());
   }
 
+  /**
+   * Get the LineGradient property
+   *
+   * @return property wrapper value around String
+   */
+  @SuppressWarnings("unchecked")
+  public PropertyValue<String> getLineGradient() {
+    checkThread();
+    return (PropertyValue<String>) new PropertyValue("line-gradient", nativeGetLineGradient());
+  }
+
+  /**
+   * Defines a gradient with which to color a line feature. Can only be used with GeoJSON sources that specify `"lineMetrics": true`.
+   *
+   * @return int representation of a rgba string color
+   * @throws RuntimeException thrown if property isn't a value
+   */
+  @ColorInt
+  public int getLineGradientAsInt() {
+    checkThread();
+    PropertyValue<String> value = getLineGradient();
+    if (value.isValue()) {
+      return rgbaToColor(value.getValue());
+    } else {
+      throw new RuntimeException("line-gradient was set as a Function");
+    }
+  }
+
+  @Keep
   private native Object nativeGetLineCap();
 
+  @Keep
   private native Object nativeGetLineJoin();
 
+  @Keep
   private native Object nativeGetLineMiterLimit();
 
+  @Keep
   private native Object nativeGetLineRoundLimit();
 
+  @Keep
   private native Object nativeGetLineOpacity();
 
+  @Keep
   private native TransitionOptions nativeGetLineOpacityTransition();
 
+  @Keep
   private native void nativeSetLineOpacityTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineColor();
 
+  @Keep
   private native TransitionOptions nativeGetLineColorTransition();
 
+  @Keep
   private native void nativeSetLineColorTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineTranslate();
 
+  @Keep
   private native TransitionOptions nativeGetLineTranslateTransition();
 
+  @Keep
   private native void nativeSetLineTranslateTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineTranslateAnchor();
 
+  @Keep
   private native Object nativeGetLineWidth();
 
+  @Keep
   private native TransitionOptions nativeGetLineWidthTransition();
 
+  @Keep
   private native void nativeSetLineWidthTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineGapWidth();
 
+  @Keep
   private native TransitionOptions nativeGetLineGapWidthTransition();
 
+  @Keep
   private native void nativeSetLineGapWidthTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineOffset();
 
+  @Keep
   private native TransitionOptions nativeGetLineOffsetTransition();
 
+  @Keep
   private native void nativeSetLineOffsetTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineBlur();
 
+  @Keep
   private native TransitionOptions nativeGetLineBlurTransition();
 
+  @Keep
   private native void nativeSetLineBlurTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLineDasharray();
 
+  @Keep
   private native TransitionOptions nativeGetLineDasharrayTransition();
 
+  @Keep
   private native void nativeSetLineDasharrayTransition(long duration, long delay);
 
+  @Keep
   private native Object nativeGetLinePattern();
 
+  @Keep
   private native TransitionOptions nativeGetLinePatternTransition();
 
+  @Keep
   private native void nativeSetLinePatternTransition(long duration, long delay);
 
+  @Keep
+  private native Object nativeGetLineGradient();
+
   @Override
+  @Keep
   protected native void finalize() throws Throwable;
 
 }

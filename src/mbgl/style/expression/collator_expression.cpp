@@ -1,6 +1,7 @@
 #include <mbgl/style/expression/collator.hpp>
 #include <mbgl/style/expression/collator_expression.hpp>
 #include <mbgl/style/expression/literal.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 #include <mbgl/util/string.hpp>
 
 namespace mbgl {
@@ -10,7 +11,7 @@ namespace expression {
 CollatorExpression::CollatorExpression(std::unique_ptr<Expression> caseSensitive_,
                    std::unique_ptr<Expression> diacriticSensitive_,
                    optional<std::unique_ptr<Expression>> locale_)
-    : Expression(type::Collator)
+    : Expression(Kind::CollatorExpression, type::Collator)
     , caseSensitive(std::move(caseSensitive_))
     , diacriticSensitive(std::move(diacriticSensitive_))
     , locale(std::move(locale_))
@@ -73,7 +74,8 @@ void CollatorExpression::eachChild(const std::function<void(const Expression&)>&
 }
     
 bool CollatorExpression::operator==(const Expression& e) const {
-    if (auto rhs = dynamic_cast<const CollatorExpression*>(&e)) {
+    if (e.getKind() == Kind::CollatorExpression) {
+        auto rhs = static_cast<const CollatorExpression*>(&e);
         if ((locale && (!rhs->locale || **locale != **(rhs->locale))) ||
             (!locale && rhs->locale)) {
             return false;

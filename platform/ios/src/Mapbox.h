@@ -57,6 +57,7 @@ FOUNDATION_EXPORT MGL_EXPORT const unsigned char MapboxVersionString[];
 #import "MGLRasterTileSource.h"
 #import "MGLRasterDEMSource.h"
 #import "MGLImageSource.h"
+#import "MGLShapeOfflineRegion.h"
 #import "MGLTilePyramidOfflineRegion.h"
 #import "MGLTypes.h"
 #import "MGLUserLocation.h"
@@ -67,3 +68,4 @@ FOUNDATION_EXPORT MGL_EXPORT const unsigned char MapboxVersionString[];
 #import "MGLMapSnapshotter.h"
 #import "NSExpression+MGLAdditions.h"
 #import "NSPredicate+MGLAdditions.h"
+#import "MGLLocationManager.h"

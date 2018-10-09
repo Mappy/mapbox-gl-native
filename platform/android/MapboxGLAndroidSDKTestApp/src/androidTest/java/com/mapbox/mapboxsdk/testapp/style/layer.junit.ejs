@@ -60,6 +60,20 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
     });
 <% } -%>
   }
+<% if (type !== 'background') { -%>
+
+  @Test
+  public void testSourceId() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("SourceId");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+      // Get source id
+      assertEquals(layer.getSourceId(), "composite");
+    });
+  }
+<% } -%>
 
   @Test
   public void testSetVisibility() {
@@ -118,7 +132,7 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
 
 <% } -%>
 <% for (const property of properties) { -%>
-<% if (property.name != 'heatmap-color') { -%>
+<% if (property['property-type'] !== 'color-ramp') { -%>
 <% if (property.transition) { -%>
 
   @Test
@@ -148,6 +162,11 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
       // Set and Get
       layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>(<%- defaultValueJava(property) %>));
       assertEquals((<%- propertyType(property) %>) layer.get<%- camelize(property.name) %>().getValue(), (<%- propertyType(property) %>) <%- defaultValueJava(property) %>);
+<% if (property.tokens) { -%>
+
+      layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>("{token}"));
+      assertEquals(layer.get<%- camelize(property.name) %>().getExpression(), Expression.toString(Expression.get("token")));
+<% } -%>
     });
   }
 <% if (property['property-type'] === 'data-driven' || property['property-type'] === 'cross-faded-data-driven') { -%>

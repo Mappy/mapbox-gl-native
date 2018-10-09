@@ -69,7 +69,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -122,7 +122,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -163,7 +163,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.heatmapRadius = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getHeatmapRadius(), propertyValue,
                        @"Setting heatmapRadius to a constant value expression should update heatmap-radius.");
         XCTAssertEqualObjects(layer.heatmapRadius, constantExpression,
@@ -175,7 +175,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -190,7 +190,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -206,11 +206,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getHeatmapRadius(), propertyValue,
                        @"Setting heatmapRadius to a camera-data expression should update heatmap-radius.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -241,7 +241,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.heatmapWeight = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getHeatmapWeight(), propertyValue,
                        @"Setting heatmapWeight to a constant value expression should update heatmap-weight.");
         XCTAssertEqualObjects(layer.heatmapWeight, constantExpression,
@@ -253,7 +253,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -268,7 +268,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -284,11 +284,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getHeatmapWeight(), propertyValue,
                        @"Setting heatmapWeight to a camera-data expression should update heatmap-weight.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];

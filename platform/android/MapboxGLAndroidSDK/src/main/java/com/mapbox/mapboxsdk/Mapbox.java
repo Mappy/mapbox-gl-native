@@ -7,12 +7,13 @@ import android.net.NetworkInfo;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
-import android.text.TextUtils;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
-import com.mapbox.mapboxsdk.maps.Telemetry;
+import com.mapbox.mapboxsdk.log.Logger;
+import com.mapbox.mapboxsdk.maps.TelemetryDefinition;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
-import timber.log.Timber;
+import com.mapbox.mapboxsdk.storage.FileSource;
+import com.mapbox.mapboxsdk.utils.ThreadUtils;
 
 /**
  * The entry point to initialize the Mapbox Android SDK.
@@ -23,13 +24,18 @@ import timber.log.Timber;
  * </p>
  */
 @UiThread
+@SuppressLint("StaticFieldLeak")
 public final class Mapbox {
 
-  @SuppressLint("StaticFieldLeak")
+  private static final String TAG = "Mbgl-Mapbox";
+
+  private static ModuleProvider moduleProvider;
   private static Mapbox INSTANCE;
+
   private Context context;
   private String accessToken;
   private Boolean connected;
+  private TelemetryDefinition telemetry;
 
   /**
    * Get an instance of Mapbox.
@@ -43,8 +49,10 @@ public final class Mapbox {
    */
   @UiThread
   public static synchronized Mapbox getInstance(@NonNull Context context, @Nullable String accessToken) {
+    ThreadUtils.checkThread("Mapbox");
     if (INSTANCE == null) {
       Context appContext = context.getApplicationContext();
+      FileSource.initializeFileDirsPaths(appContext);
       INSTANCE = new Mapbox(appContext, accessToken);
       if (isAccessTokenValid(accessToken)) {
         initializeTelemetry();
@@ -117,10 +125,35 @@ public final class Mapbox {
    */
   private static void initializeTelemetry() {
     try {
-      Telemetry.initialize();
+      INSTANCE.telemetry = getModuleProvider().obtainTelemetry();
     } catch (Exception exception) {
-      Timber.e(exception);
+      String message = "Error occurred while initializing telemetry";
+      Logger.e(TAG, message, exception);
+      MapStrictMode.strictModeViolation(message, exception);
     }
+  }
+
+  /**
+   * Get an instance of Telemetry if initialised
+   *
+   * @return instance of telemetry
+   */
+  @Nullable
+  public static TelemetryDefinition getTelemetry() {
+    return INSTANCE.telemetry;
+  }
+
+  /**
+   * Get the module provider
+   *
+   * @return moduleProvider
+   */
+  @NonNull
+  public static ModuleProvider getModuleProvider() {
+    if (moduleProvider == null) {
+      moduleProvider = new ModuleProviderImpl();
+    }
+    return moduleProvider;
   }
 
   /**
@@ -138,8 +171,12 @@ public final class Mapbox {
    * @param accessToken the access token to validate
    * @return true is valid, false otherwise
    */
-  private static boolean isAccessTokenValid(String accessToken) {
-    return !(TextUtils.isEmpty(accessToken)
-      || (!accessToken.toLowerCase(MapboxConstants.MAPBOX_LOCALE).startsWith("pk.")));
+  static boolean isAccessTokenValid(String accessToken) {
+    if (accessToken == null) {
+      return false;
+    }
+
+    accessToken = accessToken.trim().toLowerCase(MapboxConstants.MAPBOX_LOCALE);
+    return accessToken.length() != 0 && (accessToken.startsWith("pk.") || accessToken.startsWith("sk."));
   }
 }

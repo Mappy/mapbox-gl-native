@@ -51,6 +51,18 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
   }
 
   @Test
+  public void testSourceId() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("SourceId");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+      // Get source id
+      assertEquals(layer.getSourceId(), "composite");
+    });
+  }
+
+  @Test
   public void testSetVisibility() {
     validateTestSetup();
     setupLayer();
@@ -264,6 +276,22 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
       assertEquals((String) layer.getFillExtrusionPattern().getValue(), (String) "pedestrian-polygon");
     });
   }
+
+  @Test
+  public void testFillExtrusionPatternAsExpression() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("fill-extrusion-pattern-expression");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+
+      // Set and Get
+      Expression expression = string(Expression.get("undefined"));
+      layer.setProperties(fillExtrusionPattern(expression));
+      assertEquals(layer.getFillExtrusionPattern().getExpression(), expression);
+    });
+  }
+
 
   @Test
   public void testFillExtrusionHeightTransition() {

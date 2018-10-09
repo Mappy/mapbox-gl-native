@@ -23,15 +23,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-#ifndef NS_STRING_ENUM
-    #define NS_STRING_ENUM
-    #define NS_EXTENSIBLE_STRING_ENUM
-    typedef NSString *NSErrorDomain;
-    typedef NSString *NSNotificationName;
-#endif
+typedef NSString *MGLExceptionName NS_TYPED_EXTENSIBLE_ENUM;
+
+/**
+ :nodoc: Generic exceptions used across multiple disparate classes. Exceptions
+ that are unique to a class or class-cluster should be defined in those headers.
+ */
+FOUNDATION_EXTERN MGL_EXPORT MGLExceptionName const MGLAbstractClassException;
 
 /** Indicates an error occurred in the Mapbox SDK. */
-extern MGL_EXPORT NSErrorDomain const MGLErrorDomain;
+FOUNDATION_EXTERN MGL_EXPORT NSErrorDomain const MGLErrorDomain;
 
 /**
  The mode used to track the user location on the map. Used with

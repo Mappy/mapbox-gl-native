@@ -1,5 +1,6 @@
 #include <mbgl/style/expression/coalesce.hpp>
 #include <mbgl/style/expression/check_subtype.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 
 namespace mbgl {
 namespace style {
@@ -21,7 +22,8 @@ void Coalesce::eachChild(const std::function<void(const Expression&)>& visit) co
 }
 
 bool Coalesce::operator==(const Expression& e) const {
-    if (auto rhs = dynamic_cast<const Coalesce*>(&e)) {
+    if (e.getKind() == Kind::Coalesce) {
+        auto rhs = static_cast<const Coalesce*>(&e);
         return Expression::childrenEqual(args, rhs->args);
     }
     return false;

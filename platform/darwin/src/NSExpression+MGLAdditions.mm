@@ -389,112 +389,6 @@ const MGLExpressionInterpolationMode MGLExpressionInterpolationModeCubicBezier =
     return {};
 }
 
-// Selectors of functions that can contain tokens in arguments.
-static NSArray * const MGLTokenizedFunctions = @[
-    @"mgl_interpolateWithCurveType:parameters:stops:",
-    @"mgl_interpolate:withCurveType:parameters:stops:",
-    @"mgl_stepWithMinimum:stops:",
-    @"mgl_step:from:stops:",
-];
-
-/**
- Returns a copy of the given collection with tokens replaced by key path
- expressions.
- 
- If no replacements take place, this method returns the original collection.
- */
-NSArray<NSExpression *> *MGLCollectionByReplacingTokensWithKeyPaths(NSArray<NSExpression *> *collection) {
-    __block NSMutableArray *upgradedCollection;
-    [collection enumerateObjectsUsingBlock:^(NSExpression * _Nonnull item, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSExpression *upgradedItem = item.mgl_expressionByReplacingTokensWithKeyPaths;
-        if (upgradedItem != item) {
-            if (!upgradedCollection) {
-                upgradedCollection = [collection mutableCopy];
-            }
-            upgradedCollection[idx] = upgradedItem;
-        }
-    }];
-    return upgradedCollection ?: collection;
-};
-
-/**
- Returns a copy of the given stop dictionary with tokens replaced by key path
- expressions.
- 
- If no replacements take place, this method returns the original stop
- dictionary.
- */
-NSDictionary<NSNumber *, NSExpression *> *MGLStopDictionaryByReplacingTokensWithKeyPaths(NSDictionary<NSNumber *, NSExpression *> *stops) {
-    __block NSMutableDictionary *upgradedStops;
-    [stops enumerateKeysAndObjectsUsingBlock:^(id _Nonnull zoomLevel, NSExpression * _Nonnull value, BOOL * _Nonnull stop) {
-        if (![value isKindOfClass:[NSExpression class]]) {
-            value = [NSExpression expressionForConstantValue:value];
-        }
-        NSExpression *upgradedValue = value.mgl_expressionByReplacingTokensWithKeyPaths;
-        if (upgradedValue != value) {
-            if (!upgradedStops) {
-                upgradedStops = [stops mutableCopy];
-            }
-            upgradedStops[zoomLevel] = upgradedValue;
-        }
-    }];
-    return upgradedStops ?: stops;
-};
-
-- (NSExpression *)mgl_expressionByReplacingTokensWithKeyPaths {
-    switch (self.expressionType) {
-        case NSConstantValueExpressionType: {
-            NSString *constantValue = self.constantValue;
-            if ([constantValue isKindOfClass:[NSString class]] &&
-                [constantValue containsString:@"{"] && [constantValue containsString:@"}"]) {
-                NSMutableArray *components = [NSMutableArray array];
-                NSScanner *scanner = [NSScanner scannerWithString:constantValue];
-                scanner.charactersToBeSkipped = nil;
-                while (!scanner.isAtEnd) {
-                    NSString *string;
-                    if ([scanner scanUpToString:@"{" intoString:&string]) {
-                        [components addObject:[NSExpression expressionForConstantValue:string]];
-                    }
-                    
-                    NSString *token;
-                    if ([scanner scanString:@"{" intoString:NULL]
-                        && [scanner scanUpToString:@"}" intoString:&token]
-                        && [scanner scanString:@"}" intoString:NULL]) {
-                        [components addObject:[NSExpression expressionForKeyPath:token]];
-                    }
-                }
-                if (components.count == 1) {
-                    return components.firstObject;
-                }
-                return [NSExpression expressionForFunction:@"mgl_join:"
-                                                 arguments:@[[NSExpression expressionForAggregate:components]]];
-            }
-            NSDictionary *stops = self.constantValue;
-            if ([stops isKindOfClass:[NSDictionary class]]) {
-                NSDictionary *localizedStops = MGLStopDictionaryByReplacingTokensWithKeyPaths(stops);
-                if (localizedStops != stops) {
-                    return [NSExpression expressionForConstantValue:localizedStops];
-                }
-            }
-            return self;
-        }
-            
-        case NSFunctionExpressionType: {
-            if ([MGLTokenizedFunctions containsObject:self.function]) {
-                NSArray *arguments = self.arguments;
-                NSArray *localizedArguments = MGLCollectionByReplacingTokensWithKeyPaths(arguments);
-                if (localizedArguments != arguments) {
-                    return [NSExpression expressionForFunction:self.operand selectorName:self.function arguments:localizedArguments];
-                }
-            }
-            return self;
-        }
-            
-        default:
-            return self;
-    }
-}
-
 @end
 
 @implementation NSObject (MGLExpressionAdditions)
@@ -1326,7 +1220,7 @@ NSArray *MGLSubexpressionsWithJSONObjects(NSArray *objects) {
     NSDictionary<NSNumber *, NSExpression *> *stops = self.arguments[curveTypeIndex + 2].constantValue;
 
     if (stops.count == 0) {
-        [NSException raise:NSInvalidArgumentException format:@"‘stops‘ dictionary argument to ‘%@’ function must not be empty.", self.function];
+        [NSException raise:NSInvalidArgumentException format:@"‘stops’ dictionary argument to ‘%@’ function must not be empty.", self.function];
     }
 
     NSMutableArray *expressionObject = [NSMutableArray arrayWithObjects:@"interpolate", interpolationArray, nil];
@@ -1345,7 +1239,7 @@ NSArray *MGLSubexpressionsWithJSONObjects(NSArray *objects) {
     NSDictionary<NSNumber *, NSExpression *> *stops = self.arguments[minimumIndex + 1].constantValue;
 
     if (stops.count == 0) {
-        [NSException raise:NSInvalidArgumentException format:@"‘stops‘ dictionary argument to ‘%@’ function must not be empty.", self.function];
+        [NSException raise:NSInvalidArgumentException format:@"‘stops’ dictionary argument to ‘%@’ function must not be empty.", self.function];
     }
 
     NSMutableArray *expressionObject = [NSMutableArray arrayWithObjects:@"step", (isAftermarketFunction ? self.arguments.firstObject : self.operand).mgl_jsonExpressionObject, minimum, nil];
@@ -1507,7 +1401,25 @@ NSDictionary<NSNumber *, NSExpression *> *MGLLocalizedStopDictionary(NSDictionar
                         localizedKeyPath = [NSString stringWithFormat:@"name_%@", preferredLanguage];
                     }
                 }
-                return [NSExpression expressionForKeyPath:localizedKeyPath];
+                // If the keypath is `name`, no need to fallback
+                if ([localizedKeyPath isEqualToString:@"name"]) {
+                    return [NSExpression expressionForKeyPath:localizedKeyPath];
+                }
+                // If the keypath is `name_zh-Hans`, fallback to `name_zh` to `name`
+                // The `name_zh-Hans` field was added since Mapbox Streets v7
+                // See the documentation of name fields for detail https://www.mapbox.com/vector-tiles/mapbox-streets-v7/#overview
+                // CN tiles might using `name_zh-CN` for Simplified Chinese
+                if ([localizedKeyPath isEqualToString:@"name_zh-Hans"]) {
+                    return [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K, %K, %K})",
+                            localizedKeyPath, @"name_zh-CN", @"name_zh", @"name"];
+                }
+                // Mapbox Streets v8 has `name_zh-Hant`, we should fallback to Simplified Chinese if the filed has no value
+                if ([localizedKeyPath isEqualToString:@"name_zh-Hant"]) {
+                    return [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K, %K, %K, %K})",
+                            localizedKeyPath, @"name_zh-Hans", @"name_zh-CN", @"name_zh", @"name"];
+                }
+                // Other keypath fallback to `name`
+                return [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K})", localizedKeyPath, @"name"];
             }
             return self;
         }

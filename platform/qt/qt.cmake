@@ -79,6 +79,7 @@ add_library(qmapboxgl SHARED
 
 target_include_directories(qmapboxgl
     PUBLIC platform/qt/include
+    PRIVATE src
 )
 
 target_compile_definitions(qmapboxgl
@@ -159,7 +160,11 @@ elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     )
 
     target_add_mason_package(qmapboxgl PRIVATE optional)
-    target_add_mason_package(qmapboxgl PRIVATE tao_tuple)
+elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "QNX")
+    list(APPEND MBGL_QT_CORE_FILES
+        PRIVATE platform/qt/src/thread.cpp
+    )
+    add_definitions("-Wno-narrowing")
 endif()
 
 add_custom_command(

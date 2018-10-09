@@ -15,6 +15,7 @@ import android.support.v4.util.Pools;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
+
 import com.mapbox.android.gestures.AndroidGesturesManager;
 import com.mapbox.android.gestures.MoveGestureDetector;
 import com.mapbox.android.gestures.RotateGestureDetector;
@@ -22,6 +23,7 @@ import com.mapbox.android.gestures.ShoveGestureDetector;
 import com.mapbox.android.gestures.StandardScaleGestureDetector;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.Geometry;
+import com.mapbox.mapboxsdk.MapStrictMode;
 import com.mapbox.mapboxsdk.annotations.Annotation;
 import com.mapbox.mapboxsdk.annotations.BaseMarkerOptions;
 import com.mapbox.mapboxsdk.annotations.BaseMarkerViewOptions;
@@ -40,11 +42,11 @@ import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.constants.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
+import com.mapbox.mapboxsdk.log.Logger;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
 import com.mapbox.mapboxsdk.style.layers.Layer;
 import com.mapbox.mapboxsdk.style.light.Light;
 import com.mapbox.mapboxsdk.style.sources.Source;
-import timber.log.Timber;
 
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +62,8 @@ import java.util.List;
  */
 @UiThread
 public final class MapboxMap {
+
+  private static final String TAG = "Mbgl-MapboxMap";
 
   private final NativeMapView nativeMapView;
 
@@ -93,6 +97,7 @@ public final class MapboxMap {
     setDebugActive(options.getDebugActive());
     setApiBaseUrl(options);
     setStyleUrl(options);
+    setStyleJson(options);
     setPrefetchesTiles(options);
   }
 
@@ -293,7 +298,9 @@ public final class MapboxMap {
       // noinspection unchecked
       return (T) nativeMapView.getLayer(layerId);
     } catch (ClassCastException exception) {
-      Timber.e(exception, "Layer: %s is a different type: ", layerId);
+      String message = String.format("Layer: %s is a different type: ", layerId);
+      Logger.e(TAG, message, exception);
+      MapStrictMode.strictModeViolation(message, exception);
       return null;
     }
   }
@@ -405,7 +412,9 @@ public final class MapboxMap {
       // noinspection unchecked
       return (T) nativeMapView.getSource(sourceId);
     } catch (ClassCastException exception) {
-      Timber.e(exception, "Source: %s is a different type: ", sourceId);
+      String message = String.format("Source: %s is a different type: ", sourceId);
+      Logger.e(TAG, message, exception);
+      MapStrictMode.strictModeViolation(message, exception);
       return null;
     }
   }
@@ -431,7 +440,7 @@ public final class MapboxMap {
   }
 
   /**
-   * Removes the source, preserving the reverence for re-use
+   * Removes the source, preserving the reference for re-use
    *
    * @param source the source to remove
    * @return the source
@@ -827,7 +836,7 @@ public final class MapboxMap {
   public final void animateCamera(@NonNull final CameraUpdate update, final int durationMs,
                                   @Nullable final MapboxMap.CancelableCallback callback) {
     if (durationMs <= 0) {
-      throw new IllegalArgumentException("Null duration passed into animageCamera");
+      throw new IllegalArgumentException("Null duration passed into animateCamera");
     }
 
     transform.animateCamera(MapboxMap.this, update, durationMs, callback);
@@ -1056,7 +1065,7 @@ public final class MapboxMap {
    * @param options the object containing the style url
    */
   private void setStyleUrl(@NonNull MapboxMapOptions options) {
-    String style = options.getStyle();
+    String style = options.getStyleUrl();
     if (!TextUtils.isEmpty(style)) {
       setStyleUrl(style, null);
     }
@@ -1082,6 +1091,18 @@ public final class MapboxMap {
    */
   public void setStyleJson(@NonNull String styleJson) {
     nativeMapView.setStyleJson(styleJson);
+  }
+
+  /**
+   * Loads a new map style json from MapboxMapOptions if available.
+   *
+   * @param options the object containing the style json
+   */
+  private void setStyleJson(@NonNull MapboxMapOptions options) {
+    String styleJson = options.getStyleJson();
+    if (!TextUtils.isEmpty(styleJson)) {
+      setStyleJson(styleJson);
+    }
   }
 
   /**
@@ -1138,7 +1159,9 @@ public final class MapboxMap {
    * @param markerOptions A marker options object that defines how to render the marker
    * @return The {@code Marker} that was added to the map
    * @deprecated Use a {@link com.mapbox.mapboxsdk.style.layers.SymbolLayer} instead. An example of converting Android
-   * SDK views to be used as a symbol see https://github.com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android/MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
+   * SDK views to be used as a symbol see https://github
+   * .com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android
+   * /MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
    */
   @NonNull
   @Deprecated
@@ -1157,7 +1180,9 @@ public final class MapboxMap {
    * @param onMarkerViewAddedListener Callback invoked when the View has been added to the map
    * @return The {@code Marker} that was added to the map
    * @deprecated Use a {@link com.mapbox.mapboxsdk.style.layers.SymbolLayer} instead. An example of converting Android
-   * SDK views to be used as a symbol see https://github.com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android/MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
+   * SDK views to be used as a symbol see https://github
+   * .com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android
+   * /MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
    */
   @Deprecated
   @NonNull
@@ -1176,7 +1201,9 @@ public final class MapboxMap {
    * @param markerViewOptions A list of markerView options objects that defines how to render the markers
    * @return A list of the {@code MarkerView}s that were added to the map
    * @deprecated Use a {@link com.mapbox.mapboxsdk.style.layers.SymbolLayer} instead. An example of converting Android
-   * SDK views to be used as a symbol see https://github.com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android/MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
+   * SDK views to be used as a symbol see https://github
+   * .com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android
+   * /MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
    */
   @NonNull
   @Deprecated
@@ -1191,7 +1218,9 @@ public final class MapboxMap {
    * @param rect the rectangular area on the map to query for markerViews
    * @return A list of the markerViews that were found in the rectangle
    * @deprecated Use a {@link com.mapbox.mapboxsdk.style.layers.SymbolLayer} instead. An example of converting Android
-   * SDK views to be used as a symbol see https://github.com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android/MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
+   * SDK views to be used as a symbol see https://github
+   * .com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android
+   * /MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
    */
   @NonNull
   @Deprecated
@@ -1462,7 +1491,7 @@ public final class MapboxMap {
    */
   public void selectMarker(@NonNull Marker marker) {
     if (marker == null) {
-      Timber.w("marker was null, so just returning");
+      Logger.w(TAG, "marker was null, so just returning");
       return;
     }
     annotationManager.selectMarker(marker);
@@ -1591,7 +1620,7 @@ public final class MapboxMap {
   public CameraPosition getCameraForLatLngBounds(@NonNull LatLngBounds latLngBounds,
                                                  @NonNull @Size(value = 4) int[] padding) {
     // we use current camera tilt/bearing value to provide expected transformations as #11993
-    return getCameraForLatLngBounds(latLngBounds, padding, transform.getBearing(), transform.getTilt());
+    return getCameraForLatLngBounds(latLngBounds, padding, transform.getRawBearing(), transform.getTilt());
   }
 
 
@@ -2625,7 +2654,9 @@ public final class MapboxMap {
    *
    * @param <U> the instance type of MarkerView
    * @deprecated Use a {@link com.mapbox.mapboxsdk.style.layers.SymbolLayer} instead. An example of converting Android
-   * SDK views to be used as a symbol see https://github.com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android/MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
+   * SDK views to be used as a symbol see https://github
+   * .com/mapbox/mapbox-gl-native/blob/68f32bc104422207c64da8d90e8411b138d87f04/platform/android
+   * /MapboxGLAndroidSDKTestApp/src/main/java/com/mapbox/mapboxsdk/testapp/activity/style/SymbolGeneratorActivity.java
    */
   @Deprecated
   public abstract static class MarkerViewAdapter<U extends MarkerView> {

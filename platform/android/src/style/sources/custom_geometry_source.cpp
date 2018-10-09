@@ -54,7 +54,9 @@ namespace android {
         : Source(env, coreSource, createJavaPeer(env), frontend) {
     }
 
-    CustomGeometrySource::~CustomGeometrySource() = default;
+    CustomGeometrySource::~CustomGeometrySource() {
+        releaseThreads();
+    }
 
     void CustomGeometrySource::fetchTile (const mbgl::CanonicalTileID& tileID) {
         android::UniqueEnv _env = android::AttachEnv();
@@ -78,6 +80,41 @@ namespace android {
         peer.Call(*_env, cancelTile, (int)tileID.z, (int)tileID.x, (int)tileID.y);
     };
 
+    void CustomGeometrySource::startThreads() {
+        android::UniqueEnv _env = android::AttachEnv();
+
+        static auto startThreads = javaClass.GetMethod<void ()>(*_env, "startThreads");
+
+        assert(javaPeer);
+
+        auto peer = jni::Cast(*_env, *javaPeer, javaClass);
+        peer.Call(*_env, startThreads);
+    }
+
+    void CustomGeometrySource::releaseThreads() {
+        android::UniqueEnv _env = android::AttachEnv();
+
+        static auto releaseThreads = javaClass.GetMethod<void ()>(*_env, "releaseThreads");
+
+        assert(javaPeer);
+
+        auto peer = jni::Cast(*_env, *javaPeer, javaClass);
+        peer.Call(*_env, releaseThreads);
+    };
+
+    bool CustomGeometrySource::isCancelled(jni::jint z,
+                                                jni::jint x,
+                                                jni::jint y) {
+        android::UniqueEnv _env = android::AttachEnv();
+
+        static auto isCancelled = javaClass.GetMethod<jboolean (jni::jint, jni::jint, jni::jint)>(*_env, "isCancelled");
+
+        assert(javaPeer);
+
+        auto peer = jni::Cast(*_env, *javaPeer, javaClass);
+        return peer.Call(*_env, isCancelled, z, x, y);
+    };
+
     void CustomGeometrySource::setTileData(jni::JNIEnv& env,
                                            jni::jint z,
                                            jni::jint x,
@@ -88,8 +125,10 @@ namespace android {
         // Convert the jni object
         auto geometry = geojson::FeatureCollection::convert(env, jFeatures);
 
-        // Update the core source
-        source.as<mbgl::style::CustomGeometrySource>()->CustomGeometrySource::setTileData(CanonicalTileID(z, x, y), GeoJSON(geometry));
+        // Update the core source if not cancelled
+        if (!isCancelled(z, x ,y)) {
+            source.as<mbgl::style::CustomGeometrySource>()->CustomGeometrySource::setTileData(CanonicalTileID(z, x, y), GeoJSON(geometry));
+        }
     }
 
     void CustomGeometrySource::invalidateTile(jni::JNIEnv&, jni::jint z, jni::jint x, jni::jint y) {
@@ -118,6 +157,19 @@ namespace android {
     jni::Object<Source> CustomGeometrySource::createJavaPeer(jni::JNIEnv& env) {
         static auto constructor = CustomGeometrySource::javaClass.template GetConstructor<jni::jlong>(env);
         return jni::Object<Source>(CustomGeometrySource::javaClass.New(env, constructor, reinterpret_cast<jni::jlong>(this)).Get());
+    }
+
+    void CustomGeometrySource::addToMap(JNIEnv& env, jni::Object<Source> obj, mbgl::Map& map, AndroidRendererFrontend& frontend) {
+        Source::addToMap(env, obj, map, frontend);
+        startThreads();
+    }
+
+    bool CustomGeometrySource::removeFromMap(JNIEnv& env, jni::Object<Source> source, mbgl::Map& map) {
+        bool successfullyRemoved = Source::removeFromMap(env, source, map);
+        if (successfullyRemoved) {
+            releaseThreads();
+        }
+        return successfullyRemoved;
     }
 
     void CustomGeometrySource::registerNative(jni::JNIEnv& env) {

@@ -5,9 +5,7 @@ package com.mapbox.mapboxsdk.style.layers;
 import android.support.annotation.ColorInt;
 
 import com.mapbox.mapboxsdk.style.expressions.Expression;
-
-import java.text.DecimalFormat;
-import java.util.Locale;
+import com.mapbox.mapboxsdk.utils.ColorUtils;
 
 /**
  * Constructs paint/layout properties for Layers
@@ -394,6 +392,36 @@ public class PropertyFactory {
    */
   public static PropertyValue<Expression> linePattern(Expression expression) {
     return new PaintPropertyValue<>("line-pattern", expression);
+  }
+
+  /**
+   * Defines a gradient with which to color a line feature. Can only be used with GeoJSON sources that specify `"lineMetrics": true`.
+   *
+   * @param value a int color value
+   * @return property wrapper around String color
+   */
+  public static PropertyValue<String> lineGradient(@ColorInt int value) {
+    return new PaintPropertyValue<>("line-gradient", colorToRgbaString(value));
+  }
+
+  /**
+   * Defines a gradient with which to color a line feature. Can only be used with GeoJSON sources that specify `"lineMetrics": true`.
+   *
+   * @param value a String value
+   * @return property wrapper around String
+   */
+  public static PropertyValue<String> lineGradient(String value) {
+    return new PaintPropertyValue<>("line-gradient", value);
+  }
+
+  /**
+   * Defines a gradient with which to color a line feature. Can only be used with GeoJSON sources that specify `"lineMetrics": true`.
+   *
+   * @param expression an expression statement
+   * @return property wrapper around an expression statement
+   */
+  public static PropertyValue<Expression> lineGradient(Expression expression) {
+    return new PaintPropertyValue<>("line-gradient", expression);
   }
 
   /**
@@ -2057,7 +2085,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Value to use for a text label.
+   * Value to use for a text label. If a plain `string` is provided, it will be treated as a `formatted` with default/inherited formatting options.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -2067,7 +2095,7 @@ public class PropertyFactory {
   }
 
   /**
-   * Value to use for a text label.
+   * Value to use for a text label. If a plain `string` is provided, it will be treated as a `formatted` with default/inherited formatting options.
    *
    * @param value a String value
    * @return property wrapper around String
@@ -2404,11 +2432,11 @@ public class PropertyFactory {
    *
    * @param color Android color int
    * @return String rgba color
+   * @deprecated use {@link com.mapbox.mapboxsdk.utils.ColorUtils#colorToRgbaString(int)} instead
    */
+  @Deprecated
   public static String colorToRgbaString(@ColorInt int color) {
-    String alpha = new DecimalFormat("#.###").format(((float)((color >> 24) & 0xFF)) / 255.0f);
-    return String.format(Locale.US, "rgba(%d, %d, %d, %s)",
-      (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, alpha);
+    return ColorUtils.colorToRgbaString(color);
   }
 
   /**
@@ -2419,8 +2447,10 @@ public class PropertyFactory {
    *
    * @param color Android color int
    * @return int rgba array
+   * @deprecated use {@link com.mapbox.mapboxsdk.utils.ColorUtils#colorToRgbaArray(int)} instead
    */
+  @Deprecated
   public static float[] colorToRgbaArray(@ColorInt int color) {
-    return new float[] {(color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, ((color >> 24) & 0xFF) / 255.0f};
+    return ColorUtils.colorToRgbaArray(color);
   }
 }

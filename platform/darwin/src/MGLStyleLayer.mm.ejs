@@ -121,10 +121,20 @@ namespace mbgl {
 - (void)set<%- camelize(property.name) %>:(NSExpression *)<%- objCName(property) %> {
     MGLAssertStyleLayerIsValid();
 
+<% if (property.tokens) { -%>
+    if (<%- objCName(property) %> && <%- objCName(property) %>.expressionType == NSConstantValueExpressionType) {
+        std::string string = ((NSString *)<%- objCName(property) %>.constantValue).UTF8String;
+        if (mbgl::style::conversion::hasTokens(string)) {
+            self.rawLayer->set<%- camelize(originalPropertyName(property)) %>(mbgl::style::PropertyValue<std::string>(
+                mbgl::style::conversion::convertTokenStringToExpression(string)));
+            return;
+        }
+    }
+<% } -%>
 <% if (isDataDriven(property)) { -%>
-    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::DataDrivenPropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>);
+    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>, true);
 <% } else { -%>
-    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>);
+    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>, false);
 <% } -%>
     self.rawLayer->set<%- camelize(originalPropertyName(property)) %>(mbglValue);
 }
@@ -136,12 +146,7 @@ namespace mbgl {
     if (propertyValue.isUndefined()) {
         propertyValue = self.rawLayer->getDefault<%- camelize(originalPropertyName(property)) %>();
     }
-<% if (property.type === 'string') { -%>
-    NSExpression *expression = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toExpression(propertyValue);
-    return expression.mgl_expressionByReplacingTokensWithKeyPaths;
-<% } else { -%>
     return MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toExpression(propertyValue);
-<% } -%>
 }
 
 <% if (property.original) { -%>
@@ -164,14 +169,14 @@ namespace mbgl {
 
 <% switch (property['property-type']) {
     case 'color-ramp': -%>
-    auto mbglValue = MGLStyleValueTransformer<mbgl::Color, MGLColor *>().toPropertyValue<mbgl::style::ColorRampPropertyValue>(heatmapColor);
+    auto mbglValue = MGLStyleValueTransformer<mbgl::Color, MGLColor *>().toPropertyValue<mbgl::style::ColorRampPropertyValue>(<%- objCName(property) %>);
 <%     break
     case 'data-driven':
     case 'cross-faded-data-driven': -%>
-    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::DataDrivenPropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>);
+    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>, true);
 <%     break
     default: -%>
-    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>);
+    auto mbglValue = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toPropertyValue<mbgl::style::PropertyValue<<%- valueTransformerArguments(property)[0] %>>>(<%- objCName(property) %>, false);
 <% } -%>
     self.rawLayer->set<%- camelize(originalPropertyName(property)) %>(mbglValue);
 }
@@ -183,12 +188,7 @@ namespace mbgl {
     if (propertyValue.isUndefined()) {
         propertyValue = self.rawLayer->getDefault<%- camelize(originalPropertyName(property)) %>();
     }
-<% if (property.type === 'string') { -%>
-    NSExpression *expression = MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toExpression(propertyValue);
-    return expression.mgl_expressionByReplacingTokensWithKeyPaths;
-<% } else { -%>
     return MGLStyleValueTransformer<<%- valueTransformerArguments(property).join(', ') %>>().toExpression(propertyValue);
-<% } -%>
 }
 <% if (property["transition"]) { -%>
 

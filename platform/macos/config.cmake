@@ -1,11 +1,5 @@
 set(CMAKE_OSX_DEPLOYMENT_TARGET 10.11)
 
-mason_use(glfw VERSION 2018-06-27-0be4f3f)
-mason_use(gtest VERSION 1.8.0)
-mason_use(benchmark VERSION 1.2.0)
-mason_use(icu VERSION 58.1-min-size)
-mason_use(args VERSION 6.2.0 HEADER_ONLY)
-
 include(cmake/loop-darwin.cmake)
 
 macro(mbgl_platform_core)
@@ -33,7 +27,6 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/mbgl/gl/headless_frontend.hpp
         PRIVATE platform/default/mbgl/gl/headless_backend.cpp
         PRIVATE platform/default/mbgl/gl/headless_backend.hpp
-        PRIVATE platform/darwin/src/headless_backend_cgl.cpp
 
         # Snapshotting
         PRIVATE platform/default/mbgl/map/map_snapshotter.cpp
@@ -45,6 +38,20 @@ macro(mbgl_platform_core)
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
         PRIVATE platform/default/mbgl/util/default_thread_pool.cpp
     )
+
+    if(WITH_EGL)
+        target_sources(mbgl-core
+            PRIVATE platform/linux/src/headless_backend_egl.cpp
+        )
+        target_add_mason_package(mbgl-core PUBLIC swiftshader)
+    else()
+        target_sources(mbgl-core
+            PRIVATE platform/darwin/src/headless_backend_cgl.cpp
+        )
+        target_link_libraries(mbgl-core
+            PUBLIC "-framework OpenGL"
+        )
+    endif()
 
     target_add_mason_package(mbgl-core PUBLIC geojson)
     target_add_mason_package(mbgl-core PUBLIC polylabel)
@@ -64,7 +71,6 @@ macro(mbgl_platform_core)
         PUBLIC "-framework Foundation"
         PUBLIC "-framework CoreText"
         PUBLIC "-framework CoreGraphics"
-        PUBLIC "-framework OpenGL"
         PUBLIC "-framework ImageIO"
         PUBLIC "-framework CoreServices"
         PUBLIC "-framework SystemConfiguration"
@@ -73,13 +79,8 @@ endmacro()
 
 
 macro(mbgl_filesource)
-    target_sources(mbgl-filesource
-        # File source
-        PRIVATE platform/darwin/src/http_file_source.mm
-
-        # Database
-        PRIVATE platform/default/sqlite3.cpp
-    )
+    # Modify platform/darwin/filesource-files.txt to change the source files for this target.
+    target_sources_from_file(mbgl-filesource PRIVATE platform/darwin/filesource-files.txt)
 
     target_compile_options(mbgl-filesource
         PRIVATE -fobjc-arc

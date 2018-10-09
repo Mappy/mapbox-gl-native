@@ -55,6 +55,7 @@ global.propertyType = function propertyType(property) {
         return 'Boolean';
       case 'number':
         return 'Float';
+      case 'formatted':
       case 'string':
         return 'String';
       case 'enum':
@@ -74,6 +75,7 @@ global.propertyJavaType = function propertyType(property) {
          return 'boolean';
        case 'number':
          return 'float';
+       case 'formatted':
        case 'string':
          return 'String';
        case 'enum':
@@ -121,6 +123,7 @@ global.propertyNativeType = function (property) {
     return 'bool';
   case 'number':
     return 'float';
+  case 'formatted':
   case 'string':
     return 'std::string';
   case 'enum':
@@ -155,6 +158,7 @@ global.defaultExpressionJava = function(property) {
         return 'boolean';
       case 'number':
         return 'number';
+      case 'formatted':
       case 'string':
         return "string";
       case 'enum':
@@ -179,6 +183,7 @@ global.defaultValueJava = function(property) {
         return 'true';
       case 'number':
         return '0.3f';
+      case 'formatted':
       case 'string':
         return '"' + property['default'] + '"';
       case 'enum':
@@ -187,6 +192,7 @@ global.defaultValueJava = function(property) {
         return '"rgba(0, 0, 0, 1)"';
       case 'array':
              switch (property.value) {
+              case 'formatted':
               case 'string':
                 return '[' + property['default'] + "]";
               case 'number':
@@ -235,10 +241,15 @@ global.propertyValueDoc = function (property, value) {
 
     // Match references to other property names & values.
     // Requires the format 'When `foo` is set to `bar`,'.
-    let doc = property.values[value].doc.replace(/When `(.+?)` is set to `(.+?)`,/g, function (m, peerPropertyName, propertyValue, offset, str) {
+    let doc = property.values[value].doc.replace(/When `(.+?)` is set to `(.+?)`(?: or `([^`]+?)`)?,/g, function (m, peerPropertyName, propertyValue, secondPropertyValue, offset, str) {
         let otherProperty = snakeCaseUpper(peerPropertyName);
         let otherValue = snakeCaseUpper(peerPropertyName) + '_' + snakeCaseUpper(propertyValue);
-        return 'When {@link ' + `${otherProperty}` + '} is set to {@link Property#' + `${otherValue}` + '},';
+        const firstPropertyValue = 'When {@link ' + `${otherProperty}` + '} is set to {@link Property#' + `${otherValue}` + '}';
+        if (secondPropertyValue) {
+            return firstPropertyValue + ` or {@link Property#${snakeCaseUpper(peerPropertyName) + '_' + snakeCaseUpper(secondPropertyValue)}},`;
+        } else {
+            return firstPropertyValue + ',';
+        }
     });
 
     // Match references to our own property values.
@@ -273,9 +284,6 @@ global.isLightProperty = function (property) {
 
 global.propertyValueType = function (property) {
   switch (property['property-type']) {
-    case 'data-driven':
-    case 'cross-faded-data-driven':
-      return `DataDrivenPropertyValue<${evaluatedType(property)}>`;
     default:
       return `PropertyValue<${evaluatedType(property)}>`;
   }
@@ -299,6 +307,7 @@ global.evaluatedType = function (property) {
     return 'bool';
   case 'number':
     return 'float';
+  case 'formatted':
   case 'string':
     return 'std::string';
   case 'enum':
@@ -360,21 +369,4 @@ const enumPropertyJavaTemplate = ejs.compile(fs.readFileSync('platform/android/M
 writeIfModified(
     `platform/android/MapboxGLAndroidSDK/src/main/java/com/mapbox/mapboxsdk/style/layers/Property.java`,
     enumPropertyJavaTemplate({properties: enumProperties})
-);
-
-// De-duplicate enum properties before processing jni property templates
-const enumPropertiesDeDup = _(enumProperties).uniqBy(global.propertyNativeType).value();
-
-// JNI Enum property conversion templates
-const enumPropertyHppTypeStringValueTemplate = ejs.compile(fs.readFileSync('platform/android/src/style/conversion/types_string_values.hpp.ejs', 'utf8'), {strict: true});
-writeIfModified(
-    `platform/android/src/style/conversion/types_string_values.hpp`,
-    enumPropertyHppTypeStringValueTemplate({properties: enumPropertiesDeDup})
-);
-
-// JNI property value types conversion templates
-const enumPropertyHppTypeTemplate = ejs.compile(fs.readFileSync('platform/android/src/style/conversion/types.hpp.ejs', 'utf8'), {strict: true});
-writeIfModified(
-    `platform/android/src/style/conversion/types.hpp`,
-    enumPropertyHppTypeTemplate({properties: enumPropertiesDeDup})
 );

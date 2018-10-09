@@ -11,7 +11,8 @@ namespace mbgl {
 using namespace style;
 
 HeatmapBucket::HeatmapBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers)
-    : mode(parameters.mode) {
+    : Bucket(LayerType::Heatmap),
+      mode(parameters.mode) {
     for (const auto& layer : layers) {
         paintPropertyBinders.emplace(
             std::piecewise_construct,
@@ -38,7 +39,9 @@ bool HeatmapBucket::hasData() const {
 }
 
 void HeatmapBucket::addFeature(const GeometryTileFeature& feature,
-                              const GeometryCollection& geometry) {
+                               const GeometryCollection& geometry,
+                               const ImagePositions&,
+                               const PatternLayerMap&) {
     constexpr const uint16_t vertexLength = 4;
 
     for (auto& points : geometry) {
@@ -86,7 +89,7 @@ void HeatmapBucket::addFeature(const GeometryTileFeature& feature,
     }
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.populateVertexVectors(feature, vertices.vertexSize());
+        pair.second.populateVertexVectors(feature, vertices.vertexSize(), {}, {});
     }
 }
 

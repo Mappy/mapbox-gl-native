@@ -42,7 +42,7 @@ may be shorter than on a desktop computer. Some of your users may use the Larger
 Dynamic Type and Accessibility Text features to increase the size of all text on
 the device. You can use the
 [runtime styling API](#manipulating-the-style-at-runtime) to adjust your style’s
-font and icon sizes accordingly.
+ font and icon sizes accordingly.
 
 Design sprite images and choose font weights that look crisp on both
 standard-resolution displays and Retina displays. This SDK supports the same
@@ -98,7 +98,7 @@ represented at runtime by an `MGLStyle` object, which provides access to various
 `MGLSource` and `MGLStyleLayer` objects that represent content sources and style
 layers, respectively.
 For more information about the capabilities exposed by the runtime styling API,
-see “[Runtime Styling](runtime-styling.html)”.
+see “[Runtime Styling](https://www.mapbox.com/ios-sdk/maps/overview/runtime-styling/)”.
 
 The names of runtime styling classes and properties on iOS are generally
 consistent with the style specification and Mapbox Studio’s Styles editor. Any
@@ -171,6 +171,7 @@ In style JSON    | In the SDK
 `cluster`        | `MGLShapeSourceOptionClustered`
 `clusterRadius`  | `MGLShapeSourceOptionClusterRadius`
 `clusterMaxZoom` | `MGLShapeSourceOptionMaximumZoomLevelForClustering`
+`lineMetrics`    | `MGLShapeSourceOptionLineDistanceMetrics`
 
 To create a shape source from local GeoJSON data, first
 [convert the GeoJSON data into a shape](working-with-geojson-data.html#converting-geojson-data-into-shape-objects),
@@ -351,7 +352,7 @@ In style specification | Method, function, or predicate type | Format string syn
 `coalesce`             | `mgl_coalesce:` | `mgl_coalesce({x, y, z})`
 `match`                | `MGL_MATCH` or `+[NSExpression mgl_expressionForMatchingExpression:inDictionary:defaultExpression:]` | `MGL_MATCH(x, 0, 'zero match', 1, 'one match', 'two match', 'default')`
 `interpolate`          | `mgl_interpolate:withCurveType:parameters:stops:` or `+[NSExpression mgl_expressionForInterpolatingExpression:withCurveType:parameters:stops:]` |
-`step`                 | `mgl_step:withMinimum:stops:` or `+[NSExpression mgl_expressionForSteppingExpression:fromExpression:stops:]` |
+`step`                 | `mgl_step:from:stops:` or `+[NSExpression mgl_expressionForSteppingExpression:fromExpression:stops:]` |
 `let`                  | `mgl_expressionWithContext:` | `MGL_LET('ios', 11, 'macos', 10.13, $ios + $macos)`
 `var`                  | `+[NSExpression expressionForVariable:]` | `$variable`
 `concat`               | `mgl_join:` or `-[NSExpression mgl_expressionByAppendingExpression:]` | `mgl_join({'Old', ' ', 'MacDonald'})`

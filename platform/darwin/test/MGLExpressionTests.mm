@@ -995,47 +995,6 @@ using namespace std::string_literals;
 
 #pragma mark - Localization tests
 
-- (void)testTokenReplacement {
-    {
-        NSExpression *original = MGLConstantExpression(@"");
-        NSExpression *expected = original;
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-    {
-        NSExpression *original = MGLConstantExpression(@"{");
-        NSExpression *expected = original;
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-    {
-        NSExpression *original = MGLConstantExpression(@"{token");
-        NSExpression *expected = original;
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-    {
-        NSExpression *original = MGLConstantExpression(@"{token}");
-        NSExpression *expected = [NSExpression expressionForKeyPath:@"token"];
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-    {
-        NSExpression *original = MGLConstantExpression(@"{token} {token}");
-        NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_join({token, ' ', token})"];
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-    {
-        NSExpression *original = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, '{short}', %@)", @{
-            @1: MGLConstantExpression(@"{short}"),
-            @2: @"…",
-            @3: @"{long}",
-        }];
-        NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, short, %@)", @{
-            @1: [NSExpression expressionForKeyPath:@"short"],
-            @2: @"…",
-            @3: [NSExpression expressionForKeyPath:@"long"],
-        }];
-        XCTAssertEqualObjects(original.mgl_expressionByReplacingTokensWithKeyPaths, expected);
-    }
-}
-
 - (void)testLocalization {
     {
         NSExpression *original = MGLConstantExpression(@"");
@@ -1054,7 +1013,7 @@ using namespace std::string_literals;
     }
     {
         NSExpression *original = [NSExpression expressionForKeyPath:@"name_en"];
-        NSExpression *expected = original;
+        NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K})", @"name_en", @"name"];
         XCTAssertEqualObjects([original mgl_expressionLocalizedIntoLocale:nil], expected);
     }
     {
@@ -1064,12 +1023,13 @@ using namespace std::string_literals;
     }
     {
         NSExpression *original = [NSExpression expressionForKeyPath:@"name_en"];
-        NSExpression *expected = [NSExpression expressionForKeyPath:@"name_fr"];
+        NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K})", @"name_fr", @"name"];
         XCTAssertEqualObjects([original mgl_expressionLocalizedIntoLocale:[NSLocale localeWithLocaleIdentifier:@"fr-CA"]], expected);
     }
     {
         NSExpression *original = [NSExpression expressionForKeyPath:@"name_en"];
-        NSExpression *expected = [NSExpression expressionForKeyPath:@"name_zh-Hans"];
+        NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K, %K, %K})",
+                                  @"name_zh-Hans", @"name_zh-CN", @"name_zh", @"name"];
         XCTAssertEqualObjects([original mgl_expressionLocalizedIntoLocale:[NSLocale localeWithLocaleIdentifier:@"zh-Hans"]], expected);
     }
     {
@@ -1086,7 +1046,7 @@ using namespace std::string_literals;
         NSExpression *expected = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, short, %@)", @{
             @1: [NSExpression expressionForKeyPath:@"abbr"],
             @2: @"…",
-            @3: [NSExpression expressionForKeyPath:@"name_es"],
+            @3: [NSExpression expressionWithFormat:@"mgl_coalesce({%K, %K})", @"name_es", @"name"]
         }];
         XCTAssertEqualObjects([original mgl_expressionLocalizedIntoLocale:[NSLocale localeWithLocaleIdentifier:@"es-PR"]], expected);
     }

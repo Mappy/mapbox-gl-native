@@ -1,6 +1,4 @@
-add_definitions(-DMBGL_USE_GLES2=1)
-
-mason_use(icu VERSION 58.1-min-size)
+set(USE_GLES2 ON)
 
 macro(initialize_ios_target target)
     set_xcode_property(${target} IPHONEOS_DEPLOYMENT_TARGET "9.0")
@@ -86,13 +84,8 @@ endmacro()
 macro(mbgl_filesource)
     initialize_ios_target(mbgl-filesource)
 
-    target_sources(mbgl-filesource
-        # File source
-        PRIVATE platform/darwin/src/http_file_source.mm
-
-        # Database
-        PRIVATE platform/default/sqlite3.cpp
-    )
+    # Modify platform/darwin/filesource-files.txt to change the source files for this target.
+    target_sources_from_file(mbgl-filesource PRIVATE platform/darwin/filesource-files.txt)
 
     target_link_libraries(mbgl-filesource
         PUBLIC "-lsqlite3"

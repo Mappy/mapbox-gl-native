@@ -1,12 +1,17 @@
 package com.mapbox.mapboxsdk.style.expressions;
 
 import android.graphics.Color;
+
 import com.mapbox.mapboxsdk.style.layers.PropertyFactory;
+
+import com.mapbox.mapboxsdk.style.layers.PropertyValue;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
 
 import static com.mapbox.mapboxsdk.style.expressions.Expression.abs;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.acos;
@@ -19,6 +24,7 @@ import static com.mapbox.mapboxsdk.style.expressions.Expression.atan;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.bool;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.ceil;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.coalesce;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.collator;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.color;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.concat;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.cos;
@@ -60,6 +66,7 @@ import static com.mapbox.mapboxsdk.style.expressions.Expression.pow;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.product;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.properties;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.raw;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.resolvedLocale;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.rgb;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.rgba;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.round;
@@ -81,6 +88,7 @@ import static com.mapbox.mapboxsdk.style.expressions.Expression.upcase;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.var;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.zoom;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineOpacity;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineWidth;
 import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
@@ -89,6 +97,18 @@ import static org.junit.Assert.assertEquals;
  */
 @RunWith(RobolectricTestRunner.class)
 public class ExpressionTest {
+
+  @Test
+  public void testPropertyValueIsExpression() {
+    PropertyValue<?> property = lineWidth(Expression.get("width"));
+    assertTrue(property.isExpression());
+  }
+
+  @Test
+  public void testPropertyValueEqualsExpression() {
+    PropertyValue<?> property = lineWidth(Expression.get("width"));
+    assertEquals(Expression.get("width"), property.getExpression());
+  }
 
   @Test
   public void testRgb() throws Exception {
@@ -1095,7 +1115,7 @@ public class ExpressionTest {
 
   @Test
   public void testExpressionConcatToString() throws Exception {
-    String expected = "[\"concat\", foo, bar]";
+    String expected = "[\"concat\", \"foo\", \"bar\"]";
     String actual = concat(literal("foo"), literal("bar")).toString();
     assertEquals("toString should match", expected, actual);
   }
@@ -1110,7 +1130,7 @@ public class ExpressionTest {
   @Test
   public void testExpressionExponentialToString() throws Exception {
     String expected = "[\"interpolate\", [\"cubic-bezier\", 1.0, 1.0, 1.0, 1.0],"
-      + " [\"get\", x], 0.0, 100.0, 100.0, 200.0]";
+      + " [\"get\", \"x\"], 0.0, 100.0, 100.0, 200.0]";
     String actual = interpolate(cubicBezier(literal(1), literal(1), literal(1), literal(1)),
       get(literal("x")), literal(0), literal(100), literal(100), literal(200)).toString();
     assertEquals("toString should match", expected, actual);
@@ -1289,5 +1309,83 @@ public class ExpressionTest {
     String color = PropertyFactory.colorToRgbaString(Color.parseColor("#41FF0000")).split(" ")[3];
     String alpha = color.substring(0, color.length() - 1);
     assertEquals("alpha value should match", 0.254f, Float.valueOf(alpha), 0.001f);
+  }
+
+  @Test
+  public void testCollator() {
+    Object[] expected = new Object[] {"collator",
+      new HashMap<String, Object>() {
+        {
+          put("case-sensitive", true);
+          put("diacritic-sensitive", true);
+          put("locale", "it-IT");
+        }
+      }
+    };
+    Object[] actual = collator(true, true, Locale.ITALY).toArray();
+    assertTrue("expression should match", Arrays.deepEquals(expected, actual));
+  }
+
+  @Test
+  public void testStringCollator() {
+    String expected = "[\"collator\", {\"diacritic-sensitive\": true, \"case-sensitive\": true, \"locale\": "
+      + "\"it\"}]";
+    String actual = collator(true, true, Locale.ITALIAN).toString();
+    assertEquals("expression should match", expected, actual);
+  }
+
+  @Test
+  public void testResolvedLocale() {
+    Object[] expected = new Object[] {"resolved-locale",
+      new Object[] {"collator",
+        new HashMap<String, Object>() {
+          {
+            put("case-sensitive", false);
+            put("diacritic-sensitive", false);
+            put("locale", "it");
+          }
+        }
+      }
+    };
+    Object[] actual = resolvedLocale(collator(false, false, Locale.ITALIAN)).toArray();
+    assertTrue("expression should match", Arrays.deepEquals(expected, actual));
+  }
+
+  @Test
+  public void testRawCollator() {
+    Object[] expected = new Object[] {"collator",
+      new HashMap<String, Object>() {
+        {
+          put("case-sensitive", true);
+          put("diacritic-sensitive", true);
+          put("locale", "it-IT");
+        }
+      }
+    };
+    Object[] actual = raw("[\"collator\", {\"diacritic-sensitive\": true, \"case-sensitive\": true, \"locale\": "
+      + "\"it-IT\"}]").toArray();
+    assertTrue("expression should match", Arrays.deepEquals(expected, actual));
+  }
+
+  @Test
+  public void testRawCollatorDoubleConversion() {
+    Expression expected = collator(false, false, Locale.ITALIAN);
+    Object[] actual = raw(expected.toString()).toArray();
+    assertTrue("expression should match", Arrays.deepEquals(expected.toArray(), actual));
+  }
+
+  @Test
+  public void testStringNestedCollator() {
+    String expected = "[\"collator\", {\"diacritic-sensitive\": [\"==\", 2.0, 1.0], \"case-sensitive\": false,"
+      + " \"locale\": \"it\"}]";
+    String actual = collator(literal(false), eq(literal(2), literal(1)), literal("it")).toString();
+    assertEquals("expression should match", expected, actual);
+  }
+
+  @Test
+  public void testStringReverseConversion() {
+    String expected = "[\"to-string\", [\"get\", \"name_en\"]]";
+    String actual = Expression.toString(get("name_en")).toString();
+    assertEquals("Reverse string conversion should match", expected, actual);
   }
 }

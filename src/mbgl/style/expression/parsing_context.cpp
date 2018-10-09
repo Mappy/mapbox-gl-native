@@ -13,7 +13,7 @@
 #include <mbgl/style/expression/coalesce.hpp>
 #include <mbgl/style/expression/coercion.hpp>
 #include <mbgl/style/expression/compound_expression.hpp>
-#include <mbgl/style/expression/equals.hpp>
+#include <mbgl/style/expression/comparison.hpp>
 #include <mbgl/style/expression/interpolate.hpp>
 #include <mbgl/style/expression/length.hpp>
 #include <mbgl/style/expression/let.hpp>
@@ -24,6 +24,7 @@
 #include <mbgl/style/expression/find_zoom_curve.hpp>
 
 #include <mbgl/style/conversion/get_json_type.hpp>
+#include <mbgl/style/conversion_impl.hpp>
 
 #include <mbgl/util/string.hpp>
 
@@ -32,19 +33,21 @@ namespace style {
 namespace expression {
 
 bool isConstant(const Expression& expression) {
-    if (auto varExpression = dynamic_cast<const Var*>(&expression)) {
+    if (expression.getKind() == Kind::Var) {
+        auto varExpression = static_cast<const Var*>(&expression);
         return isConstant(*varExpression->getBoundExpression());
     }
 
-    if (auto compound = dynamic_cast<const CompoundExpressionBase*>(&expression)) {
-        if (compound->getName() == "error") {
+    if (expression.getKind() == Kind::CompoundExpression) {
+        auto compound = static_cast<const CompoundExpression*>(&expression);
+        if (compound->getOperator() == "error") {
             return false;
         }
     }
 
-    bool isTypeAnnotation = dynamic_cast<const Coercion*>(&expression) ||
-        dynamic_cast<const Assertion*>(&expression) ||
-        dynamic_cast<const ArrayAssertion*>(&expression);
+    bool isTypeAnnotation = expression.getKind() == Kind::Coercion ||
+        expression.getKind() == Kind::Assertion ||
+        expression.getKind() == Kind::ArrayAssertion;
     
     bool childrenConstant = true;
     expression.eachChild([&](const Expression& child) {
@@ -58,7 +61,7 @@ bool isConstant(const Expression& expression) {
         if (isTypeAnnotation) {
             childrenConstant = childrenConstant && isConstant(child);
         } else {
-            childrenConstant = childrenConstant && dynamic_cast<const Literal*>(&child);
+            childrenConstant = childrenConstant && child.getKind() == Kind::Literal;
         }
     });
     if (!childrenConstant) {
@@ -66,7 +69,8 @@ bool isConstant(const Expression& expression) {
     }
     
     return isFeatureConstant(expression) &&
-        isGlobalPropertyConstant(expression, std::array<std::string, 2>{{"zoom", "heatmap-density"}});
+        isGlobalPropertyConstant(expression, std::array<std::string, 2>{{"zoom", "heatmap-density"}}) &&
+        isGlobalPropertyConstant(expression, std::array<std::string, 2>{{"zoom", "line-progress"}});
 }
 
 using namespace mbgl::style::conversion;
@@ -93,8 +97,12 @@ ParseResult ParsingContext::parse(const Convertible& value, std::size_t index_, 
 
 const ExpressionRegistry& getExpressionRegistry() {
     static ExpressionRegistry registry {{
-        {"==", Equals::parse},
-        {"!=", Equals::parse},
+        {"==", parseComparison},
+        {"!=", parseComparison},
+        {">", parseComparison},
+        {"<", parseComparison},
+        {">=", parseComparison},
+        {"<=", parseComparison},
         {"all", All::parse},
         {"any", Any::parse},
         {"array", ArrayAssertion::parse},
@@ -186,7 +194,7 @@ ParseResult ParsingContext::parse(const Convertible& value, TypeAnnotationOption
     // If an expression's arguments are all constant, we can evaluate
     // it immediately and replace it with a literal value in the
     // parsed result.
-    if (!dynamic_cast<Literal *>(parsed->get()) && isConstant(**parsed)) {
+    if ((*parsed)->getKind() != Kind::Literal && isConstant(**parsed)) {
         EvaluationContext params(nullptr);
         EvaluationResult evaluated((*parsed)->evaluate(params));
         if (!evaluated) {

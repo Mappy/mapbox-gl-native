@@ -45,6 +45,10 @@ bool RenderHeatmapLayer::hasTransition() const {
     return unevaluated.hasTransition();
 }
 
+bool RenderHeatmapLayer::hasCrossfade() const {
+    return false;
+}
+
 void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
     if (parameters.pass == RenderPass::Opaque) {
         return;
@@ -83,8 +87,11 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
         parameters.context.clear(Color{ 0.0f, 0.0f, 0.0f, 1.0f }, {}, {});
 
         for (const RenderTile& tile : renderTiles) {
-            assert(dynamic_cast<HeatmapBucket*>(tile.tile.getBucket(*baseImpl)));
-            HeatmapBucket& bucket = *reinterpret_cast<HeatmapBucket*>(tile.tile.getBucket(*baseImpl));
+            auto bucket_ = tile.tile.getBucket<HeatmapBucket>(*baseImpl);
+            if (!bucket_) {
+                continue;
+            }
+            HeatmapBucket& bucket = *bucket_;
 
             const auto extrudeScale = tile.id.pixelsToTileUnits(1, parameters.state.getZoom());
 
@@ -98,9 +105,9 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
        
             const auto allUniformValues = programInstance.computeAllUniformValues(
                 HeatmapProgram::UniformValues {
-                    uniforms::u_intensity::Value{ evaluated.get<style::HeatmapIntensity>() },
-                    uniforms::u_matrix::Value{ tile.matrix },
-                    uniforms::heatmap::u_extrude_scale::Value{ extrudeScale }
+                    uniforms::u_intensity::Value( evaluated.get<style::HeatmapIntensity>() ),
+                    uniforms::u_matrix::Value( tile.matrix ),
+                    uniforms::heatmap::u_extrude_scale::Value( extrudeScale )
                 },
                 paintPropertyBinders,
                 evaluated,
@@ -144,10 +151,10 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
 
         const auto allUniformValues = programInstance.computeAllUniformValues(
             HeatmapTextureProgram::UniformValues{
-                uniforms::u_matrix::Value{ viewportMat }, uniforms::u_world::Value{ size },
-                uniforms::u_image::Value{ 0 },
-                uniforms::u_color_ramp::Value{ 1 },
-                uniforms::u_opacity::Value{ evaluated.get<HeatmapOpacity>() }
+                uniforms::u_matrix::Value( viewportMat ), uniforms::u_world::Value( size ),
+                uniforms::u_image::Value( 0 ),
+                uniforms::u_color_ramp::Value( 1 ),
+                uniforms::u_opacity::Value( evaluated.get<HeatmapOpacity>() )
             },
             paintAttributeData,
             properties,

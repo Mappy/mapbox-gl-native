@@ -70,11 +70,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:<%- objCTestValue(property, type, true, 3) %>];
         layer.<%- objCName(property) %> = constantExpression;
-<% if (isDataDriven(property)) { -%>
-        mbgl::style::DataDrivenPropertyValue<<%- mbglType(property) %>> propertyValue = { <%- mbglTestValue(property, type) %> };
-<% } else { -%>
         mbgl::style::PropertyValue<<%- mbglType(property) %>> propertyValue = { <%- mbglTestValue(property, type) %> };
-<% } -%>
         XCTAssertEqual(rawLayer->get<%- camelize(originalPropertyName(property)) %>(), propertyValue,
                        @"Setting <%- objCName(property) %> to a constant value expression should update <%- originalPropertyName(property) %>.");
         XCTAssertEqualObjects(layer.<%- objCName(property) %>, constantExpression,
@@ -86,7 +82,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<<%- mbglType(property) %>>(
+            propertyValue = mbgl::style::PropertyExpression<<%- mbglType(property) %>>(
                 step(zoom(), literal(<%- mbglExpressionTestValue(property, type) %>), 18.0, literal(<%- mbglExpressionTestValue(property, type) %>))
             );
         }
@@ -102,7 +98,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<<%- mbglType(property) %>>(
+            propertyValue = mbgl::style::PropertyExpression<<%- mbglType(property) %>>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(<%- mbglExpressionTestValue(property, type) %>))
             );
         }
@@ -118,11 +114,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<<%- mbglType(property) %>>(
+            propertyValue = mbgl::style::PropertyExpression<<%- mbglType(property) %>>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(<%- mbglExpressionTestValue(property, type) %>)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->get<%- camelize(originalPropertyName(property)) %>(), propertyValue,
                        @"Setting <%- objCName(property) %> to a camera-data expression should update <%- originalPropertyName(property) %>.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -155,6 +151,23 @@
         MGLTransition <%- camelizeWithLeadingLowercase(originalPropertyName(property)) %>Transition = layer.<%- camelizeWithLeadingLowercase(originalPropertyName(property)) %>Transition;
         XCTAssertEqual(<%- camelizeWithLeadingLowercase(originalPropertyName(property)) %>Transition.delay, transitionTest.delay);
         XCTAssertEqual(<%- camelizeWithLeadingLowercase(originalPropertyName(property)) %>Transition.duration, transitionTest.duration);
+<% } -%>
+<% if (property.tokens) { -%>
+
+        // Tokens test
+        layer.<%- objCName(property) %> = [NSExpression expressionForConstantValue:@"{token}"];
+
+        {
+            using namespace mbgl::style::expression::dsl;
+            propertyValue = mbgl::style::PropertyExpression<<%- mbglType(property) %>>(
+                toString(get(literal("token")))
+            );
+        }
+
+        XCTAssertEqual(rawLayer->get<%- camelize(originalPropertyName(property)) %>(), propertyValue,
+                       @"Setting <%- objCName(property) %> to a constant string with tokens should convert to an expression.");
+        XCTAssertEqualObjects(layer.<%- objCName(property) %>, [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"],
+                              @"Setting <%- objCName(property) %> to a constant string with tokens should convert to an expression.");
 <% } -%>
     }
 <% } -%>

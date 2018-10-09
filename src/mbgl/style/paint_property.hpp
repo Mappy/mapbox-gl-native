@@ -3,7 +3,6 @@
 #include <mbgl/style/color_ramp_property_value.hpp>
 #include <mbgl/style/properties.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/data_driven_property_value.hpp>
 #include <mbgl/renderer/property_evaluator.hpp>
 #include <mbgl/renderer/cross_faded_property_evaluator.hpp>
 #include <mbgl/renderer/data_driven_property_evaluator.hpp>
@@ -27,15 +26,33 @@ public:
 template <class T, class A, class U>
 class DataDrivenPaintProperty {
 public:
-    using TransitionableType = Transitionable<DataDrivenPropertyValue<T>>;
-    using UnevaluatedType = Transitioning<DataDrivenPropertyValue<T>>;
+    using TransitionableType = Transitionable<PropertyValue<T>>;
+    using UnevaluatedType = Transitioning<PropertyValue<T>>;
     using EvaluatorType = DataDrivenPropertyEvaluator<T>;
     using PossiblyEvaluatedType = PossiblyEvaluatedPropertyValue<T>;
     using Type = T;
     static constexpr bool IsDataDriven = true;
 
     using Attribute = A;
+    using Attributes = TypeList<A>;
     using Uniform = U;
+    using Uniforms = TypeList<U>;
+};
+
+template <class T, class A1, class U1, class A2, class U2>
+class CrossFadedDataDrivenPaintProperty {
+public:
+    using TransitionableType = Transitionable<PropertyValue<T>>;
+    using UnevaluatedType = Transitioning<PropertyValue<T>>;
+    using EvaluatorType = DataDrivenPropertyEvaluator<Faded<T>>;
+    using PossiblyEvaluatedType = PossiblyEvaluatedPropertyValue<Faded<T>>;
+    using Type = T;
+    static constexpr bool IsDataDriven = true;
+
+    using Attribute = A1;
+    using Attributes = TypeList<A1, A2>;
+    using Uniforms = TypeList<U1, U2>;
+    using Uniform = U1;
 };
 
 template <class T>
@@ -67,7 +84,7 @@ public:
     using PossiblyEvaluatedType = Color;
     using Type = Color;
     static constexpr bool IsDataDriven = false;
-    
+
     static Color defaultValue() { return {}; }
 };
 

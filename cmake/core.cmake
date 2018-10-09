@@ -1,6 +1,6 @@
-add_library(mbgl-core STATIC
-    ${MBGL_CORE_FILES}
-)
+# Modify cmake/core-files.txt to change the source files for this target.
+load_sources_list(MBGL_CORE_FILES cmake/core-files.txt)
+add_library(mbgl-core STATIC ${MBGL_CORE_FILES})
 
 target_include_directories(mbgl-core
     PUBLIC include
@@ -26,6 +26,8 @@ target_add_mason_package(mbgl-core PRIVATE vector-tile)
 mbgl_platform_core()
 
 create_source_groups(mbgl-core)
+
+set_target_properties(mbgl-core PROPERTIES FOLDER "Core")
 
 xcode_create_scheme(TARGET mbgl-core)
 

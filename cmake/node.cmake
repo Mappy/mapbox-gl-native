@@ -58,8 +58,10 @@ target_link_libraries(mbgl-node INTERFACE
 )
 
 target_add_mason_package(mbgl-node INTERFACE geojson)
+set_target_properties(mbgl-node.all PROPERTIES FOLDER "Node.js")
 
 add_custom_target(mbgl-node.active DEPENDS mbgl-node.abi-${NodeJS_ABI})
+set_target_properties(mbgl-node.active PROPERTIES FOLDER "Node.js")
 
 mbgl_platform_node()
 
@@ -67,6 +69,7 @@ create_source_groups(mbgl-node)
 
 foreach(ABI IN LISTS mbgl-node::abis)
     initialize_xcode_cxx_build_settings(mbgl-node.abi-${ABI})
+    set_target_properties(mbgl-node.abi-${ABI} PROPERTIES FOLDER "Node.js")
     xcode_create_scheme(
         TARGET mbgl-node.abi-${ABI}
         NAME "mbgl-node (ABI ${ABI})"
@@ -98,6 +101,7 @@ xcode_create_scheme(
     TYPE node
     NAME "node render tests (Active ABI)"
     ARGS
+        "-r esm"
         "platform/node/test/render.test.js"
     OPTIONAL_ARGS
         "group"
@@ -109,6 +113,7 @@ xcode_create_scheme(
     TYPE node
     NAME "node query tests (Active ABI)"
     ARGS
+        "-r esm"
         "platform/node/test/query.test.js"
     OPTIONAL_ARGS
         "group"
@@ -120,6 +125,7 @@ xcode_create_scheme(
     TYPE node
     NAME "node expression tests (Active ABI)"
     ARGS
+        "-r esm"
         "platform/node/test/expression.test.js"
     OPTIONAL_ARGS
         "group"
@@ -131,6 +137,7 @@ xcode_create_scheme(
     TYPE node
     NAME "node-benchmark (Active ABI)"
     ARGS
+        "-r esm"
         "platform/node/test/benchmark.js"
     OPTIONAL_ARGS
         "group"

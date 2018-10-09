@@ -9,6 +9,7 @@
 #import "MBXEmbeddedMapViewController.h"
 
 #import <Mapbox/Mapbox.h>
+#import "../src/MGLMapView_Experimental.h"
 
 #import <objc/runtime.h>
 
@@ -98,6 +99,7 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousLocalizeLabels,
     MBXSettingsMiscellaneousShowSnapshots,
     MBXSettingsMiscellaneousShouldLimitCameraChanges,
+    MBXSettingsMiscellaneousShowCustomLocationManager,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
 	MBXSettingsMiscellaneousShowMappyLogFile,
@@ -196,7 +198,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 @property (nonatomic) BOOL customUserLocationAnnnotationEnabled;
 @property (nonatomic, getter=isLocalizingLabels) BOOL localizingLabels;
 @property (nonatomic) BOOL reuseQueueStatsEnabled;
-@property (nonatomic) BOOL showZoomLevelEnabled;
+@property (nonatomic) BOOL mapInfoHUDEnabled;
 @property (nonatomic) BOOL shouldLimitCameraChanges;
 @property (nonatomic) BOOL randomWalk;
 @end
@@ -281,7 +283,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [defaults setInteger:self.mapView.userTrackingMode forKey:@"MBXUserTrackingMode"];
     [defaults setBool:self.mapView.showsUserLocation forKey:@"MBXShowsUserLocation"];
     [defaults setInteger:self.mapView.debugMask forKey:@"MBXDebugMask"];
-    [defaults setBool:self.showZoomLevelEnabled forKey:@"MBXShowsZoomLevelHUD"];
+    [defaults setBool:self.mapInfoHUDEnabled forKey:@"MBXShowsZoomLevelHUD"];
     [defaults synchronize];
 }
 
@@ -309,7 +311,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     }
     if ([defaults boolForKey:@"MBXShowsZoomLevelHUD"])
     {
-        self.showZoomLevelEnabled = YES;
+        self.mapInfoHUDEnabled = YES;
         [self updateHUD];
     }
 }
@@ -440,12 +442,13 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                 [NSString stringWithFormat:@"%@ Reuse Queue Stats", (_reuseQueueStatsEnabled ? @"Hide" :@"Show")],
                 @"Start World Tour",
                 @"Random Tour",
-                [NSString stringWithFormat:@"%@ Zoom/Pitch/Direction Label", (_showZoomLevelEnabled ? @"Hide" :@"Show")],
+                [NSString stringWithFormat:@"%@ Map Info HUD", (_mapInfoHUDEnabled ? @"Hide" :@"Show")],
                 @"Embedded Map View",
                 [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
                 [NSString stringWithFormat:@"Show Labels in %@", (_localizingLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
                 @"Show Snapshots",
                 [NSString stringWithFormat:@"%@ Camera Changes", (_shouldLimitCameraChanges ? @"Unlimit" : @"Limit")],
+                @"View Route Simulation",
             ]];
 
             if (self.debugLoggingEnabled)
@@ -665,14 +668,14 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                 {
                     self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
                     self.hudLabel.hidden = !self.reuseQueueStatsEnabled;
-                    self.showZoomLevelEnabled = NO;
+                    self.mapInfoHUDEnabled = NO;
                     [self updateHUD];
                     break;
                 }
                 case MBXSettingsMiscellaneousShowZoomLevel:
                 {
-                    self.showZoomLevelEnabled = !self.showZoomLevelEnabled;
-                    self.hudLabel.hidden = !self.showZoomLevelEnabled;
+                    self.mapInfoHUDEnabled = !self.mapInfoHUDEnabled;
+                    self.hudLabel.hidden = !self.mapInfoHUDEnabled;
                     self.reuseQueueStatsEnabled = NO;
                     [self updateHUD];
                     break;
@@ -690,6 +693,11 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                 case MBXSettingsMiscellaneousShowSnapshots:
                 {
                     [self performSegueWithIdentifier:@"ShowSnapshots" sender:nil];
+                    break;
+                }
+                case MBXSettingsMiscellaneousShowCustomLocationManager:
+                {
+                    [self performSegueWithIdentifier:@"ShowCustomLocationManger" sender:nil];
                     break;
                 }
                 case MBXSettingsMiscellaneousShouldLimitCameraChanges:
@@ -2241,7 +2249,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 }
 
 - (void)updateHUD {
-    if (!self.reuseQueueStatsEnabled && !self.showZoomLevelEnabled) return;
+    if (!self.reuseQueueStatsEnabled && !self.mapInfoHUDEnabled) return;
 
     if (self.hudLabel.hidden) self.hudLabel.hidden = NO;
 
@@ -2253,8 +2261,11 @@ CLLocationCoordinate2D randomWorldCoordinate() {
             queuedAnnotations += queue.count;
         }
         hudString = [NSString stringWithFormat:@"Visible: %ld  Queued: %ld", (unsigned long)self.mapView.visibleAnnotations.count, (unsigned long)queuedAnnotations];
-    } else if (self.showZoomLevelEnabled) {
-        hudString = [NSString stringWithFormat:@"%.2f ∕ ↕\U0000FE0E%.f° ∕ %.f°", self.mapView.zoomLevel, self.mapView.camera.pitch, self.mapView.direction];
+    } else if (self.mapInfoHUDEnabled) {
+        if (!self.mapView.experimental_enableFrameRateMeasurement) self.mapView.experimental_enableFrameRateMeasurement = YES;
+        hudString = [NSString stringWithFormat:@"%.f FPS (%.1fms) ∕ %.2f ∕ ↕\U0000FE0E%.f° ∕ %.f°",
+                     roundf(self.mapView.averageFrameRate), self.mapView.averageFrameTime,
+                     self.mapView.zoomLevel, self.mapView.camera.pitch, self.mapView.direction];
     }
 
     [self.hudLabel setTitle:hudString forState:UIControlStateNormal];

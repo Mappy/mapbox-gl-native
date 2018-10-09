@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.style.sources;
 
+import android.support.annotation.Keep;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
 
@@ -19,7 +20,8 @@ public class RasterDemSource extends Source {
    *
    * @param nativePtr - pointer to native peer
    */
-  private RasterDemSource(long nativePtr) {
+  @Keep
+  RasterDemSource(long nativePtr) {
     super(nativePtr);
   }
 
@@ -88,11 +90,14 @@ public class RasterDemSource extends Source {
     return nativeGetUrl();
   }
 
+  @Keep
   protected native void initialize(String layerId, Object payload, int tileSize);
 
   @Override
+  @Keep
   protected native void finalize() throws Throwable;
 
+  @Keep
   protected native String nativeGetUrl();
 
 }

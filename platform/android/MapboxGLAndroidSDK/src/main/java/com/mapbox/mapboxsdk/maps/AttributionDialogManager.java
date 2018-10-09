@@ -11,16 +11,21 @@ import android.support.annotation.NonNull;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
+
+import com.mapbox.mapboxsdk.MapStrictMode;
+import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.attribution.Attribution;
 import com.mapbox.mapboxsdk.attribution.AttributionParser;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.style.sources.Source;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
+import java.util.Locale;
 
 /**
  * Responsible for managing attribution interactions on the map.
@@ -47,7 +52,7 @@ public class AttributionDialogManager implements View.OnClickListener, DialogInt
   // Called when someone presses the attribution icon on the map
   @Override
   public void onClick(View view) {
-    attributionSet = new AttributionBuilder(mapboxMap).build();
+    attributionSet = new AttributionBuilder(mapboxMap, view.getContext()).build();
 
     boolean isActivityFinishing = false;
     if (context instanceof Activity) {
@@ -97,7 +102,10 @@ public class AttributionDialogManager implements View.OnClickListener, DialogInt
     builder.setPositiveButton(R.string.mapbox_attributionTelemetryPositive, new DialogInterface.OnClickListener() {
       @Override
       public void onClick(DialogInterface dialog, int which) {
-        Telemetry.enableOnUserRequest();
+        TelemetryDefinition telemetry = Mapbox.getTelemetry();
+        if (telemetry != null) {
+          telemetry.setUserTelemetryRequestState(true);
+        }
         dialog.cancel();
       }
     });
@@ -111,7 +119,10 @@ public class AttributionDialogManager implements View.OnClickListener, DialogInt
     builder.setNegativeButton(R.string.mapbox_attributionTelemetryNegative, new DialogInterface.OnClickListener() {
       @Override
       public void onClick(DialogInterface dialog, int which) {
-        Telemetry.disableOnUserRequest();
+        TelemetryDefinition telemetry = Mapbox.getTelemetry();
+        if (telemetry != null) {
+          telemetry.setUserTelemetryRequestState(false);
+        }
         dialog.cancel();
       }
     });
@@ -142,26 +153,39 @@ public class AttributionDialogManager implements View.OnClickListener, DialogInt
     } catch (ActivityNotFoundException exception) {
       // explicitly handling if the device hasn't have a web browser installed. #8899
       Toast.makeText(context, R.string.mapbox_attributionErrorNoBrowser, Toast.LENGTH_LONG).show();
+      MapStrictMode.strictModeViolation(exception);
     }
   }
 
   private static class AttributionBuilder {
 
     private final MapboxMap mapboxMap;
+    private final WeakReference<Context> context;
 
-    AttributionBuilder(MapboxMap mapboxMap) {
+    AttributionBuilder(MapboxMap mapboxMap, Context context) {
       this.mapboxMap = mapboxMap;
+      this.context = new WeakReference<>(context);
     }
 
     private Set<Attribution> build() {
+      Context context = this.context.get();
+      if (context == null) {
+        return Collections.emptySet();
+      }
+
       List<String> attributions = new ArrayList<>();
+      String attribution;
       for (Source source : mapboxMap.getSources()) {
-        attributions.add(source.getAttribution());
+        attribution = source.getAttribution();
+        if (!attribution.isEmpty()) {
+          attributions.add(source.getAttribution());
+        }
       }
 
       return new AttributionParser.Options()
         .withCopyrightSign(true)
         .withImproveMap(true)
+        .withContext(context)
         .withTelemetryAttribution(true)
         .withAttributionData(attributions.toArray(new String[attributions.size()]))
         .build().getAttributions();

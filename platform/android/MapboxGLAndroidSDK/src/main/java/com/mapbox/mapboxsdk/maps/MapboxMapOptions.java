@@ -30,6 +30,7 @@ import java.util.Arrays;
  */
 public class MapboxMapOptions implements Parcelable {
 
+  private static final int LIGHT_GRAY = 0xFFF0E9E1; // RGB(240, 233, 225))
   private static final float FOUR_DP = 4f;
   private static final float NINETY_TWO_DP = 92f;
   private static final int UNDEFINED_COLOR = -1;
@@ -73,7 +74,11 @@ public class MapboxMapOptions implements Parcelable {
   private boolean textureMode;
   private boolean translucentTextureSurface;
 
-  private String style;
+  @ColorInt
+  private int foregroundLoadColor;
+
+  private String styleUrl;
+  private String styleJson;
 
   private float pixelRatio;
 
@@ -116,7 +121,8 @@ public class MapboxMapOptions implements Parcelable {
     zoomGesturesEnabled = in.readByte() != 0;
     doubleTapGesturesEnabled = in.readByte() != 0;
 
-    style = in.readString();
+    styleUrl = in.readString();
+    styleJson = in.readString();
     apiBaseUrl = in.readString();
     textureMode = in.readByte() != 0;
     translucentTextureSurface = in.readByte() != 0;
@@ -124,6 +130,7 @@ public class MapboxMapOptions implements Parcelable {
     zMediaOverlay = in.readByte() != 0;
     localIdeographFontFamily = in.readString();
     pixelRatio = in.readFloat();
+    foregroundLoadColor = in.readInt();
   }
 
   /**
@@ -140,6 +147,7 @@ public class MapboxMapOptions implements Parcelable {
     try {
       mapboxMapOptions.camera(new CameraPosition.Builder(typedArray).build());
       mapboxMapOptions.styleUrl(typedArray.getString(R.styleable.mapbox_MapView_mapbox_styleUrl));
+      mapboxMapOptions.styleJson(typedArray.getString(R.styleable.mapbox_MapView_mapbox_styleJson));
       mapboxMapOptions.apiBaseUrl(typedArray.getString(R.styleable.mapbox_MapView_mapbox_apiBaseUrl));
 
       mapboxMapOptions.zoomGesturesEnabled(
@@ -209,7 +217,6 @@ public class MapboxMapOptions implements Parcelable {
           FOUR_DP * pxlRatio)),
         (int) (typedArray.getDimension(R.styleable.mapbox_MapView_mapbox_uiAttributionMarginBottom,
           FOUR_DP * pxlRatio))});
-
       mapboxMapOptions.textureMode(
         typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_renderTextureMode, false));
       mapboxMapOptions.translucentTextureSurface(
@@ -222,6 +229,9 @@ public class MapboxMapOptions implements Parcelable {
         typedArray.getString(R.styleable.mapbox_MapView_mapbox_localIdeographFontFamily));
       mapboxMapOptions.pixelRatio(
         typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_pixelRatio, 0));
+      mapboxMapOptions.foregroundLoadColor(
+        typedArray.getInt(R.styleable.mapbox_MapView_mapbox_foregroundLoadColor, LIGHT_GRAY)
+      );
     } finally {
       typedArray.recycle();
     }
@@ -251,13 +261,24 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
-   * Specifies the style url associated with a map view.
+   * Specifies the styleUrl url associated with a map view.
    *
-   * @param styleUrl Url to be used to load a style
+   * @param styleUrl Url to be used to load a styleUrl
    * @return This
    */
   public MapboxMapOptions styleUrl(String styleUrl) {
-    style = styleUrl;
+    this.styleUrl = styleUrl;
+    return this;
+  }
+
+  /**
+   * Specifies the styleJson associated with a map view.
+   *
+   * @param styleJson json to used as style
+   * @return This
+   */
+  public MapboxMapOptions styleJson(String styleJson) {
+    this.styleJson = styleJson;
     return this;
   }
 
@@ -522,6 +543,17 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
+   * Set the MapView foreground color that is used when the map surface is being created.
+   *
+   * @param loadColor the color to show during map creation
+   * @return This
+   */
+  public MapboxMapOptions foregroundLoadColor(@ColorInt int loadColor) {
+    this.foregroundLoadColor = loadColor;
+    return this;
+  }
+
+  /**
    * Enable tile pre-fetching. Loads tiles at a lower zoom-level to pre-render
    * a low resolution preview while more detailed tiles are loaded.
    * Enabled by default
@@ -698,12 +730,21 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
-   * Get the current configured style url for a map view.
+   * Get the current configured styleUrl url for a map view.
    *
    * @return Style url to be used.
    */
-  public String getStyle() {
-    return style;
+  public String getStyleUrl() {
+    return styleUrl;
+  }
+
+  /**
+   * Get the current configured styleJson for a map view.
+   *
+   * @return Style json to be used.
+   */
+  public String getStyleJson() {
+    return styleJson;
   }
 
   /**
@@ -820,6 +861,16 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
+   * Returns the current configured foreground color that is used during map creation.
+   *
+   * @return the load color
+   */
+  @ColorInt
+  public int getForegroundLoadColor() {
+    return foregroundLoadColor;
+  }
+
+  /**
    * Returns the font-family for locally overriding generation of glyphs in the
    * &#x27;CJK Unified Ideographs&#x27; and &#x27;Hangul Syllables&#x27; ranges.
    *
@@ -884,7 +935,8 @@ public class MapboxMapOptions implements Parcelable {
     dest.writeByte((byte) (zoomGesturesEnabled ? 1 : 0));
     dest.writeByte((byte) (doubleTapGesturesEnabled ? 1 : 0));
 
-    dest.writeString(style);
+    dest.writeString(styleUrl);
+    dest.writeString(styleJson);
     dest.writeString(apiBaseUrl);
     dest.writeByte((byte) (textureMode ? 1 : 0));
     dest.writeByte((byte) (translucentTextureSurface ? 1 : 0));
@@ -892,6 +944,7 @@ public class MapboxMapOptions implements Parcelable {
     dest.writeByte((byte) (zMediaOverlay ? 1 : 0));
     dest.writeString(localIdeographFontFamily);
     dest.writeFloat(pixelRatio);
+    dest.writeInt(foregroundLoadColor);
   }
 
   @Override
@@ -973,9 +1026,14 @@ public class MapboxMapOptions implements Parcelable {
     if (!Arrays.equals(attributionMargins, options.attributionMargins)) {
       return false;
     }
-    if (style != null ? !style.equals(options.style) : options.style != null) {
+    if (styleUrl != null ? !styleUrl.equals(options.styleUrl) : options.styleUrl != null) {
       return false;
     }
+
+    if (styleJson != null ? !styleJson.equals(options.styleJson) : options.styleJson != null) {
+      return false;
+    }
+
     if (apiBaseUrl != null ? !apiBaseUrl.equals(options.apiBaseUrl) : options.apiBaseUrl != null) {
       return false;
     }
@@ -1026,7 +1084,8 @@ public class MapboxMapOptions implements Parcelable {
     result = 31 * result + (apiBaseUrl != null ? apiBaseUrl.hashCode() : 0);
     result = 31 * result + (textureMode ? 1 : 0);
     result = 31 * result + (translucentTextureSurface ? 1 : 0);
-    result = 31 * result + (style != null ? style.hashCode() : 0);
+    result = 31 * result + (styleUrl != null ? styleUrl.hashCode() : 0);
+    result = 31 * result + (styleJson != null ? styleJson.hashCode() : 0);
     result = 31 * result + (prefetchesTiles ? 1 : 0);
     result = 31 * result + (zMediaOverlay ? 1 : 0);
     result = 31 * result + (localIdeographFontFamily != null ? localIdeographFontFamily.hashCode() : 0);

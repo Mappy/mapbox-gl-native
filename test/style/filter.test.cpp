@@ -11,6 +11,10 @@
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion/filter.hpp>
+#include <mbgl/util/rapidjson.hpp>
+
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 
 using namespace mbgl;
 using namespace mbgl::style;
@@ -37,6 +41,42 @@ void invalidFilter(const char * json) {
     optional<Filter> filter = conversion::convertJSON<Filter>(json, error);
     EXPECT_FALSE(bool(filter));
     EXPECT_NE(error.message, "");
+}
+
+void writeJSON(rapidjson::Writer<rapidjson::StringBuffer>& writer, const Value& value) {
+    value.match(
+        [&] (const NullValue&) { writer.Null(); },
+        [&] (bool b) { writer.Bool(b); },
+        [&] (uint64_t t) { writer.Uint64(t); },
+        [&] (int64_t t) { writer.Int64(t); },
+        [&] (double f) {
+            // make sure integer values are stringified without trailing ".0".
+            f == std::floor(f) ? writer.Int(f) : writer.Double(f);
+        },
+        [&] (const std::string& s) { writer.String(s); },
+        [&] (const std::vector<Value>& arr) {
+            writer.StartArray();
+            for(const auto& item : arr) {
+                writeJSON(writer, item);
+            }
+            writer.EndArray();
+        },
+        [](const auto&) {
+        });
+}
+
+std::string stringifyFilter(const char * json) {
+    conversion::Error error;
+    optional<Filter> filter = conversion::convertJSON<Filter>(json, error);
+    EXPECT_TRUE(bool(filter));
+    EXPECT_EQ(error.message, "");
+
+    auto value = filter->serialize();
+
+    rapidjson::StringBuffer s;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(s);
+    writeJSON(writer, value);
+    return s.GetString();
 }
 
 TEST(Filter, EqualsNull) {
@@ -181,6 +221,21 @@ TEST(Filter, LegacyProperty) {
     ASSERT_FALSE(filter("[\"==\", \"two\", 4]", {{"two", std::string("2")}}));
 }
 
+TEST(Filter, Serialize) {
+    std::string json = R"(["any",["==","foo",0],["==","foo",1]])";
+    EXPECT_EQ(stringifyFilter(json.c_str()), std::string(json));
+    
+    json = R"(["<=","two",2])";
+    EXPECT_EQ(stringifyFilter(json.c_str()), std::string(json));
+
+    //Constant folding for Expression filters
+    json = R"(["==",["+",1,1],2])";
+    EXPECT_EQ(stringifyFilter(json.c_str()), std::string("true"));
+
+    json = R"(["all",["==",["get","foo"],0],["==",["get","foo"],1]])";
+    EXPECT_EQ(stringifyFilter(json.c_str()), std::string(json));
+}
+
 TEST(Filter, ExpressionLegacyMix) {
     conversion::Error error;
     optional<Filter> filter = conversion::convertJSON<Filter>(R"(["any", ["all", ["==", ["geometry-type"], "LineString"]], ["==", "x", 1]])", error);
@@ -195,4 +250,8 @@ TEST(Filter, ZoomExpressionNested) {
 
 TEST(Filter, Internal) {
     filter(R"(["filter-==","class","snow"])");
+}
+
+TEST(Filter, Short) {
+    filter(R"(["==", ["id"], "foo"])");
 }

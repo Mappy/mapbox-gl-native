@@ -2,7 +2,6 @@
 #import "MGLMapCamera.h"
 
 #import <UIKit/UIKit.h>
-#import <CoreLocation/CoreLocation.h>
 
 #import "MGLFoundation.h"
 #import "MGLTypes.h"
@@ -22,15 +21,19 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol MGLOverlay;
 @protocol MGLCalloutView;
 @protocol MGLFeature;
+@protocol MGLLocationManager;
+
+/** Options for `MGLMapView.decelerationRate`. */
+typedef CGFloat MGLMapViewDecelerationRate NS_TYPED_EXTENSIBLE_ENUM;
 
 /** The default deceleration rate for a map view. */
-extern MGL_EXPORT const CGFloat MGLMapViewDecelerationRateNormal;
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewDecelerationRate MGLMapViewDecelerationRateNormal;
 
 /** A fast deceleration rate for a map view. */
-extern MGL_EXPORT const CGFloat MGLMapViewDecelerationRateFast;
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewDecelerationRate MGLMapViewDecelerationRateFast;
 
 /** Disables deceleration in a map view. */
-extern MGL_EXPORT const CGFloat MGLMapViewDecelerationRateImmediate;
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewDecelerationRate MGLMapViewDecelerationRateImmediate;
 
 /**
  The vertical alignment of an annotation within a map view. Used with
@@ -44,6 +47,25 @@ typedef NS_ENUM(NSUInteger, MGLAnnotationVerticalAlignment) {
     /** Aligns the annotation vertically at the bottom of the map view. */
     MGLAnnotationVerticalAlignmentBottom,
 };
+
+/** Options for `MGLMapView.preferredFramesPerSecond`. */
+typedef NSInteger MGLMapViewPreferredFramesPerSecond NS_TYPED_EXTENSIBLE_ENUM;
+
+/**
+ The default frame rate. This can be either 30 FPS or 60 FPS, depending on
+ device capabilities.
+ */
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondDefault;
+
+/** A conservative frame rate; typically 30 FPS. */
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondLowPower;
+
+/** The maximum supported frame rate; typically 60 FPS. */
+FOUNDATION_EXTERN MGL_EXPORT const MGLMapViewPreferredFramesPerSecond MGLMapViewPreferredFramesPerSecondMaximum;
+
+FOUNDATION_EXTERN MGL_EXPORT MGLExceptionName const MGLMissingLocationServicesUsageDescriptionException;
+FOUNDATION_EXTERN MGL_EXPORT MGLExceptionName const MGLUserLocationAnnotationTypeException;
+FOUNDATION_EXTERN MGL_EXPORT MGLExceptionName const MGLResourceNotFoundException;
 
 /**
  An interactive, customizable map view with an interface similar to the one
@@ -252,6 +274,21 @@ MGL_EXPORT IB_DESIGNABLE
  */
 - (IBAction)showAttribution:(id)sender;
 
+/**
+ The preferred frame rate at which the map view is rendered.
+
+ The default value for this property is
+ `MGLMapViewPreferredFramesPerSecondDefault`, which will adaptively set the
+ preferred frame rate based on the capability of the user’s device to maintain
+ a smooth experience.
+
+ In addition to the provided `MGLMapViewPreferredFramesPerSecond` options, this
+ property can be set to arbitrary integer values.
+
+ @see `CADisplayLink.preferredFramesPerSecond`
+ */
+@property (nonatomic, assign) MGLMapViewPreferredFramesPerSecond preferredFramesPerSecond;
+
 @property (nonatomic) NSArray<NSString *> *styleClasses __attribute__((unavailable("Support for style classes has been removed.")));
 
 - (BOOL)hasStyleClass:(NSString *)styleClass __attribute__((unavailable("Support for style classes has been removed.")));
@@ -261,6 +298,23 @@ MGL_EXPORT IB_DESIGNABLE
 - (void)removeStyleClass:(NSString *)styleClass __attribute__((unavailable("Support for style classes has been removed.")));
 
 #pragma mark Displaying the User’s Location
+
+/**
+ The object that this map view uses to start and stop the delivery of location-related
+ updates.
+ 
+ To receive the current user location, implement the `-[MGLMapViewDelegate mapView:didUpdateUserLocation:]`
+ and `-[MGLMapViewDelegate mapView:didFailToLocateUserWithError:]` methods.
+ 
+ If setting this property to `nil` or if no custom manager is provided this property
+ is set to the default location manager.
+ 
+ `MGLMapView` uses a default location manager. If you want to substitute your own
+ location manager, you should do so by setting this property before setting
+ `showsUserLocation` to `YES`. To restore the default location manager,
+ set this property to `nil`.
+ */
+@property (nonatomic, null_resettable) id<MGLLocationManager> locationManager;
 
 /**
  A Boolean value indicating whether the map may display the user location.
@@ -278,6 +332,9 @@ MGL_EXPORT IB_DESIGNABLE
  `NSLocationAlwaysUsageDescription` in its `Info.plist` to satisfy the
  requirements of the underlying Core Location framework when enabling this
  property.
+ 
+ If you implement a custom location manager, set the `locationManager` before
+ calling `showsUserLocation`.
  */
 @property (nonatomic, assign) BOOL showsUserLocation;
 

@@ -69,7 +69,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -101,7 +101,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'bottom-right'"];
         layer.iconAnchor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::style::SymbolAnchorType> propertyValue = { mbgl::style::SymbolAnchorType::BottomRight };
+        mbgl::style::PropertyValue<mbgl::style::SymbolAnchorType> propertyValue = { mbgl::style::SymbolAnchorType::BottomRight };
         XCTAssertEqual(rawLayer->getIconAnchor(), propertyValue,
                        @"Setting iconAnchor to a constant value expression should update icon-anchor.");
         XCTAssertEqualObjects(layer.iconAnchor, constantExpression,
@@ -113,7 +113,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::SymbolAnchorType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::SymbolAnchorType>(
                 step(zoom(), literal("bottom-right"), 18.0, literal("bottom-right"))
             );
         }
@@ -151,7 +151,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -183,7 +183,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'Icon Image'"];
         layer.iconImageName = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<std::string> propertyValue = { "Icon Image" };
+        mbgl::style::PropertyValue<std::string> propertyValue = { "Icon Image" };
         XCTAssertEqual(rawLayer->getIconImage(), propertyValue,
                        @"Setting iconImageName to a constant value expression should update icon-image.");
         XCTAssertEqualObjects(layer.iconImageName, constantExpression,
@@ -195,7 +195,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::string>(
+            propertyValue = mbgl::style::PropertyExpression<std::string>(
                 step(zoom(), literal("Icon Image"), 18.0, literal("Icon Image"))
             );
         }
@@ -211,6 +211,21 @@
                       @"Unsetting iconImageName should return icon-image to the default value.");
         XCTAssertEqualObjects(layer.iconImageName, defaultExpression,
                               @"iconImageName should return the default value after being unset.");
+
+        // Tokens test
+        layer.iconImageName = [NSExpression expressionForConstantValue:@"{token}"];
+
+        {
+            using namespace mbgl::style::expression::dsl;
+            propertyValue = mbgl::style::PropertyExpression<std::string>(
+                toString(get(literal("token")))
+            );
+        }
+
+        XCTAssertEqual(rawLayer->getIconImage(), propertyValue,
+                       @"Setting iconImageName to a constant string with tokens should convert to an expression.");
+        XCTAssertEqualObjects(layer.iconImageName, [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"],
+                              @"Setting iconImageName to a constant string with tokens should convert to an expression.");
     }
 
     // icon-offset
@@ -227,7 +242,7 @@
 #endif
         ];
         layer.iconOffset = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<std::array<float, 2>> propertyValue = { { 1, 1 } };
+        mbgl::style::PropertyValue<std::array<float, 2>> propertyValue = { { 1, 1 } };
         XCTAssertEqual(rawLayer->getIconOffset(), propertyValue,
                        @"Setting iconOffset to a constant value expression should update icon-offset.");
         XCTAssertEqualObjects(layer.iconOffset, constantExpression,
@@ -239,7 +254,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 step(zoom(), literal({ 1, 1 }), 18.0, literal({ 1, 1 }))
             );
         }
@@ -254,7 +269,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal({ 1, 1 }))
             );
         }
@@ -270,11 +285,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal({ 1, 1 })))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconOffset(), propertyValue,
                        @"Setting iconOffset to a camera-data expression should update icon-offset.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -308,7 +323,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -352,7 +367,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -396,7 +411,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::AlignmentType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::AlignmentType>(
                 step(zoom(), literal("auto"), 18.0, literal("auto"))
             );
         }
@@ -428,7 +443,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.iconRotation = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getIconRotate(), propertyValue,
                        @"Setting iconRotation to a constant value expression should update icon-rotate.");
         XCTAssertEqualObjects(layer.iconRotation, constantExpression,
@@ -440,7 +455,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -455,7 +470,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -471,11 +486,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconRotate(), propertyValue,
                        @"Setting iconRotation to a camera-data expression should update icon-rotate.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -509,7 +524,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::AlignmentType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::AlignmentType>(
                 step(zoom(), literal("auto"), 18.0, literal("auto"))
             );
         }
@@ -541,7 +556,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.iconScale = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getIconSize(), propertyValue,
                        @"Setting iconScale to a constant value expression should update icon-size.");
         XCTAssertEqualObjects(layer.iconScale, constantExpression,
@@ -553,7 +568,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -568,7 +583,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -584,11 +599,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconSize(), propertyValue,
                        @"Setting iconScale to a camera-data expression should update icon-size.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -622,7 +637,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::IconTextFitType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::IconTextFitType>(
                 step(zoom(), literal("both"), 18.0, literal("both"))
             );
         }
@@ -672,7 +687,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 4>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 4>>(
                 step(zoom(), literal({ 1, 1, 1, 1 }), 18.0, literal({ 1, 1, 1, 1 }))
             );
         }
@@ -716,7 +731,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -760,7 +775,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(false), 18.0, literal(false))
             );
         }
@@ -804,7 +819,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -836,7 +851,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.maximumTextWidth = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextMaxWidth(), propertyValue,
                        @"Setting maximumTextWidth to a constant value expression should update text-max-width.");
         XCTAssertEqualObjects(layer.maximumTextWidth, constantExpression,
@@ -848,7 +863,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -863,7 +878,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -879,11 +894,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextMaxWidth(), propertyValue,
                        @"Setting maximumTextWidth to a camera-data expression should update text-max-width.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -917,7 +932,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -947,22 +962,22 @@
                       @"symbol-placement should be unset initially.");
         NSExpression *defaultExpression = layer.symbolPlacement;
 
-        NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'line'"];
+        NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'line-center'"];
         layer.symbolPlacement = constantExpression;
-        mbgl::style::PropertyValue<mbgl::style::SymbolPlacementType> propertyValue = { mbgl::style::SymbolPlacementType::Line };
+        mbgl::style::PropertyValue<mbgl::style::SymbolPlacementType> propertyValue = { mbgl::style::SymbolPlacementType::LineCenter };
         XCTAssertEqual(rawLayer->getSymbolPlacement(), propertyValue,
                        @"Setting symbolPlacement to a constant value expression should update symbol-placement.");
         XCTAssertEqualObjects(layer.symbolPlacement, constantExpression,
                               @"symbolPlacement should round-trip constant value expressions.");
 
-        constantExpression = [NSExpression expressionWithFormat:@"'line'"];
+        constantExpression = [NSExpression expressionWithFormat:@"'line-center'"];
         NSExpression *functionExpression = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, %@, %@)", constantExpression, @{@18: constantExpression}];
         layer.symbolPlacement = functionExpression;
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::SymbolPlacementType>(
-                step(zoom(), literal("line"), 18.0, literal("line"))
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::SymbolPlacementType>(
+                step(zoom(), literal("line-center"), 18.0, literal("line-center"))
             );
         }
 
@@ -1005,7 +1020,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1037,7 +1052,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'Text Field'"];
         layer.text = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<std::string> propertyValue = { "Text Field" };
+        mbgl::style::PropertyValue<std::string> propertyValue = { "Text Field" };
         XCTAssertEqual(rawLayer->getTextField(), propertyValue,
                        @"Setting text to a constant value expression should update text-field.");
         XCTAssertEqualObjects(layer.text, constantExpression,
@@ -1049,7 +1064,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::string>(
+            propertyValue = mbgl::style::PropertyExpression<std::string>(
                 step(zoom(), literal("Text Field"), 18.0, literal("Text Field"))
             );
         }
@@ -1065,6 +1080,21 @@
                       @"Unsetting text should return text-field to the default value.");
         XCTAssertEqualObjects(layer.text, defaultExpression,
                               @"text should return the default value after being unset.");
+
+        // Tokens test
+        layer.text = [NSExpression expressionForConstantValue:@"{token}"];
+
+        {
+            using namespace mbgl::style::expression::dsl;
+            propertyValue = mbgl::style::PropertyExpression<std::string>(
+                toString(get(literal("token")))
+            );
+        }
+
+        XCTAssertEqual(rawLayer->getTextField(), propertyValue,
+                       @"Setting text to a constant string with tokens should convert to an expression.");
+        XCTAssertEqualObjects(layer.text, [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"],
+                              @"Setting text to a constant string with tokens should convert to an expression.");
     }
 
     // text-allow-overlap
@@ -1087,7 +1117,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -1119,7 +1149,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'bottom-right'"];
         layer.textAnchor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::style::SymbolAnchorType> propertyValue = { mbgl::style::SymbolAnchorType::BottomRight };
+        mbgl::style::PropertyValue<mbgl::style::SymbolAnchorType> propertyValue = { mbgl::style::SymbolAnchorType::BottomRight };
         XCTAssertEqual(rawLayer->getTextAnchor(), propertyValue,
                        @"Setting textAnchor to a constant value expression should update text-anchor.");
         XCTAssertEqualObjects(layer.textAnchor, constantExpression,
@@ -1131,7 +1161,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::SymbolAnchorType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::SymbolAnchorType>(
                 step(zoom(), literal("bottom-right"), 18.0, literal("bottom-right"))
             );
         }
@@ -1157,7 +1187,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"{'Text Font', 'Tnof Txet'}"];
         layer.textFontNames = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<std::vector<std::string>> propertyValue = { { "Text Font", "Tnof Txet" } };
+        mbgl::style::PropertyValue<std::vector<std::string>> propertyValue = { { "Text Font", "Tnof Txet" } };
         XCTAssertEqual(rawLayer->getTextFont(), propertyValue,
                        @"Setting textFontNames to a constant value expression should update text-font.");
         XCTAssertEqualObjects(layer.textFontNames, constantExpression,
@@ -1169,7 +1199,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::vector<std::string>>(
+            propertyValue = mbgl::style::PropertyExpression<std::vector<std::string>>(
                 step(zoom(), literal({ "Text Font", "Tnof Txet" }), 18.0, literal({ "Text Font", "Tnof Txet" }))
             );
         }
@@ -1195,7 +1225,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textFontSize = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextSize(), propertyValue,
                        @"Setting textFontSize to a constant value expression should update text-size.");
         XCTAssertEqualObjects(layer.textFontSize, constantExpression,
@@ -1207,7 +1237,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1222,7 +1252,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -1238,11 +1268,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextSize(), propertyValue,
                        @"Setting textFontSize to a camera-data expression should update text-size.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1276,7 +1306,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -1308,7 +1338,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'right'"];
         layer.textJustification = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::style::TextJustifyType> propertyValue = { mbgl::style::TextJustifyType::Right };
+        mbgl::style::PropertyValue<mbgl::style::TextJustifyType> propertyValue = { mbgl::style::TextJustifyType::Right };
         XCTAssertEqual(rawLayer->getTextJustify(), propertyValue,
                        @"Setting textJustification to a constant value expression should update text-justify.");
         XCTAssertEqualObjects(layer.textJustification, constantExpression,
@@ -1320,7 +1350,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::TextJustifyType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::TextJustifyType>(
                 step(zoom(), literal("right"), 18.0, literal("right"))
             );
         }
@@ -1346,7 +1376,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textLetterSpacing = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextLetterSpacing(), propertyValue,
                        @"Setting textLetterSpacing to a constant value expression should update text-letter-spacing.");
         XCTAssertEqualObjects(layer.textLetterSpacing, constantExpression,
@@ -1358,7 +1388,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1373,7 +1403,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -1389,11 +1419,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextLetterSpacing(), propertyValue,
                        @"Setting textLetterSpacing to a camera-data expression should update text-letter-spacing.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1427,7 +1457,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1465,7 +1495,7 @@
 #endif
         ];
         layer.textOffset = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<std::array<float, 2>> propertyValue = { { 1, 1 } };
+        mbgl::style::PropertyValue<std::array<float, 2>> propertyValue = { { 1, 1 } };
         XCTAssertEqual(rawLayer->getTextOffset(), propertyValue,
                        @"Setting textOffset to a constant value expression should update text-offset.");
         XCTAssertEqualObjects(layer.textOffset, constantExpression,
@@ -1477,7 +1507,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 step(zoom(), literal({ 1, 1 }), 18.0, literal({ 1, 1 }))
             );
         }
@@ -1492,7 +1522,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal({ 1, 1 }))
             );
         }
@@ -1508,11 +1538,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal({ 1, 1 })))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextOffset(), propertyValue,
                        @"Setting textOffset to a camera-data expression should update text-offset.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1546,7 +1576,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<bool>(
+            propertyValue = mbgl::style::PropertyExpression<bool>(
                 step(zoom(), literal(true), 18.0, literal(true))
             );
         }
@@ -1590,7 +1620,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1634,7 +1664,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::AlignmentType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::AlignmentType>(
                 step(zoom(), literal("auto"), 18.0, literal("auto"))
             );
         }
@@ -1666,7 +1696,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textRotation = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextRotate(), propertyValue,
                        @"Setting textRotation to a constant value expression should update text-rotate.");
         XCTAssertEqualObjects(layer.textRotation, constantExpression,
@@ -1678,7 +1708,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1693,7 +1723,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -1709,11 +1739,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextRotate(), propertyValue,
                        @"Setting textRotation to a camera-data expression should update text-rotate.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1747,7 +1777,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::AlignmentType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::AlignmentType>(
                 step(zoom(), literal("auto"), 18.0, literal("auto"))
             );
         }
@@ -1779,7 +1809,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'lowercase'"];
         layer.textTransform = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::style::TextTransformType> propertyValue = { mbgl::style::TextTransformType::Lowercase };
+        mbgl::style::PropertyValue<mbgl::style::TextTransformType> propertyValue = { mbgl::style::TextTransformType::Lowercase };
         XCTAssertEqual(rawLayer->getTextTransform(), propertyValue,
                        @"Setting textTransform to a constant value expression should update text-transform.");
         XCTAssertEqualObjects(layer.textTransform, constantExpression,
@@ -1791,7 +1821,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::TextTransformType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::TextTransformType>(
                 step(zoom(), literal("lowercase"), 18.0, literal("lowercase"))
             );
         }
@@ -1817,7 +1847,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"%@", [MGLColor redColor]];
         layer.iconColor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
+        mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
         XCTAssertEqual(rawLayer->getIconColor(), propertyValue,
                        @"Setting iconColor to a constant value expression should update icon-color.");
         XCTAssertEqualObjects(layer.iconColor, constantExpression,
@@ -1829,7 +1859,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 step(zoom(), literal(mbgl::Color(1, 0, 0, 1)), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -1844,7 +1874,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -1860,11 +1890,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1))))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconColor(), propertyValue,
                        @"Setting iconColor to a camera-data expression should update icon-color.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1895,7 +1925,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.iconHaloBlur = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getIconHaloBlur(), propertyValue,
                        @"Setting iconHaloBlur to a constant value expression should update icon-halo-blur.");
         XCTAssertEqualObjects(layer.iconHaloBlur, constantExpression,
@@ -1907,7 +1937,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -1922,7 +1952,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -1938,11 +1968,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconHaloBlur(), propertyValue,
                        @"Setting iconHaloBlur to a camera-data expression should update icon-halo-blur.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -1973,7 +2003,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"%@", [MGLColor redColor]];
         layer.iconHaloColor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
+        mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
         XCTAssertEqual(rawLayer->getIconHaloColor(), propertyValue,
                        @"Setting iconHaloColor to a constant value expression should update icon-halo-color.");
         XCTAssertEqualObjects(layer.iconHaloColor, constantExpression,
@@ -1985,7 +2015,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 step(zoom(), literal(mbgl::Color(1, 0, 0, 1)), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2000,7 +2030,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2016,11 +2046,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1))))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconHaloColor(), propertyValue,
                        @"Setting iconHaloColor to a camera-data expression should update icon-halo-color.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2051,7 +2081,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.iconHaloWidth = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getIconHaloWidth(), propertyValue,
                        @"Setting iconHaloWidth to a constant value expression should update icon-halo-width.");
         XCTAssertEqualObjects(layer.iconHaloWidth, constantExpression,
@@ -2063,7 +2093,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -2078,7 +2108,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -2094,11 +2124,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconHaloWidth(), propertyValue,
                        @"Setting iconHaloWidth to a camera-data expression should update icon-halo-width.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2129,7 +2159,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.iconOpacity = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getIconOpacity(), propertyValue,
                        @"Setting iconOpacity to a constant value expression should update icon-opacity.");
         XCTAssertEqualObjects(layer.iconOpacity, constantExpression,
@@ -2141,7 +2171,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -2156,7 +2186,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -2172,11 +2202,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getIconOpacity(), propertyValue,
                        @"Setting iconOpacity to a camera-data expression should update icon-opacity.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2225,7 +2255,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 step(zoom(), literal({ 1, 1 }), 18.0, literal({ 1, 1 }))
             );
         }
@@ -2269,7 +2299,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::TranslateAnchorType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::TranslateAnchorType>(
                 step(zoom(), literal("viewport"), 18.0, literal("viewport"))
             );
         }
@@ -2301,7 +2331,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"%@", [MGLColor redColor]];
         layer.textColor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
+        mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
         XCTAssertEqual(rawLayer->getTextColor(), propertyValue,
                        @"Setting textColor to a constant value expression should update text-color.");
         XCTAssertEqualObjects(layer.textColor, constantExpression,
@@ -2313,7 +2343,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 step(zoom(), literal(mbgl::Color(1, 0, 0, 1)), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2328,7 +2358,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2344,11 +2374,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1))))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextColor(), propertyValue,
                        @"Setting textColor to a camera-data expression should update text-color.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2379,7 +2409,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textHaloBlur = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextHaloBlur(), propertyValue,
                        @"Setting textHaloBlur to a constant value expression should update text-halo-blur.");
         XCTAssertEqualObjects(layer.textHaloBlur, constantExpression,
@@ -2391,7 +2421,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -2406,7 +2436,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -2422,11 +2452,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextHaloBlur(), propertyValue,
                        @"Setting textHaloBlur to a camera-data expression should update text-halo-blur.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2457,7 +2487,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"%@", [MGLColor redColor]];
         layer.textHaloColor = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
+        mbgl::style::PropertyValue<mbgl::Color> propertyValue = { { 1, 0, 0, 1 } };
         XCTAssertEqual(rawLayer->getTextHaloColor(), propertyValue,
                        @"Setting textHaloColor to a constant value expression should update text-halo-color.");
         XCTAssertEqualObjects(layer.textHaloColor, constantExpression,
@@ -2469,7 +2499,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 step(zoom(), literal(mbgl::Color(1, 0, 0, 1)), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2484,7 +2514,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1)))
             );
         }
@@ -2500,11 +2530,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<mbgl::Color>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::Color>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(mbgl::Color(1, 0, 0, 1))))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextHaloColor(), propertyValue,
                        @"Setting textHaloColor to a camera-data expression should update text-halo-color.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2535,7 +2565,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textHaloWidth = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextHaloWidth(), propertyValue,
                        @"Setting textHaloWidth to a constant value expression should update text-halo-width.");
         XCTAssertEqualObjects(layer.textHaloWidth, constantExpression,
@@ -2547,7 +2577,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -2562,7 +2592,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -2578,11 +2608,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextHaloWidth(), propertyValue,
                        @"Setting textHaloWidth to a camera-data expression should update text-halo-width.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2613,7 +2643,7 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"1"];
         layer.textOpacity = constantExpression;
-        mbgl::style::DataDrivenPropertyValue<float> propertyValue = { 1.0 };
+        mbgl::style::PropertyValue<float> propertyValue = { 1.0 };
         XCTAssertEqual(rawLayer->getTextOpacity(), propertyValue,
                        @"Setting textOpacity to a constant value expression should update text-opacity.");
         XCTAssertEqualObjects(layer.textOpacity, constantExpression,
@@ -2625,7 +2655,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 step(zoom(), literal(1.0), 18.0, literal(1.0))
             );
         }
@@ -2640,7 +2670,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::SourceFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), number(get("keyName")), 18.0, literal(1.0))
             );
         }
@@ -2656,11 +2686,11 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CompositeFunction<float>(
+            propertyValue = mbgl::style::PropertyExpression<float>(
                 interpolate(linear(), zoom(), 10.0, interpolate(linear(), number(get("keyName")), 18.0, literal(1.0)))
             );
         }
-        
+
         XCTAssertEqual(rawLayer->getTextOpacity(), propertyValue,
                        @"Setting textOpacity to a camera-data expression should update text-opacity.");
         pedanticFunctionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: pedanticFunctionExpression}];
@@ -2709,7 +2739,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<std::array<float, 2>>(
+            propertyValue = mbgl::style::PropertyExpression<std::array<float, 2>>(
                 step(zoom(), literal({ 1, 1 }), 18.0, literal({ 1, 1 }))
             );
         }
@@ -2753,7 +2783,7 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::CameraFunction<mbgl::style::TranslateAnchorType>(
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::TranslateAnchorType>(
                 step(zoom(), literal("viewport"), 18.0, literal("viewport"))
             );
         }
@@ -2853,6 +2883,7 @@
     XCTAssertEqual([NSValue valueWithMGLIconTextFit:MGLIconTextFitBoth].MGLIconTextFitValue, MGLIconTextFitBoth);
     XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementPoint].MGLSymbolPlacementValue, MGLSymbolPlacementPoint);
     XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementLine].MGLSymbolPlacementValue, MGLSymbolPlacementLine);
+    XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementLineCenter].MGLSymbolPlacementValue, MGLSymbolPlacementLineCenter);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorCenter].MGLTextAnchorValue, MGLTextAnchorCenter);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorLeft].MGLTextAnchorValue, MGLTextAnchorLeft);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorRight].MGLTextAnchorValue, MGLTextAnchorRight);
