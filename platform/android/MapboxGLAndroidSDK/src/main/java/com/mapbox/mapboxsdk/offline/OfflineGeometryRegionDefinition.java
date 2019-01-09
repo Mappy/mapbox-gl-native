@@ -4,6 +4,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.Keep;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.Geometry;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
@@ -24,6 +26,7 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
 
   @Keep
   private String styleURL;
+  @Nullable
   @Keep
   private Geometry geometry;
   @Keep
@@ -66,14 +69,12 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
     this.pixelRatio = parcel.readFloat();
   }
 
-  /*
-   * Getters
-   */
-
+  @Override
   public String getStyleURL() {
     return styleURL;
   }
 
+  @Nullable
   public Geometry getGeometry() {
     return geometry;
   }
@@ -83,6 +84,7 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
    * to retain backwards compatibility
    * @return the {@link LatLngBounds} or null
    */
+  @Nullable
   @Override
   public LatLngBounds getBounds() {
     if (geometry == null) {
@@ -93,16 +95,25 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
     return LatLngBounds.from(bbox[3], bbox[2], bbox[1], bbox[0]);
   }
 
+  @Override
   public double getMinZoom() {
     return minZoom;
   }
 
+  @Override
   public double getMaxZoom() {
     return maxZoom;
   }
 
+  @Override
   public float getPixelRatio() {
     return pixelRatio;
+  }
+
+  @NonNull
+  @Override
+  public String getType() {
+    return "shaperegion";
   }
 
   /*
@@ -115,7 +126,7 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
   }
 
   @Override
-  public void writeToParcel(Parcel dest, int flags) {
+  public void writeToParcel(@NonNull Parcel dest, int flags) {
     dest.writeString(styleURL);
     dest.writeString(Feature.fromGeometry(geometry).toJson());
     dest.writeDouble(minZoom);
@@ -124,7 +135,7 @@ public class OfflineGeometryRegionDefinition implements OfflineRegionDefinition,
   }
 
   public static final Creator CREATOR = new Creator() {
-    public OfflineGeometryRegionDefinition createFromParcel(Parcel in) {
+    public OfflineGeometryRegionDefinition createFromParcel(@NonNull Parcel in) {
       return new OfflineGeometryRegionDefinition(in);
     }
 

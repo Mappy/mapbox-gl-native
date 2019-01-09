@@ -1,7 +1,6 @@
 package com.mapbox.mapboxsdk.maps;
 
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.PointF;
@@ -30,15 +29,20 @@ import com.mapbox.mapboxsdk.utils.ColorUtils;
  */
 public final class UiSettings {
 
+  @NonNull
   private final FocalPointChangeListener focalPointChangeListener;
+  @NonNull
   private final Projection projection;
+  @NonNull
   private final CompassView compassView;
   private final int[] compassMargins = new int[4];
 
+  @NonNull
   private final ImageView attributionsView;
   private final int[] attributionsMargins = new int[4];
   private AttributionDialogManager attributionDialogManager;
 
+  @NonNull
   private final View logoView;
   private final int[] logoMargins = new int[4];
 
@@ -52,8 +56,6 @@ public final class UiSettings {
 
   private boolean scrollGesturesEnabled = true;
 
-  private boolean zoomControlsEnabled;
-
   private boolean doubleTapGesturesEnabled = true;
 
   private boolean scaleVelocityAnimationEnabled = true;
@@ -65,6 +67,7 @@ public final class UiSettings {
 
   private boolean deselectMarkersOnTap = true;
 
+  @Nullable
   private PointF userProvidedFocalPoint;
 
   UiSettings(@NonNull Projection projection, @NonNull FocalPointChangeListener listener,
@@ -84,15 +87,13 @@ public final class UiSettings {
     initialiseCompass(options, resources);
     initialiseLogo(options, resources);
     initialiseAttribution(context, options);
-    initialiseZoomControl(context);
   }
 
-  void onSaveInstanceState(Bundle outState) {
+  void onSaveInstanceState(@NonNull Bundle outState) {
     saveGestures(outState);
     saveCompass(outState);
     saveLogo(outState);
     saveAttribution(outState);
-    saveZoomControl(outState);
     saveDeselectMarkersOnTap(outState);
     saveFocalPoint(outState);
   }
@@ -102,7 +103,6 @@ public final class UiSettings {
     restoreCompass(savedInstanceState);
     restoreLogo(savedInstanceState);
     restoreAttribution(savedInstanceState);
-    restoreZoomControl(savedInstanceState);
     restoreDeselectMarkersOnTap(savedInstanceState);
     restoreFocalPoint(savedInstanceState);
   }
@@ -112,7 +112,6 @@ public final class UiSettings {
     setScrollGesturesEnabled(options.getScrollGesturesEnabled());
     setRotateGesturesEnabled(options.getRotateGesturesEnabled());
     setTiltGesturesEnabled(options.getTiltGesturesEnabled());
-    setZoomControlsEnabled(options.getZoomControlsEnabled());
     setDoubleTapGesturesEnabled(options.getDoubleTapGesturesEnabled());
   }
 
@@ -144,7 +143,7 @@ public final class UiSettings {
       savedInstanceState.getBoolean(MapboxConstants.STATE_INCREASE_SCALE_THRESHOLD));
   }
 
-  private void initialiseCompass(MapboxMapOptions options, Resources resources) {
+  private void initialiseCompass(MapboxMapOptions options, @NonNull Resources resources) {
     setCompassEnabled(options.getCompassEnabled());
     setCompassGravity(options.getCompassGravity());
     int[] compassMargins = options.getCompassMargins();
@@ -185,13 +184,13 @@ public final class UiSettings {
       compassView.getContext(), savedInstanceState.getByteArray(MapboxConstants.STATE_COMPASS_IMAGE_BITMAP)));
   }
 
-  private void initialiseLogo(MapboxMapOptions options, Resources resources) {
+  private void initialiseLogo(MapboxMapOptions options, @NonNull Resources resources) {
     setLogoEnabled(options.getLogoEnabled());
     setLogoGravity(options.getLogoGravity());
     setLogoMargins(resources, options.getLogoMargins());
   }
 
-  private void setLogoMargins(Resources resources, int[] logoMargins) {
+  private void setLogoMargins(@NonNull Resources resources, @Nullable int[] logoMargins) {
     if (logoMargins != null) {
       setLogoMargins(logoMargins[0], logoMargins[1], logoMargins[2], logoMargins[3]);
     } else {
@@ -219,7 +218,7 @@ public final class UiSettings {
       savedInstanceState.getInt(MapboxConstants.STATE_LOGO_MARGIN_BOTTOM));
   }
 
-  private void initialiseAttribution(Context context, MapboxMapOptions options) {
+  private void initialiseAttribution(@NonNull Context context, MapboxMapOptions options) {
     setAttributionEnabled(options.getAttributionEnabled());
     setAttributionGravity(options.getAttributionGravity());
     setAttributionMargins(context, options.getAttributionMargins());
@@ -228,7 +227,7 @@ public final class UiSettings {
       ? attributionTintColor : ColorUtils.getPrimaryColor(context));
   }
 
-  private void setAttributionMargins(Context context, int[] attributionMargins) {
+  private void setAttributionMargins(@NonNull Context context, @Nullable int[] attributionMargins) {
     if (attributionMargins != null) {
       setAttributionMargins(attributionMargins[0], attributionMargins[1],
         attributionMargins[2], attributionMargins[3]);
@@ -257,20 +256,6 @@ public final class UiSettings {
       savedInstanceState.getInt(MapboxConstants.STATE_ATTRIBUTION_MARGIN_TOP),
       savedInstanceState.getInt(MapboxConstants.STATE_ATTRIBUTION_MARGIN_RIGHT),
       savedInstanceState.getInt(MapboxConstants.STATE_ATTRIBUTION_MARGIN_BOTTOM));
-  }
-
-  private void initialiseZoomControl(Context context) {
-    if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN_MULTITOUCH)) {
-      setZoomControlsEnabled(true);
-    }
-  }
-
-  private void saveZoomControl(Bundle outState) {
-    outState.putBoolean(MapboxConstants.STATE_ZOOM_CONTROLS_ENABLED, isZoomControlsEnabled());
-  }
-
-  private void restoreZoomControl(Bundle savedInstanceState) {
-    setZoomControlsEnabled(savedInstanceState.getBoolean(MapboxConstants.STATE_ZOOM_CONTROLS_ENABLED));
   }
 
   /**
@@ -595,7 +580,6 @@ public final class UiSettings {
    * <p>
    * Sets the tint of the attribution view. Use this to change the color of the attribution.
    * </p>
-   * By default, the logo is tinted with the primary color of your theme.
    *
    * @param tintColor Color to tint the attribution.
    */
@@ -719,31 +703,6 @@ public final class UiSettings {
    */
   public boolean isZoomGesturesEnabled() {
     return zoomGesturesEnabled;
-  }
-
-  /**
-   * <p>
-   * Sets whether the zoom controls are enabled.
-   * If enabled, the zoom controls are a pair of buttons
-   * (one for zooming in, one for zooming out) that appear on the screen.
-   * When pressed, they cause the camera to zoom in (or out) by one zoom level.
-   * If disabled, the zoom controls are not shown.
-   * </p>
-   * By default the zoom controls are enabled if the device is only single touch capable;
-   *
-   * @param zoomControlsEnabled If true, the zoom controls are enabled.
-   */
-  public void setZoomControlsEnabled(boolean zoomControlsEnabled) {
-    this.zoomControlsEnabled = zoomControlsEnabled;
-  }
-
-  /**
-   * Gets whether the zoom controls are enabled.
-   *
-   * @return If true, the zoom controls are enabled.
-   */
-  public boolean isZoomControlsEnabled() {
-    return zoomControlsEnabled;
   }
 
   /**
@@ -975,6 +934,7 @@ public final class UiSettings {
    *
    * @return The focal point
    */
+  @Nullable
   public PointF getFocalPoint() {
     return userProvidedFocalPoint;
   }

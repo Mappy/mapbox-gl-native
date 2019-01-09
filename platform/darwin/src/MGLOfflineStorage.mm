@@ -7,12 +7,22 @@
 #import "MGLOfflinePack_Private.h"
 #import "MGLOfflineRegion_Private.h"
 #import "MGLTilePyramidOfflineRegion.h"
+#import "MGLShapeOfflineRegion.h"
 #import "NSBundle+MGLAdditions.h"
 #import "NSValue+MGLAdditions.h"
+#import "NSDate+MGLAdditions.h"
+#import "NSData+MGLAdditions.h"
+#import "MGLLoggingConfiguration_Private.h"
+
+#if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
+#import "MMEConstants.h"
+#import "MGLMapboxEvents.h"
+#endif
 
 #include <mbgl/actor/actor.hpp>
 #include <mbgl/actor/scheduler.hpp>
 #include <mbgl/storage/resource_transform.hpp>
+#include <mbgl/util/chrono.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/string.hpp>
 
@@ -78,6 +88,7 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
 #endif
 
 - (void)setDelegate:(id<MGLOfflineStorageDelegate>)newValue {
+    MGLLogDebug(@"Setting delegate: %@", newValue);
     _delegate = newValue;
     if ([self.delegate respondsToSelector:@selector(offlineStorage:URLForResourceOfKind:withURL:)]) {
         _mbglResourceTransform = std::make_unique<mbgl::Actor<mbgl::ResourceTransform>>(*mbgl::Scheduler::GetCurrent(), [offlineStorage = self](auto kind_, const std::string&& url_) -> std::string {
@@ -264,9 +275,94 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
     }
 }
 
+#pragma mark Offline merge methods
+
+- (void)addContentsOfFile:(NSString *)filePath withCompletionHandler:(MGLBatchedOfflinePackAdditionCompletionHandler)completion {
+    MGLLogDebug(@"Adding contentsOfFile: %@ completionHandler: %@", filePath, completion);
+    NSURL *fileURL = [NSURL fileURLWithPath:filePath];
+    
+    [self addContentsOfURL:fileURL withCompletionHandler:completion];
+
+}
+
+- (void)addContentsOfURL:(NSURL *)fileURL withCompletionHandler:(MGLBatchedOfflinePackAdditionCompletionHandler)completion {
+    MGLLogDebug(@"Adding contentsOfURL: %@ completionHandler: %@", fileURL, completion);
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    if (!fileURL.isFileURL) {
+        [NSException raise:NSInvalidArgumentException format:@"%@ must be a valid file path", fileURL.absoluteString];
+    }
+    if (![fileManager isWritableFileAtPath:fileURL.path]) {
+        [NSException raise:NSInvalidArgumentException format:@"The file path: %@ must be writable", fileURL.absoluteString];
+    }
+    
+    __weak MGLOfflineStorage *weakSelf = self;
+    [self _addContentsOfFile:fileURL.path withCompletionHandler:^(NSArray<MGLOfflinePack *> * _Nullable packs, NSError * _Nullable error) {
+        if (packs) {
+            NSMutableDictionary *packsByIdentifier = [NSMutableDictionary dictionary];
+            
+            MGLOfflineStorage *strongSelf = weakSelf;
+            for (MGLOfflinePack *pack in packs) {
+                [packsByIdentifier setObject:pack forKey:@(pack.mbglOfflineRegion->getID())];
+            }
+            
+            id mutablePacks = [strongSelf mutableArrayValueForKey:@"packs"];
+            NSMutableIndexSet *replaceIndexSet = [NSMutableIndexSet indexSet];
+            NSMutableArray *replacePacksArray = [NSMutableArray array];
+            [strongSelf.packs enumerateObjectsUsingBlock:^(MGLOfflinePack * _Nonnull pack, NSUInteger idx, BOOL * _Nonnull stop) {
+                MGLOfflinePack *newPack = packsByIdentifier[@(pack.mbglOfflineRegion->getID())];
+                if (newPack) {
+                    MGLOfflinePack *previousPack = [mutablePacks objectAtIndex:idx];
+                    [previousPack invalidate];
+                    [replaceIndexSet addIndex:idx];
+                    [replacePacksArray addObject:[packsByIdentifier objectForKey:@(newPack.mbglOfflineRegion->getID())]];
+                    [packsByIdentifier removeObjectForKey:@(newPack.mbglOfflineRegion->getID())];
+                }
+
+            }];
+            
+            if (replaceIndexSet.count > 0) {
+                [mutablePacks replaceObjectsAtIndexes:replaceIndexSet withObjects:replacePacksArray];
+            }
+            
+            [mutablePacks addObjectsFromArray:packsByIdentifier.allValues];
+        }
+        if (completion) {
+            completion(fileURL, packs, error);
+        }
+    }];
+}
+
+- (void)_addContentsOfFile:(NSString *)filePath withCompletionHandler:(void (^)(NSArray<MGLOfflinePack *> * _Nullable packs, NSError * _Nullable error))completion {
+    self.mbglFileSource->mergeOfflineRegions(std::string(static_cast<const char *>([filePath UTF8String])), [&, completion, filePath](mbgl::expected<mbgl::OfflineRegions, std::exception_ptr> result) {
+        NSError *error;
+        NSMutableArray *packs;
+        if (!result) {
+            NSString *description = [NSString stringWithFormat:NSLocalizedStringWithDefaultValue(@"ADD_FILE_CONTENTS_FAILED_DESC", @"Foundation", nil, @"Unable to add offline packs from the file at %@.", @"User-friendly error description"), filePath];
+            error = [NSError errorWithDomain:MGLErrorDomain code:-1 userInfo:@{
+                                                                               NSLocalizedDescriptionKey: description,
+                                                                               NSLocalizedFailureReasonErrorKey: @(mbgl::util::toString(result.error()).c_str())
+                                                                               }];
+        } else {
+            auto& regions = result.value();
+            packs = [NSMutableArray arrayWithCapacity:regions.size()];
+            for (auto &region : regions) {
+                MGLOfflinePack *pack = [[MGLOfflinePack alloc] initWithMBGLRegion:new mbgl::OfflineRegion(std::move(region))];
+                [packs addObject:pack];
+            }
+        }
+        if (completion) {
+            dispatch_async(dispatch_get_main_queue(), [&, completion, error, packs](void) {
+                completion(packs, error);
+            });
+        }
+    });
+}
+
 #pragma mark Pack management methods
 
 - (void)addPackForRegion:(id <MGLOfflineRegion>)region withContext:(NSData *)context completionHandler:(MGLOfflinePackAdditionCompletionHandler)completion {
+    MGLLogDebug(@"Adding packForRegion: %@ contextLength: %lu completionHandler: %@", region, (unsigned long)context.length, completion);
     __weak MGLOfflineStorage *weakSelf = self;
     [self _addPackForRegion:region withContext:context completionHandler:^(MGLOfflinePack * _Nullable pack, NSError * _Nullable error) {
         pack.state = MGLOfflinePackStateInactive;
@@ -275,6 +371,17 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
         if (completion) {
             completion(pack, error);
         }
+            
+        #if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
+            NSMutableDictionary *offlineDownloadStartEventAttributes = [NSMutableDictionary dictionaryWithObject:MMEventTypeOfflineDownloadStart forKey:MMEEventKeyEvent];
+        
+            if ([region conformsToProtocol:@protocol(MGLOfflineRegion_Private)]) {
+                NSDictionary *regionAttributes = ((id<MGLOfflineRegion_Private>)region).offlineStartEventAttributes;
+                [offlineDownloadStartEventAttributes addEntriesFromDictionary:regionAttributes];
+            }
+        
+            [MGLMapboxEvents pushEvent:MMEventTypeOfflineDownloadStart withAttributes:offlineDownloadStartEventAttributes];
+        #endif
     }];
 }
 
@@ -306,6 +413,7 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
 }
 
 - (void)removePack:(MGLOfflinePack *)pack withCompletionHandler:(MGLOfflinePackRemovalCompletionHandler)completion {
+    MGLLogDebug(@"Removing pack: %@ completionHandler: %@", pack, completion);
     [[self mutableArrayValueForKey:@"packs"] removeObject:pack];
     [self _removePack:pack withCompletionHandler:^(NSError * _Nullable error) {
         if (completion) {
@@ -338,6 +446,7 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
 }
 
 - (void)reloadPacks {
+    MGLLogInfo(@"Reloading packs.");
     [self getPacksWithCompletionHandler:^(NSArray<MGLOfflinePack *> *packs, __unused NSError * _Nullable error) {
         for (MGLOfflinePack *pack in self.packs) {
             [pack invalidate];
@@ -371,7 +480,14 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
 }
 
 - (void)setMaximumAllowedMapboxTiles:(uint64_t)maximumCount {
+    MGLLogDebug(@"Setting maximumAllowedMapboxTiles: %lu", (unsigned long)maximumCount);
     _mbglFileSource->setOfflineMapboxTileCountLimit(maximumCount);
+}
+
+#pragma mark - ambient cache
+
+- (void)cleanAmbientCache {
+	_mbglFileSource->cleanAmbientCache();
 }
 
 #pragma mark -
@@ -387,10 +503,29 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
     return attributes.fileSize;
 }
 
-#pragma mark - ambient cache
+- (void)preloadData:(NSData *)data forURL:(NSURL *)url modificationDate:(nullable NSDate *)modified expirationDate:(nullable NSDate *)expires eTag:(nullable NSString *)eTag mustRevalidate:(BOOL)mustRevalidate {
+    mbgl::Resource resource(mbgl::Resource::Kind::Unknown, url.absoluteString.UTF8String);
+    mbgl::Response response;
+    response.data = std::make_shared<std::string>(static_cast<const char*>(data.bytes), data.length);
+    response.mustRevalidate = mustRevalidate;
+    
+    if (eTag) {
+        response.etag = std::string(eTag.UTF8String);
+    }
+    
+    if (modified) {
+        response.modified = mbgl::Timestamp() + std::chrono::duration_cast<mbgl::Seconds>(MGLDurationFromTimeInterval(modified.timeIntervalSince1970));
+    }
+    
+    if (expires) {
+        response.expires = mbgl::Timestamp() + std::chrono::duration_cast<mbgl::Seconds>(MGLDurationFromTimeInterval(expires.timeIntervalSince1970));
+    }
+    
+    _mbglFileSource->put(resource, response);
+}
 
-- (void)cleanAmbientCache {
-    _mbglFileSource->cleanAmbientCache();
+- (void)putResourceWithUrl:(NSURL *)url data:(NSData *)data modified:(nullable NSDate *)modified expires:(nullable NSDate *)expires etag:(nullable NSString *)etag mustRevalidate:(BOOL)mustRevalidate {
+    [self preloadData:data forURL:url modificationDate:modified expirationDate:expires eTag:etag mustRevalidate:mustRevalidate];
 }
 
 @end

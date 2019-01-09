@@ -33,7 +33,7 @@
     self.mapView.delegate = self;
     if (!self.mapView.style) {
         _styleLoadingExpectation = [self expectationWithDescription:@"Map view should finish loading style."];
-        [self waitForExpectationsWithTimeout:1 handler:nil];
+        [self waitForExpectationsWithTimeout:10 handler:nil];
     }
 }
 
@@ -141,9 +141,9 @@
 - (void)testSources {
     NSSet<MGLSource *> *initialSources = self.style.sources;
     if ([initialSources.anyObject.identifier isEqualToString:@"com.mapbox.annotations"]) {
-        XCTAssertEqual(self.style.sources.count, 1);
+        XCTAssertEqual(self.style.sources.count, 1UL);
     } else {
-        XCTAssertEqual(self.style.sources.count, 0);
+        XCTAssertEqual(self.style.sources.count, 0UL);
     }
     MGLShapeSource *shapeSource = [[MGLShapeSource alloc] initWithIdentifier:@"shapeSource" shape:nil options:nil];
     [self.style addSource:shapeSource];
@@ -237,7 +237,12 @@
     [self.style addLayer:fillLayer];
 
     // Attempt to remove the raster tile source
-    [self.style removeSource:rasterTileSource];
+    NSError *error;
+    BOOL result = [self.style removeSource:rasterTileSource error:&error];
+    
+    XCTAssertFalse(result);
+    XCTAssertEqualObjects(error.domain, MGLErrorDomain);
+    XCTAssertEqual(error.code, MGLErrorCodeSourceIsInUseCannotRemove);
     
     // Ensure it is still there
     XCTAssertTrue([[self.style sourceWithIdentifier:rasterTileSource.identifier] isMemberOfClass:[MGLRasterTileSource class]]);
@@ -246,9 +251,9 @@
 - (void)testLayers {
     NSArray<MGLStyleLayer *> *initialLayers = self.style.layers;
     if ([initialLayers.firstObject.identifier isEqualToString:@"com.mapbox.annotations.points"]) {
-        XCTAssertEqual(self.style.layers.count, 1);
+        XCTAssertEqual(self.style.layers.count, 1UL);
     } else {
-        XCTAssertEqual(self.style.layers.count, 0);
+        XCTAssertEqual(self.style.layers.count, 0UL);
     }
     MGLShapeSource *shapeSource = [[MGLShapeSource alloc] initWithIdentifier:@"shapeSource" shape:nil options:nil];
     [self.style addSource:shapeSource];

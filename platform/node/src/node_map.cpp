@@ -443,8 +443,8 @@ void NodeMap::startRender(NodeMap::RenderOptions options) {
     mbgl::CameraOptions camera;
     camera.center = mbgl::LatLng { options.latitude, options.longitude };
     camera.zoom = options.zoom;
-    camera.angle = -options.bearing * mbgl::util::DEG2RAD;
-    camera.pitch = options.pitch * mbgl::util::DEG2RAD;
+    camera.angle = options.bearing;
+    camera.pitch = options.pitch;
 
     if (map->getAxonometric() != options.axonometric) {
         map->setAxonometric(options.axonometric);
@@ -621,7 +621,10 @@ void NodeMap::cancel() {
 
     frontend = std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size{ 256, 256 }, pixelRatio, *this, threadpool);
     map = std::make_unique<mbgl::Map>(*frontend, mapObserver, frontend->getSize(), pixelRatio,
-                                      *this, threadpool, mode);
+                                      *this, threadpool, mode,
+                                      mbgl::ConstrainMode::HeightOnly,
+                                      mbgl::ViewportMode::Default,
+                                      crossSourceCollisions);
 
     // FIXME: Reload the style after recreating the map. We need to find
     // a better way of canceling an ongoing rendering on the core level
@@ -889,31 +892,6 @@ void NodeMap::SetPaintProperty(const Nan::FunctionCallbackInfo<v8::Value>& info)
     info.GetReturnValue().SetUndefined();
 }
 
-struct SetFilterVisitor {
-    mbgl::style::Filter& filter;
-
-    void operator()(mbgl::style::CustomLayer&) {
-        Nan::ThrowTypeError("layer doesn't support filters");
-    }
-
-    void operator()(mbgl::style::RasterLayer&) {
-        Nan::ThrowTypeError("layer doesn't support filters");
-    }
-
-    void operator()(mbgl::style::HillshadeLayer&) {
-        Nan::ThrowTypeError("layer doesn't support filters");
-    }
-
-    void operator()(mbgl::style::BackgroundLayer&) {
-        Nan::ThrowTypeError("layer doesn't support filters");
-    }
-
-    template <class VectorLayer>
-    void operator()(VectorLayer& layer) {
-        layer.setFilter(filter);
-    }
-};
-
 void NodeMap::SetFilter(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     using namespace mbgl::style;
     using namespace mbgl::style::conversion;
@@ -946,7 +924,7 @@ void NodeMap::SetFilter(const Nan::FunctionCallbackInfo<v8::Value>& info) {
         filter = std::move(*converted);
     }
 
-    layer->accept(SetFilterVisitor { filter });
+    layer->setFilter(filter);
 }
 
 void NodeMap::SetCenter(const Nan::FunctionCallbackInfo<v8::Value>& info) {
@@ -1212,6 +1190,14 @@ NodeMap::NodeMap(v8::Local<v8::Object> options)
                 return mbgl::MapMode::Static;
             }
       }())
+    , crossSourceCollisions([&] {
+        Nan::HandleScope scope;
+        return Nan::Has(options, Nan::New("crossSourceCollisions").ToLocalChecked()).FromJust()
+            ? Nan::Get(options, Nan::New("crossSourceCollisions").ToLocalChecked())
+                .ToLocalChecked()
+                ->BooleanValue()
+            : true;
+    }())
     , mapObserver(NodeMapObserver())
     , frontend(std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size { 256, 256 }, pixelRatio, *this, threadpool))
     , map(std::make_unique<mbgl::Map>(*frontend,
@@ -1220,7 +1206,10 @@ NodeMap::NodeMap(v8::Local<v8::Object> options)
                                       pixelRatio,
                                       *this,
                                       threadpool,
-                                      mode)),
+                                      mode,
+                                      mbgl::ConstrainMode::HeightOnly,
+                                      mbgl::ViewportMode::Default,
+                                      crossSourceCollisions)),
       async(new uv_async_t) {
 
     async->data = this;

@@ -1,6 +1,8 @@
 #include "jni.hpp"
 
 #include <mbgl/util/logging.hpp>
+#include <src/style/formatted.hpp>
+#include <src/style/formatted_section.hpp>
 
 #include "annotation/marker.hpp"
 #include "annotation/polygon.hpp"
@@ -41,14 +43,13 @@
 #include "offline/offline_region_error.hpp"
 #include "offline/offline_region_status.hpp"
 #include "style/transition_options.hpp"
-#include "style/layers/layers.hpp"
+#include "style/layers/layer_manager.hpp"
 #include "style/sources/source.hpp"
 #include "style/light.hpp"
 #include "snapshotter/map_snapshotter.hpp"
 #include "snapshotter/map_snapshot.hpp"
 #include "text/collator_jni.hpp"
 #include "text/local_glyph_rasterizer_jni.hpp"
-#include "java/lang.hpp"
 #include "logger.hpp"
 
 namespace mbgl {
@@ -115,11 +116,6 @@ void registerNatives(JavaVM *vm) {
     java::util::registerNative(env);
     PointF::registerNative(env);
     RectF::registerNative(env);
-    java::lang::Number::registerNative(env);
-    java::lang::Float::registerNative(env);
-    java::lang::Boolean::registerNative(env);
-    java::lang::Double::registerNative(env);
-    java::lang::Long::registerNative(env);
 
     // GeoJSON
     geojson::Feature::registerNative(env);
@@ -164,10 +160,12 @@ void registerNatives(JavaVM *vm) {
 
     // Style
     TransitionOptions::registerNative(env);
-    registerNativeLayers(env);
+    LayerManagerAndroid::get()->registerNative(env);
     Source::registerNative(env);
     Light::registerNative(env);
     Position::registerNative(env);
+    Formatted::registerNative(env);
+    FormattedSection::registerNative(env);
 
     // Map
     CameraPosition::registerNative(env);
@@ -193,6 +191,7 @@ void registerNatives(JavaVM *vm) {
     LocalGlyphRasterizer::registerNative(env);
     Locale::registerNative(env);
     Collator::registerNative(env);
+    StringUtils::registerNative(env);
 
     // Logger
     Logger::registerNative(env);

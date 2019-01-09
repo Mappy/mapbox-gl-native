@@ -39,13 +39,13 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
   private void setupLayer() {
     Timber.i("Retrieving layer");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
-      if ((layer = mapboxMap.getLayerAs("my-layer")) == null) {
+      if ((layer = mapboxMap.getStyle().getLayerAs("my-layer")) == null) {
         Timber.i("Adding layer");
         layer = new FillExtrusionLayer("my-layer", "composite");
         layer.setSourceLayer("composite");
-        mapboxMap.addLayer(layer);
+        mapboxMap.getStyle().addLayer(layer);
         // Layer reference is now stale, get new reference
-        layer = mapboxMap.getLayerAs("my-layer");
+        layer = mapboxMap.getStyle().getLayerAs("my-layer");
       }
     });
   }
@@ -112,6 +112,11 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
       Expression filter = eq(get("undefined"), literal(1.0));
       layer.setFilter(filter);
       assertEquals(layer.getFilter().toString(), filter.toString());
+
+      // Set constant
+      filter = literal(true);
+      layer.setFilter(filter);
+      assertEquals(layer.getFilter().toString(), filter.toString());
     });
   }
 
@@ -139,10 +144,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-opacity");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionOpacity().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionOpacity(0.3f));
-      assertEquals((Float) layer.getFillExtrusionOpacity().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(fillExtrusionOpacity(propertyValue));
+      assertEquals(layer.getFillExtrusionOpacity().getValue(), propertyValue);
     });
   }
 
@@ -168,10 +175,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-color");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionColor().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionColor("rgba(0, 0, 0, 1)"));
-      assertEquals((String) layer.getFillExtrusionColor().getValue(), (String) "rgba(0, 0, 0, 1)");
+      String propertyValue = "rgba(0, 0, 0, 1)";
+      layer.setProperties(fillExtrusionColor(propertyValue));
+      assertEquals(layer.getFillExtrusionColor().getValue(), propertyValue);
     });
   }
 
@@ -182,6 +191,7 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-color-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionColor().getExpression());
 
       // Set and Get
       Expression expression = toColor(Expression.get("undefined"));
@@ -189,7 +199,6 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
       assertEquals(layer.getFillExtrusionColor().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testFillExtrusionColorAsIntConstant() {
@@ -227,10 +236,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-translate");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionTranslate().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionTranslate(new Float[] {0f, 0f}));
-      assertEquals((Float[]) layer.getFillExtrusionTranslate().getValue(), (Float[]) new Float[] {0f, 0f});
+      Float[] propertyValue = new Float[] {0f, 0f};
+      layer.setProperties(fillExtrusionTranslate(propertyValue));
+      assertEquals(layer.getFillExtrusionTranslate().getValue(), propertyValue);
     });
   }
 
@@ -241,10 +252,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-translate-anchor");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionTranslateAnchor().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionTranslateAnchor(FILL_EXTRUSION_TRANSLATE_ANCHOR_MAP));
-      assertEquals((String) layer.getFillExtrusionTranslateAnchor().getValue(), (String) FILL_EXTRUSION_TRANSLATE_ANCHOR_MAP);
+      String propertyValue = FILL_EXTRUSION_TRANSLATE_ANCHOR_MAP;
+      layer.setProperties(fillExtrusionTranslateAnchor(propertyValue));
+      assertEquals(layer.getFillExtrusionTranslateAnchor().getValue(), propertyValue);
     });
   }
 
@@ -270,10 +283,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-pattern");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionPattern().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionPattern("pedestrian-polygon"));
-      assertEquals((String) layer.getFillExtrusionPattern().getValue(), (String) "pedestrian-polygon");
+      String propertyValue = "pedestrian-polygon";
+      layer.setProperties(fillExtrusionPattern(propertyValue));
+      assertEquals(layer.getFillExtrusionPattern().getValue(), propertyValue);
     });
   }
 
@@ -284,6 +299,7 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-pattern-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionPattern().getExpression());
 
       // Set and Get
       Expression expression = string(Expression.get("undefined"));
@@ -291,7 +307,6 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
       assertEquals(layer.getFillExtrusionPattern().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testFillExtrusionHeightTransition() {
@@ -315,10 +330,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-height");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionHeight().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionHeight(0.3f));
-      assertEquals((Float) layer.getFillExtrusionHeight().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(fillExtrusionHeight(propertyValue));
+      assertEquals(layer.getFillExtrusionHeight().getValue(), propertyValue);
     });
   }
 
@@ -329,6 +346,7 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-height-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionHeight().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -336,7 +354,6 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
       assertEquals(layer.getFillExtrusionHeight().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testFillExtrusionBaseTransition() {
@@ -360,10 +377,12 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-base");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionBase().getValue());
 
       // Set and Get
-      layer.setProperties(fillExtrusionBase(0.3f));
-      assertEquals((Float) layer.getFillExtrusionBase().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(fillExtrusionBase(propertyValue));
+      assertEquals(layer.getFillExtrusionBase().getValue(), propertyValue);
     });
   }
 
@@ -374,6 +393,7 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     Timber.i("fill-extrusion-base-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getFillExtrusionBase().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -382,4 +402,19 @@ public class FillExtrusionLayerTest extends BaseActivityTest {
     });
   }
 
+  @Test
+  public void testFillExtrusionVerticalGradientAsConstant() {
+    validateTestSetup();
+    setupLayer();
+    Timber.i("fill-extrusion-vertical-gradient");
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      assertNotNull(layer);
+      assertNull(layer.getFillExtrusionVerticalGradient().getValue());
+
+      // Set and Get
+      Boolean propertyValue = true;
+      layer.setProperties(fillExtrusionVerticalGradient(propertyValue));
+      assertEquals(layer.getFillExtrusionVerticalGradient().getValue(), propertyValue);
+    });
+  }
 }

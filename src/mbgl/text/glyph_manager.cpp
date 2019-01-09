@@ -31,7 +31,7 @@ void GlyphManager::getGlyphs(GlyphRequestor& requestor, GlyphDependencies glyphD
         Entry& entry = entries[fontStack];
 
         const GlyphIDs& glyphIDs = dependency.second;
-        GlyphRangeSet ranges;
+        std::unordered_set<GlyphRange> ranges;
         for (const auto& glyphID : glyphIDs) {
             if (localGlyphRasterizer->canRasterizeGlyph(fontStack, glyphID)) {
                 if (entry.glyphs.find(glyphID) == entry.glyphs.end()) {
@@ -130,7 +130,7 @@ void GlyphManager::notify(GlyphRequestor& requestor, const GlyphDependencies& gl
         const FontStack& fontStack = dependency.first;
         const GlyphIDs& glyphIDs = dependency.second;
 
-        Glyphs& glyphs = response[fontStack];
+        Glyphs& glyphs = response[FontStackHasher()(fontStack)];
         Entry& entry = entries[fontStack];
 
         for (const auto& glyphID : glyphIDs) {

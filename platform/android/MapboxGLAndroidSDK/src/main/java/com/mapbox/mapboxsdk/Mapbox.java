@@ -2,11 +2,10 @@ package com.mapbox.mapboxsdk;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
+
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
 import com.mapbox.mapboxsdk.log.Logger;
@@ -28,13 +27,13 @@ import com.mapbox.mapboxsdk.utils.ThreadUtils;
 public final class Mapbox {
 
   private static final String TAG = "Mbgl-Mapbox";
-
   private static ModuleProvider moduleProvider;
   private static Mapbox INSTANCE;
 
   private Context context;
+  @Nullable
   private String accessToken;
-  private Boolean connected;
+  @Nullable
   private TelemetryDefinition telemetry;
 
   /**
@@ -48,6 +47,7 @@ public final class Mapbox {
    * @return the single instance of Mapbox
    */
   @UiThread
+  @NonNull
   public static synchronized Mapbox getInstance(@NonNull Context context, @Nullable String accessToken) {
     ThreadUtils.checkThread("Mapbox");
     if (INSTANCE == null) {
@@ -68,7 +68,7 @@ public final class Mapbox {
   }
 
   /**
-   * Access token for this application.
+   * Get the current active access token for this application.
    *
    * @return Mapbox access token
    */
@@ -76,6 +76,15 @@ public final class Mapbox {
   public static String getAccessToken() {
     validateMapbox();
     return INSTANCE.accessToken;
+  }
+
+  /**
+   * Set the current active accessToken.
+   */
+  public static void setAccessToken(String accessToken) {
+    validateMapbox();
+    INSTANCE.accessToken = accessToken;
+    FileSource.getInstance(getApplicationContext()).setAccessToken(accessToken);
   }
 
   /**
@@ -98,8 +107,7 @@ public final class Mapbox {
    */
   public static synchronized void setConnected(Boolean connected) {
     validateMapbox();
-    // Connectivity state overridden by app
-    INSTANCE.connected = connected;
+    ConnectivityReceiver.instance(INSTANCE.context).setConnected(connected);
   }
 
   /**
@@ -110,14 +118,7 @@ public final class Mapbox {
    */
   public static synchronized Boolean isConnected() {
     validateMapbox();
-    if (INSTANCE.connected != null) {
-      // Connectivity state overridden by app
-      return INSTANCE.connected;
-    }
-
-    ConnectivityManager cm = (ConnectivityManager) INSTANCE.context.getSystemService(Context.CONNECTIVITY_SERVICE);
-    NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-    return (activeNetwork != null && activeNetwork.isConnected());
+    return ConnectivityReceiver.instance(INSTANCE.context).isConnected();
   }
 
   /**
@@ -171,7 +172,7 @@ public final class Mapbox {
    * @param accessToken the access token to validate
    * @return true is valid, false otherwise
    */
-  static boolean isAccessTokenValid(String accessToken) {
+  static boolean isAccessTokenValid(@Nullable String accessToken) {
     if (accessToken == null) {
       return false;
     }

@@ -11,11 +11,27 @@
 #include <mbgl/style/conversion_impl.hpp>
 #include <mbgl/util/fnv_hash.hpp>
 
+#include <mbgl/renderer/layers/render_circle_layer.hpp>
+
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* CircleLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"circle",
+          LayerTypeInfo::Source::Required,
+          LayerTypeInfo::Pass3D::NotRequired,
+          LayerTypeInfo::Layout::NotRequired,
+          LayerTypeInfo::Clipping::NotRequired
+        };
+    return &typeInfo;
+}
+
+
 CircleLayer::CircleLayer(const std::string& layerID, const std::string& sourceID)
-    : Layer(makeMutable<Impl>(LayerType::Circle, layerID, sourceID)) {
+    : Layer(makeMutable<Impl>(layerID, sourceID)) {
 }
 
 CircleLayer::CircleLayer(Immutable<Impl> impl_)
@@ -40,62 +56,6 @@ std::unique_ptr<Layer> CircleLayer::cloneRef(const std::string& id_) const {
 }
 
 void CircleLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
-}
-
-// Source
-
-const std::string& CircleLayer::getSourceID() const {
-    return impl().source;
-}
-
-void CircleLayer::setSourceLayer(const std::string& sourceLayer) {
-    auto impl_ = mutableImpl();
-    impl_->sourceLayer = sourceLayer;
-    baseImpl = std::move(impl_);
-}
-
-const std::string& CircleLayer::getSourceLayer() const {
-    return impl().sourceLayer;
-}
-
-// Filter
-
-void CircleLayer::setFilter(const Filter& filter) {
-    auto impl_ = mutableImpl();
-    impl_->filter = filter;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-const Filter& CircleLayer::getFilter() const {
-    return impl().filter;
-}
-
-// Visibility
-
-void CircleLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void CircleLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void CircleLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -739,5 +699,32 @@ optional<Error> CircleLayer::setLayoutProperty(const std::string& name, const Co
     return Error { "layer doesn't support this property" };
 }
 
+Mutable<Layer::Impl> CircleLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
+}
+
 } // namespace style
+
+const style::LayerTypeInfo* CircleLayerFactory::getTypeInfo() const noexcept {
+    return style::CircleLayer::Impl::staticTypeInfo();
+}
+
+std::unique_ptr<style::Layer> CircleLayerFactory::createLayer(const std::string& id, const style::conversion::Convertible& value) noexcept {
+    optional<std::string> source = getSource(value);
+    if (!source) {
+        return nullptr;
+    }
+
+    std::unique_ptr<style::Layer> layer = std::unique_ptr<style::Layer>(new style::CircleLayer(id, *source));
+    if (!initSourceLayerAndFilter(layer.get(), value)) {
+        return nullptr;
+    }
+    return layer;
+}
+
+std::unique_ptr<RenderLayer> CircleLayerFactory::createRenderLayer(Immutable<style::Layer::Impl> impl) noexcept {
+    assert(impl->getTypeInfo() == getTypeInfo());
+    return std::make_unique<RenderCircleLayer>(staticImmutableCast<style::CircleLayer::Impl>(std::move(impl)));
+}
+
 } // namespace mbgl

@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.style.sources;
 
 import android.support.annotation.Keep;
 
+import android.support.annotation.NonNull;
 import com.mapbox.mapboxsdk.utils.ThreadUtils;
 
 /**
@@ -11,6 +12,8 @@ public abstract class Source {
 
   @Keep
   private long nativePtr;
+
+  protected boolean detached;
 
   /**
    * Internal use
@@ -39,6 +42,7 @@ public abstract class Source {
    *
    * @return the source id
    */
+  @NonNull
   public String getId() {
     checkThread();
     return nativeGetId();
@@ -52,6 +56,7 @@ public abstract class Source {
    *
    * @return the string representation of the attribution in html format
    */
+  @NonNull
   public String getAttribution() {
     checkThread();
     return nativeGetAttribution();
@@ -66,9 +71,15 @@ public abstract class Source {
     return nativePtr;
   }
 
+  @NonNull
   @Keep
   protected native String nativeGetId();
 
+  @NonNull
   @Keep
   protected native String nativeGetAttribution();
+
+  public void setDetached() {
+    detached = true;
+  }
 }

@@ -18,6 +18,8 @@
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/image.hpp>
 #include <mbgl/style/layers/background_layer.hpp>
+#include <mbgl/style/layers/symbol_layer.hpp>
+#include <mbgl/style/sources/geojson_source.hpp>
 #include <mbgl/util/color.hpp>
 
 using namespace mbgl;
@@ -48,6 +50,80 @@ public:
             , map(frontend, observer, frontend.getSize(), pixelRatio, fileSource, threadPool, mode) {
     }
 };
+
+TEST(Map, RendererState) {
+    MapTest<> test;
+
+    // Map hasn't notified the frontend about an update yet.
+    CameraOptions nullOptions;
+    ASSERT_EQ(test.frontend.getCameraOptions(), nullOptions);
+
+    LatLng coordinate { 1, 1 };
+    double zoom = 12.0;
+    double pitchInDegrees = 45.0;
+    double bearingInDegrees = 30.0;
+
+    test.map.getStyle().loadJSON(util::read_file("test/fixtures/api/empty.json"));
+    test.map.setLatLngZoom(coordinate, zoom);
+    test.map.setPitch(pitchInDegrees);
+    test.map.setBearing(bearingInDegrees);
+
+    test.runLoop.runOnce();
+    test.frontend.render(test.map);
+
+    // RendererState::getCameraOptions
+    const CameraOptions& options = test.frontend.getCameraOptions();
+    EXPECT_NEAR(options.center->latitude(), coordinate.latitude(), 1e-7);
+    EXPECT_NEAR(options.center->longitude(), coordinate.longitude(), 1e-7);
+    ASSERT_DOUBLE_EQ(*options.zoom, zoom);
+    ASSERT_DOUBLE_EQ(*options.pitch, pitchInDegrees);
+    EXPECT_NEAR(*options.angle, bearingInDegrees, 1e-7);
+
+    {
+        const LatLng& latLng = test.frontend.latLngForPixel(ScreenCoordinate { 0, 0 });
+        const ScreenCoordinate& point = test.frontend.pixelForLatLng(coordinate);
+        EXPECT_NEAR(coordinate.latitude(), latLng.latitude(), 1e-1);
+        EXPECT_NEAR(coordinate.longitude(), latLng.longitude(), 1e-1);
+        const Size size = test.map.getSize();
+        EXPECT_NEAR(point.x, size.width / 2.0, 1e-7);
+        EXPECT_NEAR(point.y, size.height / 2.0, 1e-7);
+    }
+
+    // RendererState::hasImage
+    test.map.getStyle().addImage(std::make_unique<style::Image>("default_marker", decodeImage(util::read_file("test/fixtures/sprites/default_marker.png")), 1.0));
+
+    // The frontend has not yet been notified about the newly-added image.
+    EXPECT_FALSE(test.frontend.hasImage("default_marker"));
+
+    test.runLoop.runOnce();
+    test.frontend.render(test.map);
+
+    EXPECT_TRUE(test.frontend.hasImage("default_marker"));
+
+    // RendererState::hasSource
+    auto source = std::make_unique<GeoJSONSource>("GeoJSONSource");
+    source->setGeoJSON( Geometry<double>{ Point<double>{ 0, 0 } } );
+    test.map.getStyle().addSource(std::move(source));
+
+    // The frontend has not yet been notified about the newly-added source.
+    EXPECT_FALSE(test.frontend.hasSource("GeoJSONSource"));
+
+    test.runLoop.runOnce();
+    test.frontend.render(test.map);
+
+    EXPECT_TRUE(test.frontend.hasSource("GeoJSONSource"));
+
+    // RendererState::hasLayer
+    test.map.getStyle().addLayer(std::make_unique<SymbolLayer>("SymbolLayer", "GeoJSONSource"));
+
+    // The frontend has not yet been notified about the newly-added source.
+    EXPECT_FALSE(test.frontend.hasLayer("SymbolLayer"));
+
+    test.runLoop.runOnce();
+    test.frontend.render(test.map);
+
+    EXPECT_TRUE(test.frontend.hasLayer("SymbolLayer"));
+}
 
 TEST(Map, LatLngBehavior) {
     MapTest<> test;
@@ -81,10 +157,10 @@ TEST(Map, LatLngBoundsToCameraWithAngle) {
 
     LatLngBounds bounds = LatLngBounds::hull({15.68169,73.499857}, {53.560711, 134.77281});
 
-    CameraOptions virtualCamera = test.map.cameraForLatLngBounds(bounds, {}, 35);
+    CameraOptions virtualCamera = test.map.cameraForLatLngBounds(bounds, {}, 35.0);
     ASSERT_TRUE(bounds.contains(*virtualCamera.center));
     EXPECT_NEAR(*virtualCamera.zoom, 1.21385, 1e-5);
-    EXPECT_NEAR(virtualCamera.angle.value_or(0), -35 * util::DEG2RAD, 1e-5);
+    EXPECT_NEAR(virtualCamera.angle.value_or(0), 35.0, 1e-5);
 }
 
 TEST(Map, LatLngBoundsToCameraWithAngleAndPitch) {
@@ -97,8 +173,8 @@ TEST(Map, LatLngBoundsToCameraWithAngleAndPitch) {
     CameraOptions virtualCamera = test.map.cameraForLatLngBounds(bounds, {}, 35, 20);
     ASSERT_TRUE(bounds.contains(*virtualCamera.center));
     EXPECT_NEAR(*virtualCamera.zoom, 13.66272, 1e-5);
-    ASSERT_DOUBLE_EQ(*virtualCamera.pitch, 20 * util::DEG2RAD);
-    EXPECT_NEAR(virtualCamera.angle.value_or(0), -35 * util::DEG2RAD, 1e-5);
+    ASSERT_DOUBLE_EQ(*virtualCamera.pitch, 20.0);
+    EXPECT_NEAR(virtualCamera.angle.value_or(0), 35.0, 1e-5);
 }
 
 TEST(Map, LatLngsToCamera) {
@@ -106,8 +182,8 @@ TEST(Map, LatLngsToCamera) {
 
     std::vector<LatLng> latLngs{{ 40.712730, 74.005953 }, {15.68169,73.499857}, {30.82678, 83.4082}};
 
-    CameraOptions virtualCamera = test.map.cameraForLatLngs(latLngs, {}, 23);
-    EXPECT_NEAR(virtualCamera.angle.value_or(0), -23 * util::DEG2RAD, 1e-5);
+    CameraOptions virtualCamera = test.map.cameraForLatLngs(latLngs, {}, 23.0);
+    EXPECT_NEAR(virtualCamera.angle.value_or(0), 23.0, 1e-5);
     EXPECT_NEAR(virtualCamera.zoom.value_or(0), 2.75434, 1e-5);
     EXPECT_NEAR(virtualCamera.center->latitude(), 28.49288, 1e-5);
     EXPECT_NEAR(virtualCamera.center->longitude(), 74.97437, 1e-5);
@@ -119,11 +195,11 @@ TEST(Map, LatLngsToCameraWithAngleAndPitch) {
     std::vector<LatLng> latLngs{{ 40.712730, 74.005953 }, {15.68169,73.499857}, {30.82678, 83.4082}};
     
     CameraOptions virtualCamera = test.map.cameraForLatLngs(latLngs, {}, 23, 20);
-    EXPECT_NEAR(virtualCamera.angle.value_or(0), -23 * util::DEG2RAD, 1e-5);
+    EXPECT_NEAR(virtualCamera.angle.value_or(0), 23.0, 1e-5);
     EXPECT_NEAR(virtualCamera.zoom.value_or(0), 3.04378, 1e-5);
     EXPECT_NEAR(virtualCamera.center->latitude(), 28.53718, 1e-5);
     EXPECT_NEAR(virtualCamera.center->longitude(), 74.31746, 1e-5);
-    ASSERT_DOUBLE_EQ(*virtualCamera.pitch, 20 * util::DEG2RAD);
+    ASSERT_DOUBLE_EQ(*virtualCamera.pitch, 20.0);
 }
 
 
@@ -209,7 +285,7 @@ TEST(Map, SetStyleInvalidJSON) {
     auto observer = Log::removeObserver();
     auto flo = static_cast<FixtureLogObserver*>(observer.get());
     EXPECT_EQ(1u, flo->count({ EventSeverity::Error, Event::ParseStyle, -1,
-        "Failed to parse style: 0 - Invalid value." }));
+        "Failed to parse style: Invalid value. at offset 0" }));
     auto unchecked = flo->unchecked();
     EXPECT_TRUE(unchecked.empty()) << unchecked;
 }

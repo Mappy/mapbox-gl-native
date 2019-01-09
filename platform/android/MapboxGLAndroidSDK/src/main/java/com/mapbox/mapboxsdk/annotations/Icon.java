@@ -1,6 +1,8 @@
 package com.mapbox.mapboxsdk.annotations;
 
 import android.graphics.Bitmap;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.DisplayMetrics;
 
 import java.nio.ByteBuffer;
@@ -8,9 +10,11 @@ import java.nio.ByteBuffer;
 /**
  * Icon is the visual representation of a Marker on a MapView.
  *
- * @see Marker
- * @see IconFactory
+ * @deprecated As of 7.0.0,
+ * use <a href="https://github.com/mapbox/mapbox-plugins-android/tree/master/plugin-annotation">
+ *   Mapbox Annotation Plugin</a> instead
  */
+@Deprecated
 public class Icon {
 
   private Bitmap mBitmap;
@@ -69,6 +73,7 @@ public class Icon {
    *
    * @return the bytes of the bitmap
    */
+  @NonNull
   public byte[] toBytes() {
     if (mBitmap == null) {
       throw new IllegalStateException("Required to set a Icon before calling toBytes");
@@ -85,7 +90,7 @@ public class Icon {
    * @return True if the icon being passed in matches this icon object. Else, false.
    */
   @Override
-  public boolean equals(Object object) {
+  public boolean equals(@Nullable Object object) {
     if (this == object) {
       return true;
     }

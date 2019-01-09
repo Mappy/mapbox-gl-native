@@ -6,7 +6,6 @@
 
 #include <mbgl/style/expression/expression.hpp>
 #include <mbgl/style/expression/at.hpp>
-#include <mbgl/style/expression/array_assertion.hpp>
 #include <mbgl/style/expression/assertion.hpp>
 #include <mbgl/style/expression/boolean_operator.hpp>
 #include <mbgl/style/expression/case.hpp>
@@ -14,6 +13,7 @@
 #include <mbgl/style/expression/coercion.hpp>
 #include <mbgl/style/expression/compound_expression.hpp>
 #include <mbgl/style/expression/comparison.hpp>
+#include <mbgl/style/expression/format_expression.hpp>
 #include <mbgl/style/expression/interpolate.hpp>
 #include <mbgl/style/expression/length.hpp>
 #include <mbgl/style/expression/let.hpp>
@@ -22,11 +22,14 @@
 #include <mbgl/style/expression/step.hpp>
 
 #include <mbgl/style/expression/find_zoom_curve.hpp>
+#include <mbgl/style/expression/dsl.hpp>
 
 #include <mbgl/style/conversion/get_json_type.hpp>
 #include <mbgl/style/conversion_impl.hpp>
 
 #include <mbgl/util/string.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
@@ -46,8 +49,7 @@ bool isConstant(const Expression& expression) {
     }
 
     bool isTypeAnnotation = expression.getKind() == Kind::Coercion ||
-        expression.getKind() == Kind::Assertion ||
-        expression.getKind() == Kind::ArrayAssertion;
+        expression.getKind() == Kind::Assertion;
     
     bool childrenConstant = true;
     expression.eachChild([&](const Expression& child) {
@@ -78,7 +80,7 @@ using namespace mbgl::style::conversion;
 ParseResult ParsingContext::parse(const Convertible& value,
                                   std::size_t index_,
                                   optional<type::Type> expected_,
-                                  TypeAnnotationOption typeAnnotationOption) {
+                                  optional<TypeAnnotationOption> typeAnnotationOption) {
     ParsingContext child(key + "[" + util::toString(index_) + "]",
                          errors,
                          std::move(expected_),
@@ -95,39 +97,44 @@ ParseResult ParsingContext::parse(const Convertible& value, std::size_t index_, 
     return child.parse(value);
 }
 
-const ExpressionRegistry& getExpressionRegistry() {
-    static ExpressionRegistry registry {{
-        {"==", parseComparison},
-        {"!=", parseComparison},
-        {">", parseComparison},
-        {"<", parseComparison},
-        {">=", parseComparison},
-        {"<=", parseComparison},
-        {"all", All::parse},
-        {"any", Any::parse},
-        {"array", ArrayAssertion::parse},
-        {"at", At::parse},
-        {"boolean", Assertion::parse},
-        {"case", Case::parse},
-        {"coalesce", Coalesce::parse},
-        {"collator", CollatorExpression::parse},
-        {"interpolate", parseInterpolate},
-        {"length", Length::parse},
-        {"let", Let::parse},
-        {"literal", Literal::parse},
-        {"match", parseMatch},
-        {"number", Assertion::parse},
-        {"object", Assertion::parse},
-        {"step", Step::parse},
-        {"string", Assertion::parse},
-        {"to-color", Coercion::parse},
-        {"to-number", Coercion::parse},
-        {"var", Var::parse}
-    }};
-    return registry;
+using ParseFunction = ParseResult (*)(const conversion::Convertible&, ParsingContext&);
+MAPBOX_ETERNAL_CONSTEXPR const auto expressionRegistry = mapbox::eternal::hash_map<mapbox::eternal::string, ParseFunction>({
+    {"==", parseComparison},
+    {"!=", parseComparison},
+    {">", parseComparison},
+    {"<", parseComparison},
+    {">=", parseComparison},
+    {"<=", parseComparison},
+    {"all", All::parse},
+    {"any", Any::parse},
+    {"array", Assertion::parse},
+    {"at", At::parse},
+    {"boolean", Assertion::parse},
+    {"case", Case::parse},
+    {"coalesce", Coalesce::parse},
+    {"collator", CollatorExpression::parse},
+    {"format", FormatExpression::parse},
+    {"interpolate", parseInterpolate},
+    {"length", Length::parse},
+    {"let", Let::parse},
+    {"literal", Literal::parse},
+    {"match", parseMatch},
+    {"number", Assertion::parse},
+    {"object", Assertion::parse},
+    {"step", Step::parse},
+    {"string", Assertion::parse},
+    {"to-boolean", Coercion::parse},
+    {"to-color", Coercion::parse},
+    {"to-number", Coercion::parse},
+    {"to-string", Coercion::parse},
+    {"var", Var::parse},
+});
+
+bool isExpression(const std::string& name) {
+    return expressionRegistry.contains(name.c_str());
 }
 
-ParseResult ParsingContext::parse(const Convertible& value, TypeAnnotationOption typeAnnotationOption) {
+ParseResult ParsingContext::parse(const Convertible& value, optional<TypeAnnotationOption> typeAnnotationOption) {
     ParseResult parsed;
     
     if (isArray(value)) {
@@ -147,9 +154,8 @@ ParseResult ParsingContext::parse(const Convertible& value, TypeAnnotationOption
             return ParseResult();
         }
         
-        const ExpressionRegistry& registry = getExpressionRegistry();
-        auto parseFunction = registry.find(*op);
-        if (parseFunction != registry.end()) {
+        auto parseFunction = expressionRegistry.find(op->c_str());
+        if (parseFunction != expressionRegistry.end()) {
             parsed = parseFunction->second(value, *this);
         } else {
             parsed = parseCompoundExpression(*op, value, *this);
@@ -163,26 +169,27 @@ ParseResult ParsingContext::parse(const Convertible& value, TypeAnnotationOption
         return parsed;
     }
 
-    auto array = [&](std::unique_ptr<Expression> expression) {
-        std::vector<std::unique_ptr<Expression>> args;
-        args.push_back(std::move(expression));
-        return args;
+    auto annotate = [] (std::unique_ptr<Expression> expression, type::Type type, TypeAnnotationOption typeAnnotation) -> std::unique_ptr<Expression> {
+        switch (typeAnnotation) {
+        case TypeAnnotationOption::assert:
+            return std::make_unique<Assertion>(type, dsl::vec(std::move(expression)));
+        case TypeAnnotationOption::coerce:
+            return std::make_unique<Coercion>(type, dsl::vec(std::move(expression)));
+        case TypeAnnotationOption::omit:
+            return expression;
+        }
+
+        // Not reachable, but placate GCC.
+        assert(false);
+        return expression;
     };
 
     if (expected) {
         const type::Type actual = (*parsed)->getType();
-        if ((*expected == type::String || *expected == type::Number || *expected == type::Boolean || *expected == type::Object) && actual == type::Value) {
-            if (typeAnnotationOption == includeTypeAnnotations) {
-                parsed = { std::make_unique<Assertion>(*expected, array(std::move(*parsed))) };
-            }
-        } else if (expected->is<type::Array>() && actual == type::Value) {
-            if (typeAnnotationOption == includeTypeAnnotations) {
-                parsed = { std::make_unique<ArrayAssertion>(expected->get<type::Array>(), std::move(*parsed)) };
-            }
-        } else if (*expected == type::Color && (actual == type::Value || actual == type::String)) {
-            if (typeAnnotationOption == includeTypeAnnotations) {
-                parsed = { std::make_unique<Coercion>(*expected, array(std::move(*parsed))) };
-            }
+        if ((*expected == type::String || *expected == type::Number || *expected == type::Boolean || *expected == type::Object || expected->is<type::Array>()) && actual == type::Value) {
+            parsed = { annotate(std::move(*parsed), *expected, typeAnnotationOption.value_or(TypeAnnotationOption::assert)) };
+        } else if ((*expected == type::Color || *expected == type::Formatted) && (actual == type::Value || actual == type::String)) {
+            parsed = { annotate(std::move(*parsed), *expected, typeAnnotationOption.value_or(TypeAnnotationOption::coerce)) };
         } else {
             checkType((*parsed)->getType());
             if (errors->size() > 0) {
@@ -218,11 +225,15 @@ ParseResult ParsingContext::parse(const Convertible& value, TypeAnnotationOption
     return parsed;
 }
 
-ParseResult ParsingContext::parseExpression(const Convertible& value, TypeAnnotationOption typeAnnotationOption) {
+ParseResult ParsingContext::parseExpression(const Convertible& value, optional<TypeAnnotationOption> typeAnnotationOption) {
     return parse(value, typeAnnotationOption);
 }
 
-ParseResult ParsingContext::parseLayerPropertyExpression(const Convertible& value, TypeAnnotationOption typeAnnotationOption) {
+ParseResult ParsingContext::parseLayerPropertyExpression(const Convertible& value) {
+    optional<TypeAnnotationOption> typeAnnotationOption;
+    if (expected && *expected == type::String) {
+        typeAnnotationOption = TypeAnnotationOption::coerce;
+    }
     ParseResult parsed = parse(value, typeAnnotationOption);
     if (parsed && !isZoomConstant(**parsed)) {
         optional<variant<const Interpolate*, const Step*, ParsingError>> zoomCurve = findZoomCurve(parsed->get());

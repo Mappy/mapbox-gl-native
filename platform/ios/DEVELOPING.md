@@ -20,13 +20,13 @@ Before building, use the scheme picker button in the toolbar to change the schem
 
 **iosapp** is only one of several shared schemes. Others include:
 
-* **CI** builds exactly what gets built for continuous integration on Bitrise.
-* **bench** is a simple benchmarking application. For more consistent results between runs, run `platform/ios/benchmark/assets/{glyphs,tiles}/download.sh` to download any necessary resources.
 * **dynamic** builds the SDK as a dynamic framework.
 * **static** builds the SDK as a static library and separate resource bundle.
 * **dynamic+static** is a combination of the **dynamic** and **static** schemes.
+* **CI** builds exactly what gets built by our continuous integration service.
+* **bench** is a simple benchmarking application. For more consistent results between runs, run `platform/ios/benchmark/assets/{glyphs,tiles}/download.sh` to download any necessary resources.
 
-If you don’t have an Apple Developer account, change the destination to a simulator such as “iPhone 6s” before you build and run the app.
+If you don’t have an Apple Developer account, change the destination to a simulator before you build and run the app.
 
 ### Packaging builds
 
@@ -36,19 +36,12 @@ Install [jazzy](https://github.com/realm/jazzy) for generating API documentation
 [sudo] gem install jazzy
 ```
 
-Build and package the SDK by using one of the following commands:
-
-* `make ipackage` builds both dynamic and static frameworks in the Debug configuration for devices and the iOS Simulator.
-* `make iframework` builds a dynamic framework in the Debug configuration for devices and the iOS Simulator. The CocoaPods pod downloads the output of this target.
-* `make ipackage-sim` builds a dynamic framework in the Debug configuration for the iOS simulator. This is the fastest target.
-* `make ipackage-strip` builds both dynamic and static frameworks in the Debug configuration, stripped of debug symbols, for devices and the iOS Simulator.
-
-You can customize the build output by passing the following arguments into the `make` invocation:
+Build and package the SDK by using the `make iframework` command. You can customize the build output by passing the following arguments into the `make` invocation:
 
 * `BUILDTYPE=Release` will optimize for distribution. Defaults to `Debug`.
 * `BUILD_DEVICE=false` builds only for the iOS Simulator.
 * `FORMAT=dynamic` builds only a dynamic framework. `FORMAT=static` builds only a static framework, for legacy compatibility.
-* `SYMBOLS=NO` strips the build output of any debug symbols, yielding smaller binaries. Defaults to `YES`.
+* `SYMBOLS=NO` strips the build output of debug symbols. Defaults to `YES`.
 
 An example command that creates a dynamic framework suitable for eventual App Store distribution:
 
@@ -72,7 +65,7 @@ To add any Objective-C type, constant, or member to the iOS SDK’s public inter
 
 To add an Objective-C class, protocol, category, typedef, enumeration, or global constant to the iOS maps SDK’s public interface:
 
-1. _(Optional.)_ Add the macro `MGL_EXPORT` prior to the declaration for classes and global constants when adding them in shared headers located in `platform/darwin`. To use this macro, include `MGLFoundation.h`. You can check whether all public symbols are exported correctly by running `make check-public-symbols`.
+1. _(Optional.)_ Add the macro `MGL_EXPORT` prior to the declaration for classes and global constants when adding them in shared headers located in `platform/darwin`. To use this macro, include `MGLFoundation.h`. You can check whether all public symbols are exported correctly by running `make darwin-check-public-symbols`.
 1. _(Optional.)_ Add the type or constant’s name to the relevant category in the `custom_categories` section of [the jazzy configuration file](./jazzy.yml). This is required for classes and protocols and also recommended for any other type that is strongly associated with a particular class or protocol. If you leave out this step, the symbol will appear in an “Other” section in the generated HTML documentation’s table of contents.
 1. _(Optional.)_ If the symbol would also be publicly exposed in the macOS maps SDK, consult [the companion macOS document](../macos/DEVELOPING.md#making-a-type-or-constant-public) for further instructions.
 

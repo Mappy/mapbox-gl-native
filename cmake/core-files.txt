@@ -59,6 +59,8 @@ src/mbgl/gl/color_mode.cpp
 src/mbgl/gl/color_mode.hpp
 src/mbgl/gl/context.cpp
 src/mbgl/gl/context.hpp
+src/mbgl/gl/cull_face_mode.cpp
+src/mbgl/gl/cull_face_mode.hpp
 src/mbgl/gl/debugging.cpp
 src/mbgl/gl/debugging.hpp
 src/mbgl/gl/debugging_extension.cpp
@@ -91,6 +93,12 @@ src/mbgl/gl/vertex_array.cpp
 src/mbgl/gl/vertex_array.hpp
 src/mbgl/gl/vertex_array_extension.hpp
 src/mbgl/gl/vertex_buffer.hpp
+
+# layermanager
+include/mbgl/layermanager/layer_factory.hpp
+include/mbgl/layermanager/layer_manager.hpp
+src/mbgl/layermanager/layer_factory.cpp
+src/mbgl/layermanager/layer_manager.cpp
 
 # layout
 src/mbgl/layout/clip_lines.cpp
@@ -178,6 +186,7 @@ include/mbgl/renderer/renderer.hpp
 include/mbgl/renderer/renderer_backend.hpp
 include/mbgl/renderer/renderer_frontend.hpp
 include/mbgl/renderer/renderer_observer.hpp
+include/mbgl/renderer/renderer_state.hpp
 src/mbgl/renderer/backend_scope.cpp
 src/mbgl/renderer/bucket.hpp
 src/mbgl/renderer/bucket_parameters.cpp
@@ -214,6 +223,7 @@ src/mbgl/renderer/renderer.cpp
 src/mbgl/renderer/renderer_backend.cpp
 src/mbgl/renderer/renderer_impl.cpp
 src/mbgl/renderer/renderer_impl.hpp
+src/mbgl/renderer/renderer_state.cpp
 src/mbgl/renderer/style_diff.cpp
 src/mbgl/renderer/style_diff.hpp
 src/mbgl/renderer/tile_mask.hpp
@@ -258,6 +268,7 @@ src/mbgl/renderer/layers/render_heatmap_layer.cpp
 src/mbgl/renderer/layers/render_heatmap_layer.hpp
 src/mbgl/renderer/layers/render_hillshade_layer.cpp
 src/mbgl/renderer/layers/render_hillshade_layer.hpp
+src/mbgl/renderer/layers/render_layer_symbol_interface.hpp
 src/mbgl/renderer/layers/render_line_layer.cpp
 src/mbgl/renderer/layers/render_line_layer.hpp
 src/mbgl/renderer/layers/render_raster_layer.cpp
@@ -448,7 +459,6 @@ src/mbgl/style/conversion/tileset.cpp
 src/mbgl/style/conversion/transition_options.cpp
 
 # style/expression
-include/mbgl/style/expression/array_assertion.hpp
 include/mbgl/style/expression/assertion.hpp
 include/mbgl/style/expression/at.hpp
 include/mbgl/style/expression/boolean_operator.hpp
@@ -464,6 +474,8 @@ include/mbgl/style/expression/dsl.hpp
 include/mbgl/style/expression/error.hpp
 include/mbgl/style/expression/expression.hpp
 include/mbgl/style/expression/find_zoom_curve.hpp
+include/mbgl/style/expression/format_expression.hpp
+include/mbgl/style/expression/formatted.hpp
 include/mbgl/style/expression/get_covering_stops.hpp
 include/mbgl/style/expression/interpolate.hpp
 include/mbgl/style/expression/interpolator.hpp
@@ -477,7 +489,6 @@ include/mbgl/style/expression/parsing_context.hpp
 include/mbgl/style/expression/step.hpp
 include/mbgl/style/expression/type.hpp
 include/mbgl/style/expression/value.hpp
-src/mbgl/style/expression/array_assertion.cpp
 src/mbgl/style/expression/assertion.cpp
 src/mbgl/style/expression/at.cpp
 src/mbgl/style/expression/boolean_operator.cpp
@@ -491,6 +502,8 @@ src/mbgl/style/expression/compound_expression.cpp
 src/mbgl/style/expression/dsl.cpp
 src/mbgl/style/expression/expression.cpp
 src/mbgl/style/expression/find_zoom_curve.cpp
+src/mbgl/style/expression/format_expression.cpp
+src/mbgl/style/expression/formatted.cpp
 src/mbgl/style/expression/get_covering_stops.cpp
 src/mbgl/style/expression/interpolate.cpp
 src/mbgl/style/expression/is_constant.cpp
@@ -620,6 +633,8 @@ src/mbgl/text/quads.cpp
 src/mbgl/text/quads.hpp
 src/mbgl/text/shaping.cpp
 src/mbgl/text/shaping.hpp
+src/mbgl/text/tagged_string.cpp
+src/mbgl/text/tagged_string.hpp
 
 # tile
 include/mbgl/tile/tile_id.hpp
@@ -718,6 +733,7 @@ src/mbgl/util/geo.cpp
 src/mbgl/util/geojson_impl.cpp
 src/mbgl/util/grid_index.cpp
 src/mbgl/util/grid_index.hpp
+src/mbgl/util/hash.hpp
 src/mbgl/util/http_header.cpp
 src/mbgl/util/http_header.hpp
 src/mbgl/util/http_timeout.cpp
@@ -743,6 +759,7 @@ src/mbgl/util/math.hpp
 src/mbgl/util/offscreen_texture.cpp
 src/mbgl/util/offscreen_texture.hpp
 src/mbgl/util/premultiply.cpp
+src/mbgl/util/rapidjson.cpp
 src/mbgl/util/rapidjson.hpp
 src/mbgl/util/rect.hpp
 src/mbgl/util/std.hpp

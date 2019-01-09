@@ -14,7 +14,7 @@ namespace mbgl {
 using namespace style;
 
 RenderRasterLayer::RenderRasterLayer(Immutable<style::RasterLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Raster, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -119,6 +119,7 @@ void RenderRasterLayer::render(PaintParameters& parameters, RenderSource* source
             parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
             gl::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
+            gl::CullFaceMode::disabled(),
             indexBuffer,
             segments,
             allUniformValues,

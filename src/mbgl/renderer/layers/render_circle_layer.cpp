@@ -15,7 +15,7 @@ namespace mbgl {
 using namespace style;
 
 RenderCircleLayer::RenderCircleLayer(Immutable<style::CircleLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Circle, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -106,6 +106,7 @@ void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
                 ? parameters.stencilModeForClipping(tile.clip)
                 : gl::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
+            gl::CullFaceMode::disabled(),
             *bucket.indexBuffer,
             bucket.segments,
             allUniformValues,

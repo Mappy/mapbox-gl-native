@@ -175,8 +175,7 @@ $(MACOS_COMPDB_PATH)/Makefile:
 	mkdir -p $(MACOS_COMPDB_PATH)
 	(cd $(MACOS_COMPDB_PATH) && cmake ../../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-		-DWITH_EGL=${WITH_EGL} \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
+		-DWITH_EGL=${WITH_EGL})
 
 .PHONY:
 compdb: $(BUILD_DEPS) $(TEST_DEPS) $(MACOS_COMPDB_PATH)/Makefile
@@ -252,24 +251,18 @@ ios-sanitize-address: $(IOS_PROJ_PATH)
 ios-static-analyzer: $(IOS_PROJ_PATH)
 	set -o pipefail && $(IOS_XCODEBUILD_SIM) analyze -scheme 'CI' test $(XCPRETTY)
 
+.PHONY: ios-check-events-symbols
+ios-check-events-symbols:
+	./platform/ios/scripts/check-events-symbols.sh
+
 .PHONY: ipackage
-ipackage: $(IOS_PROJ_PATH)
-	FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) \
-	./platform/ios/scripts/package.sh
-
-.PHONY: ipackage-strip
-ipackage-strip: $(IOS_PROJ_PATH)
-	FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=NO \
-	./platform/ios/scripts/package.sh
-
-.PHONY: ipackage-sim
-ipackage-sim: $(IOS_PROJ_PATH)
-	BUILDTYPE=Debug FORMAT=dynamic BUILD_DEVICE=false SYMBOLS=$(SYMBOLS) \
-	./platform/ios/scripts/package.sh
+ipackage: ipackage*
+ipackage%:
+	@echo make ipackage is deprecated — use make iframework.
 
 .PHONY: iframework
 iframework: $(IOS_PROJ_PATH)
-	FORMAT=dynamic BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) \
+	FORMAT=$(FORMAT) BUILD_DEVICE=$(BUILD_DEVICE) SYMBOLS=$(SYMBOLS) \
 	./platform/ios/scripts/package.sh
 
 .PHONY: ideploy
@@ -290,9 +283,10 @@ style-code: darwin-style-code
 darwin-update-examples:
 	node platform/darwin/scripts/update-examples.js
 
-.PHONY: check-public-symbols
-check-public-symbols:
+.PHONY: darwin-check-public-symbols
+darwin-check-public-symbols:
 	node platform/darwin/scripts/check-public-symbols.js macOS iOS
+
 endif
 
 #### Linux targets #####################################################
@@ -307,7 +301,6 @@ $(LINUX_BUILD): $(BUILD_DEPS)
 	mkdir -p $(LINUX_OUTPUT_PATH)
 	(cd $(LINUX_OUTPUT_PATH) && cmake -G Ninja ../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DWITH_CXX11ABI=${WITH_CXX11ABI} \
 		-DWITH_COVERAGE=${WITH_COVERAGE} \
 		-DWITH_OSMESA=${WITH_OSMESA} \
@@ -328,14 +321,12 @@ test: $(LINUX_BUILD)
 benchmark: $(LINUX_BUILD)
 	$(NINJA) $(NINJA_ARGS) -j$(JOBS) -C $(LINUX_OUTPUT_PATH) mbgl-benchmark
 
-ifneq (,$(shell command -v gdb 2> /dev/null))
-  GDB ?= $(shell scripts/mason.sh PREFIX gdb VERSION 2017-04-08-aebcde5)/bin/gdb \
-        	-batch -return-child-result \
-        	-ex 'set print thread-events off' \
-        	-ex 'set disable-randomization off' \
-        	-ex 'run' \
-        	-ex 'thread apply all bt' --args
-endif
+GDB ?= gdb \
+	-batch -return-child-result \
+	-ex 'set print thread-events off' \
+	-ex 'set disable-randomization off' \
+	-ex 'run' \
+	-ex 'thread apply all bt' --args
 
 .PHONY: run-test
 run-test: run-test-*
@@ -392,13 +383,7 @@ endif
 QT_QMAKE_FOUND := $(shell command -v qmake 2> /dev/null)
 ifdef QT_QMAKE_FOUND
   export QT_INSTALL_DOCS = $(shell qmake -query QT_INSTALL_DOCS)
-  ifeq ($(shell qmake -query QT_VERSION | head -c1), 4)
-    QT_ROOT_PATH = build/qt4-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
-    WITH_QT_4=1
-  else
-    QT_ROOT_PATH = build/qt-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
-    WITH_QT_4=0
-  endif
+  QT_ROOT_PATH = build/qt-$(BUILD_PLATFORM)-$(BUILD_PLATFORM_VERSION)
 endif
 
 export QT_OUTPUT_PATH = $(QT_ROOT_PATH)/$(BUILDTYPE)
@@ -409,13 +394,11 @@ $(QT_BUILD): $(BUILD_DEPS)
 	mkdir -p $(QT_OUTPUT_PATH)
 	(cd $(QT_OUTPUT_PATH) && cmake -G Ninja ../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DMBGL_PLATFORM=qt \
 		-DMASON_PLATFORM=$(MASON_PLATFORM) \
 		-DMASON_PLATFORM_VERSION=$(MASON_PLATFORM_VERSION) \
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
 		-DWITH_QT_I18N=${WITH_QT_I18N} \
-		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=${WITH_CXX11ABI} \
 		-DWITH_COVERAGE=${WITH_COVERAGE})
 
@@ -431,7 +414,6 @@ $(MACOS_QT_PROJ_PATH): $(BUILD_DEPS)
 		-DMASON_PLATFORM_VERSION=$(MASON_PLATFORM_VERSION) \
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
 		-DWITH_QT_I18N=${WITH_QT_I18N} \
-		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=${WITH_CXX11ABI} \
 		-DWITH_COVERAGE=${WITH_COVERAGE})
 
@@ -453,14 +435,12 @@ $(QNX_QT_BUILD): $(BUILD_DEPS)
 	mkdir -p $(QNX_OUTPUT_PATH)
 	(cd $(QNX_OUTPUT_PATH) && cmake -G Ninja ../../.. \
 		-DCMAKE_BUILD_TYPE=$(BUILDTYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DQCC_COMPILER_TARGET=${QCC_COMPILER_TARGET} \
 		-DQCC_NTOARCH=${QCC_NTOARCH} \
 		-DCMAKE_TOOLCHAIN_FILE=platform/qt/qnx.cmake \
 		-DMBGL_PLATFORM=qt \
 		-DWITH_QT_DECODERS=${WITH_QT_DECODERS} \
 		-DWITH_QT_I18N=${WITH_QT_I18N} \
-		-DWITH_QT_4=${WITH_QT_4} \
 		-DWITH_CXX11ABI=${WITH_CXX11ABI} \
 		-DWITH_COVERAGE=${WITH_COVERAGE})
 
@@ -522,7 +502,8 @@ MBGL_ANDROID_LIBDIR = lib$(if $(filter arm-v8 x86-64,$1),64)
 MBGL_ANDROID_DALVIKVM = dalvikvm$(if $(filter arm-v8 x86-64,$1),64,32)
 MBGL_ANDROID_APK_SUFFIX = $(if $(filter Release,$(BUILDTYPE)),release-unsigned,debug)
 MBGL_ANDROID_CORE_TEST_DIR = platform/android/MapboxGLAndroidSDK/.externalNativeBuild/cmake/$(buildtype)/$2/core-tests
-MBGL_ANDROID_GRADLE = ./gradlew --parallel --max-workers=$(JOBS) -Pmapbox.buildtype=$(buildtype)
+MBGL_ANDROID_STL ?= c++_static
+MBGL_ANDROID_GRADLE = ./gradlew --parallel --max-workers=$(JOBS) -Pmapbox.buildtype=$(buildtype) -Pmapbox.stl=$(MBGL_ANDROID_STL)
 
 # Lists all devices, and extracts the identifiers, then obtains the ABI for every one.
 # Some devices return \r\n, so we'll have to remove the carriage return before concatenating.
@@ -666,9 +647,9 @@ run-android-ui-test-%: run-android-ui-test-arm-v7-%
 # Run Java Unit tests on the JVM of the development machine executing this
 .PHONY: run-android-unit-test
 run-android-unit-test: platform/android/gradle/configuration.gradle
-	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDK:testDebugUnitTest
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDK:testDebugUnitTest --info
 run-android-unit-test-%: platform/android/gradle/configuration.gradle
-	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDK:testDebugUnitTest --tests "$*"
+	cd platform/android && $(MBGL_ANDROID_GRADLE) -Pmapbox.abis=none :MapboxGLAndroidSDK:testDebugUnitTest  --info --tests "$*"
 
 # Builds a release package of the Android SDK
 .PHONY: apackage

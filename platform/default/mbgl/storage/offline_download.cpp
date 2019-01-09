@@ -1,4 +1,4 @@
-#include <mbgl/storage/file_source.hpp>
+#include <mbgl/storage/online_file_source.hpp>
 #include <mbgl/storage/offline_database.hpp>
 #include <mbgl/storage/offline_download.hpp>
 #include <mbgl/storage/resource.hpp>
@@ -84,7 +84,7 @@ uint64_t tileCount(const OfflineRegionDefinition& definition, style::SourceType 
 OfflineDownload::OfflineDownload(int64_t id_,
                                  OfflineRegionDefinition&& definition_,
                                  OfflineDatabase& offlineDatabase_,
-                                 FileSource& onlineFileSource_)
+                                 OnlineFileSource& onlineFileSource_)
     : id(id_),
       definition(definition_),
       offlineDatabase(offlineDatabase_),
@@ -209,7 +209,7 @@ OfflineRegionStatus OfflineDownload::getStatus() const {
     }
 
     if (!parser.spriteURL.empty()) {
-        result->requiredResourceCount += 2;
+        result->requiredResourceCount += 4;
     }
 
     return *result;
@@ -219,7 +219,7 @@ void OfflineDownload::activateDownload() {
     status = OfflineRegionStatus();
     status.downloadState = OfflineRegionDownloadState::Active;
     status.requiredResourceCount++;
-    ensureResource(Resource::style(definition.match([](auto& reg){ return reg.styleURL; })),
+    ensureResource(Resource::style(definition.match([](auto& reg){ return reg.styleURL; }), Resource::Priority::Low),
                    [&](Response styleResponse) {
         status.requiredResourceCountIsPrecise = true;
 
@@ -238,7 +238,7 @@ void OfflineDownload::activateDownload() {
                     status.requiredResourceCount++;
                     requiredSourceURLs.insert(url);
 
-                    ensureResource(Resource::source(url), [=](Response sourceResponse) {
+                    ensureResource(Resource::source(url, Resource::Priority::Low), [=](Response sourceResponse) {
                         style::conversion::Error error;
                         optional<Tileset> tileset = style::conversion::convertJSON<Tileset>(*sourceResponse.data, error);
                         if (tileset) {
@@ -306,9 +306,11 @@ void OfflineDownload::activateDownload() {
         }
 
         if (!parser.spriteURL.empty()) {
-            auto pixelRatio = definition.match([](auto& reg){ return reg.pixelRatio; });
-            queueResource(Resource::spriteImage(parser.spriteURL, pixelRatio));
-            queueResource(Resource::spriteJSON(parser.spriteURL, pixelRatio));
+            // Always request 1x and @2x sprite images for portability.
+            queueResource(Resource::spriteImage(parser.spriteURL, 1));
+            queueResource(Resource::spriteImage(parser.spriteURL, 2));
+            queueResource(Resource::spriteJSON(parser.spriteURL, 1));
+            queueResource(Resource::spriteJSON(parser.spriteURL, 2));
         }
 
         continueDownload();
@@ -338,7 +340,7 @@ void OfflineDownload::continueDownload() {
         return;
     }
 
-    while (!resourcesRemaining.empty() && requests.size() < HTTPFileSource::maximumConcurrentRequests()) {
+    while (!resourcesRemaining.empty() && requests.size() < onlineFileSource.getMaximumConcurrentRequests()) {
         ensureResource(resourcesRemaining.front());
         resourcesRemaining.pop_front();
     }
@@ -351,6 +353,7 @@ void OfflineDownload::deactivateDownload() {
 }
 
 void OfflineDownload::queueResource(Resource resource) {
+    resource.setPriority(Resource::Priority::Low);
     status.requiredResourceCount++;
     resourcesRemaining.push_front(std::move(resource));
 }
@@ -360,12 +363,14 @@ void OfflineDownload::queueTiles(SourceType type, uint16_t tileSize, const Tiles
         status.requiredResourceCount++;
         resourcesRemaining.push_back(Resource::tile(
             tileset.tiles[0], definition.match([](auto& def) { return def.pixelRatio; }), tile.x,
-            tile.y, tile.z, tileset.scheme));
+            tile.y, tile.z, tileset.scheme, Resource::Priority::Low));
     });
 }
 
 void OfflineDownload::ensureResource(const Resource& resource,
                                      std::function<void(Response)> callback) {
+    assert(resource.priority == Resource::Priority::Low);
+
     auto workRequestsIt = requests.insert(requests.begin(), nullptr);
     *workRequestsIt = util::RunLoop::Get()->invokeCancellable([=]() {
         requests.erase(workRequestsIt);

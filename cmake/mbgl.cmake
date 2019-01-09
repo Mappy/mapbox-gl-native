@@ -130,6 +130,7 @@ function(load_sources_list VAR FILELIST)
         endif()
     endforeach()
     set(${VAR} "${_FILES}" PARENT_SCOPE)
+    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${FILELIST}")
 endfunction()
 
 function(target_sources_from_file TARGET TYPE FILELIST)
@@ -154,7 +155,7 @@ function(add_vendor_target NAME TYPE)
     foreach(FILE IN LISTS FILES)
         target_sources(${NAME} ${SOURCE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/${FILE}")
     endforeach()
-    target_include_directories(${NAME} ${INCLUDE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/include")
+    target_include_directories(${NAME} SYSTEM ${INCLUDE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/include")
     create_source_groups(${NAME})
 endfunction()
 
@@ -208,10 +209,10 @@ function(initialize_xcode_cxx_build_settings target)
     set_xcode_property(${target} CLANG_WARN_RANGE_LOOP_ANALYSIS YES)
 
     # -flto
-    set_xcode_property(${target} LLVM_LTO $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebugInfo>>:YES>)
+    set_xcode_property(${target} LLVM_LTO $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:YES>)
 
-    # Make releases debuggable.
-    set_xcode_property(${target} GCC_GENERATE_DEBUGGING_SYMBOLS YES)
+    # Make all build configurations debuggable — except Release.
+    set_xcode_property(${target} GCC_GENERATE_DEBUGGING_SYMBOLS $<$<NOT:$<CONFIG:Release>>:YES>)
 endfunction()
 
 # CMake 3.1 does not have this yet.

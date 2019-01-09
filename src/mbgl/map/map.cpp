@@ -3,6 +3,7 @@
 #include <mbgl/map/transform.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
+#include <mbgl/layermanager/layer_manager.hpp>
 #include <mbgl/style/style_impl.hpp>
 #include <mbgl/style/observer.hpp>
 #include <mbgl/renderer/update_parameters.hpp>
@@ -44,7 +45,8 @@ public:
          Scheduler&,
          MapMode,
          ConstrainMode,
-         ViewportMode);
+         ViewportMode,
+         bool);
 
     ~Impl();
 
@@ -73,6 +75,7 @@ public:
 
     const MapMode mode;
     const float pixelRatio;
+    const bool crossSourceCollisions;
 
     MapDebugOptions debugOptions { MapDebugOptions::NoDebug };
 
@@ -96,7 +99,8 @@ Map::Map(RendererFrontend& rendererFrontend,
          Scheduler& scheduler,
          MapMode mapMode,
          ConstrainMode constrainMode,
-         ViewportMode viewportMode)
+         ViewportMode viewportMode,
+         bool crossSourceCollisions)
     : impl(std::make_unique<Impl>(*this,
                                   rendererFrontend,
                                   mapObserver,
@@ -105,7 +109,8 @@ Map::Map(RendererFrontend& rendererFrontend,
                                   scheduler,
                                   mapMode,
                                   constrainMode,
-                                  viewportMode)) {
+                                  viewportMode,
+                                  crossSourceCollisions)) {
     impl->transform.resize(size);
 }
 
@@ -117,7 +122,8 @@ Map::Impl::Impl(Map& map_,
                 Scheduler& scheduler_,
                 MapMode mode_,
                 ConstrainMode constrainMode_,
-                ViewportMode viewportMode_)
+                ViewportMode viewportMode_,
+                bool crossSourceCollisions_)
     : map(map_),
       observer(mapObserver),
       rendererFrontend(frontend),
@@ -128,6 +134,7 @@ Map::Impl::Impl(Map& map_,
                 viewportMode_),
       mode(mode_),
       pixelRatio(pixelRatio_),
+      crossSourceCollisions(crossSourceCollisions_),
       style(std::make_unique<Style>(scheduler, fileSource, pixelRatio)),
       annotationManager(*style) {
 
@@ -202,6 +209,8 @@ void Map::Impl::onDidFinishRenderingFrame(RenderMode renderMode, bool needsRepai
 
         if (needsRepaint || transform.inTransition()) {
             onUpdate();
+        } else if (rendererFullyLoaded) {
+            observer.onDidBecomeIdle();
         }
     } else if (stillImageRequest && rendererFullyLoaded) {
         auto request = std::move(stillImageRequest);
@@ -233,7 +242,9 @@ void Map::setStyle(std::unique_ptr<Style> style) {
     assert(style);
     impl->onStyleLoading();
     impl->style = std::move(style);
-    impl->annotationManager.setStyle(*impl->style);
+    if (LayerManager::annotationsEnabled) {
+        impl->annotationManager.setStyle(*impl->style);
+    }
 }
 
 #pragma mark - Transitions
@@ -301,20 +312,11 @@ void Map::moveBy(const ScreenCoordinate& point, const AnimationOptions& animatio
 }
 
 void Map::setLatLng(const LatLng& latLng, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    setLatLng(latLng, optional<ScreenCoordinate> {}, animation);
+    easeTo(CameraOptions().withCenter(latLng), animation);
 }
 
 void Map::setLatLng(const LatLng& latLng, const EdgeInsets& padding, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setLatLng(latLng, padding, animation);
-    impl->onUpdate();
-}
-
-void Map::setLatLng(const LatLng& latLng, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setLatLng(latLng, anchor, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withCenter(latLng).withPadding(padding), animation);
 }
 
 LatLng Map::getLatLng(const EdgeInsets& padding) const {
@@ -323,34 +325,22 @@ LatLng Map::getLatLng(const EdgeInsets& padding) const {
 
 void Map::resetPosition(const EdgeInsets& padding) {
     impl->cameraMutated = true;
-    CameraOptions camera;
-    camera.angle = 0;
-    camera.pitch = 0;
-    camera.center = LatLng(0, 0);
-    camera.padding = padding;
-    camera.zoom = 0;
-    impl->transform.jumpTo(camera);
+    impl->transform.jumpTo(CameraOptions().withCenter(LatLng()).withPadding(padding).withZoom(0.0).withAngle(0.0).withPitch(0.0));
     impl->onUpdate();
 }
-
 
 #pragma mark - Zoom
 
 void Map::setZoom(double zoom, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    setZoom(zoom, EdgeInsets(), animation);
+    easeTo(CameraOptions().withZoom(zoom), animation);
 }
 
 void Map::setZoom(double zoom, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setZoom(zoom, anchor, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withZoom(zoom).withAnchor(anchor), animation);
 }
 
 void Map::setZoom(double zoom, const EdgeInsets& padding, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setZoom(zoom, padding, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withZoom(zoom).withPadding(padding), animation);
 }
 
 double Map::getZoom() const {
@@ -358,14 +348,11 @@ double Map::getZoom() const {
 }
 
 void Map::setLatLngZoom(const LatLng& latLng, double zoom, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    setLatLngZoom(latLng, zoom, {}, animation);
+    easeTo(CameraOptions().withCenter(latLng).withZoom(zoom), animation);
 }
 
 void Map::setLatLngZoom(const LatLng& latLng, double zoom, const EdgeInsets& padding, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setLatLngZoom(latLng, zoom, padding, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withCenter(latLng).withZoom(zoom).withPadding(padding), animation);
 }
 
 CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeInsets& padding, optional<double> bearing, optional<double> pitch) const {
@@ -378,9 +365,8 @@ CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeI
 }
 
 CameraOptions cameraForLatLngs(const std::vector<LatLng>& latLngs, const Transform& transform, const EdgeInsets& padding) {
-    CameraOptions options;
     if (latLngs.empty()) {
-        return options;
+        return CameraOptions();
     }
     Size size = transform.getState().getSize();
     // Calculate the bounds of the possibly rotated shape with respect to the viewport.
@@ -406,7 +392,7 @@ CameraOptions cameraForLatLngs(const std::vector<LatLng>& latLngs, const Transfo
         scaleY -= (padding.top() + padding.bottom()) / height;
         minScale = util::min(scaleX, scaleY);
     }
-    double zoom = transform.getZoom() + ::log2(minScale);
+    double zoom = transform.getZoom() + util::log2(minScale);
     zoom = util::clamp(zoom, transform.getState().getMinZoom(), transform.getState().getMaxZoom());
 
     // Calculate the center point of a virtual bounds that is extended in all directions by padding.
@@ -425,33 +411,24 @@ CameraOptions cameraForLatLngs(const std::vector<LatLng>& latLngs, const Transfo
     // CameraOptions origin is at the top-left corner.
     centerPixel.y = viewportHeight - centerPixel.y;
 
-    options.center = transform.screenCoordinateToLatLng(centerPixel);
-    options.zoom = zoom;
-    return options;
+    return CameraOptions().withCenter(transform.screenCoordinateToLatLng(centerPixel)).withZoom(zoom);
 }
 
 CameraOptions Map::cameraForLatLngs(const std::vector<LatLng>& latLngs, const EdgeInsets& padding, optional<double> bearing, optional<double> pitch) const {
-    
+
     if (!bearing && !pitch) {
         return mbgl::cameraForLatLngs(latLngs, impl->transform, padding);
     }
-    
+
     Transform transform(impl->transform.getState());
-    
-    if (bearing) {
-        double angle = -*bearing * util::DEG2RAD; // Convert to radians
-        transform.setAngle(angle);
+
+    if (bearing || pitch) {
+        transform.jumpTo(CameraOptions().withAngle(bearing).withPitch(pitch));
     }
-    if (pitch) {
-        double pitchAsRadian = *pitch * util::DEG2RAD; // Convert to radians
-        transform.setPitch(pitchAsRadian);
-    }
-    
-    CameraOptions options = mbgl::cameraForLatLngs(latLngs, transform, padding);
-    options.angle = transform.getAngle();
-    options.pitch = transform.getPitch();
-    
-    return options;
+
+    return mbgl::cameraForLatLngs(latLngs, transform, padding)
+        .withAngle(-transform.getAngle() * util::RAD2DEG)
+        .withPitch(transform.getPitch() * util::RAD2DEG);
 }
 
 CameraOptions Map::cameraForGeometry(const Geometry<double>& geometry, const EdgeInsets& padding, optional<double> bearing, optional<double> pitch) const {
@@ -555,20 +532,15 @@ void Map::rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second
 }
 
 void Map::setBearing(double degrees, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    setBearing(degrees, EdgeInsets(), animation);
+    easeTo(CameraOptions().withAngle(degrees), animation);
 }
 
 void Map::setBearing(double degrees, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setAngle(-degrees * util::DEG2RAD, anchor, animation);
-    impl->onUpdate();
+    return easeTo(CameraOptions().withAngle(degrees).withAnchor(anchor), animation);
 }
 
 void Map::setBearing(double degrees, const EdgeInsets& padding, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setAngle(-degrees * util::DEG2RAD, padding, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withAngle(degrees).withPadding(padding), animation);
 }
 
 double Map::getBearing() const {
@@ -576,22 +548,17 @@ double Map::getBearing() const {
 }
 
 void Map::resetNorth(const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setAngle(0, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withAngle(0.0), animation);
 }
 
 #pragma mark - Pitch
 
 void Map::setPitch(double pitch, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    setPitch(pitch, {}, animation);
+    easeTo(CameraOptions().withPitch(pitch), animation);
 }
 
 void Map::setPitch(double pitch, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.setPitch(pitch * util::DEG2RAD, anchor, animation);
-    impl->onUpdate();
+    easeTo(CameraOptions().withPitch(pitch).withAnchor(anchor), animation);
 }
 
 double Map::getPitch() const {
@@ -678,32 +645,46 @@ LatLng Map::latLngForPixel(const ScreenCoordinate& pixel) const {
 #pragma mark - Annotations
 
 void Map::addAnnotationImage(std::unique_ptr<style::Image> image) {
-    impl->annotationManager.addImage(std::move(image));
+    if (LayerManager::annotationsEnabled) {
+        impl->annotationManager.addImage(std::move(image));
+    }
 }
 
 void Map::removeAnnotationImage(const std::string& id) {
-    impl->annotationManager.removeImage(id);
+    if (LayerManager::annotationsEnabled) {
+        impl->annotationManager.removeImage(id);
+    }
 }
 
 double Map::getTopOffsetPixelsForAnnotationImage(const std::string& id) {
-    return impl->annotationManager.getTopOffsetPixelsForImage(id);
+    if (LayerManager::annotationsEnabled) {
+        return impl->annotationManager.getTopOffsetPixelsForImage(id);
+    }
+    return 0.0;
 }
 
 AnnotationID Map::addAnnotation(const Annotation& annotation) {
-    auto result = impl->annotationManager.addAnnotation(annotation);
-    impl->onUpdate();
-    return result;
+    if (LayerManager::annotationsEnabled) {
+        auto result = impl->annotationManager.addAnnotation(annotation);
+        impl->onUpdate();
+        return result;
+    }
+    return 0;
 }
 
 void Map::updateAnnotation(AnnotationID id, const Annotation& annotation) {
-    if (impl->annotationManager.updateAnnotation(id, annotation)) {
-        impl->onUpdate();
+    if (LayerManager::annotationsEnabled) {
+        if (impl->annotationManager.updateAnnotation(id, annotation)) {
+            impl->onUpdate();
+        }
     }
 }
 
 void Map::removeAnnotation(AnnotationID annotation) {
-    impl->annotationManager.removeAnnotation(annotation);
-    impl->onUpdate();
+    if (LayerManager::annotationsEnabled) {
+        impl->annotationManager.removeAnnotation(annotation);
+        impl->onUpdate();
+    }
 }
 
 #pragma mark - Toggles
@@ -766,7 +747,7 @@ void Map::Impl::onUpdate() {
     if (mode != MapMode::Continuous && !stillImageRequest) {
         return;
     }
-    
+
     TimePoint timePoint = mode == MapMode::Continuous ? Clock::now() : Clock::time_point::max();
 
     transform.updateTransitions(timePoint);
@@ -787,7 +768,8 @@ void Map::Impl::onUpdate() {
         style->impl->getLayerImpls(),
         annotationManager,
         prefetchZoomDelta,
-        bool(stillImageRequest)
+        bool(stillImageRequest),
+        crossSourceCollisions
     };
 
     rendererFrontend.update(std::make_shared<UpdateParameters>(std::move(params)));
@@ -803,8 +785,9 @@ void Map::Impl::onStyleLoaded() {
     if (!cameraMutated) {
         map.jumpTo(style->getDefaultCamera());
     }
-
-    annotationManager.onStyleLoaded();
+    if (LayerManager::annotationsEnabled) {
+        annotationManager.onStyleLoaded();
+    }
     observer.onDidFinishLoadingStyle();
 }
 

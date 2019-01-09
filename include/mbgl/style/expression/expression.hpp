@@ -118,7 +118,6 @@ enum class Kind : int32_t {
     Coalesce,
     CompoundExpression,
     Literal,
-    ArrayAssertion,
     At,
     Interpolate,
     Assertion,
@@ -134,6 +133,7 @@ enum class Kind : int32_t {
     Any,
     All,
     Comparison,
+    FormatExpression,
 };
 
 class Expression {

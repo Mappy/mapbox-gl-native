@@ -39,13 +39,13 @@ public class CircleLayerTest extends BaseActivityTest {
   private void setupLayer() {
     Timber.i("Retrieving layer");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
-      if ((layer = mapboxMap.getLayerAs("my-layer")) == null) {
+      if ((layer = mapboxMap.getStyle().getLayerAs("my-layer")) == null) {
         Timber.i("Adding layer");
         layer = new CircleLayer("my-layer", "composite");
         layer.setSourceLayer("composite");
-        mapboxMap.addLayer(layer);
+        mapboxMap.getStyle().addLayer(layer);
         // Layer reference is now stale, get new reference
-        layer = mapboxMap.getLayerAs("my-layer");
+        layer = mapboxMap.getStyle().getLayerAs("my-layer");
       }
     });
   }
@@ -112,6 +112,11 @@ public class CircleLayerTest extends BaseActivityTest {
       Expression filter = eq(get("undefined"), literal(1.0));
       layer.setFilter(filter);
       assertEquals(layer.getFilter().toString(), filter.toString());
+
+      // Set constant
+      filter = literal(true);
+      layer.setFilter(filter);
+      assertEquals(layer.getFilter().toString(), filter.toString());
     });
   }
 
@@ -139,10 +144,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-radius");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleRadius().getValue());
 
       // Set and Get
-      layer.setProperties(circleRadius(0.3f));
-      assertEquals((Float) layer.getCircleRadius().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(circleRadius(propertyValue));
+      assertEquals(layer.getCircleRadius().getValue(), propertyValue);
     });
   }
 
@@ -153,6 +160,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-radius-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleRadius().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -160,7 +168,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleRadius().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleColorTransition() {
@@ -184,10 +191,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-color");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleColor().getValue());
 
       // Set and Get
-      layer.setProperties(circleColor("rgba(0, 0, 0, 1)"));
-      assertEquals((String) layer.getCircleColor().getValue(), (String) "rgba(0, 0, 0, 1)");
+      String propertyValue = "rgba(0, 0, 0, 1)";
+      layer.setProperties(circleColor(propertyValue));
+      assertEquals(layer.getCircleColor().getValue(), propertyValue);
     });
   }
 
@@ -198,6 +207,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-color-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleColor().getExpression());
 
       // Set and Get
       Expression expression = toColor(Expression.get("undefined"));
@@ -205,7 +215,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleColor().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleColorAsIntConstant() {
@@ -243,10 +252,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-blur");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleBlur().getValue());
 
       // Set and Get
-      layer.setProperties(circleBlur(0.3f));
-      assertEquals((Float) layer.getCircleBlur().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(circleBlur(propertyValue));
+      assertEquals(layer.getCircleBlur().getValue(), propertyValue);
     });
   }
 
@@ -257,6 +268,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-blur-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleBlur().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -264,7 +276,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleBlur().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleOpacityTransition() {
@@ -288,10 +299,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-opacity");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleOpacity().getValue());
 
       // Set and Get
-      layer.setProperties(circleOpacity(0.3f));
-      assertEquals((Float) layer.getCircleOpacity().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(circleOpacity(propertyValue));
+      assertEquals(layer.getCircleOpacity().getValue(), propertyValue);
     });
   }
 
@@ -302,6 +315,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-opacity-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleOpacity().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -309,7 +323,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleOpacity().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleTranslateTransition() {
@@ -333,10 +346,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-translate");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleTranslate().getValue());
 
       // Set and Get
-      layer.setProperties(circleTranslate(new Float[] {0f, 0f}));
-      assertEquals((Float[]) layer.getCircleTranslate().getValue(), (Float[]) new Float[] {0f, 0f});
+      Float[] propertyValue = new Float[] {0f, 0f};
+      layer.setProperties(circleTranslate(propertyValue));
+      assertEquals(layer.getCircleTranslate().getValue(), propertyValue);
     });
   }
 
@@ -347,10 +362,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-translate-anchor");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleTranslateAnchor().getValue());
 
       // Set and Get
-      layer.setProperties(circleTranslateAnchor(CIRCLE_TRANSLATE_ANCHOR_MAP));
-      assertEquals((String) layer.getCircleTranslateAnchor().getValue(), (String) CIRCLE_TRANSLATE_ANCHOR_MAP);
+      String propertyValue = CIRCLE_TRANSLATE_ANCHOR_MAP;
+      layer.setProperties(circleTranslateAnchor(propertyValue));
+      assertEquals(layer.getCircleTranslateAnchor().getValue(), propertyValue);
     });
   }
 
@@ -361,10 +378,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-pitch-scale");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCirclePitchScale().getValue());
 
       // Set and Get
-      layer.setProperties(circlePitchScale(CIRCLE_PITCH_SCALE_MAP));
-      assertEquals((String) layer.getCirclePitchScale().getValue(), (String) CIRCLE_PITCH_SCALE_MAP);
+      String propertyValue = CIRCLE_PITCH_SCALE_MAP;
+      layer.setProperties(circlePitchScale(propertyValue));
+      assertEquals(layer.getCirclePitchScale().getValue(), propertyValue);
     });
   }
 
@@ -375,10 +394,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-pitch-alignment");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCirclePitchAlignment().getValue());
 
       // Set and Get
-      layer.setProperties(circlePitchAlignment(CIRCLE_PITCH_ALIGNMENT_MAP));
-      assertEquals((String) layer.getCirclePitchAlignment().getValue(), (String) CIRCLE_PITCH_ALIGNMENT_MAP);
+      String propertyValue = CIRCLE_PITCH_ALIGNMENT_MAP;
+      layer.setProperties(circlePitchAlignment(propertyValue));
+      assertEquals(layer.getCirclePitchAlignment().getValue(), propertyValue);
     });
   }
 
@@ -404,10 +425,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-width");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeWidth().getValue());
 
       // Set and Get
-      layer.setProperties(circleStrokeWidth(0.3f));
-      assertEquals((Float) layer.getCircleStrokeWidth().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(circleStrokeWidth(propertyValue));
+      assertEquals(layer.getCircleStrokeWidth().getValue(), propertyValue);
     });
   }
 
@@ -418,6 +441,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-width-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeWidth().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -425,7 +449,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleStrokeWidth().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleStrokeColorTransition() {
@@ -449,10 +472,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-color");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeColor().getValue());
 
       // Set and Get
-      layer.setProperties(circleStrokeColor("rgba(0, 0, 0, 1)"));
-      assertEquals((String) layer.getCircleStrokeColor().getValue(), (String) "rgba(0, 0, 0, 1)");
+      String propertyValue = "rgba(0, 0, 0, 1)";
+      layer.setProperties(circleStrokeColor(propertyValue));
+      assertEquals(layer.getCircleStrokeColor().getValue(), propertyValue);
     });
   }
 
@@ -463,6 +488,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-color-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeColor().getExpression());
 
       // Set and Get
       Expression expression = toColor(Expression.get("undefined"));
@@ -470,7 +496,6 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleStrokeColor().getExpression(), expression);
     });
   }
-
 
   @Test
   public void testCircleStrokeColorAsIntConstant() {
@@ -508,10 +533,12 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-opacity");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeOpacity().getValue());
 
       // Set and Get
-      layer.setProperties(circleStrokeOpacity(0.3f));
-      assertEquals((Float) layer.getCircleStrokeOpacity().getValue(), (Float) 0.3f);
+      Float propertyValue = 0.3f;
+      layer.setProperties(circleStrokeOpacity(propertyValue));
+      assertEquals(layer.getCircleStrokeOpacity().getValue(), propertyValue);
     });
   }
 
@@ -522,6 +549,7 @@ public class CircleLayerTest extends BaseActivityTest {
     Timber.i("circle-stroke-opacity-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.getCircleStrokeOpacity().getExpression());
 
       // Set and Get
       Expression expression = number(Expression.get("undefined"));
@@ -529,5 +557,4 @@ public class CircleLayerTest extends BaseActivityTest {
       assertEquals(layer.getCircleStrokeOpacity().getExpression(), expression);
     });
   }
-
 }

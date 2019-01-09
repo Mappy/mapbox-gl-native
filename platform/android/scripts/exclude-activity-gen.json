@@ -36,5 +36,13 @@
   "TextureViewTransparentBackgroundActivity",
   "SimpleMapActivity",
   "RenderTestActivity",
-  "SymbolLayerActivity"
+  "SymbolLayerActivity",
+  "LocationFragmentActivity",
+  "MergeOfflineRegionsActivity",
+  "NestedViewPagerActivity",
+  "DebugModeActivity",
+  "TextureViewDebugModeActivity",
+  "RuntimeStyleActivity",
+  "GridSourceActivity",
+  "AnimatedImageSourceActivity"
 ]

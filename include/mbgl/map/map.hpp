@@ -37,7 +37,8 @@ public:
                  Scheduler&,
                  MapMode mapMode = MapMode::Continuous,
                  ConstrainMode constrainMode = ConstrainMode::HeightOnly,
-                 ViewportMode viewportMode = ViewportMode::Default);
+                 ViewportMode viewportMode = ViewportMode::Default,
+                 bool crossSourceCollisions = true);
     ~Map();
 
     // Register a callback that will get called (on the render thread) when all resources have
@@ -75,7 +76,6 @@ public:
 
     // Position
     void moveBy(const ScreenCoordinate&, const AnimationOptions& = {});
-    void setLatLng(const LatLng&, optional<ScreenCoordinate>, const AnimationOptions& = {});
     void setLatLng(const LatLng&, const EdgeInsets&, const AnimationOptions& = {});
     void setLatLng(const LatLng&, const AnimationOptions& = {});
     LatLng getLatLng(const EdgeInsets& = {}) const;

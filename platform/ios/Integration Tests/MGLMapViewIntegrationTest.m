@@ -6,6 +6,32 @@
 
 @implementation MGLMapViewIntegrationTest
 
+- (void)invokeTest {
+    NSString *selector = NSStringFromSelector(self.invocation.selector);
+    BOOL isPendingTest = [selector hasSuffix:@"PENDING"];
+    
+    if (isPendingTest) {
+        NSString *runPendingTests = [[NSProcessInfo processInfo] environment][@"MAPBOX_RUN_PENDING_TESTS"];
+        if (![runPendingTests boolValue]) {
+            printf("warning: '%s' is a pending test - skipping\n", selector.UTF8String);
+            return;
+        }
+    }
+
+    [super invokeTest];
+}
+
+- (NSString*)validAccessToken {
+    NSString *accessToken = [[NSProcessInfo processInfo] environment][@"MAPBOX_ACCESS_TOKEN"];
+    if (!accessToken) {
+        printf("warning: MAPBOX_ACCESS_TOKEN env var is required for this test - skipping.\n");
+        return nil;
+    }
+
+    [MGLAccountManager setAccessToken:accessToken];
+    return accessToken;
+}
+
 - (void)setUp {
     [super setUp];
 
@@ -22,7 +48,7 @@
     [window makeKeyAndVisible];
 
     if (!self.mapView.style) {
-        [self waitForMapViewToFinishLoadingStyleWithTimeout:1];
+        [self waitForMapViewToFinishLoadingStyleWithTimeout:10];
     }
 }
 
@@ -73,6 +99,13 @@
     if (self.regionDidChange) {
         self.regionDidChange(mapView, reason, animated);
     }
+}
+
+- (CGPoint)mapViewUserLocationAnchorPoint:(MGLMapView *)mapView {
+    if (self.mapViewUserLocationAnchorPoint) {
+        return self.mapViewUserLocationAnchorPoint(mapView);
+    }
+    return CGPointZero;
 }
 
 #pragma mark - Utilities

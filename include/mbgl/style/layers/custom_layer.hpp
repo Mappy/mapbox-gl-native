@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mbgl/layermanager/layer_factory.hpp>
 #include <mbgl/style/layer.hpp>
 
 #include <array>
@@ -68,13 +69,6 @@ public:
 
     ~CustomLayer() final;
 
-    // Visibility
-    void setVisibility(VisibilityType) final;
-
-    // Zoom range
-    void setMinZoom(float) final;
-    void setMaxZoom(float) final;
-
     // Dynamic properties
     optional<conversion::Error> setLayoutProperty(const std::string& name, const conversion::Convertible& value) final;
     optional<conversion::Error> setPaintProperty(const std::string& name, const conversion::Convertible& value) final;
@@ -88,10 +82,17 @@ public:
     std::unique_ptr<Layer> cloneRef(const std::string& id) const final;
 
     CustomLayer(const CustomLayer&) = delete;
+
+    Mutable<Layer::Impl> mutableBaseImpl() const final;
 };
 
-template <>
-bool Layer::is<CustomLayer>() const;
-
 } // namespace style
+
+class CustomLayerFactory : public LayerFactory {
+    // LayerFactory overrides.
+    const style::LayerTypeInfo* getTypeInfo() const noexcept final;
+    std::unique_ptr<style::Layer> createLayer(const std::string& id, const style::conversion::Convertible& value) noexcept final;
+    std::unique_ptr<RenderLayer> createRenderLayer(Immutable<style::Layer::Impl>) noexcept final;
+};
+
 } // namespace mbgl

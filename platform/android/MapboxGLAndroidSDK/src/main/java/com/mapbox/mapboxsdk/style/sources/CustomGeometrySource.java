@@ -58,19 +58,19 @@ public class CustomGeometrySource extends Source {
    */
   @UiThread
   public CustomGeometrySource(String id, GeometryTileProvider provider) {
-    this(id, provider, new CustomGeometrySourceOptions());
+    this(id, new CustomGeometrySourceOptions(), provider);
   }
 
   /**
-   * Create a CustomGeometrySource with non-default CustomGeometrySourceOptions.
-   * <p>Supported options are minZoom, maxZoom, buffer, and tolerance.</p>
+   * Create a CustomGeometrySource with non-default {@link CustomGeometrySourceOptions}.
    *
    * @param id       The source id.
-   * @param provider The tile provider that returns geometry data for this source.
    * @param options  CustomGeometrySourceOptions.
+   * @param provider The tile provider that returns geometry data for this source.
    */
   @UiThread
-  public CustomGeometrySource(String id, GeometryTileProvider provider, CustomGeometrySourceOptions options) {
+  public CustomGeometrySource(String id, CustomGeometrySourceOptions options,
+                              GeometryTileProvider provider) {
     super();
     this.provider = provider;
     initialize(id, options);
@@ -129,6 +129,7 @@ public class CustomGeometrySource extends Source {
   @Keep
   protected native void initialize(String sourceId, Object options);
 
+  @NonNull
   @Keep
   private native Feature[] querySourceFeatures(Object[] filter);
 
@@ -179,7 +180,7 @@ public class CustomGeometrySource extends Source {
     }
   }
 
-  private void executeRequest(GeometryTileRequest request) {
+  private void executeRequest(@NonNull GeometryTileRequest request) {
     executorLock.lock();
     try {
       if (executor != null && !executor.isShutdown()) {
@@ -230,11 +231,12 @@ public class CustomGeometrySource extends Source {
       }
 
       executor = new ThreadPoolExecutor(THREAD_POOL_LIMIT, THREAD_POOL_LIMIT,
-        0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+        0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(),
         new ThreadFactory() {
           final AtomicInteger threadCount = new AtomicInteger();
           final int poolId = poolCount.getAndIncrement();
 
+          @NonNull
           @Override
           public Thread newThread(@NonNull Runnable runnable) {
             return new Thread(
@@ -277,7 +279,7 @@ public class CustomGeometrySource extends Source {
       return Arrays.hashCode(new int[] {z, x, y});
     }
 
-    public boolean equals(Object object) {
+    public boolean equals(@Nullable Object object) {
       if (object == this) {
         return true;
       }
@@ -299,6 +301,7 @@ public class CustomGeometrySource extends Source {
     private final GeometryTileProvider provider;
     private final Map<TileID, GeometryTileRequest> awaiting;
     private final Map<TileID, AtomicBoolean> inProgress;
+    @NonNull
     private final WeakReference<CustomGeometrySource> sourceRef;
     private final AtomicBoolean cancelled;
 
@@ -362,7 +365,7 @@ public class CustomGeometrySource extends Source {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       if (this == o) {
         return true;
       }

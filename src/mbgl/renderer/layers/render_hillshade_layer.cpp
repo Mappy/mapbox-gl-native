@@ -16,7 +16,7 @@ namespace mbgl {
 
 using namespace style;
 RenderHillshadeLayer::RenderHillshadeLayer(Immutable<style::HillshadeLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Hillshade, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -105,6 +105,7 @@ void RenderHillshadeLayer::render(PaintParameters& parameters, RenderSource* src
             parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
             gl::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
+            gl::CullFaceMode::disabled(),
             indexBuffer,
             segments,
             allUniformValues,
@@ -165,6 +166,7 @@ void RenderHillshadeLayer::render(PaintParameters& parameters, RenderSource* src
                 parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
                 gl::StencilMode::disabled(),
                 parameters.colorModeForRenderPass(),
+                gl::CullFaceMode::disabled(),
                 parameters.staticData.quadTriangleIndexBuffer,
                 parameters.staticData.rasterSegments,
                 allUniformValues,

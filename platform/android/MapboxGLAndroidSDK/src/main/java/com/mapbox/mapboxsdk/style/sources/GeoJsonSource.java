@@ -62,7 +62,7 @@ public class GeoJsonSource extends Source {
    * @param id      the source id
    * @param geoJson raw Json FeatureCollection
    */
-  public GeoJsonSource(String id, String geoJson) {
+  public GeoJsonSource(String id, @Nullable String geoJson) {
     super();
     if (geoJson == null || geoJson.startsWith("http")) {
       throw new IllegalArgumentException("Expected a raw json body");
@@ -78,7 +78,7 @@ public class GeoJsonSource extends Source {
    * @param geoJson raw Json body
    * @param options options
    */
-  public GeoJsonSource(String id, String geoJson, GeoJsonOptions options) {
+  public GeoJsonSource(String id, @Nullable String geoJson, GeoJsonOptions options) {
     super();
     if (geoJson == null || geoJson.startsWith("http")) {
       throw new IllegalArgumentException("Expected a raw json body");
@@ -194,6 +194,9 @@ public class GeoJsonSource extends Source {
    * @param feature the GeoJSON {@link Feature} to set
    */
   public void setGeoJson(Feature feature) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetFeature(feature);
   }
@@ -205,6 +208,9 @@ public class GeoJsonSource extends Source {
    * @param geometry the GeoJSON {@link Geometry} to set
    */
   public void setGeoJson(Geometry geometry) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetGeometry(geometry);
   }
@@ -216,6 +222,9 @@ public class GeoJsonSource extends Source {
    * @param features the GeoJSON FeatureCollection
    */
   public void setGeoJson(FeatureCollection features) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetFeatureCollection(features);
   }
@@ -227,6 +236,9 @@ public class GeoJsonSource extends Source {
    * @param json the raw GeoJson FeatureCollection string
    */
   public void setGeoJson(String json) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetGeoJsonString(json);
   }
@@ -236,7 +248,7 @@ public class GeoJsonSource extends Source {
    *
    * @param url the GeoJSON FeatureCollection url
    */
-  public void setUrl(URL url) {
+  public void setUrl(@NonNull URL url) {
     checkThread();
     setUrl(url.toExternalForm());
   }
@@ -279,6 +291,7 @@ public class GeoJsonSource extends Source {
   @Keep
   protected native void nativeSetUrl(String url);
 
+  @NonNull
   @Keep
   protected native String nativeGetUrl();
 
@@ -294,6 +307,7 @@ public class GeoJsonSource extends Source {
   @Keep
   private native void nativeSetGeometry(Geometry geometry);
 
+  @NonNull
   @Keep
   private native Feature[] querySourceFeatures(Object[] filter);
 

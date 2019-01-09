@@ -15,6 +15,11 @@
 #import "NSBundle+MGLAdditions.h"
 #import "MGLStyle.h"
 #import "MGLAttributionInfo_Private.h"
+#import "MGLLoggingConfiguration_Private.h"
+#import "MGLRendererConfiguration.h"
+#if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
+#import "MGLMapboxEvents.h"
+#endif
 
 #if TARGET_OS_IPHONE
 #import "UIImage+MGLAdditions.h"
@@ -29,10 +34,12 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 
 @implementation MGLMapSnapshotOptions
 
-- (instancetype _Nonnull)initWithStyleURL:(nullable NSURL *)styleURL camera:(MGLMapCamera *)camera size:(CGSize) size
+- (instancetype _Nonnull)initWithStyleURL:(nullable NSURL *)styleURL camera:(MGLMapCamera *)camera size:(CGSize)size
 {
+    MGLLogDebug(@"Initializing withStyleURL: %@ camera: %@ size: %@", styleURL, camera, MGLStringFromSize(size));
     self = [super init];
-    if (self) {
+    if (self)
+    {
         if ( !styleURL)
         {
             styleURL = [MGLStyle streetsStyleURLWithVersion:MGLStyleDefaultVersion];
@@ -45,7 +52,6 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 #else
         _scale = [NSScreen mainScreen].backingScaleFactor;
 #endif
-        
     }
     return self;
 }
@@ -109,7 +115,11 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 @end
 
 @interface MGLMapSnapshotter()
-@property (nonatomic) BOOL loading;
+@property (nonatomic) BOOL cancelled;
+@property (nonatomic) BOOL terminated;
+@property (nonatomic) dispatch_queue_t resultQueue;
+@property (nonatomic, copy) MGLMapSnapshotCompletionHandler completion;
++ (void)completeWithErrorCode:(MGLErrorCode)errorCode description:(nonnull NSString*)description onQueue:(dispatch_queue_t)queue completion:(MGLMapSnapshotCompletionHandler)completion;
 @end
 
 @implementation MGLMapSnapshotter {
@@ -118,19 +128,60 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     std::unique_ptr<mbgl::Actor<mbgl::MapSnapshotter::Callback>> _snapshotCallback;
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    
+    if (_completion) {
+        MGLAssert(_snapshotCallback, @"Snapshot in progress - there should be a valid callback");
+
+        [MGLMapSnapshotter completeWithErrorCode:MGLErrorCodeSnapshotFailed
+                                     description:@"MGLMapSnapshotter deallocated prior to snapshot completion."
+                                         onQueue:_resultQueue
+                                      completion:_completion];
+    }
+}
+
+
+- (instancetype)init {
+    NSAssert(NO, @"Please use -[MGLMapSnapshotter initWithOptions:]");
+    [super doesNotRecognizeSelector:_cmd];
+    return nil;
+}
+
 - (instancetype)initWithOptions:(MGLMapSnapshotOptions *)options
 {
+    MGLLogDebug(@"Initializing withOptions: %@", options);
     self = [super init];
     if (self) {
         [self setOptions:options];
-        _loading = false;
-
+#if TARGET_OS_IPHONE
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationWillTerminate:) name:UIApplicationWillTerminateNotification object:nil];
+#else
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationWillTerminate:) name:NSApplicationWillTerminateNotification object:nil];
+#endif
+#if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
+        [MGLMapboxEvents pushTurnstileEvent];
+#endif
     }
     return self;
 }
 
+- (void)applicationWillTerminate:(NSNotification *)notification
+{
+    if (self.completion) {
+        [self cancel];
+    }
+
+    _mbglMapSnapshotter.reset();
+    _snapshotCallback.reset();
+    _mbglThreadPool.reset();
+    
+    self.terminated = YES;
+}
+
 - (void)startWithCompletionHandler:(MGLMapSnapshotCompletionHandler)completion
 {
+    MGLLogDebug(@"Starting withCompletionHandler: %@", completion);
     [self startWithQueue:dispatch_get_main_queue() completionHandler:completion];
 }
 
@@ -141,13 +192,21 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
                     format:@"startWithQueue:completionHandler: must be called from a thread with an active run loop."];
     }
 
-    if ([self isLoading]) {
+    if (self.completion) {
+        // Consider replacing this exception with an error passed to the completion block.
         [NSException raise:NSInternalInconsistencyException
                     format:@"Already started this snapshotter."];
     }
-    
-    self.loading = true;
-    
+
+    if (self.terminated) {
+        [NSException raise:NSInternalInconsistencyException
+                    format:@"Starting a snapshotter after application termination is not supported."];
+    }
+
+    self.completion = completion;
+    self.resultQueue = queue;
+    self.cancelled = NO;
+
     __weak __typeof__(self) weakSelf = self;
     // mbgl::Scheduler::GetCurrent() scheduler means "run callback on current (ie UI/main) thread"
     // capture weakSelf to avoid retain cycle if callback is never called (ie snapshot cancelled)
@@ -158,18 +217,20 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 
         __typeof__(self) strongSelf = weakSelf;
         // If self had died, _snapshotCallback would have been destroyed and this block would not be executed
-        NSCAssert(strongSelf, @"Snapshot callback executed after being destroyed.");
+        MGLCAssert(strongSelf, @"Snapshot callback executed after being destroyed.");
 
-        strongSelf.loading = false;
+        if (!strongSelf.completion)
+            return;
 
         if (mbglError) {
             NSString *description = @(mbgl::util::toString(mbglError).c_str());
             NSDictionary *userInfo = @{NSLocalizedDescriptionKey: description};
             NSError *error = [NSError errorWithDomain:MGLErrorDomain code:MGLErrorCodeSnapshotFailed userInfo:userInfo];
             
-            // Dispatch result to origin queue
+            // Dispatch to result queue
             dispatch_async(queue, ^{
-                completion(nil, error);
+                strongSelf.completion(nil, error);
+                strongSelf.completion = nil;
             });
         } else {
 #if TARGET_OS_IPHONE
@@ -179,9 +240,10 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
             mglImage.size = NSMakeSize(mglImage.size.width / strongSelf.options.scale,
                                        mglImage.size.height / strongSelf.options.scale);
 #endif
-            [strongSelf drawAttributedSnapshot:attributions snapshotImage:mglImage pointForFn:pointForFn latLngForFn:latLngForFn queue:queue completionHandler:completion];
+            [strongSelf drawAttributedSnapshot:attributions snapshotImage:mglImage pointForFn:pointForFn latLngForFn:latLngForFn];
         }
         strongSelf->_snapshotCallback = NULL;
+
     });
 
     // Launches snapshot on background Thread owned by mbglMapSnapshotter
@@ -190,10 +252,10 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     _mbglMapSnapshotter->snapshot(_snapshotCallback->self());
 }
 
-+ (void)drawAttributedSnapshotWorker:(mbgl::MapSnapshotter::Attributions)attributions snapshotImage:(MGLImage *)mglImage pointForFn:(mbgl::MapSnapshotter::PointForFn)pointForFn latLngForFn:(mbgl::MapSnapshotter::LatLngForFn)latLngForFn queue:(dispatch_queue_t)queue scale:(CGFloat)scale size:(CGSize)size completionHandler:(MGLMapSnapshotCompletionHandler)completion {
++ (MGLImage*)drawAttributedSnapshotWorker:(mbgl::MapSnapshotter::Attributions)attributions snapshotImage:(MGLImage *)mglImage pointForFn:(mbgl::MapSnapshotter::PointForFn)pointForFn latLngForFn:(mbgl::MapSnapshotter::LatLngForFn)latLngForFn scale:(CGFloat)scale size:(CGSize)size {
 
     NSArray<MGLAttributionInfo *>* attributionInfo = [MGLMapSnapshotter generateAttributionInfos:attributions];
-    
+
 #if TARGET_OS_IPHONE
     MGLAttributionInfoStyle attributionInfoStyle = MGLAttributionInfoStyleLong;
     for (NSUInteger styleValue = MGLAttributionInfoStyleLong; styleValue >= MGLAttributionInfoStyleShort; styleValue--) {
@@ -251,7 +313,11 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     UIImage *compositedImage = UIGraphicsGetImageFromCurrentImageContext();
     
     UIGraphicsEndImageContext();
+
+    return compositedImage;
+
 #else
+
     NSSize targetSize = NSMakeSize(size.width, size.height);
     NSRect targetFrame = NSMakeRect(0, 0, targetSize.width, targetSize.height);
     
@@ -310,29 +376,40 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     [MGLMapSnapshotter drawAttributionTextWithStyle:attributionInfoStyle origin:attributionTextPosition attributionInfo:attributionInfo];
     
     [compositedImage unlockFocus];
-    
+
+    return compositedImage;
 #endif
-    // Dispatch result to origin queue
-    dispatch_async(queue, ^{
-        MGLMapSnapshot* snapshot = [[MGLMapSnapshot alloc] initWithImage:compositedImage
-                                                                   scale:scale
-                                                              pointForFn:pointForFn
-                                                             latLngForFn:latLngForFn];
-        completion(snapshot, nil);
-    });
 }
 
-- (void)drawAttributedSnapshot:(mbgl::MapSnapshotter::Attributions)attributions snapshotImage:(MGLImage *)mglImage pointForFn:(mbgl::MapSnapshotter::PointForFn)pointForFn latLngForFn:(mbgl::MapSnapshotter::LatLngForFn)latLngForFn queue:(dispatch_queue_t)queue completionHandler:(MGLMapSnapshotCompletionHandler)completion {
-
+- (void)drawAttributedSnapshot:(mbgl::MapSnapshotter::Attributions)attributions snapshotImage:(MGLImage *)mglImage pointForFn:(mbgl::MapSnapshotter::PointForFn)pointForFn latLngForFn:(mbgl::MapSnapshotter::LatLngForFn)latLngForFn {
     // Process image watermark in a work queue
     dispatch_queue_t workQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_queue_t resultQueue = self.resultQueue;
+
     // Capture scale and size by value to avoid accessing self from another thread
     CGFloat scale = self.options.scale;
     CGSize size = self.options.size;
+
     // pointForFn is a copyable std::function that captures state by value: see MapSnapshotter::Impl::snapshot
+    __weak __typeof__(self) weakself = self;
+
     dispatch_async(workQueue, ^{
         // Call a class method to ensure we're not accidentally capturing self
-        [MGLMapSnapshotter drawAttributedSnapshotWorker:attributions snapshotImage:mglImage pointForFn:pointForFn latLngForFn:latLngForFn queue:queue scale:scale size:size completionHandler:completion];
+        MGLImage *compositedImage = [MGLMapSnapshotter drawAttributedSnapshotWorker:attributions snapshotImage:mglImage pointForFn:pointForFn latLngForFn:latLngForFn scale:scale size:size];
+
+        // Dispatch result to origin queue
+        dispatch_async(resultQueue, ^{
+            __typeof__(self) strongself = weakself;
+
+            if (strongself.completion) {
+                MGLMapSnapshot* snapshot = [[MGLMapSnapshot alloc] initWithImage:compositedImage
+                                                                           scale:scale
+                                                                      pointForFn:pointForFn
+                                                                     latLngForFn:latLngForFn];
+                strongself.completion(snapshot, nil);
+                strongself.completion = nil;
+            }
+        });
     });
 }
 
@@ -466,12 +543,48 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 
 - (void)cancel
 {
+    MGLLogInfo(@"Cancelling snapshotter.");
+    self.cancelled = YES;
+    
+    if (_snapshotCallback) {
+        [MGLMapSnapshotter completeWithErrorCode:MGLErrorCodeSnapshotFailed
+                                     description:[NSString stringWithFormat:@"MGLMapSnapshotter cancelled from %s", __PRETTY_FUNCTION__]
+                                         onQueue:self.resultQueue
+                                      completion:self.completion];
+        self.completion = nil;
+    }
+
     _snapshotCallback.reset();
     _mbglMapSnapshotter.reset();
 }
 
++ (void)completeWithErrorCode:(MGLErrorCode)errorCode description:(nonnull NSString*)description onQueue:(dispatch_queue_t)queue completion:(MGLMapSnapshotCompletionHandler)completion {
+    // The snapshot hasn't completed, so we should alert the caller
+    if (completion && queue) {
+        dispatch_async(queue, ^{
+            NSDictionary *userInfo = @{NSLocalizedDescriptionKey: description};
+            NSError *error = [NSError errorWithDomain:MGLErrorDomain
+                                                 code:errorCode
+                                             userInfo:userInfo];
+            completion(NULL, error);
+        });
+    }
+}
+
 - (void)setOptions:(MGLMapSnapshotOptions *)options
 {
+    if (_terminated) {
+        [NSException raise:NSInternalInconsistencyException
+                    format:@"Calling MGLMapSnapshotter.options after application termination is not supported."];
+    }
+
+    MGLLogDebug(@"Setting options: %@", options);
+
+    if (_completion) {
+        [self cancel];
+    }
+    
+    _cancelled = NO;
     _options = options;
     mbgl::DefaultFileSource *mbglFileSource = [MGLOfflineStorage sharedOfflineStorage].mbglFileSource;
     _mbglThreadPool = mbgl::sharedThreadPool();
@@ -493,7 +606,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     if (CLLocationCoordinate2DIsValid(options.camera.centerCoordinate)) {
         cameraOptions.center = MGLLatLngFromLocationCoordinate2D(options.camera.centerCoordinate);
     }
-    cameraOptions.angle = MAX(0, options.camera.heading) * mbgl::util::DEG2RAD;
+    cameraOptions.angle = MAX(0, options.camera.heading);
     cameraOptions.zoom = MAX(0, options.zoomLevel);
     cameraOptions.pitch = MAX(0, options.camera.pitch);
     
@@ -503,8 +616,11 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
         coordinateBounds = MGLLatLngBoundsFromCoordinateBounds(options.coordinateBounds);
     }
     
+    // App-global configuration
+    MGLRendererConfiguration* config = [MGLRendererConfiguration currentConfiguration];
+    
     // Create the snapshotter
-    _mbglMapSnapshotter = std::make_unique<mbgl::MapSnapshotter>(mbglFileSource, _mbglThreadPool, style, size, pixelRatio, cameraOptions, coordinateBounds);
+    _mbglMapSnapshotter = std::make_unique<mbgl::MapSnapshotter>(mbglFileSource, _mbglThreadPool, style, size, pixelRatio, cameraOptions, coordinateBounds, config.cacheDir, config.localFontFamilyName);
 }
 
 @end

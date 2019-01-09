@@ -1,22 +1,22 @@
 apply plugin: 'com.android.library'
 apply plugin: "com.jaredsburrows.license"
+apply plugin: 'kotlin-android'
 
 dependencies {
     lintChecks project(":MapboxGLAndroidSDKLint")
-    api (dependenciesList.mapboxAndroidTelemetry) {
-        exclude group: 'com.android.support', module: 'appcompat-v7'
-    }
+    api dependenciesList.mapboxAndroidTelemetry
     api dependenciesList.mapboxJavaGeoJSON
-    api (dependenciesList.mapboxAndroidGestures) {
-        exclude group: 'com.android.support', module: 'appcompat-v7'
-    }
+    api dependenciesList.mapboxAndroidGestures
     implementation dependenciesList.mapboxJavaTurf
+    implementation dependenciesList.supportAppcompatV7
     implementation dependenciesList.supportAnnotations
     implementation dependenciesList.supportFragmentV4
     implementation dependenciesList.okhttp3
     testImplementation dependenciesList.junit
     testImplementation dependenciesList.mockito
+    testImplementation dependenciesList.mockk
     testImplementation dependenciesList.robolectric
+    testImplementation dependenciesList.kotlinLib
 }
 
 android {
@@ -59,12 +59,18 @@ android {
         }
     }
 
+    // Allow determining the C++ STL we're using when building Mapbox GL.
+    def stl = 'c++_static'
+    if (project.hasProperty("mapbox.stl")) {
+        stl = project.getProperty("mapbox.stl")
+    }
+
     defaultConfig {
         if (abi != 'none') {
             externalNativeBuild {
                 cmake {
                     arguments "-DANDROID_TOOLCHAIN=clang"
-                    arguments "-DANDROID_STL=c++_static"
+                    arguments "-DANDROID_STL=" + stl
                     arguments "-DANDROID_CPP_FEATURES=rtti;exceptions"
                     arguments "-DMBGL_PLATFORM=android"
                     arguments "-DMASON_PLATFORM=android"
@@ -109,11 +115,6 @@ android {
     sourceSets {
         // limit amount of exposed library resources
         main.res.srcDirs += 'src/main/res-public'
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     lintOptions {

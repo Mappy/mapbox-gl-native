@@ -2,9 +2,11 @@ package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import com.google.gson.JsonElement;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
+import com.mapbox.mapboxsdk.style.types.Formatted;
 import com.mapbox.mapboxsdk.utils.ThreadUtils;
 
 /**
@@ -16,6 +18,7 @@ public abstract class Layer {
   private long nativePtr;
   @Keep
   private boolean invalidated;
+  private boolean detached;
 
   @Keep
   protected Layer(long nativePtr) {
@@ -35,6 +38,10 @@ public abstract class Layer {
   }
 
   public void setProperties(@NonNull PropertyValue<?>... properties) {
+    if (detached) {
+      return;
+    }
+
     checkThread();
     if (properties.length == 0) {
       return;
@@ -50,11 +57,13 @@ public abstract class Layer {
     }
   }
 
+  @NonNull
   public String getId() {
     checkThread();
     return nativeGetId();
   }
 
+  @NonNull
   public PropertyValue<String> getVisibility() {
     checkThread();
     return new PaintPropertyValue<>("visibility", (String) nativeGetVisibility());
@@ -84,9 +93,11 @@ public abstract class Layer {
   @Keep
   protected native void finalize() throws Throwable;
 
+  @NonNull
   @Keep
   protected native String nativeGetId();
 
+  @NonNull
   @Keep
   protected native Object nativeGetVisibility();
 
@@ -99,15 +110,18 @@ public abstract class Layer {
   @Keep
   protected native void nativeSetFilter(Object[] filter);
 
+  @Nullable
   @Keep
   protected native JsonElement nativeGetFilter();
 
   @Keep
   protected native void nativeSetSourceLayer(String sourceLayer);
 
+  @NonNull
   @Keep
   protected native String nativeGetSourceLayer();
 
+  @NonNull
   @Keep
   protected native String nativeGetSourceId();
 
@@ -127,10 +141,22 @@ public abstract class Layer {
     return nativePtr;
   }
 
-  private Object convertValue(Object value) {
-    if (value != null && value instanceof Expression) {
+  @Nullable
+  private Object convertValue(@Nullable Object value) {
+    if (value instanceof Expression) {
       return ((Expression) value).toArray();
+    } else if (value instanceof Formatted) {
+      return ((Formatted) value).toArray();
+    } else {
+      return value;
     }
-    return value;
+  }
+
+  public void setDetached() {
+    detached = true;
+  }
+
+  public boolean isDetached() {
+    return detached;
   }
 }

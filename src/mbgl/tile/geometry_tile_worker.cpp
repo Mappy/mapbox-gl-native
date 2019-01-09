@@ -1,6 +1,7 @@
 #include <mbgl/tile/geometry_tile_worker.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/tile/geometry_tile.hpp>
+#include <mbgl/layermanager/layer_manager.hpp>
 #include <mbgl/layout/symbol_layout.hpp>
 #include <mbgl/layout/pattern_layout.hpp>
 #include <mbgl/renderer/bucket_parameters.hpp>
@@ -252,18 +253,24 @@ void GeometryTileWorker::coalesce() {
 
 void GeometryTileWorker::onGlyphsAvailable(GlyphMap newGlyphMap) {
     for (auto& newFontGlyphs : newGlyphMap) {
-        const FontStack& fontStack = newFontGlyphs.first;
+        FontStackHash fontStack = newFontGlyphs.first;
         Glyphs& newGlyphs = newFontGlyphs.second;
 
         Glyphs& glyphs = glyphMap[fontStack];
-        GlyphIDs& pendingGlyphIDs = pendingGlyphDependencies[fontStack];
+        for (auto& pendingGlyphDependency : pendingGlyphDependencies) {
+            // Linear lookup here to handle reverse of FontStackHash -> FontStack,
+            // since dependencies need the full font stack name to make a request
+            // There should not be many fontstacks to look through
+            if (FontStackHasher()(pendingGlyphDependency.first) == fontStack) {
+                GlyphIDs& pendingGlyphIDs = pendingGlyphDependency.second;
+                for (auto& newGlyph : newGlyphs) {
+                    const GlyphID& glyphID = newGlyph.first;
+                    optional<Immutable<Glyph>>& glyph = newGlyph.second;
 
-        for (auto& newGlyph : newGlyphs) {
-            const GlyphID& glyphID = newGlyph.first;
-            optional<Immutable<Glyph>>& glyph = newGlyph.second;
-
-            if (pendingGlyphIDs.erase(glyphID)) {
-                glyphs.emplace(glyphID, std::move(glyph));
+                    if (pendingGlyphIDs.erase(glyphID)) {
+                        glyphs.emplace(glyphID, std::move(glyph));
+                    }
+                }
             }
         }
     }
@@ -282,7 +289,7 @@ void GeometryTileWorker::onImagesAvailable(ImageMap newIconMap, ImageMap newPatt
 
 void GeometryTileWorker::requestNewGlyphs(const GlyphDependencies& glyphDependencies) {
     for (auto& fontDependencies : glyphDependencies) {
-        auto fontGlyphs = glyphMap.find(fontDependencies.first);
+        auto fontGlyphs = glyphMap.find(FontStackHasher()(fontDependencies.first));
         for (auto glyphID : fontDependencies.second) {
             if (fontGlyphs == glyphMap.end() || fontGlyphs->second.find(glyphID) == fontGlyphs->second.end()) {
                 pendingGlyphDependencies[fontDependencies.first].insert(glyphID);
@@ -306,7 +313,7 @@ static std::vector<std::unique_ptr<RenderLayer>> toRenderLayers(const std::vecto
     std::vector<std::unique_ptr<RenderLayer>> renderLayers;
     renderLayers.reserve(layers.size());
     for (auto& layer : layers) {
-        renderLayers.push_back(RenderLayer::create(layer));
+        renderLayers.push_back(LayerManager::get()->createRenderLayer(layer));
 
         renderLayers.back()->transition(TransitionParameters {
             Clock::time_point::max(),
@@ -369,7 +376,7 @@ void GeometryTileWorker::parse() {
         // are needed to render the layer. They use the intermediate Layout data structure to accomplish this,
         // and either immediately create a bucket if no images/glyphs are used, or the Layout is stored until
         // the images/glyphs are available to add the features to the buckets.
-        if (leader.as<RenderSymbolLayer>() ||leader.as<RenderLineLayer>() || leader.as<RenderFillLayer>() || leader.as<RenderFillExtrusionLayer>()) {
+        if (leader.baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::Required) {
             auto layout = leader.createLayout(parameters, group, std::move(geometryLayer), glyphDependencies, imageDependencies);
             if (layout->hasDependencies()) {
                 layouts.push_back(std::move(layout));

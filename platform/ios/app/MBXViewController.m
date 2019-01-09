@@ -8,16 +8,19 @@
 #import "LimeGreenStyleLayer.h"
 #import "MBXEmbeddedMapViewController.h"
 
+#import "MBXFrameTimeGraphView.h"
+
 #import <Mapbox/Mapbox.h>
 #import "../src/MGLMapView_Experimental.h"
 
 #import <objc/runtime.h>
 
 static const CLLocationCoordinate2D WorldTourDestinations[] = {
-    { .latitude = 38.9131982, .longitude = -77.0325453144239 },
-    { .latitude = 37.7757368, .longitude = -122.4135302 },
-    { .latitude = 12.9810816, .longitude = 77.6368034 },
-    { .latitude = -13.15589555, .longitude = -74.2178961777998 },
+    { .latitude = 38.8999418, .longitude = -77.033996 },
+    { .latitude = 37.7884307, .longitude = -122.3998631 },
+    { .latitude = 52.5003103, .longitude = 13.4197763 },
+    { .latitude = 60.1712627, .longitude = 24.9378866 },
+    { .latitude = 53.8948782, .longitude = 27.5558476 },
 };
 
 static const MGLCoordinateBounds colorado = {
@@ -28,19 +31,22 @@ static const MGLCoordinateBounds colorado = {
 static NSString * const MBXViewControllerAnnotationViewReuseIdentifer = @"MBXViewControllerAnnotationViewReuseIdentifer";
 
 typedef NS_ENUM(NSInteger, MBXSettingsSections) {
-    MBXSettingsCoreRendering = 0,
+    MBXSettingsDebugTools = 0,
     MBXSettingsAnnotations,
     MBXSettingsRuntimeStyling,
     MBXSettingsMiscellaneous,
 };
 
-typedef NS_ENUM(NSInteger, MBXSettingsCoreRenderingRows) {
-    MBXSettingsCoreRenderingResetPosition = 0,
-    MBXSettingsCoreRenderingTileBoundaries,
-    MBXSettingsCoreRenderingTileInfo,
-    MBXSettingsCoreRenderingTimestamps,
-    MBXSettingsCoreRenderingCollisionBoxes,
-    MBXSettingsCoreRenderingOverdrawVisualization,
+typedef NS_ENUM(NSInteger, MBXSettingsDebugToolsRows) {
+    MBXSettingsDebugToolsResetPosition = 0,
+    MBXSettingsDebugToolsTileBoundaries,
+    MBXSettingsDebugToolsTileInfo,
+    MBXSettingsDebugToolsTimestamps,
+    MBXSettingsDebugToolsCollisionBoxes,
+    MBXSettingsDebugToolsOverdrawVisualization,
+    MBXSettingsDebugToolsShowZoomLevel,
+    MBXSettingsDebugToolsShowFrameTimeGraph,
+    MBXSettingsDebugToolsShowReuseQueueStats
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsAnnotationsRows) {
@@ -90,10 +96,8 @@ typedef NS_ENUM(NSInteger, MBXSettingsRuntimeStylingRows) {
 };
 
 typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
-    MBXSettingsMiscellaneousShowReuseQueueStats = 0,
     MBXSettingsMiscellaneousWorldTour,
     MBXSettingsMiscellaneousRandomTour,
-    MBXSettingsMiscellaneousShowZoomLevel,
     MBXSettingsMiscellaneousScrollView,
     MBXSettingsMiscellaneousToggleTwoMaps,
     MBXSettingsMiscellaneousLocalizeLabels,
@@ -193,14 +197,17 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
 @property (nonatomic) IBOutlet MGLMapView *mapView;
 @property (weak, nonatomic) IBOutlet UIButton *hudLabel;
+@property (weak, nonatomic) IBOutlet MBXFrameTimeGraphView *frameTimeGraphView;
 @property (nonatomic) NSInteger styleIndex;
 @property (nonatomic) BOOL debugLoggingEnabled;
 @property (nonatomic) BOOL customUserLocationAnnnotationEnabled;
 @property (nonatomic, getter=isLocalizingLabels) BOOL localizingLabels;
 @property (nonatomic) BOOL reuseQueueStatsEnabled;
 @property (nonatomic) BOOL mapInfoHUDEnabled;
+@property (nonatomic) BOOL frameTimeGraphEnabled;
 @property (nonatomic) BOOL shouldLimitCameraChanges;
 @property (nonatomic) BOOL randomWalk;
+
 @end
 
 @interface MGLMapView (MBXViewController)
@@ -239,6 +246,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     self.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
     self.mapView.showsScale = YES;
     self.mapView.showsUserHeadingIndicator = YES;
+    self.mapView.experimental_enableFrameRateMeasurement = YES;
     self.hudLabel.titleLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightRegular];
 
     if ([MGLAccountManager accessToken].length)
@@ -273,6 +281,16 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
         [self presentViewController:alertController animated:YES completion:nil];
     }
+
+    // Add fall-through single tap gesture recognizer. This will be called when
+    // the map view's tap recognizers fail.
+    UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleSingleTap:)];
+    for (UIGestureRecognizer *gesture in self.mapView.gestureRecognizers) {
+        if ([gesture isKindOfClass:[UITapGestureRecognizer class]]) {
+            [singleTap requireGestureRecognizerToFail:gesture];
+        }
+    }
+    [self.mapView addGestureRecognizer:singleTap];
 }
 
 - (void)saveState:(__unused NSNotification *)notification
@@ -284,6 +302,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [defaults setBool:self.mapView.showsUserLocation forKey:@"MBXShowsUserLocation"];
     [defaults setInteger:self.mapView.debugMask forKey:@"MBXDebugMask"];
     [defaults setBool:self.mapInfoHUDEnabled forKey:@"MBXShowsZoomLevelHUD"];
+    [defaults setBool:self.mapInfoHUDEnabled forKey:@"MBXShowsFrameTimeGraph"];
     [defaults synchronize];
 }
 
@@ -313,6 +332,11 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     {
         self.mapInfoHUDEnabled = YES;
         [self updateHUD];
+    }
+    if ([defaults boolForKey:@"MBXShowsFrameTimeGraph"])
+    {
+        self.frameTimeGraphEnabled = YES;
+        self.frameTimeGraphView.hidden = NO;
     }
 }
 
@@ -359,7 +383,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 - (NSArray <NSString *> *)settingsSectionTitles
 {
     return @[
-        @"Core Rendering",
+        @"Debug Tools",
         @"Annotations",
         @"Runtime Styling",
         @"Miscellaneous"
@@ -374,7 +398,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
     switch (section)
     {
-        case MBXSettingsCoreRendering:
+        case MBXSettingsDebugTools:
             [settingsTitles addObjectsFromArray:@[
                 @"Reset Position",
                 [NSString stringWithFormat:@"%@ Tile Boundaries",
@@ -387,6 +411,9 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                     (debugMask & MGLMapDebugCollisionBoxesMask ? @"Hide" :@"Show")],
                 [NSString stringWithFormat:@"%@ Overdraw Visualization",
                     (debugMask & MGLMapDebugOverdrawVisualizationMask ? @"Hide" :@"Show")],
+                [NSString stringWithFormat:@"%@ Map Info HUD", (_mapInfoHUDEnabled ? @"Hide" :@"Show")],
+                [NSString stringWithFormat:@"%@ Frame Time Graph", (_frameTimeGraphEnabled ? @"Hide" :@"Show")],
+                [NSString stringWithFormat:@"%@ Reuse Queue Stats", (_reuseQueueStatsEnabled ? @"Hide" :@"Show")]
             ]];
             break;
         case MBXSettingsAnnotations:
@@ -439,10 +466,8 @@ CLLocationCoordinate2D randomWorldCoordinate() {
             break;
         case MBXSettingsMiscellaneous:
             [settingsTitles addObjectsFromArray:@[
-                [NSString stringWithFormat:@"%@ Reuse Queue Stats", (_reuseQueueStatsEnabled ? @"Hide" :@"Show")],
                 @"Start World Tour",
                 @"Random Tour",
-                [NSString stringWithFormat:@"%@ Map Info HUD", (_mapInfoHUDEnabled ? @"Hide" :@"Show")],
                 @"Embedded Map View",
                 [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
                 [NSString stringWithFormat:@"Show Labels in %@", (_localizingLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
@@ -474,29 +499,51 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 {
     switch (indexPath.section)
     {
-        case MBXSettingsCoreRendering:
+        case MBXSettingsDebugTools:
             switch (indexPath.row)
             {
-                case MBXSettingsCoreRenderingResetPosition:
+                case MBXSettingsDebugToolsResetPosition:
                     [self.mapView resetPosition];
                     break;
-                case MBXSettingsCoreRenderingTileBoundaries:
+                case MBXSettingsDebugToolsTileBoundaries:
                     self.mapView.debugMask ^= MGLMapDebugTileBoundariesMask;
                     break;
-                case MBXSettingsCoreRenderingTileInfo:
+                case MBXSettingsDebugToolsTileInfo:
                     self.mapView.debugMask ^= MGLMapDebugTileInfoMask;
                     break;
-                case MBXSettingsCoreRenderingTimestamps:
+                case MBXSettingsDebugToolsTimestamps:
                     self.mapView.debugMask ^= MGLMapDebugTimestampsMask;
                     break;
-                case MBXSettingsCoreRenderingCollisionBoxes:
+                case MBXSettingsDebugToolsCollisionBoxes:
                     self.mapView.debugMask ^= MGLMapDebugCollisionBoxesMask;
                     break;
-                case MBXSettingsCoreRenderingOverdrawVisualization:
+                case MBXSettingsDebugToolsOverdrawVisualization:
                     self.mapView.debugMask ^= MGLMapDebugOverdrawVisualizationMask;
                     break;
+                case MBXSettingsDebugToolsShowZoomLevel:
+                {
+                    self.mapInfoHUDEnabled = !self.mapInfoHUDEnabled;
+                    self.hudLabel.hidden = !self.mapInfoHUDEnabled;
+                    self.reuseQueueStatsEnabled = NO;
+                    [self updateHUD];
+                    break;
+                }
+                case MBXSettingsDebugToolsShowFrameTimeGraph:
+                {
+                    self.frameTimeGraphEnabled = !self.frameTimeGraphEnabled;
+                    self.frameTimeGraphView.hidden = !self.frameTimeGraphEnabled;
+                    break;
+                }
+                case MBXSettingsDebugToolsShowReuseQueueStats:
+                {
+                    self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
+                    self.hudLabel.hidden = !self.reuseQueueStatsEnabled;
+                    self.mapInfoHUDEnabled = NO;
+                    [self updateHUD];
+                    break;
+                }
                 default:
-                    NSAssert(NO, @"All core rendering setting rows should be implemented");
+                    NSAssert(NO, @"All debug tools setting rows should be implemented");
                     break;
             }
             break;
@@ -643,7 +690,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
             switch (indexPath.row)
             {
                 case MBXSettingsMiscellaneousLocalizeLabels:
-                    [self styleCountryLabelsLanguage];
+                    [self toggleStyleLabelsLanguage];
                     break;
                 case MBXSettingsMiscellaneousWorldTour:
                     [self startWorldTour];
@@ -1158,10 +1205,10 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     }
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        MGLShapeSource *source = [[MGLShapeSource alloc] initWithIdentifier:querySourceID features:visibleFeatures options:nil];
-        [self.mapView.style addSource:source];
+        MGLShapeSource *shapeSource = [[MGLShapeSource alloc] initWithIdentifier:querySourceID features:visibleFeatures options:nil];
+        [self.mapView.style addSource:shapeSource];
 
-        MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:queryLayerID source:source];
+        MGLFillStyleLayer *fillLayer = [[MGLFillStyleLayer alloc] initWithIdentifier:queryLayerID source:shapeSource];
         fillLayer.fillColor = [NSExpression expressionForConstantValue:[UIColor blueColor]];
         fillLayer.fillOpacity = [NSExpression expressionForConstantValue:@0.5];
         [self.mapView.style addLayer:fillLayer];
@@ -1263,10 +1310,10 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [self.mapView.style addLayer:layer];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSString *geoJSON = @"{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\",\"properties\": {},\"geometry\": {\"type\": \"LineString\",\"coordinates\": [[-107.75390625,40.329795743702064],[-109.34814453125,37.64903402157866]]}}]}";
-        NSData *data = [geoJSON dataUsingEncoding:NSUTF8StringEncoding];
-        MGLShape *shape = [MGLShape shapeWithData:data encoding:NSUTF8StringEncoding error:NULL];
-        source.shape = shape;
+        NSString *updatedGeoJSON = @"{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\",\"properties\": {},\"geometry\": {\"type\": \"LineString\",\"coordinates\": [[-107.75390625,40.329795743702064],[-109.34814453125,37.64903402157866]]}}]}";
+        NSData *updatedData = [updatedGeoJSON dataUsingEncoding:NSUTF8StringEncoding];
+        MGLShape *updatedShape = [MGLShape shapeWithData:updatedData encoding:NSUTF8StringEncoding error:NULL];
+        source.shape = updatedShape;
     });
 }
 
@@ -1285,10 +1332,10 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self.mapView setCenterCoordinate:CLLocationCoordinate2DMake(41.563986787078704, -75.04843935793578) zoomLevel:8 animated:NO];
 
-        NSString *filePath = [[NSBundle bundleForClass:self.class] pathForResource:@"threestates" ofType:@"geojson"];
-        NSURL *geoJSONURL = [NSURL fileURLWithPath:filePath];
+        NSString *threeStatesFilePath = [[NSBundle bundleForClass:self.class] pathForResource:@"threestates" ofType:@"geojson"];
+        NSURL *updatedGeoJSONURL = [NSURL fileURLWithPath:threeStatesFilePath];
 
-        source.URL = geoJSONURL;
+        source.URL = updatedGeoJSONURL;
     });
 }
 
@@ -1411,7 +1458,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     }
 }
 
--(void)styleCountryLabelsLanguage
+-(void)toggleStyleLabelsLanguage
 {
     _localizingLabels = !_localizingLabels;
     [self.mapView.style localizeLabelsIntoLocale:_localizingLabels ? [NSLocale localeWithLocaleIdentifier:@"mul"] : nil];
@@ -1517,8 +1564,8 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
 - (NSString *)bestLanguageForUser
 {
-    // https://www.mapbox.com/vector-tiles/mapbox-streets-v7/#overview
-    NSArray *supportedLanguages = @[ @"ar", @"en", @"es", @"fr", @"de", @"pt", @"ru", @"zh", @"zh-Hans" ];
+    // https://www.mapbox.com/vector-tiles/mapbox-streets-v8/#name-text--name_lang-code-text
+    NSArray *supportedLanguages = @[ @"ar", @"de", @"en", @"es", @"fr", @"ja", @"ko", @"pt", @"ru", @"zh", @"zh-Hans", @"zh-Hant" ];
     NSArray<NSString *> *preferredLanguages = [NSBundle preferredLocalizationsFromArray:supportedLanguages forPreferences:[NSLocale preferredLanguages]];
     NSString *mostSpecificLanguage;
 
@@ -1561,7 +1608,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
     [annotations removeObjectAtIndex:0];
     MGLMapCamera *camera = [MGLMapCamera cameraLookingAtCenterCoordinate:nextAnnotation.coordinate
-                                                            fromDistance:10
+                                                          acrossDistance:10
                                                                    pitch:arc4random_uniform(60)
                                                                  heading:arc4random_uniform(360)];
     __weak MBXViewController *weakSelf = self;
@@ -1781,7 +1828,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [self addAnnotations:50 aroundCoordinate:annotation.coordinate radius:100000.0]; // 100km
 
     MGLMapCamera *camera = [MGLMapCamera cameraLookingAtCenterCoordinate:annotation.coordinate
-                                                            fromDistance:10000.0
+                                                                altitude:10000.0
                                                                    pitch:drand48()*60.0
                                                                  heading:drand48()*360];
     [self.mapView flyToCamera:camera
@@ -1881,6 +1928,14 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
 #pragma mark - User Actions
 
+- (void)handleSingleTap:(UITapGestureRecognizer *)singleTap {
+    [self.navigationController setNavigationBarHidden:!self.navigationController.navigationBarHidden animated:YES];
+
+    // This is how you'd get the coordinate for the point where the user tapped:
+    //    CGPoint tapPoint = [singleTap locationInView:self.mapView];
+    //    CLLocationCoordinate2D tapCoordinate = [self.mapView convertPoint:tapPoint toCoordinateFromView:nil];
+}
+
 - (IBAction)handleLongPress:(UILongPressGestureRecognizer *)longPress
 {
     if (longPress.state == UIGestureRecognizerStateBegan)
@@ -1938,7 +1993,6 @@ CLLocationCoordinate2D randomWorldCoordinate() {
             [MGLStyle darkStyleURL],
             [MGLStyle satelliteStyleURL],
             [MGLStyle satelliteStreetsStyleURL]
-            
         ];
         NSAssert(styleNames.count == styleURLs.count, @"Style names and URLs don’t match.");
 
@@ -2024,7 +2078,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
         annotationView.backgroundColor = [UIColor whiteColor];
 
         // Note that having two long press gesture recognizers on overlapping
-        // views (`self.view` & `annotationView`) will cause weird behaviour.
+        // views (`self.view` & `annotationView`) will cause weird behavior.
         // Comment out the pin dropping functionality in the handleLongPress:
         // method in this class to make draggable annotation views play nice.
         annotationView.draggable = YES;
@@ -2262,7 +2316,6 @@ CLLocationCoordinate2D randomWorldCoordinate() {
         }
         hudString = [NSString stringWithFormat:@"Visible: %ld  Queued: %ld", (unsigned long)self.mapView.visibleAnnotations.count, (unsigned long)queuedAnnotations];
     } else if (self.mapInfoHUDEnabled) {
-        if (!self.mapView.experimental_enableFrameRateMeasurement) self.mapView.experimental_enableFrameRateMeasurement = YES;
         hudString = [NSString stringWithFormat:@"%.f FPS (%.1fms) ∕ %.2f ∕ ↕\U0000FE0E%.f° ∕ %.f°",
                      roundf(self.mapView.averageFrameRate), self.mapView.averageFrameTime,
                      self.mapView.zoomLevel, self.mapView.camera.pitch, self.mapView.direction];
@@ -2317,6 +2370,12 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     }
 
     return features;
+}
+
+- (void)mapViewDidFinishRenderingFrame:(MGLMapView *)mapView fullyRendered:(BOOL)fullyRendered {
+    if (self.frameTimeGraphEnabled) {
+        [self.frameTimeGraphView updatePathWithFrameDuration:mapView.frameTime];
+    }
 }
 
 @end

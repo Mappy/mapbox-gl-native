@@ -17,7 +17,7 @@ namespace mbgl {
 using namespace style;
 
 RenderHeatmapLayer::RenderHeatmapLayer(Immutable<style::HeatmapLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Heatmap, _impl),
+    : RenderLayer(std::move(_impl)),
     unevaluated(impl().paint.untransitioned()), colorRamp({256, 1}) {
 }
 
@@ -127,6 +127,7 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
                 parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
                 stencilMode,
                 gl::ColorMode::additive(),
+                gl::CullFaceMode::disabled(),
                 *bucket.indexBuffer,
                 bucket.segments,
                 allUniformValues,
@@ -174,6 +175,7 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
             gl::DepthMode::disabled(),
             gl::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
+            gl::CullFaceMode::disabled(),
             parameters.staticData.quadTriangleIndexBuffer,
             parameters.staticData.extrusionTextureSegments,
             allUniformValues,
@@ -181,6 +183,10 @@ void RenderHeatmapLayer::render(PaintParameters& parameters, RenderSource*) {
             getID()
         );
     }
+}
+
+void RenderHeatmapLayer::update() {
+    updateColorRamp();
 }
 
 void RenderHeatmapLayer::updateColorRamp() {

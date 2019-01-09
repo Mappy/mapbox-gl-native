@@ -13,7 +13,7 @@ namespace mbgl {
 using namespace style;
 
 RenderCustomLayer::RenderCustomLayer(Immutable<style::CustomLayer::Impl> _impl)
-    : RenderLayer(LayerType::Custom, _impl), host(_impl->host) {
+    : RenderLayer(std::move(_impl)), host(impl().host) {
     assert(BackendScope::exists());
     host->initialize();
 }
@@ -42,6 +42,10 @@ bool RenderCustomLayer::hasCrossfade() const {
     return false;
 }
 
+void RenderCustomLayer::markContextDestroyed() {
+    contextDestroyed = true;
+}
+
 std::unique_ptr<Bucket> RenderCustomLayer::createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const {
     assert(false);
     return nullptr;
@@ -65,6 +69,7 @@ void RenderCustomLayer::render(PaintParameters& paintParameters, RenderSource*) 
     glContext.setDepthMode(paintParameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly));
     glContext.setStencilMode(gl::StencilMode::disabled());
     glContext.setColorMode(paintParameters.colorModeForRenderPass());
+    glContext.setCullFaceMode(gl::CullFaceMode::disabled());
 
     CustomLayerRenderParameters parameters;
 

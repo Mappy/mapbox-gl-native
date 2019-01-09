@@ -13,6 +13,10 @@ import timber.log.Timber;
 
 import com.mapbox.mapboxsdk.style.expressions.Expression;
 import com.mapbox.mapboxsdk.style.layers.<%- camelize(type) %>Layer;
+<% if (type === 'symbol') { -%>
+import com.mapbox.mapboxsdk.style.types.Formatted;
+import com.mapbox.mapboxsdk.style.types.FormattedSection;
+<% } -%>
 import com.mapbox.mapboxsdk.testapp.activity.BaseActivityTest;
 
 import org.junit.Test;
@@ -44,18 +48,18 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
 <% if (type === 'background') { -%>
     Timber.i("Retrieving layer");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
-      layer = mapboxMap.getLayerAs("background");
+      layer = mapboxMap.getStyle().getLayerAs("background");
     });
 <% } else { -%>
     Timber.i("Retrieving layer");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
-      if ((layer = mapboxMap.getLayerAs("my-layer")) == null) {
+      if ((layer = mapboxMap.getStyle().getLayerAs("my-layer")) == null) {
         Timber.i("Adding layer");
         layer = new <%- camelize(type) %>Layer("my-layer", "composite");
         layer.setSourceLayer("composite");
-        mapboxMap.addLayer(layer);
+        mapboxMap.getStyle().addLayer(layer);
         // Layer reference is now stale, get new reference
-        layer = mapboxMap.getLayerAs("my-layer");
+        layer = mapboxMap.getStyle().getLayerAs("my-layer");
       }
     });
 <% } -%>
@@ -126,6 +130,11 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
       Expression filter = eq(get("undefined"), literal(1.0));
       layer.setFilter(filter);
       assertEquals(layer.getFilter().toString(), filter.toString());
+
+      // Set constant
+      filter = literal(true);
+      layer.setFilter(filter);
+      assertEquals(layer.getFilter().toString(), filter.toString());
     });
   }
 
@@ -158,14 +167,26 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
     Timber.i("<%- property.name %>");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.get<%- camelize(property.name) %>().getValue());
 
       // Set and Get
-      layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>(<%- defaultValueJava(property) %>));
-      assertEquals((<%- propertyType(property) %>) layer.get<%- camelize(property.name) %>().getValue(), (<%- propertyType(property) %>) <%- defaultValueJava(property) %>);
+      <%- propertyType(property) %> propertyValue = <%- defaultValueJava(property) %>;
+<% if (property.type === 'formatted') { -%>
+
+      layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>("default"));
+      assertEquals(layer.get<%- camelize(property.name) %>().getValue(), propertyValue);
+
+<% } -%>
+      layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>(propertyValue));
+      assertEquals(layer.get<%- camelize(property.name) %>().getValue(), propertyValue);
 <% if (property.tokens) { -%>
 
       layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>("{token}"));
+<% if (property.type === 'formatted') { -%>
+      assertEquals(layer.get<%- camelize(property.name) %>().getExpression(), <%- defaultExpressionJava(property) %>(Expression.formatEntry(Expression.toString(Expression.get("token")))));
+<% } else {-%>
       assertEquals(layer.get<%- camelize(property.name) %>().getExpression(), Expression.toString(Expression.get("token")));
+<% } -%>
 <% } -%>
     });
   }
@@ -179,14 +200,18 @@ public class <%- camelize(type) %>LayerTest extends BaseActivityTest {
     Timber.i("<%- property.name %>-expression");
     invoke(mapboxMap, (uiController, mapboxMap) -> {
       assertNotNull(layer);
+      assertNull(layer.get<%- camelize(property.name) %>().getExpression());
 
       // Set and Get
+<% if (property.type === 'formatted') { -%>
+      Expression expression = <%- defaultExpressionJava(property) %>(Expression.formatEntry(Expression.get("undefined"), FormatOption.formatFontScale(2.0), FormatOption.formatTextFont(new String[]{"Open Sans Regular", "Arial Unicode MS Regular"})));
+<% } else { -%>
       Expression expression = <%- defaultExpressionJava(property) %>(Expression.get("undefined"));
+<% } -%>
       layer.setProperties(<%- camelizeWithLeadingLowercase(property.name) %>(expression));
       assertEquals(layer.get<%- camelize(property.name) %>().getExpression(), expression);
     });
   }
-
 <% } -%>
 <% } -%>
 <% if (property.type == 'color') { -%>

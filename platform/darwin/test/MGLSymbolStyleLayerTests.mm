@@ -43,8 +43,8 @@
 
     MGLSymbolStyleLayer *layer = [[MGLSymbolStyleLayer alloc] initWithIdentifier:@"layerID" source:source];
     XCTAssertNotEqual(layer.rawLayer, nullptr);
-    XCTAssertTrue(layer.rawLayer->is<mbgl::style::SymbolLayer>());
-    auto rawLayer = layer.rawLayer->as<mbgl::style::SymbolLayer>();
+    XCTAssertEqualObjects(@(layer.rawLayer->getTypeInfo()->type), @"symbol");
+    auto rawLayer = static_cast<mbgl::style::SymbolLayer*>(layer.rawLayer);
 
     MGLTransition transitionTest = MGLTransitionMake(5, 4);
 
@@ -224,7 +224,9 @@
 
         XCTAssertEqual(rawLayer->getIconImage(), propertyValue,
                        @"Setting iconImageName to a constant string with tokens should convert to an expression.");
-        XCTAssertEqualObjects(layer.iconImageName, [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"],
+
+        NSExpression* tokenExpression = [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"];
+        XCTAssertEqualObjects(layer.iconImageName, tokenExpression,
                               @"Setting iconImageName to a constant string with tokens should convert to an expression.");
     }
 
@@ -1044,6 +1046,50 @@
         XCTAssertThrowsSpecificNamed(layer.symbolSpacing = functionExpression, NSException, NSInvalidArgumentException, @"MGLSymbolLayer should raise an exception if a camera-data expression is applied to a property that does not support key paths to feature attributes.");
     }
 
+    // symbol-z-order
+    {
+        XCTAssertTrue(rawLayer->getSymbolZOrder().isUndefined(),
+                      @"symbol-z-order should be unset initially.");
+        NSExpression *defaultExpression = layer.symbolZOrder;
+
+        NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'source'"];
+        layer.symbolZOrder = constantExpression;
+        mbgl::style::PropertyValue<mbgl::style::SymbolZOrderType> propertyValue = { mbgl::style::SymbolZOrderType::Source };
+        XCTAssertEqual(rawLayer->getSymbolZOrder(), propertyValue,
+                       @"Setting symbolZOrder to a constant value expression should update symbol-z-order.");
+        XCTAssertEqualObjects(layer.symbolZOrder, constantExpression,
+                              @"symbolZOrder should round-trip constant value expressions.");
+
+        constantExpression = [NSExpression expressionWithFormat:@"'source'"];
+        NSExpression *functionExpression = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, %@, %@)", constantExpression, @{@18: constantExpression}];
+        layer.symbolZOrder = functionExpression;
+
+        {
+            using namespace mbgl::style::expression::dsl;
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::SymbolZOrderType>(
+                step(zoom(), literal("source"), 18.0, literal("source"))
+            );
+        }
+
+        XCTAssertEqual(rawLayer->getSymbolZOrder(), propertyValue,
+                       @"Setting symbolZOrder to a camera expression should update symbol-z-order.");
+        XCTAssertEqualObjects(layer.symbolZOrder, functionExpression,
+                              @"symbolZOrder should round-trip camera expressions.");
+
+
+        layer.symbolZOrder = nil;
+        XCTAssertTrue(rawLayer->getSymbolZOrder().isUndefined(),
+                      @"Unsetting symbolZOrder should return symbol-z-order to the default value.");
+        XCTAssertEqualObjects(layer.symbolZOrder, defaultExpression,
+                              @"symbolZOrder should return the default value after being unset.");
+
+        functionExpression = [NSExpression expressionForKeyPath:@"bogus"];
+        XCTAssertThrowsSpecificNamed(layer.symbolZOrder = functionExpression, NSException, NSInvalidArgumentException, @"MGLSymbolLayer should raise an exception if a camera-data expression is applied to a property that does not support key paths to feature attributes.");
+        functionExpression = [NSExpression expressionWithFormat:@"mgl_step:from:stops:(bogus, %@, %@)", constantExpression, @{@18: constantExpression}];
+        functionExpression = [NSExpression expressionWithFormat:@"mgl_interpolate:withCurveType:parameters:stops:($zoomLevel, 'linear', nil, %@)", @{@10: functionExpression}];
+        XCTAssertThrowsSpecificNamed(layer.symbolZOrder = functionExpression, NSException, NSInvalidArgumentException, @"MGLSymbolLayer should raise an exception if a camera-data expression is applied to a property that does not support key paths to feature attributes.");
+    }
+
     // text-field
     {
         XCTAssertTrue(rawLayer->getTextField().isUndefined(),
@@ -1052,20 +1098,20 @@
 
         NSExpression *constantExpression = [NSExpression expressionWithFormat:@"'Text Field'"];
         layer.text = constantExpression;
-        mbgl::style::PropertyValue<std::string> propertyValue = { "Text Field" };
+        mbgl::style::PropertyValue<mbgl::style::expression::Formatted> propertyValue = { "Text Field" };
         XCTAssertEqual(rawLayer->getTextField(), propertyValue,
                        @"Setting text to a constant value expression should update text-field.");
         XCTAssertEqualObjects(layer.text, constantExpression,
                               @"text should round-trip constant value expressions.");
 
-        constantExpression = [NSExpression expressionWithFormat:@"'Text Field'"];
+        constantExpression = [NSExpression expressionWithFormat:@"MGL_FUNCTION('format', 'Text Field', %@)", @{}];
         NSExpression *functionExpression = [NSExpression expressionWithFormat:@"mgl_step:from:stops:($zoomLevel, %@, %@)", constantExpression, @{@18: constantExpression}];
         layer.text = functionExpression;
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::PropertyExpression<std::string>(
-                step(zoom(), literal("Text Field"), 18.0, literal("Text Field"))
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::expression::Formatted>(
+                step(zoom(), format("Text Field"), 18.0, format("Text Field"))
             );
         }
 
@@ -1086,14 +1132,16 @@
 
         {
             using namespace mbgl::style::expression::dsl;
-            propertyValue = mbgl::style::PropertyExpression<std::string>(
-                toString(get(literal("token")))
+            propertyValue = mbgl::style::PropertyExpression<mbgl::style::expression::Formatted>(
+                format(toString(get(literal("token"))))
             );
         }
 
         XCTAssertEqual(rawLayer->getTextField(), propertyValue,
                        @"Setting text to a constant string with tokens should convert to an expression.");
-        XCTAssertEqualObjects(layer.text, [NSExpression expressionWithFormat:@"CAST(token, \"NSString\")"],
+
+        NSExpression* tokenExpression = [NSExpression expressionWithFormat:@"MGL_FUNCTION('format', CAST(token, 'NSString'), %@)", @{}];
+        XCTAssertEqualObjects(layer.text, tokenExpression,
                               @"Setting text to a constant string with tokens should convert to an expression.");
     }
 
@@ -2829,6 +2877,7 @@
     [self testPropertyName:@"symbol-avoids-edges" isBoolean:YES];
     [self testPropertyName:@"symbol-placement" isBoolean:NO];
     [self testPropertyName:@"symbol-spacing" isBoolean:NO];
+    [self testPropertyName:@"symbol-z-order" isBoolean:NO];
     [self testPropertyName:@"text" isBoolean:NO];
     [self testPropertyName:@"text-allows-overlap" isBoolean:YES];
     [self testPropertyName:@"text-anchor" isBoolean:NO];
@@ -2884,6 +2933,8 @@
     XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementPoint].MGLSymbolPlacementValue, MGLSymbolPlacementPoint);
     XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementLine].MGLSymbolPlacementValue, MGLSymbolPlacementLine);
     XCTAssertEqual([NSValue valueWithMGLSymbolPlacement:MGLSymbolPlacementLineCenter].MGLSymbolPlacementValue, MGLSymbolPlacementLineCenter);
+    XCTAssertEqual([NSValue valueWithMGLSymbolZOrder:MGLSymbolZOrderViewportY].MGLSymbolZOrderValue, MGLSymbolZOrderViewportY);
+    XCTAssertEqual([NSValue valueWithMGLSymbolZOrder:MGLSymbolZOrderSource].MGLSymbolZOrderValue, MGLSymbolZOrderSource);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorCenter].MGLTextAnchorValue, MGLTextAnchorCenter);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorLeft].MGLTextAnchorValue, MGLTextAnchorLeft);
     XCTAssertEqual([NSValue valueWithMGLTextAnchor:MGLTextAnchorRight].MGLTextAnchorValue, MGLTextAnchorRight);

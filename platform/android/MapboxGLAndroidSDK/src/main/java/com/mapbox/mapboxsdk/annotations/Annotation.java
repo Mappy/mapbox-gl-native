@@ -2,6 +2,8 @@ package com.mapbox.mapboxsdk.annotations;
 
 import android.support.annotation.NonNull;
 
+import android.support.annotation.Nullable;
+
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 
@@ -14,7 +16,11 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
  * This class manages attachment to a map and identification, but does not require
  * content to be placed at a geographical point.
  * </p>
+ * @deprecated As of 7.0.0,
+ * use <a href="https://github.com/mapbox/mapbox-plugins-android/tree/master/plugin-annotation">
+ *   Mapbox Annotation Plugin</a> instead
  */
+@Deprecated
 public abstract class Annotation implements Comparable<Annotation> {
 
   /**
@@ -121,7 +127,7 @@ public abstract class Annotation implements Comparable<Annotation> {
    * @return returns true both id's match else returns false.
    */
   @Override
-  public boolean equals(Object object) {
+  public boolean equals(@Nullable Object object) {
     if (this == object) {
       return true;
     }

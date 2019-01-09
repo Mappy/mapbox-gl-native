@@ -2,10 +2,12 @@ package com.mapbox.mapboxsdk.testapp.activity.style;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonOptions;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
@@ -34,7 +36,6 @@ import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineWidth;
 public class GradientLineActivity extends AppCompatActivity implements OnMapReadyCallback {
 
   public static final String LINE_SOURCE = "gradient";
-  private MapboxMap mapboxMap;
   private MapView mapView;
 
   @Override
@@ -48,25 +49,25 @@ public class GradientLineActivity extends AppCompatActivity implements OnMapRead
   }
 
   @Override
-  public void onMapReady(MapboxMap map) {
-    this.mapboxMap = map;
-
+  public void onMapReady(@NonNull MapboxMap mapboxMap) {
     try {
       String geoJson = ResourceUtils.readRawResource(GradientLineActivity.this, R.raw.test_line_gradient_feature);
-      mapboxMap.addSource(new GeoJsonSource(LINE_SOURCE, geoJson, new GeoJsonOptions().withLineMetrics(true)));
-      mapboxMap.addLayer(new LineLayer("gradient", LINE_SOURCE)
-        .withProperties(
-          lineGradient(interpolate(
-            linear(), lineProgress(),
-            stop(0f, rgb(0, 0, 255)),
-            stop(0.5f, rgb(0, 255, 0)),
-            stop(1f, rgb(255, 0, 0)))
-          ),
-          lineColor(Color.RED),
-          lineWidth(10.0f),
-          lineCap(LINE_CAP_ROUND),
-          lineJoin(LINE_JOIN_ROUND)
-        )
+      mapboxMap.setStyle(new Style.Builder()
+        .fromJson(geoJson)
+        .withSource(new GeoJsonSource(LINE_SOURCE, geoJson, new GeoJsonOptions().withLineMetrics(true)))
+        .withLayer(new LineLayer("gradient", LINE_SOURCE)
+          .withProperties(
+            lineGradient(interpolate(
+              linear(), lineProgress(),
+              stop(0f, rgb(0, 0, 255)),
+              stop(0.5f, rgb(0, 255, 0)),
+              stop(1f, rgb(255, 0, 0)))
+            ),
+            lineColor(Color.RED),
+            lineWidth(10.0f),
+            lineCap(LINE_CAP_ROUND),
+            lineJoin(LINE_JOIN_ROUND)
+          ))
       );
     } catch (IOException exception) {
       Timber.e(exception);

@@ -3,6 +3,7 @@ package com.mapbox.mapboxsdk.annotations;
 import android.graphics.Color;
 import android.support.annotation.Keep;
 
+import android.support.annotation.NonNull;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 
@@ -11,7 +12,11 @@ import java.util.List;
 
 /**
  * Polygon is a geometry annotation that's a closed loop of coordinates.
+ * @deprecated As of 7.0.0,
+ * use <a href="https://github.com/mapbox/mapbox-plugins-android/tree/master/plugin-annotation">
+ *   Mapbox Annotation Plugin</a> instead
  */
+@Deprecated
 public final class Polygon extends BasePointCollection {
 
   @Keep
@@ -79,7 +84,7 @@ public final class Polygon extends BasePointCollection {
    *
    * @param holes A {@link List} of {@link List} of {@link LatLng} points making up the holes.
    */
-  public void setHoles(List<? extends List<LatLng>> holes) {
+  public void setHoles(@NonNull List<? extends List<LatLng>> holes) {
     this.holes = new ArrayList<>(holes);
     update();
   }

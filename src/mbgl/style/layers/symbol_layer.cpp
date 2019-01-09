@@ -11,11 +11,27 @@
 #include <mbgl/style/conversion_impl.hpp>
 #include <mbgl/util/fnv_hash.hpp>
 
+#include <mbgl/renderer/layers/render_symbol_layer.hpp>
+
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* SymbolLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"symbol",
+          LayerTypeInfo::Source::Required,
+          LayerTypeInfo::Pass3D::NotRequired,
+          LayerTypeInfo::Layout::Required,
+          LayerTypeInfo::Clipping::NotRequired
+        };
+    return &typeInfo;
+}
+
+
 SymbolLayer::SymbolLayer(const std::string& layerID, const std::string& sourceID)
-    : Layer(makeMutable<Impl>(LayerType::Symbol, layerID, sourceID)) {
+    : Layer(makeMutable<Impl>(layerID, sourceID)) {
 }
 
 SymbolLayer::SymbolLayer(Immutable<Impl> impl_)
@@ -41,62 +57,6 @@ std::unique_ptr<Layer> SymbolLayer::cloneRef(const std::string& id_) const {
 
 void SymbolLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>& writer) const {
     layout.stringify(writer);
-}
-
-// Source
-
-const std::string& SymbolLayer::getSourceID() const {
-    return impl().source;
-}
-
-void SymbolLayer::setSourceLayer(const std::string& sourceLayer) {
-    auto impl_ = mutableImpl();
-    impl_->sourceLayer = sourceLayer;
-    baseImpl = std::move(impl_);
-}
-
-const std::string& SymbolLayer::getSourceLayer() const {
-    return impl().sourceLayer;
-}
-
-// Filter
-
-void SymbolLayer::setFilter(const Filter& filter) {
-    auto impl_ = mutableImpl();
-    impl_->filter = filter;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-const Filter& SymbolLayer::getFilter() const {
-    return impl().filter;
-}
-
-// Visibility
-
-void SymbolLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void SymbolLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void SymbolLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -146,6 +106,22 @@ void SymbolLayer::setSymbolAvoidEdges(PropertyValue<bool> value) {
         return;
     auto impl_ = mutableImpl();
     impl_->layout.get<SymbolAvoidEdges>() = value;
+    baseImpl = std::move(impl_);
+    observer->onLayerChanged(*this);
+}
+PropertyValue<SymbolZOrderType> SymbolLayer::getDefaultSymbolZOrder() {
+    return SymbolZOrder::defaultValue();
+}
+
+PropertyValue<SymbolZOrderType> SymbolLayer::getSymbolZOrder() const {
+    return impl().layout.get<SymbolZOrder>();
+}
+
+void SymbolLayer::setSymbolZOrder(PropertyValue<SymbolZOrderType> value) {
+    if (value == getSymbolZOrder())
+        return;
+    auto impl_ = mutableImpl();
+    impl_->layout.get<SymbolZOrder>() = value;
     baseImpl = std::move(impl_);
     observer->onLayerChanged(*this);
 }
@@ -405,15 +381,15 @@ void SymbolLayer::setTextRotationAlignment(PropertyValue<AlignmentType> value) {
     baseImpl = std::move(impl_);
     observer->onLayerChanged(*this);
 }
-PropertyValue<std::string> SymbolLayer::getDefaultTextField() {
+PropertyValue<expression::Formatted> SymbolLayer::getDefaultTextField() {
     return TextField::defaultValue();
 }
 
-PropertyValue<std::string> SymbolLayer::getTextField() const {
+PropertyValue<expression::Formatted> SymbolLayer::getTextField() const {
     return impl().layout.get<TextField>();
 }
 
-void SymbolLayer::setTextField(PropertyValue<std::string> value) {
+void SymbolLayer::setTextField(PropertyValue<expression::Formatted> value) {
     if (value == getTextField())
         return;
     auto impl_ = mutableImpl();
@@ -1440,6 +1416,7 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         SymbolPlacement,
         SymbolSpacing,
         SymbolAvoidEdges,
+        SymbolZOrder,
         IconAllowOverlap,
         IconIgnorePlacement,
         IconOptional,
@@ -1493,6 +1470,12 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
     case util::hashFNV1a("symbol-avoid-edges"):
         if (name == "symbol-avoid-edges") {
             property = Property::SymbolAvoidEdges;
+        }
+        break;
+    
+    case util::hashFNV1a("symbol-z-order"):
+        if (name == "symbol-z-order") {
+            property = Property::SymbolZOrder;
         }
         break;
     
@@ -1801,6 +1784,18 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         
     }
     
+    if (property == Property::SymbolZOrder) {
+        Error error;
+        optional<PropertyValue<SymbolZOrderType>> typedValue = convert<PropertyValue<SymbolZOrderType>>(value, error, false, false);
+        if (!typedValue) {
+            return error;
+        }
+        
+        setSymbolZOrder(*typedValue);
+        return nullopt;
+        
+    }
+    
     if (property == Property::IconRotationAlignment || property == Property::IconPitchAlignment || property == Property::TextPitchAlignment || property == Property::TextRotationAlignment) {
         Error error;
         optional<PropertyValue<AlignmentType>> typedValue = convert<PropertyValue<AlignmentType>>(value, error, false, false);
@@ -1893,22 +1888,15 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         
     }
     
-    if (property == Property::IconImage || property == Property::TextField) {
+    if (property == Property::IconImage) {
         Error error;
         optional<PropertyValue<std::string>> typedValue = convert<PropertyValue<std::string>>(value, error, true, true);
         if (!typedValue) {
             return error;
         }
         
-        if (property == Property::IconImage) {
-            setIconImage(*typedValue);
-            return nullopt;
-        }
-        
-        if (property == Property::TextField) {
-            setTextField(*typedValue);
-            return nullopt;
-        }
+        setIconImage(*typedValue);
+        return nullopt;
         
     }
     
@@ -1947,6 +1935,18 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
             setTextAnchor(*typedValue);
             return nullopt;
         }
+        
+    }
+    
+    if (property == Property::TextField) {
+        Error error;
+        optional<PropertyValue<expression::Formatted>> typedValue = convert<PropertyValue<expression::Formatted>>(value, error, true, true);
+        if (!typedValue) {
+            return error;
+        }
+        
+        setTextField(*typedValue);
+        return nullopt;
         
     }
     
@@ -1990,5 +1990,32 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
     return Error { "layer doesn't support this property" };
 }
 
+Mutable<Layer::Impl> SymbolLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
+}
+
 } // namespace style
+
+const style::LayerTypeInfo* SymbolLayerFactory::getTypeInfo() const noexcept {
+    return style::SymbolLayer::Impl::staticTypeInfo();
+}
+
+std::unique_ptr<style::Layer> SymbolLayerFactory::createLayer(const std::string& id, const style::conversion::Convertible& value) noexcept {
+    optional<std::string> source = getSource(value);
+    if (!source) {
+        return nullptr;
+    }
+
+    std::unique_ptr<style::Layer> layer = std::unique_ptr<style::Layer>(new style::SymbolLayer(id, *source));
+    if (!initSourceLayerAndFilter(layer.get(), value)) {
+        return nullptr;
+    }
+    return layer;
+}
+
+std::unique_ptr<RenderLayer> SymbolLayerFactory::createRenderLayer(Immutable<style::Layer::Impl> impl) noexcept {
+    assert(impl->getTypeInfo() == getTypeInfo());
+    return std::make_unique<RenderSymbolLayer>(staticImmutableCast<style::SymbolLayer::Impl>(std::move(impl)));
+}
+
 } // namespace mbgl

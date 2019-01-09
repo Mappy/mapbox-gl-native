@@ -13,14 +13,23 @@ require('./style-code');
 let concatenated = '';
 let offsets = {};
 
+function basicMinify(src) {
+    return src = src.trim() // strip whitespace at the start/end
+        .replace(/\s*\/\/[^\n]*\n/g, '\n') // strip double-slash comments
+        .replace(/\n+/g, '\n') // collapse multi line breaks
+        .replace(/\n\s+/g, '\n') // strip identation
+        .replace(/\s?([+-\/*=,])\s?/g, '$1') // strip whitespace around operators
+        .replace(/([;\(\),\{\}])\n(?=[^#])/g, '$1'); // strip more line breaks
+}
+
 for (const key in shaders) {
     const vertex = concatenated.length;
-    concatenated += shaders[key].vertexSource;
-    concatenated += '\0';
+    concatenated += basicMinify(shaders[key].vertexSource);
+    concatenated += '\n\0';
 
     const fragment = concatenated.length;
-    concatenated += shaders[key].fragmentSource;
-    concatenated += '\0';
+    concatenated += basicMinify(shaders[key].fragmentSource);
+    concatenated += '\n\0';
 
     offsets[key] = {vertex, fragment};
 }
@@ -135,6 +144,16 @@ namespace shaders {
 const char* ${shaderName}::name = "${shaderName}";
 const char* ${shaderName}::vertexSource = ${sourceOffset(key, 'vertex')};
 const char* ${shaderName}::fragmentSource = ${sourceOffset(key, 'fragment')};
+
+// Uncompressed source of ${shaderName}.vertex.glsl:
+/*
+${shaders[key].vertexSource}
+*/
+
+// Uncompressed source of ${shaderName}.fragment.glsl:
+/*
+${shaders[key].fragmentSource}
+*/
 
 } // namespace shaders
 } // namespace mbgl
