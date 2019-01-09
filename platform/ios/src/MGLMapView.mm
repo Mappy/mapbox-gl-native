@@ -4408,17 +4408,13 @@ public:
         nearbyAnnotations.insert(nearbyAnnotations.end(), nearbyShapeAnnotations.begin(), nearbyShapeAnnotations.end());
     }
 
-    // Assume that the user is fat-fingering an annotation.
-    CGRect hitRect = CGRectInset({ point, CGSizeZero },
-                                 -MGLAnnotationImagePaddingForHitTest,
-                                 -MGLAnnotationImagePaddingForHitTest);
+	// Assume that the user is fat-fingering an annotation.
+	CGRect hitRect = CGRectInset({ point, CGSizeZero },
+								 -MGLAnnotationImagePaddingForHitTest,
+								 -MGLAnnotationImagePaddingForHitTest);
+	
     if (nearbyAnnotations.size())
     {
-        // Assume that the user is fat-fingering an annotation.
-        CGRect hitRect = CGRectInset({ point, CGSizeZero },
-                                     -MGLAnnotationImagePaddingForHitTest,
-                                     -MGLAnnotationImagePaddingForHitTest);
-        
         // Filter out any annotation whose image or view is unselectable or for which
         // hit testing fails.
         auto end = std::remove_if(nearbyAnnotations.begin(), nearbyAnnotations.end(), [&](const MGLAnnotationTag annotationTag) {

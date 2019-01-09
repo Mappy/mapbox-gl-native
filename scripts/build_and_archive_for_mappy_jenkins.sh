@@ -11,12 +11,10 @@ if [ $# != 1 ]; then
 elif [[ $1 != "static" && $1 != "dynamic" ]]; then
     echo $MSG
     exit
-fi 
+fi
 
-git submodule init
-git submodule update
 make clean && make distclean
-make ipackage-strip FORMAT=$1 BUILDTYPE=Release
+make iframework FORMAT=$1 BUILDTYPE=Release
 
 if [[ $1 = "static" ]]; then
 	cd build/ios/pkg
@@ -26,5 +24,4 @@ if [[ $1 = "static" ]]; then
 elif [[ $1 = "dynamic" ]]; then
 	cd build/ios
 	zip -r mapbox-ios-sdk-dynamic pkg
-fi 
-
+fi
