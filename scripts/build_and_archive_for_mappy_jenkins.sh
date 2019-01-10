@@ -14,7 +14,7 @@ elif [[ $1 != "static" && $1 != "dynamic" ]]; then
 fi
 
 make clean && make distclean
-make iframework FORMAT=$1 BUILDTYPE=Release
+make iframework FORMAT=$1 BUILDTYPE=Release SYMBOLS=NO
 
 if [[ $1 = "static" ]]; then
 	cd build/ios/pkg
