@@ -711,22 +711,6 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 				case MBXSettingsMiscellaneousDeleteMappyLogFile:
 					[self deleteMappyLogFile];
 					break;
-                case MBXSettingsMiscellaneousShowReuseQueueStats:
-                {
-                    self.reuseQueueStatsEnabled = !self.reuseQueueStatsEnabled;
-                    self.hudLabel.hidden = !self.reuseQueueStatsEnabled;
-                    self.mapInfoHUDEnabled = NO;
-                    [self updateHUD];
-                    break;
-                }
-                case MBXSettingsMiscellaneousShowZoomLevel:
-                {
-                    self.mapInfoHUDEnabled = !self.mapInfoHUDEnabled;
-                    self.hudLabel.hidden = !self.mapInfoHUDEnabled;
-                    self.reuseQueueStatsEnabled = NO;
-                    [self updateHUD];
-                    break;
-                }
                 case MBXSettingsMiscellaneousScrollView:
                 {
                     UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
