@@ -1968,9 +1968,9 @@ CLLocationCoordinate2D randomWorldCoordinate() {
             @"Satellite Streets",
         ];
         styleURLs = @[
-			[NSURL URLWithString:@"https://map.mappyrecette.net/map/1.0/vector/standard.json"],
-			[NSURL URLWithString:@"http://qt-tornik-vecto-001.th2.prod/map/1.0/vector/standard.json"],
-			[NSURL URLWithString:@"https://map.mappy.net/map/1.0/vector/standard.json"],
+			[NSURL URLWithString:@"https://map.mappyrecette.net/map/1.0/vector//maplight_v1.json"],
+			[NSURL URLWithString:@"http://qt-tornik-vecto-001.th2.prod/map/1.0/vector//maplight_v1.json"],
+			[NSURL URLWithString:@"https://map.mappy.net/map/1.0/vector/maplight_v1.json"],
             [MGLStyle streetsStyleURL],
             [MGLStyle outdoorsStyleURL],
             [MGLStyle lightStyleURL],
