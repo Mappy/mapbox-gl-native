@@ -615,6 +615,10 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     if (!MGLCoordinateBoundsIsEmpty(options.coordinateBounds)) {
         coordinateBounds = MGLLatLngBoundsFromCoordinateBounds(options.coordinateBounds);
     }
+	
+	if (! UIEdgeInsetsEqualToEdgeInsets(options.insets, UIEdgeInsetsZero)) {
+		cameraOptions.padding = MGLEdgeInsetsFromNSEdgeInsets(options.insets);
+	}
     
     // App-global configuration
     MGLRendererConfiguration* config = [MGLRendererConfiguration currentConfiguration];

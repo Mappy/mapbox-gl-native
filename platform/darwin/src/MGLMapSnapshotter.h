@@ -3,6 +3,10 @@
 #import "MGLGeometry.h"
 #import "MGLMapCamera.h"
 
+#if TARGET_OS_IPHONE
+	#import <UIKit/UIGeometry.h>
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /**
@@ -54,6 +58,11 @@ MGL_EXPORT
  center coordinate and altitude are ignored in favor of this property’s value.
  */
 @property (nonatomic) MGLCoordinateBounds coordinateBounds;
+
+/**
+ The insets to apply to coordinates bounds if present
+ */
+@property (nonatomic) UIEdgeInsets insets;
 
 #pragma mark - Configuring the Image
 
