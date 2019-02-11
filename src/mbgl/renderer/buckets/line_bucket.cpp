@@ -14,8 +14,7 @@ LineBucket::LineBucket(const style::LineLayoutProperties::PossiblyEvaluated layo
                        std::map<std::string, RenderLinePaintProperties::PossiblyEvaluated> layerPaintProperties,
                        const float zoom_,
                        const uint32_t overscaling_)
-    : Bucket(LayerType::Line),
-      layout(layout_),
+    : layout(layout_),
       zoom(zoom_),
       overscaling(overscaling_) {
 
@@ -29,6 +28,7 @@ LineBucket::LineBucket(const style::LineLayoutProperties::PossiblyEvaluated layo
     }
 }
 
+LineBucket::~LineBucket() = default;
 
 void LineBucket::addFeature(const GeometryTileFeature& feature,
                             const GeometryCollection& geometryCollection,
@@ -523,6 +523,10 @@ bool LineBucket::hasData() const {
     return !segments.empty();
 }
 
+bool LineBucket::supportsLayer(const style::Layer::Impl& impl) const {
+    return style::LineLayer::Impl::staticTypeInfo() == impl.getTypeInfo();
+}
+
 template <class Property>
 static float get(const RenderLineLayer& layer, const std::map<std::string, LineProgram::PaintPropertyBinders>& paintPropertyBinders) {
     auto it = paintPropertyBinders.find(layer.getID());
@@ -545,16 +549,10 @@ float LineBucket::getLineWidth(const RenderLineLayer& layer) const {
 }
 
 float LineBucket::getQueryRadius(const RenderLayer& layer) const {
-    if (!layer.is<RenderLineLayer>()) {
-        return 0;
-    }
-
-    auto lineLayer = layer.as<RenderLineLayer>();
-
+    const RenderLineLayer* lineLayer = toRenderLineLayer(&layer);
     const std::array<float, 2>& translate = lineLayer->evaluated.get<LineTranslate>();
     float offset = get<LineOffset>(*lineLayer, paintPropertyBinders);
     return getLineWidth(*lineLayer) / 2.0 + std::abs(offset) + util::length(translate[0], translate[1]);
 }
-
 
 } // namespace mbgl

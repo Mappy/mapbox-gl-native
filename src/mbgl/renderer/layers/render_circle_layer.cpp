@@ -15,7 +15,7 @@ namespace mbgl {
 using namespace style;
 
 RenderCircleLayer::RenderCircleLayer(Immutable<style::CircleLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Circle, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -68,7 +68,7 @@ void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
 
         const auto& paintPropertyBinders = bucket.paintPropertyBinders.at(getID());
 
-        auto& programInstance = parameters.programs.circle.get(evaluated);
+        auto& programInstance = parameters.programs.getCircleLayerPrograms().circle.get(evaluated);
    
         const auto allUniformValues = programInstance.computeAllUniformValues(
             CircleProgram::UniformValues {

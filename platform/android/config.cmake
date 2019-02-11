@@ -1,7 +1,6 @@
 set(USE_GLES2 ON)
 
 include(cmake/sqlite.cmake)
-include(cmake/icu.cmake)
 
 # Build thin archives.
 set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> cruT <TARGET> <LINK_FLAGS> <OBJECTS>")
@@ -35,27 +34,21 @@ set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWIT
 ## mbgl core ##
 
 macro(mbgl_platform_core)
-    # Modify platform/android/core-files.txt to change the source files for this target.
-    target_sources_from_file(mbgl-core PRIVATE platform/android/core-files.txt)
+    # Modify platform/android/core-files.json to change the source files for this target.
+    target_sources_from_file(mbgl-core PRIVATE platform/android/core-files.json)
 
     target_include_directories(mbgl-core
-        PUBLIC platform/default
-        PRIVATE platform/android
+        PUBLIC platform/default/include
+        PRIVATE platform/android/include
     )
 
-    target_add_mason_package(mbgl-core PUBLIC geojson)
-    target_add_mason_package(mbgl-core PUBLIC jni.hpp)
-    target_add_mason_package(mbgl-core PUBLIC rapidjson)
-
     target_link_libraries(mbgl-core
-        PRIVATE icu
-        PUBLIC expected
+        PUBLIC jni.hpp
         PUBLIC -llog
         PUBLIC -landroid
         PUBLIC -ljnigraphics
         PUBLIC -lEGL
         PUBLIC -lGLESv2
-        PUBLIC -lstdc++
         PUBLIC -latomic
         PUBLIC -lz
     )
@@ -63,17 +56,14 @@ endmacro()
 
 
 macro(mbgl_filesource)
-    # Modify platform/android/filesource-files.txt to change the source files for this target.
-    target_sources_from_file(mbgl-filesource PRIVATE platform/android/filesource-files.txt)
-
-    target_add_mason_package(mbgl-filesource PUBLIC jni.hpp)
+    # Modify platform/android/filesource-files.json to change the source files for this target.
+    target_sources_from_file(mbgl-filesource PRIVATE platform/android/filesource-files.json)
 
     target_link_libraries(mbgl-filesource
-        PRIVATE codecvt
         PUBLIC sqlite
+        PUBLIC jni.hpp
         PUBLIC -llog
         PUBLIC -landroid
-        PUBLIC -lstdc++
         PUBLIC -latomic
     )
 endmacro()
@@ -84,33 +74,57 @@ add_library(mapbox-gl SHARED
     platform/android/src/main.cpp
 )
 
+target_include_directories(mapbox-gl
+    PRIVATE src
+)
+
 target_link_libraries(mapbox-gl
-    PRIVATE codecvt
     PRIVATE mbgl-core
     PRIVATE mbgl-filesource
 )
 
-## Test library ##
-
-set(MBGL_TEST_TARGET_TYPE "library")
+## Test executable ##
 macro(mbgl_platform_test)
     target_sources(mbgl-test
-        PRIVATE platform/default/mbgl/test/main.cpp
-
-        # Main test entry point
-        platform/android/src/test/main.jni.cpp
+        PRIVATE platform/android/src/test/test_runner.cpp
+        PRIVATE platform/android/src/test/runtime.cpp
     )
 
     target_include_directories(mbgl-test
-        PRIVATE platform/android
+        PRIVATE platform/android/include
     )
 
+    set_target_properties(mbgl-test
+        PROPERTIES
+        LINK_FLAGS
+        "-fPIE -pie \
+        -Wl,--export-dynamic \
+        -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/src/test/version-script")
+
     target_link_libraries(mbgl-test
-        PRIVATE codecvt
-        PRIVATE mbgl-core
         PRIVATE mbgl-filesource
     )
 endmacro()
+
+## Benchmark ##
+macro(mbgl_platform_benchmark)
+    target_sources(mbgl-benchmark
+        PRIVATE platform/android/src/test/benchmark_runner.cpp
+        PRIVATE platform/android/src/test/runtime.cpp
+    )
+
+    set_target_properties(mbgl-benchmark
+        PROPERTIES
+        LINK_FLAGS
+        "-fPIE -pie \
+        -Wl,--export-dynamic \
+        -Wl,--version-script=${CMAKE_SOURCE_DIR}/platform/android/src/test/version-script")
+
+    target_link_libraries(mbgl-benchmark
+        PRIVATE mbgl-filesource
+    )
+endmacro()
+
 
 ## Custom layer example ##
 
@@ -123,6 +137,7 @@ target_include_directories(example-custom-layer
 )
 
 target_link_libraries(example-custom-layer
+    PRIVATE optional
     PRIVATE -llog
     PRIVATE -lGLESv2
 )

@@ -8,26 +8,35 @@ import android.support.test.espresso.IdlingResource;
 
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.testapp.R;
 
-public class OnMapReadyIdlingResource implements IdlingResource, OnMapReadyCallback {
+public class OnMapReadyIdlingResource implements IdlingResource {
 
+  private boolean styleLoaded;
   private MapboxMap mapboxMap;
   private IdlingResource.ResourceCallback resourceCallback;
-  private final Handler handler = new Handler(Looper.getMainLooper());
 
   @WorkerThread
   public OnMapReadyIdlingResource(final Activity activity) {
-    handler.post(new Runnable() {
-      @Override
-      public void run() {
-        MapView mapView = (MapView) activity.findViewById(R.id.mapView);
-        if (mapView != null) {
-          mapView.getMapAsync(OnMapReadyIdlingResource.this);
-        }
+    Handler handler = new Handler(Looper.getMainLooper());
+    handler.post(() -> {
+      MapView mapView = activity.findViewById(R.id.mapView);
+      if (mapView != null) {
+        mapView.addOnDidFinishLoadingStyleListener(() -> {
+          styleLoaded = true;
+          if (resourceCallback != null) {
+            resourceCallback.onTransitionToIdle();
+          }
+        });
+        mapView.getMapAsync(this::initMap);
       }
     });
+  }
+
+  private void initMap(MapboxMap mapboxMap) {
+    this.mapboxMap = mapboxMap;
+    mapboxMap.setStyle(new Style.Builder().fromUrl("asset://streets.json"));
   }
 
   @Override
@@ -37,7 +46,7 @@ public class OnMapReadyIdlingResource implements IdlingResource, OnMapReadyCallb
 
   @Override
   public boolean isIdleNow() {
-    return mapboxMap != null;
+    return styleLoaded;
   }
 
   @Override
@@ -47,13 +56,5 @@ public class OnMapReadyIdlingResource implements IdlingResource, OnMapReadyCallb
 
   public MapboxMap getMapboxMap() {
     return mapboxMap;
-  }
-
-  @Override
-  public void onMapReady(MapboxMap mapboxMap) {
-    this.mapboxMap = mapboxMap;
-    if (resourceCallback != null) {
-      resourceCallback.onTransitionToIdle();
-    }
   }
 }

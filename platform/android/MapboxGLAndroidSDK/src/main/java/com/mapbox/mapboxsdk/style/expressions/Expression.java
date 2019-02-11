@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.style.expressions;
 
+import android.annotation.SuppressLint;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -20,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static com.mapbox.mapboxsdk.utils.ColorUtils.colorToRgbaArray;
 
 /**
  * The value for any layout property, paint property, or filter may be specified as an expression.
@@ -84,13 +87,15 @@ import java.util.Map;
  *       ))
  *     )
  *   )
- * )
+ * );
  * }
  * </pre>
  */
 public class Expression {
 
+  @Nullable
   private final String operator;
+  @Nullable
   private final Expression[] arguments;
 
   /**
@@ -183,7 +188,7 @@ public class Expression {
    */
   public static Expression literal(@NonNull Object object) {
     if (object.getClass().isArray()) {
-      return literal(ExpressionArray.toObjectArray(object));
+      return literal(toObjectArray(object));
     } else if (object instanceof Expression) {
       throw new RuntimeException("Can't convert an expression to a literal");
     }
@@ -197,7 +202,7 @@ public class Expression {
    * @return the expression
    */
   public static Expression literal(@NonNull Object[] array) {
-    return new ExpressionArray(array);
+    return new Expression("literal", new ExpressionLiteralArray(array));
   }
 
   /**
@@ -218,7 +223,7 @@ public class Expression {
    * @return the color expression
    */
   public static Expression color(@ColorInt int color) {
-    float[] rgba = PropertyFactory.colorToRgbaArray(color);
+    float[] rgba = colorToRgbaArray(color);
     return rgba(rgba[0], rgba[1], rgba[2], rgba[3]);
   }
 
@@ -337,7 +342,7 @@ public class Expression {
    * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
-   *         rgb(255.0f, 255.0f, 255.0f, 1.0f)
+   *         rgba(255.0f, 255.0f, 255.0f, 1.0f)
    *     )
    * );
    * }
@@ -435,7 +440,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-==">Style specification</a>
    */
-  public static Expression eq(Expression compareOne, boolean compareTwo) {
+  public static Expression eq(@NonNull Expression compareOne, boolean compareTwo) {
     return eq(compareOne, literal(compareTwo));
   }
 
@@ -593,7 +598,7 @@ public class Expression {
    * {@code
    * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setFilter(
-   *     neq(get("keyToValue"), "value"))
+   *     neq(get("keyToValue"), "value")
    * );
    * }
    * </pre>
@@ -642,7 +647,7 @@ public class Expression {
    * {@code
    * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setFilter(
-   *     neq(get("keyToValue"), 2.0f))
+   *     neq(get("keyToValue"), 2.0f)
    * );
    * }
    * </pre>
@@ -860,7 +865,7 @@ public class Expression {
    * {@code
    * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setFilter(
-   *     lt(get("keyToValue"), "value"))
+   *     lt(get("keyToValue"), "value")
    * );
    * }
    * </pre>
@@ -1258,7 +1263,7 @@ public class Expression {
    *     iconSize(
    *         switchCase(
    *             get(KEY_TO_BOOLEAN), literal(3.0f),
-   *             get(KEY_TO_OTHER_BOOLEAN), literal(5.0f)
+   *             get(KEY_TO_OTHER_BOOLEAN), literal(5.0f),
    *             literal(1.0f) // default value
    *         )
    *     )
@@ -1292,7 +1297,7 @@ public class Expression {
    *             literal(1), rgba(255, 0, 0, 1.0f),
    *             literal(2), rgba(0, 0, 255.0f, 1.0f),
    *             rgba(0.0f, 255.0f, 0.0f, 1.0f)
-   *         );
+   *         )
    *     )
    * );
    * }
@@ -1324,7 +1329,7 @@ public class Expression {
    *             literal(1), rgba(255, 0, 0, 1.0f),
    *             literal(2), rgba(0, 0, 255.0f, 1.0f),
    *             rgba(0.0f, 255.0f, 0.0f, 1.0f)
-   *         );
+   *         )
    *     )
    * );
    * }
@@ -1351,7 +1356,7 @@ public class Expression {
    *         coalesce(
    *             get("keyToNullValue"),
    *             get("keyToNonNullValue")
-   *         );
+   *         )
    *     )
    * );
    * }
@@ -1377,7 +1382,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(get("key-to-value", properties())))
+   *     textField(get("key-to-value", properties()))
    * );
    * }
    * </pre>
@@ -1398,7 +1403,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(concat(get("key-to-value"), literal(" "), geometryType())
+   *     textField(concat(get("key-to-value"), literal(" "), geometryType()))
    * );
    * }
    * </pre>
@@ -1448,9 +1453,9 @@ public class Expression {
    *         literal(0.4), rgb(209, 229, 240),
    *         literal(0.6), rgb(253, 219, 199),
    *         literal(0.8), rgb(239, 138, 98),
-   *         literal(1), rgb(178, 24, 43)
+   *         literal(1), rgb(178, 24, 43))
    *     )
-   * )
+   * );
    * }
    * </pre>
    *
@@ -1476,7 +1481,7 @@ public class Expression {
    *         stop(0.5f, rgb(0, 255, 0)),
    *         stop(1f, rgb(255, 0, 0)))
    *     )
-   * )
+   * );
    * }
    * </pre>
    *
@@ -1683,7 +1688,7 @@ public class Expression {
    * {@code
    * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setFilter(
-   *     has("keyToValue", get("keyToObject))
+   *     has("keyToValue", get("keyToObject"))
    * );
    * }
    * </pre>
@@ -1728,7 +1733,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(product(literal(10.0f), ln2())))
+   *     circleRadius(product(literal(10.0f), ln2()))
    * );
    * }
    * </pre>
@@ -1749,7 +1754,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(product(literal(10.0f), pi())))
+   *     circleRadius(product(literal(10.0f), pi()))
    * );
    * }
    * </pre>
@@ -1770,7 +1775,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(product(literal(10.0f), e())))
+   *     circleRadius(product(literal(10.0f), e()))
    * );
    * }
    * </pre>
@@ -1791,7 +1796,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(sum(literal(10.0f), ln2(), pi())))
+   *     circleRadius(sum(literal(10.0f), ln2(), pi()))
    * );
    * }
    * </pre>
@@ -1813,7 +1818,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(sum(10.0f, 5.0f, 3.0f)))
+   *     circleRadius(sum(10.0f, 5.0f, 3.0f))
    * );
    * }
    * </pre>
@@ -1822,6 +1827,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-+">Style specification</a>
    */
+  @SuppressLint("Range")
   public static Expression sum(@Size(min = 2) Number... numbers) {
     Expression[] numberExpression = new Expression[numbers.length];
     for (int i = 0; i < numbers.length; i++) {
@@ -1839,7 +1845,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(product(literal(10.0f), ln2())))
+   *     circleRadius(product(literal(10.0f), ln2()))
    * );
    * }
    * </pre>
@@ -1861,7 +1867,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(product(10.0f, 2.0f)))
+   *     circleRadius(product(10.0f, 2.0f))
    * );
    * }
    * </pre>
@@ -1870,6 +1876,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-*">Style specification</a>
    */
+  @SuppressLint("Range")
   public static Expression product(@Size(min = 2) Number... numbers) {
     Expression[] numberExpression = new Expression[numbers.length];
     for (int i = 0; i < numbers.length; i++) {
@@ -1931,7 +1938,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(subtract(literal(10.0f), pi())))
+   *     circleRadius(subtract(literal(10.0f), pi()))
    * );
    * }
    * </pre>
@@ -1954,7 +1961,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(subtract(10.0f, 20.0f)))
+   *     circleRadius(subtract(10.0f, 20.0f))
    * );
    * }
    * </pre>
@@ -1977,7 +1984,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(division(literal(10.0f), pi())))
+   *     circleRadius(division(literal(10.0f), pi()))
    * );
    * }
    * </pre>
@@ -2000,7 +2007,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(division(10.0f, 20.0f)))
+   *     circleRadius(division(10.0f, 20.0f))
    * );
    * }
    * </pre>
@@ -2069,7 +2076,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(pow(pi(), literal(2.0f))
+   *     circleRadius(pow(pi(), literal(2.0f)))
    * );
    * }
    * </pre>
@@ -2234,7 +2241,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-ln">Style specification</a>
    */
-  public static Expression ln(Number number) {
+  public static Expression ln(@NonNull Number number) {
     return ln(literal(number));
   }
 
@@ -2357,7 +2364,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(cos(0)))
+   *     circleRadius(cos(0))
    * );
    * }
    * </pre>
@@ -2555,7 +2562,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(min(pi(), literal(3.14f), literal(3.15f))
+   *     circleRadius(min(pi(), literal(3.14f), literal(3.15f)))
    * );
    * }
    * </pre>
@@ -2586,6 +2593,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-min">Style specification</a>
    */
+  @SuppressLint("Range")
   public static Expression min(@Size(min = 1) Number... numbers) {
     Expression[] numberExpression = new Expression[numbers.length];
     for (int i = 0; i < numbers.length; i++) {
@@ -2603,7 +2611,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(max(pi(), 3.14f, 3.15f))
+   *     circleRadius(max(pi(), product(pi(), pi())))
    * );
    * }
    * </pre>
@@ -2634,6 +2642,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-max">Style specification</a>
    */
+  @SuppressLint("Range")
   public static Expression max(@Size(min = 1) Number... numbers) {
     Expression[] numberExpression = new Expression[numbers.length];
     for (int i = 0; i < numbers.length; i++) {
@@ -2686,7 +2695,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-round">Style specification</a>
    */
-  public static Expression round(Number number) {
+  public static Expression round(@NonNull Number number) {
     return round(literal(number));
   }
 
@@ -2730,7 +2739,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-abs">Style specification</a>
    */
-  public static Expression abs(Number number) {
+  public static Expression abs(@NonNull Number number) {
     return abs(literal(number));
   }
 
@@ -2774,7 +2783,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-abs">Style specification</a>
    */
-  public static Expression ceil(Number number) {
+  public static Expression ceil(@NonNull Number number) {
     return ceil(literal(number));
   }
 
@@ -2818,7 +2827,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-abs">Style specification</a>
    */
-  public static Expression floor(Number number) {
+  public static Expression floor(@NonNull Number number) {
     return floor(literal(number));
   }
 
@@ -2834,7 +2843,7 @@ public class Expression {
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
    * circleColor(switchCase(
-   * eq(literal("it"), resolvedLocale(collator(true, true, "it"))), literal(ColorUtils.colorToRgbaString(Color.GREEN)),
+   * eq(literal("it"), resolvedLocale(collator(true, true, Locale.ITALY))), literal(ColorUtils.colorToRgbaString(Color.GREEN)),
    * literal(ColorUtils.colorToRgbaString(Color.RED))))
    * );
    * }
@@ -2858,7 +2867,7 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * mapboxMap.addLayer(new SymbolLayer("layer-id", "source-id")
+   * mapboxMap.getStyle().addLayer(new SymbolLayer("layer-id", "source-id")
    *   .withProperties(
    *     textField(
    *       switchCase(
@@ -2872,7 +2881,8 @@ public class Expression {
    *
    * @param expression the expression to evaluate
    * @return expression
-   * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-is-supported-script">Style specification</a>
+   * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-is-supported-script">Style
+   * specification</a>
    */
   public static Expression isSupportedScript(Expression expression) {
     return new Expression("is-supported-script", expression);
@@ -2888,12 +2898,12 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * mapboxMap.addLayer(new SymbolLayer("layer-id", "source-id")
+   * mapboxMap.getStyle().addLayer(new SymbolLayer("layer-id", "source-id")
    * .withProperties(
    *   textField(
    *     switchCase(
    *       isSupportedScript("ಗೌರವಾರ್ಥವಾಗಿ"), literal("ಗೌರವಾರ್ಥವಾಗಿ"),
-   *       literal("not-compatible")
+   *       literal("not-compatible"))
    *     )
    *   )
    * );
@@ -2902,9 +2912,10 @@ public class Expression {
    *
    * @param string the string to evaluate
    * @return expression
-   * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-is-supported-script">Style specification</a>
+   * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-is-supported-script">Style
+   * specification</a>
    */
-  public static Expression isSupportedScript(String string) {
+  public static Expression isSupportedScript(@NonNull String string) {
     return new Expression("is-supported-script", literal(string));
   }
 
@@ -2921,7 +2932,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(upcase(get("key-to-string-value"))
+   *     textField(upcase(get("key-to-string-value")))
    * );
    * }
    * </pre>
@@ -2973,7 +2984,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(downcase(get("key-to-string-value"))
+   *     textField(downcase(get("key-to-string-value")))
    * );
    * }
    * </pre>
@@ -2999,7 +3010,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(upcase("key-to-string-value")
+   *     textField(upcase("key-to-string-value"))
    * );
    * }
    * </pre>
@@ -3021,7 +3032,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(concat(get("key-to-string-value"), literal("other string"))
+   *     textField(concat(get("key-to-string-value"), literal("other string")))
    * );
    * }
    * </pre>
@@ -3225,6 +3236,126 @@ public class Expression {
   }
 
   /**
+   * Returns formatted text containing annotations for use in mixed-format text-field entries.
+   * <p>
+   * To build the expression, use {@link #formatEntry(Expression, FormatOption...)}.
+   * <p>
+   * "format" expression can be used, for example, with the {@link PropertyFactory#textField(Expression)}
+   * and accepts unlimited numbers of formatted sections.
+   * <p>
+   * Each section consist of the input, the displayed text, and options, like font-scale and text-font.
+   * <p>
+   * Example usage:
+   * </p>
+   * <pre>
+   * {@code
+   * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
+   * symbolLayer.setProperties(
+   *   textField(
+   *     format(
+   *       formatEntry(
+   *         get("header_property"),
+   *         formatFontScale(2.0),
+   *         formatTextFont(new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"})
+   *       ),
+   *       formatEntry(concat(literal("\n"), get("description_property")), formatFontScale(1.5))
+   *     )
+   *   )
+   * );
+   * }
+   * </pre>
+   *
+   * @param formatEntries format entries
+   * @return expression
+   * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-types-format">Style specification</a>
+   */
+  public static Expression format(@NonNull FormatEntry... formatEntries) {
+    // for each entry we are going to build an input and parameters
+    Expression[] mappedExpressions = new Expression[formatEntries.length * 2];
+
+    int mappedIndex = 0;
+    for (FormatEntry formatEntry : formatEntries) {
+      // input
+      mappedExpressions[mappedIndex++] = formatEntry.text;
+
+      // parameters
+      Map<String, Expression> map = new HashMap<>();
+
+      if (formatEntry.options != null) {
+        for (FormatOption option : formatEntry.options) {
+          map.put(option.type, option.value);
+        }
+      }
+
+      mappedExpressions[mappedIndex++] = new ExpressionMap(map);
+    }
+
+    return new Expression("format", mappedExpressions);
+  }
+
+  /**
+   * Returns a format entry that can be used in {@link #format(FormatEntry...)} to create formatted text fields.
+   * <p>
+   * Text is required to be of a resulting type string.
+   * <p>
+   * Text is required to be passed; {@link FormatOption}s are optional and will default to the base values defined
+   * for the symbol.
+   *
+   * @param text          displayed text
+   * @param formatOptions format options
+   * @return format entry
+   */
+  public static FormatEntry formatEntry(@NonNull Expression text, @Nullable FormatOption... formatOptions) {
+    return new FormatEntry(text, formatOptions);
+  }
+
+  /**
+   * Returns a format entry that can be used in {@link #format(FormatEntry...)} to create formatted text fields.
+   * <p>
+   * Text is required to be of a resulting type string.
+   * <p>
+   * Text is required to be passed; {@link FormatOption}s are optional and will default to the base values defined
+   * for the symbol.
+   *
+   * @param text displayed text
+   * @return format entry
+   */
+  public static FormatEntry formatEntry(@NonNull Expression text) {
+    return new FormatEntry(text, null);
+  }
+
+  /**
+   * Returns a format entry that can be used in {@link #format(FormatEntry...)} to create formatted text fields.
+   * <p>
+   * Text is required to be of a resulting type string.
+   * <p>
+   * Text is required to be passed; {@link FormatOption}s are optional and will default to the base values defined
+   * for the symbol.
+   *
+   * @param text          displayed text
+   * @param formatOptions format options
+   * @return format entry
+   */
+  public static FormatEntry formatEntry(@NonNull String text, @Nullable FormatOption... formatOptions) {
+    return new FormatEntry(literal(text), formatOptions);
+  }
+
+  /**
+   * Returns a format entry that can be used in {@link #format(FormatEntry...)} to create formatted text fields.
+   * <p>
+   * Text is required to be of a resulting type string.
+   * <p>
+   * Text is required to be passed; {@link FormatOption}s are optional and will default to the base values defined
+   * for the symbol.
+   *
+   * @param text displayed text
+   * @return format entry
+   */
+  public static FormatEntry formatEntry(@NonNull String text) {
+    return new FormatEntry(literal(text), null);
+  }
+
+  /**
    * Asserts that the input value is an object. If it is not, the expression is an error
    * The asserted input value is returned as result.
    *
@@ -3252,7 +3383,7 @@ public class Expression {
    * {@code
    * SymbolLayer symbolLayer = new SymbolLayer("layer-id", "source-id");
    * symbolLayer.setProperties(
-   *     textField(toString(get("key-to-number-value")))
+   *     textField(get("key-to-number-value"))
    * );
    * }
    * </pre>
@@ -3302,7 +3433,7 @@ public class Expression {
    * {@code
    * CircleLayer circleLayer = new CircleLayer("layer-id", "source-id");
    * circleLayer.setProperties(
-   *     circleRadius(toBool(get("key-to-value"));
+   *     circleRadius(toBool(get("key-to-value")))
    * );
    * }
    * </pre>
@@ -3384,14 +3515,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         exponential(0.5f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3421,7 +3552,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), literal(0.0f),
    *         stop(1.0f, 2.5f),
-   *         stop(10.0f, 5.0f)
+   *         stop(10.0f, 5.0f))
    *     )
    * );
    * }
@@ -3451,7 +3582,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), literal(0.0f),
    *         literal(1.0f), literal(2.5f),
-   *         literal(10.0f), literal(5.0f)
+   *         literal(10.0f), literal(5.0f))
    *     )
    * );
    * }
@@ -3483,7 +3614,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), literal(0.0f),
    *         literal(1.0f), literal(2.5f),
-   *         literal(10.0f), literal(5.0f)
+   *         literal(10.0f), literal(5.0f))
    *     )
    * );
    * }
@@ -3495,7 +3626,7 @@ public class Expression {
    * @return expression
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-step">Style specification</a>
    */
-  public static Expression step(@NonNull Expression input, @NonNull Expression defaultOutput, Expression... stops) {
+  public static Expression step(@NonNull Expression input, @NonNull Expression defaultOutput, @NonNull Expression... stops) {
     return new Expression("step", join(new Expression[] {input, defaultOutput}, stops));
   }
 
@@ -3515,7 +3646,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), literal(0.0f),
    *         stop(1, 2.5f),
-   *         stop(10, 5.0f)
+   *         stop(10, 5.0f))
    *     )
    * );
    * }
@@ -3547,7 +3678,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), literal(0.0f),
    *         stop(1, 2.5f),
-   *         stop(10, 5.0f)
+   *         stop(10, 5.0f))
    *     )
    * );
    * }
@@ -3579,7 +3710,7 @@ public class Expression {
    *     circleRadius(
    *         step(1.0f, 0.0f,
    *         literal(1.0f), literal(2.5f),
-   *         literal(10.0f), literal(5.0f)
+   *         literal(10.0f), literal(5.0f))
    *     )
    * );
    * }
@@ -3611,7 +3742,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), 0.0f,
    *         literal(1.0f), literal(2.5f),
-   *         literal(10.0f), literal(5.0f)
+   *         literal(10.0f), literal(5.0f))
    *     )
    * );
    * }
@@ -3643,7 +3774,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), 0.0f,
    *         stop(1, 2.5f),
-   *         stop(10, 5.0f)
+   *         stop(10, 5.0f))
    *     )
    * );
    * }
@@ -3675,7 +3806,7 @@ public class Expression {
    *     circleRadius(
    *         step(zoom(), 0.0f,
    *         stop(1, 2.5f),
-   *         stop(10, 5.0f)
+   *         stop(10, 5.0f))
    *     )
    * );
    * }
@@ -3701,16 +3832,16 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
-   *     fillColor(
-   *       interpolate(
-   *         exponential(0.5f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *   fillColor(
+   *     interpolate(exponential(0.5f), zoom(),
+   *        stop(1.0f, color(Color.RED)),
+   *        stop(5.0f, color(Color.BLUE)),
+   *        stop(10.0f, color(Color.GREEN)
    *       )
    *     )
+   *   )
    * );
    * }
    * </pre>
@@ -3722,7 +3853,7 @@ public class Expression {
    * @see <a href="https://www.mapbox.com/mapbox-gl-js/style-spec/#expressions-interpolate">Style specification</a>
    */
   public static Expression interpolate(@NonNull Interpolator interpolation,
-                                       @NonNull Expression number, Expression... stops) {
+                                       @NonNull Expression number, @NonNull Expression... stops) {
     return new Expression("interpolate", join(new Expression[] {interpolation, number}, stops));
   }
 
@@ -3736,14 +3867,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         exponential(0.5f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3768,14 +3899,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         linear(), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3799,14 +3930,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         exponential(0.5f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3831,14 +3962,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
-   *         exponential(get("keyToValue"), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         exponential(get("keyToValue")), zoom(),
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3860,14 +3991,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         cubicBezier(0.42f, 0.0f, 1.0f, 1.0f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3893,14 +4024,14 @@ public class Expression {
    * </p>
    * <pre>
    * {@code
-   * FillLayer fillLayer = new fillLayer("layer-id", "source-id");
+   * FillLayer fillLayer = new FillLayer("layer-id", "source-id");
    * fillLayer.setProperties(
    *     fillColor(
    *       interpolate(
    *         cubicBezier(0.42f, 0.0f, 1.0f, 1.0f), zoom(),
-   *         literal(1.0f), color(Color.RED),
-   *         literal(5.0f, color(Color.BLUE),
-   *         literal(10.0f, color(Color.GREEN)
+   *         stop(1.0f, color(Color.RED)),
+   *         stop(5.0f, color(Color.BLUE)),
+   *         stop(10.0f, color(Color.GREEN))
    *       )
    *     )
    * );
@@ -3929,6 +4060,7 @@ public class Expression {
    * @param right the right part of an expression
    * @return the joined expression
    */
+  @NonNull
   private static Expression[] join(Expression[] left, Expression[] right) {
     Expression[] output = new Expression[left.length + right.length];
     System.arraycopy(left, 0, output, 0, left.length);
@@ -3976,18 +4108,7 @@ public class Expression {
     if (arguments != null) {
       for (Object argument : arguments) {
         builder.append(", ");
-        if (argument instanceof ExpressionLiteral) {
-          Object literalValue = ((ExpressionLiteral) argument).toValue();
-
-          // special case for handling unusual input like 'rgba(r, g, b, a)'
-          if (literalValue instanceof String) {
-            builder.append("\"").append(literalValue).append("\"");
-          } else {
-            builder.append(literalValue);
-          }
-        } else {
-          builder.append(argument.toString());
-        }
+        builder.append(argument.toString());
       }
     }
     builder.append("]");
@@ -4021,7 +4142,7 @@ public class Expression {
    * @return true if equal, false if not
    */
   @Override
-  public boolean equals(Object o) {
+  public boolean equals(@Nullable Object o) {
     super.equals(o);
     if (this == o) {
       return true;
@@ -4121,7 +4242,7 @@ public class Expression {
      * @return true if equal, false if not
      */
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       if (this == o) {
         return true;
       }
@@ -4149,6 +4270,7 @@ public class Expression {
       return result;
     }
 
+    @NonNull
     private static String unwrapStringLiteral(String value) {
       if (value.length() > 1 &&
         value.charAt(0) == '\"' && value.charAt(value.length() - 1) == '\"') {
@@ -4201,6 +4323,7 @@ public class Expression {
      * @param stops the stops to convert
      * @return the converted stops as an expression array
      */
+    @NonNull
     static Expression[] toExpressionArray(Stop... stops) {
       Expression[] expressions = new Expression[stops.length * 2];
       Stop stop;
@@ -4226,6 +4349,99 @@ public class Expression {
   }
 
   /**
+   * Holds format entries used in a {@link #format(FormatEntry...)} expression.
+   */
+  public static class FormatEntry {
+    @NonNull
+    private Expression text;
+    @Nullable
+    private FormatOption[] options;
+
+    FormatEntry(@NonNull Expression text, @Nullable FormatOption[] options) {
+      this.text = text;
+      this.options = options;
+    }
+  }
+
+  /**
+   * Holds format options used in a {@link #formatEntry(Expression, FormatOption...)} that builds
+   * a {@link #format(FormatEntry...)} expression.
+   * <p>
+   * If an option is not set, it defaults to the base value defined for the symbol.
+   */
+  public static class FormatOption {
+    @NonNull
+    private String type;
+    @NonNull
+    private Expression value;
+
+    FormatOption(@NonNull String type, @NonNull Expression value) {
+      this.type = type;
+      this.value = value;
+    }
+
+    /**
+     * If set, the font-scale argument specifies a scaling factor relative to the text-size
+     * specified in the root layout properties.
+     * <p>
+     * "font-scale" is required to be of a resulting type number.
+     *
+     * @param expression expression
+     * @return format option
+     */
+    @NonNull
+    public static FormatOption formatFontScale(@NonNull Expression expression) {
+      return new FormatOption("font-scale", expression);
+    }
+
+    /**
+     * If set, the font-scale argument specifies a scaling factor relative to the text-size
+     * specified in the root layout properties.
+     * <p>
+     * "font-scale" is required to be of a resulting type number.
+     *
+     * @param scale value
+     * @return format option
+     */
+    @NonNull
+    public static FormatOption formatFontScale(double scale) {
+      return new FormatOption("font-scale", literal(scale));
+    }
+
+    /**
+     * If set, the text-font argument overrides the font specified by the root layout properties.
+     * <p>
+     * "text-font" is required to a literal array.
+     * <p>
+     * The requested font stack has to be a part of the used style.
+     * For more information see <a href="https://www.mapbox.com/help/define-font-stack/">the documentation</a>.
+     *
+     * @param expression expression
+     * @return format option
+     */
+    @NonNull
+    public static FormatOption formatTextFont(@NonNull Expression expression) {
+      return new FormatOption("text-font", expression);
+    }
+
+    /**
+     * If set, the text-font argument overrides the font specified by the root layout properties.
+     * <p>
+     * "text-font" is required to a literal array.
+     * <p>
+     * The requested font stack has to be a part of the used style.
+     * For more information see <a href="https://www.mapbox.com/help/define-font-stack/">the documentation</a>.
+     *
+     * @param fontStack value
+     * @return format option
+     */
+    @NonNull
+    public static FormatOption formatTextFont(@NonNull String[] fontStack) {
+      return new FormatOption("text-font", literal(fontStack));
+    }
+  }
+
+  /**
    * Converts a JsonArray or a raw expression to a Java expression.
    */
   public final static class Converter {
@@ -4246,10 +4462,24 @@ public class Expression {
       final String operator = jsonArray.get(0).getAsString();
       final List<Expression> arguments = new ArrayList<>();
 
-      JsonElement jsonElement;
       for (int i = 1; i < jsonArray.size(); i++) {
-        jsonElement = jsonArray.get(i);
-        arguments.add(convert(jsonElement));
+        JsonElement jsonElement = jsonArray.get(i);
+        if (operator.equals("literal") && jsonElement instanceof JsonArray) {
+          JsonArray nestedArray = (JsonArray) jsonElement;
+          Object[] array = new Object[nestedArray.size()];
+          for (int j = 0; j < nestedArray.size(); j++) {
+            JsonElement element = nestedArray.get(j);
+            if (element instanceof JsonPrimitive) {
+              array[j] = convertToValue((JsonPrimitive) element);
+            } else {
+              throw new IllegalArgumentException("Nested literal arrays are not supported.");
+            }
+          }
+
+          arguments.add(new ExpressionLiteralArray(array));
+        } else {
+          arguments.add(convert(jsonElement));
+        }
       }
       return new Expression(operator, arguments.toArray(new Expression[arguments.size()]));
     }
@@ -4260,7 +4490,7 @@ public class Expression {
      * @param jsonElement the json element to convert
      * @return the expression
      */
-    private static Expression convert(@NonNull JsonElement jsonElement) {
+    public static Expression convert(@NonNull JsonElement jsonElement) {
       if (jsonElement instanceof JsonArray) {
         return convert((JsonArray) jsonElement);
       } else if (jsonElement instanceof JsonPrimitive) {
@@ -4285,12 +4515,22 @@ public class Expression {
      * @return the expression literal
      */
     private static Expression convert(@NonNull JsonPrimitive jsonPrimitive) {
+      return new ExpressionLiteral(convertToValue(jsonPrimitive));
+    }
+
+    /**
+     * Converts a JsonPrimitive to value
+     *
+     * @param jsonPrimitive the json primitive to convert
+     * @return the value
+     */
+    private static Object convertToValue(@NonNull JsonPrimitive jsonPrimitive) {
       if (jsonPrimitive.isBoolean()) {
-        return new Expression.ExpressionLiteral(jsonPrimitive.getAsBoolean());
+        return jsonPrimitive.getAsBoolean();
       } else if (jsonPrimitive.isNumber()) {
-        return new Expression.ExpressionLiteral(jsonPrimitive.getAsFloat());
+        return jsonPrimitive.getAsFloat();
       } else if (jsonPrimitive.isString()) {
-        return new Expression.ExpressionLiteral(jsonPrimitive.getAsString());
+        return jsonPrimitive.getAsString();
       } else {
         throw new RuntimeException("Unsupported literal expression conversion for " + jsonPrimitive.getClass());
       }
@@ -4311,20 +4551,15 @@ public class Expression {
   /**
    * Expression to wrap Object[] as a literal
    */
-  private static class ExpressionArray extends Expression {
+  private static class ExpressionLiteralArray extends ExpressionLiteral {
 
-    private Object[] array;
-
-    ExpressionArray(Object[] array) {
-      this.array = array;
-    }
-
-    @NonNull
-    @Override
-    public Object[] toArray() {
-      return new Object[] {
-        "literal", array
-      };
+    /**
+     * Create an expression literal.
+     *
+     * @param object the object to be treated as literal
+     */
+    ExpressionLiteralArray(@NonNull Object[] object) {
+      super(object);
     }
 
     /**
@@ -4332,12 +4567,13 @@ public class Expression {
      *
      * @return the string representation of the expression array
      */
+    @NonNull
     @Override
     public String toString() {
-      StringBuilder builder = new StringBuilder("[\"literal\"], [");
-      Object argument;
+      Object[] array = (Object[]) literal;
+      StringBuilder builder = new StringBuilder("[");
       for (int i = 0; i < array.length; i++) {
-        argument = array[i];
+        Object argument = array[i];
         if (argument instanceof String) {
           builder.append("\"").append(argument).append("\"");
         } else {
@@ -4348,8 +4584,22 @@ public class Expression {
           builder.append(", ");
         }
       }
-      builder.append("]]");
+      builder.append("]");
       return builder.toString();
+    }
+
+    @Override
+    public boolean equals(@Nullable Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+
+      ExpressionLiteralArray that = (ExpressionLiteralArray) o;
+
+      return Arrays.equals((Object[]) this.literal, (Object[]) that.literal);
     }
   }
 
@@ -4363,13 +4613,14 @@ public class Expression {
       this.map = map;
     }
 
+    @NonNull
     @Override
     public Object toValue() {
       Map<String, Object> unwrappedMap = new HashMap<>();
       for (String key : map.keySet()) {
         Expression expression = map.get(key);
-        if (expression instanceof Expression.ExpressionLiteral) {
-          unwrappedMap.put(key, ((ExpressionLiteral) expression).toValue());
+        if (expression instanceof ValueExpression) {
+          unwrappedMap.put(key, ((ValueExpression) expression).toValue());
         } else {
           unwrappedMap.put(key, expression.toArray());
         }
@@ -4378,6 +4629,7 @@ public class Expression {
       return unwrappedMap;
     }
 
+    @NonNull
     @Override
     public String toString() {
       StringBuilder builder = new StringBuilder();
@@ -4397,7 +4649,7 @@ public class Expression {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
       if (this == o) {
         return true;
       }
@@ -4432,7 +4684,8 @@ public class Expression {
    * @param object the object to convert to an object array
    * @return the converted object array
    */
-  static Object[] toObjectArray(Object object) {
+  @NonNull
+  private static Object[] toObjectArray(Object object) {
     // object is a primitive array
     int len = java.lang.reflect.Array.getLength(object);
     Object[] objects = new Object[len];

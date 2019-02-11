@@ -4,6 +4,8 @@ import android.content.Context;
 import android.support.annotation.CallSuper;
 import android.support.annotation.Keep;
 
+import android.support.annotation.NonNull;
+import com.mapbox.mapboxsdk.log.Logger;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.storage.FileSource;
 
@@ -20,12 +22,15 @@ import javax.microedition.khronos.opengles.GL10;
 @Keep
 public abstract class MapRenderer implements MapRendererScheduler {
 
+  private static final String TAG = "Mbgl-MapRenderer";
+
   // Holds the pointer to the native peer after initialisation
   private long nativePtr = 0;
 
+  private double expectedRenderTime = 0;
   private MapboxMap.OnFpsChangedListener onFpsChangedListener;
 
-  public MapRenderer(Context context, String localIdeographFontFamily) {
+  public MapRenderer(@NonNull Context context, String localIdeographFontFamily) {
     FileSource fileSource = FileSource.getInstance(context);
     float pixelRatio = context.getResources().getDisplayMetrics().density;
     String programCacheDir = FileSource.getInternalCachePath(context);
@@ -64,21 +69,29 @@ public abstract class MapRenderer implements MapRendererScheduler {
   }
 
   @CallSuper
-  protected void onSurfaceChanged(GL10 gl, int width, int height) {
+  protected void onSurfaceChanged(@NonNull GL10 gl, int width, int height) {
     gl.glViewport(0, 0, width, height);
     nativeOnSurfaceChanged(width, height);
   }
 
   @CallSuper
   protected void onDrawFrame(GL10 gl) {
+    long startTime = System.nanoTime();
     try {
       nativeRender();
-
-      if (onFpsChangedListener != null) {
-        updateFps();
+    } catch (java.lang.Error error) {
+      Logger.e(TAG, error.getMessage());
+    }
+    long renderTime = System.nanoTime() - startTime;
+    if (renderTime < expectedRenderTime) {
+      try {
+        Thread.sleep((long) ((expectedRenderTime - renderTime) / 1E6));
+      } catch (InterruptedException ex) {
+        Logger.e(TAG, ex.getMessage());
       }
-    } catch (Exception e) {
-      e.printStackTrace();
+    }
+    if (onFpsChangedListener != null) {
+      updateFps();
     }
   }
 
@@ -112,18 +125,26 @@ public abstract class MapRenderer implements MapRendererScheduler {
 
   private native void nativeRender();
 
-  private long frames;
   private long timeElapsed;
 
   private void updateFps() {
-    frames++;
     long currentTime = System.nanoTime();
-    double fps = 0;
-    if (currentTime - timeElapsed >= 1) {
-      fps = frames / ((currentTime - timeElapsed) / 1E9);
-      onFpsChangedListener.onFpsChanged(fps);
-      timeElapsed = currentTime;
-      frames = 0;
+    double fps = 1E9 / ((currentTime - timeElapsed));
+    onFpsChangedListener.onFpsChanged(fps);
+    timeElapsed = currentTime;
+  }
+
+  /**
+   * The max frame rate at which this render is rendered,
+   * but it can't excess the ability of device hardware.
+   *
+   * @param maximumFps Can be set to arbitrary integer values.
+   */
+  public void setMaximumFps(int maximumFps) {
+    if (maximumFps <= 0) {
+      // Not valid, just return
+      return;
     }
+    expectedRenderTime = 1E9 / maximumFps;
   }
 }

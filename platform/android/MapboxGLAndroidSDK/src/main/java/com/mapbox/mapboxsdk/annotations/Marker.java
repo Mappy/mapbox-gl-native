@@ -18,22 +18,24 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
  * {@link LatLng} and using {@link MapboxMap#addMarker(MarkerOptions)}. The marker icon will be
  * centered at this position so it is common to add padding to the icon image before usage.
  * <p>
- * If more customization is needed, we offer {@link MarkerView} which places a {@link View} on top
- * of the map at a geographical location.
- * </p>
- * <p>
  * Markers are designed to be interactive. They receive click events by default, and are often used
  * with event listeners to bring up info windows. An {@link InfoWindow} is displayed by default when
  * either a title or snippet is provided.
  * </p>
+ * @deprecated As of 7.0.0,
+ * use <a href="https://github.com/mapbox/mapbox-plugins-android/tree/master/plugin-annotation">
+ *   Mapbox Annotation Plugin</a> instead
  */
+@Deprecated
 public class Marker extends Annotation {
 
   @Keep
   private LatLng position;
   private String snippet;
+  @Nullable
   private Icon icon;
   //Redundantly stored for JNI access
+  @Nullable
   @Keep
   private String iconId;
   private String title;
@@ -41,6 +43,7 @@ public class Marker extends Annotation {
     //Mappy modif
     private int zOrder;
 
+  @Nullable
   private InfoWindow infoWindow;
   private boolean infoWindowShown;
 
@@ -66,11 +69,6 @@ public class Marker extends Annotation {
   //Mappy modif
   public Marker(BaseMarkerOptions baseMarkerOptions, int zOrder) {
     this(baseMarkerOptions.position, baseMarkerOptions.icon, baseMarkerOptions.title, baseMarkerOptions.snippet, zOrder);
-  }
-
-  Marker(BaseMarkerViewOptions baseMarkerViewOptions) {
-    this(baseMarkerViewOptions.position, baseMarkerViewOptions.icon,
-      baseMarkerViewOptions.title, baseMarkerViewOptions.snippet, baseMarkerViewOptions.zOrder);
   }
 
   Marker(LatLng position, Icon icon, String title, String snippet) {
@@ -179,6 +177,7 @@ public class Marker extends Annotation {
    *
    * @return The {@link Icon} the marker is using.
    */
+  @Nullable
   public Icon getIcon() {
     return icon;
   }
@@ -241,6 +240,7 @@ public class Marker extends Annotation {
    * @param mapView   The hosting map view.
    * @return The info window that was shown.
    */
+  @Nullable
   public InfoWindow showInfoWindow(@NonNull MapboxMap mapboxMap, @NonNull MapView mapView) {
     setMapboxMap(mapboxMap);
     setMapView(mapView);
@@ -262,12 +262,14 @@ public class Marker extends Annotation {
     return showInfoWindow(infoWindow, mapView);
   }
 
+  @NonNull
   private InfoWindow showInfoWindow(InfoWindow iw, MapView mapView) {
     iw.open(mapView, this, getPosition(), rightOffsetPixels, topOffsetPixels);
     infoWindowShown = true;
     return iw;
   }
 
+  @Nullable
   private InfoWindow getInfoWindow(@NonNull MapView mapView) {
     if (infoWindow == null && mapView.getContext() != null) {
       infoWindow = new InfoWindow(mapView, R.layout.mapbox_infowindow_content, getMapboxMap());

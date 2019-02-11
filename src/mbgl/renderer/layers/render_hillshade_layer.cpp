@@ -16,7 +16,7 @@ namespace mbgl {
 
 using namespace style;
 RenderHillshadeLayer::RenderHillshadeLayer(Immutable<style::HillshadeLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Hillshade, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -73,7 +73,7 @@ void RenderHillshadeLayer::render(PaintParameters& parameters, RenderSource* src
                      const auto& indexBuffer,
                      const auto& segments,
                      const UnwrappedTileID& id) {
-        auto& programInstance = parameters.programs.hillshade;
+        auto& programInstance = parameters.programs.getHillshadeLayerPrograms().hillshade;
 
         const HillshadeProgram::PaintPropertyBinders paintAttributeData{ evaluated, 0 };
 
@@ -138,7 +138,7 @@ void RenderHillshadeLayer::render(PaintParameters& parameters, RenderSource* src
             const Properties<>::PossiblyEvaluated properties;
             const HillshadePrepareProgram::PaintPropertyBinders paintAttributeData{ properties, 0 };
             
-            auto& programInstance = parameters.programs.hillshadePrepare;
+            auto& programInstance = parameters.programs.getHillshadeLayerPrograms().hillshadePrepare;
 
             const auto allUniformValues = programInstance.computeAllUniformValues(
                 HillshadePrepareProgram::UniformValues {

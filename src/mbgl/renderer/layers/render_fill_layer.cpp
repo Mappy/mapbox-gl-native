@@ -17,7 +17,7 @@ namespace mbgl {
 using namespace style;
 
 RenderFillLayer::RenderFillLayer(Immutable<style::FillLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Fill, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -26,7 +26,8 @@ const style::FillLayer::Impl& RenderFillLayer::impl() const {
 }
 
 std::unique_ptr<Bucket> RenderFillLayer::createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const {
-    assert(false); // Should be calling createLayout() instead.
+    // Should be calling createLayout() instead.
+    assert(baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::NotRequired);
     return nullptr;
 }
 
@@ -132,7 +133,7 @@ void RenderFillLayer::render(PaintParameters& parameters, RenderSource*) {
             // or when it's translucent and we're drawing translucent fragments.
             if ((evaluated.get<FillColor>().constantOr(Color()).a >= 1.0f
               && evaluated.get<FillOpacity>().constantOr(0) >= 1.0f) == (parameters.pass == RenderPass::Opaque)) {
-                draw(parameters.programs.fill,
+                draw(parameters.programs.getFillLayerPrograms().fill,
                      gl::Triangles(),
                      parameters.depthModeForSublayer(1, parameters.pass == RenderPass::Opaque
                         ? gl::DepthMode::ReadWrite
@@ -142,7 +143,7 @@ void RenderFillLayer::render(PaintParameters& parameters, RenderSource*) {
             }
 
             if (evaluated.get<FillAntialias>() && parameters.pass == RenderPass::Translucent) {
-                draw(parameters.programs.fillOutline,
+                draw(parameters.programs.getFillLayerPrograms().fillOutline,
                      gl::Lines{ 2.0f },
                      parameters.depthModeForSublayer(
                          unevaluated.get<FillOutlineColor>().isUndefined() ? 2 : 0,
@@ -218,14 +219,14 @@ void RenderFillLayer::render(PaintParameters& parameters, RenderSource*) {
                 );
             };
 
-            draw(parameters.programs.fillPattern,
+            draw(parameters.programs.getFillLayerPrograms().fillPattern,
                  gl::Triangles(),
                  parameters.depthModeForSublayer(1, gl::DepthMode::ReadWrite),
                  *bucket.triangleIndexBuffer,
                  bucket.triangleSegments);
 
             if (evaluated.get<FillAntialias>() && unevaluated.get<FillOutlineColor>().isUndefined()) {
-                draw(parameters.programs.fillOutlinePattern,
+                draw(parameters.programs.getFillLayerPrograms().fillOutlinePattern,
                      gl::Lines { 2.0f },
                      parameters.depthModeForSublayer(2, gl::DepthMode::ReadOnly),
                      *bucket.lineIndexBuffer,

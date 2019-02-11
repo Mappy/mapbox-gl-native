@@ -9,13 +9,28 @@
 #include <mbgl/style/conversion/transition_options.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion_impl.hpp>
-#include <mbgl/util/fnv_hash.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* BackgroundLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"background",
+          LayerTypeInfo::Source::NotRequired,
+          LayerTypeInfo::Pass3D::NotRequired,
+          LayerTypeInfo::Layout::NotRequired,
+          LayerTypeInfo::Clipping::NotRequired
+        };
+    return &typeInfo;
+}
+
+
 BackgroundLayer::BackgroundLayer(const std::string& layerID)
-    : Layer(makeMutable<Impl>(LayerType::Background, layerID, std::string())) {
+    : Layer(makeMutable<Impl>(layerID, std::string())) {
 }
 
 BackgroundLayer::BackgroundLayer(Immutable<Impl> impl_)
@@ -40,34 +55,6 @@ std::unique_ptr<Layer> BackgroundLayer::cloneRef(const std::string& id_) const {
 }
 
 void BackgroundLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
-}
-
-
-// Visibility
-
-void BackgroundLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void BackgroundLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void BackgroundLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -159,8 +146,7 @@ TransitionOptions BackgroundLayer::getBackgroundOpacityTransition() const {
 using namespace conversion;
 
 optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const Convertible& value) {
-    enum class Property {
-        Unknown,
+    enum class Property : uint8_t {
         BackgroundColor,
         BackgroundPattern,
         BackgroundOpacity,
@@ -169,44 +155,21 @@ optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const
         BackgroundOpacityTransition,
     };
 
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    case util::hashFNV1a("background-color"):
-        if (name == "background-color") {
-            property = Property::BackgroundColor;
-        }
-        break;
-    case util::hashFNV1a("background-color-transition"):
-        if (name == "background-color-transition") {
-            property = Property::BackgroundColorTransition;
-        }
-        break;
-    case util::hashFNV1a("background-pattern"):
-        if (name == "background-pattern") {
-            property = Property::BackgroundPattern;
-        }
-        break;
-    case util::hashFNV1a("background-pattern-transition"):
-        if (name == "background-pattern-transition") {
-            property = Property::BackgroundPatternTransition;
-        }
-        break;
-    case util::hashFNV1a("background-opacity"):
-        if (name == "background-opacity") {
-            property = Property::BackgroundOpacity;
-        }
-        break;
-    case util::hashFNV1a("background-opacity-transition"):
-        if (name == "background-opacity-transition") {
-            property = Property::BackgroundOpacityTransition;
-        }
-        break;
-    
-    }
+    MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
+        { "background-color", static_cast<uint8_t>(Property::BackgroundColor) },
+        { "background-pattern", static_cast<uint8_t>(Property::BackgroundPattern) },
+        { "background-opacity", static_cast<uint8_t>(Property::BackgroundOpacity) },
+        { "background-color-transition", static_cast<uint8_t>(Property::BackgroundColorTransition) },
+        { "background-pattern-transition", static_cast<uint8_t>(Property::BackgroundPatternTransition) },
+        { "background-opacity-transition", static_cast<uint8_t>(Property::BackgroundOpacityTransition) }
+    });
 
-    if (property == Property::Unknown) {
+    const auto it = properties.find(name.c_str());
+    if (it == properties.end()) {
         return Error { "layer doesn't support this property" };
     }
+
+    Property property = static_cast<Property>(it->second);
 
         
     if (property == Property::BackgroundColor) {
@@ -276,22 +239,11 @@ optional<Error> BackgroundLayer::setLayoutProperty(const std::string& name, cons
         return Layer::setVisibility(value);
     }
 
-    enum class Property {
-        Unknown,
-    };
-
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    
-    }
-
-    if (property == Property::Unknown) {
-        return Error { "layer doesn't support this property" };
-    }
-
-        
-
     return Error { "layer doesn't support this property" };
+}
+
+Mutable<Layer::Impl> BackgroundLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
 }
 
 } // namespace style

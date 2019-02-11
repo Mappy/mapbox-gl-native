@@ -128,11 +128,16 @@ afterEvaluate { project ->
 //        from android.sourceSets.main.java.sourceFiles
 //    }
 //
+//    tasks.withType(Javadoc) {
+//        options.addStringOption('encoding', 'UTF-8')
+//        options.addStringOption('docencoding', 'UTF-8')
+//        options.addStringOption('charset', 'UTF-8')
+//    }
+//
 //    artifacts {
 //        archives androidSourcesJar
 //        archives androidJavadocsJar
 //    }
-    //end for mappy
 }
     //for mappy
 //// See: https://github.com/chrisbanes/gradle-mvn-push/issues/43#issuecomment-84140513

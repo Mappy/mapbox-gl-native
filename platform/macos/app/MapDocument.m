@@ -13,10 +13,11 @@
 static NSString * const MGLDroppedPinAnnotationImageIdentifier = @"dropped";
 
 static const CLLocationCoordinate2D WorldTourDestinations[] = {
-    { .latitude = 38.9131982, .longitude = -77.0325453144239 },
-    { .latitude = 37.7757368, .longitude = -122.4135302 },
-    { .latitude = 12.9810816, .longitude = 77.6368034 },
-    { .latitude = -13.15589555, .longitude = -74.2178961777998 },
+    { .latitude = 38.8999418, .longitude = -77.033996 },
+    { .latitude = 37.7884307, .longitude = -122.3998631 },
+    { .latitude = 52.5003103, .longitude = 13.4197763 },
+    { .latitude = 60.1712627, .longitude = 24.9378866 },
+    { .latitude = 53.8948782, .longitude = 27.5558476 },
 };
 
 NSArray<id <MGLAnnotation>> *MBXFlattenedShapes(NSArray<id <MGLAnnotation>> *shapes) {
@@ -81,6 +82,7 @@ NSArray<id <MGLAnnotation>> *MBXFlattenedShapes(NSArray<id <MGLAnnotation>> *sha
 @property (weak) IBOutlet NSNumberFormatter *minimumOfflinePackZoomLevelFormatter;
 @property (weak) IBOutlet NSTextField *maximumOfflinePackZoomLevelField;
 @property (weak) IBOutlet NSNumberFormatter *maximumOfflinePackZoomLevelFormatter;
+@property (weak) IBOutlet NSButton *includesIdeographicGlyphsBox;
 
 @end
 
@@ -930,6 +932,8 @@ NSArray<id <MGLAnnotation>> *MBXFlattenedShapes(NSArray<id <MGLAnnotation>> *sha
     self.minimumOfflinePackZoomLevelFormatter.maximum = @(ceil(self.mapView.maximumZoomLevel));
     self.maximumOfflinePackZoomLevelFormatter.maximum = @(ceil(self.mapView.maximumZoomLevel));
     
+    NSString *fontFamilyName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"MGLIdeographicFontFamilyName"];
+    self.includesIdeographicGlyphsBox.state = fontFamilyName ? NSOffState : NSOnState;
     [self.addOfflinePackWindow makeFirstResponder:self.offlinePackNameField];
     
     __weak __typeof__(self) weakSelf = self;
@@ -944,6 +948,7 @@ NSArray<id <MGLAnnotation>> *MBXFlattenedShapes(NSArray<id <MGLAnnotation>> *sha
                                                            bounds:strongSelf.mapView.visibleCoordinateBounds
                                                     fromZoomLevel:strongSelf.minimumOfflinePackZoomLevelField.integerValue
                                                       toZoomLevel:strongSelf.maximumOfflinePackZoomLevelField.integerValue];
+        region.includesIdeographicGlyphs = strongSelf.includesIdeographicGlyphsBox.state == NSOnState;
         NSString *name = strongSelf.offlinePackNameField.stringValue;
         if (!name.length) {
             name = strongSelf.offlinePackNameField.placeholderString;
@@ -1323,7 +1328,7 @@ NSArray<id <MGLAnnotation>> *MBXFlattenedShapes(NSArray<id <MGLAnnotation>> *sha
     }
     if (action == @selector(showStyle:)) {
         NSPopUpButton *popUpButton = (NSPopUpButton *)toolbarItem.view;
-        NSUInteger index = self.indexOfStyleInToolbarItem;
+        NSInteger index = self.indexOfStyleInToolbarItem;
         if (index == NSNotFound) {
             index = -1;
         }

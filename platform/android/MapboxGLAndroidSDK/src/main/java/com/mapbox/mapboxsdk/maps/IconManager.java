@@ -2,11 +2,11 @@ package com.mapbox.mapboxsdk.maps;
 
 import android.graphics.Bitmap;
 
+import android.support.annotation.NonNull;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.Marker;
-import com.mapbox.mapboxsdk.annotations.MarkerView;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,8 +15,7 @@ import java.util.Map;
 /**
  * Responsible for managing icons added to the Map.
  * <p>
- * Maintains a {@link List} of {@link Icon} and  is responsible for initialising default markers and
- * setting up {@link MarkerView} annotation ghosting.
+ * Maintains a {@link List} of {@link Icon} and  is responsible for initialising default markers.
  * </p>
  * <p>
  * Keep track of icons added and the resulting average icon size. This is used internally by our
@@ -27,21 +26,18 @@ class IconManager {
 
   private final Map<Icon, Integer> iconMap = new HashMap<>();
 
-  private NativeMapView nativeMapView;
+  private NativeMap nativeMap;
   private int highestIconWidth;
   private int highestIconHeight;
 
-  IconManager(NativeMapView nativeMapView) {
-    this.nativeMapView = nativeMapView;
-    // load transparent icon for MarkerView to trace actual markers, see #6352
-    loadIcon(IconFactory.recreate(IconFactory.ICON_MARKERVIEW_ID, IconFactory.ICON_MARKERVIEW_BITMAP));
+  IconManager(NativeMap nativeMap) {
+    this.nativeMap = nativeMap;
   }
 
-  Icon loadIconForMarker(Marker marker) {
+  Icon loadIconForMarker(@NonNull Marker marker) {
     Icon icon = marker.getIcon();
     if (icon == null) {
       // TODO replace with anchor implementation, we are faking an anchor by adding extra pixels and diving height by 2
-      // TODO we can move this code afterwards to getIcon as with MarkerView.getIcon
       icon = loadDefaultIconForMarker(marker);
     } else {
       updateHighestIconSize(icon);
@@ -50,15 +46,8 @@ class IconManager {
     return icon;
   }
 
-  void loadIconForMarkerView(MarkerView marker) {
-    Icon icon = marker.getIcon();
-    Bitmap bitmap = icon.getBitmap();
-    updateHighestIconSize(bitmap);
-    addIcon(icon, false);
-  }
-
-  int getTopOffsetPixelsForIcon(Icon icon) {
-    return (int) (nativeMapView.getTopOffsetPixelsForAnnotationSymbol(icon.getId()) * nativeMapView.getPixelRatio());
+  int getTopOffsetPixelsForIcon(@NonNull Icon icon) {
+    return (int) (nativeMap.getTopOffsetPixelsForAnnotationSymbol(icon.getId()) * nativeMap.getPixelRatio());
   }
 
   int getHighestIconWidth() {
@@ -77,11 +66,11 @@ class IconManager {
     return icon;
   }
 
-  private void addIcon(Icon icon) {
+  private void addIcon(@NonNull Icon icon) {
     addIcon(icon, true);
   }
 
-  private void addIcon(Icon icon, boolean addIconToMap) {
+  private void addIcon(@NonNull Icon icon, boolean addIconToMap) {
     if (!iconMap.keySet().contains(icon)) {
       iconMap.put(icon, 1);
       if (addIconToMap) {
@@ -112,7 +101,7 @@ class IconManager {
 
   private void loadIcon(Icon icon) {
     Bitmap bitmap = icon.getBitmap();
-    nativeMapView.addAnnotationIcon(icon.getId(),
+    nativeMap.addAnnotationIcon(icon.getId(),
       bitmap.getWidth(),
       bitmap.getHeight(),
       icon.getScale(),
@@ -125,7 +114,7 @@ class IconManager {
     }
   }
 
-  void ensureIconLoaded(Marker marker, MapboxMap mapboxMap) {
+  void ensureIconLoaded(@NonNull Marker marker, @NonNull MapboxMap mapboxMap) {
     Icon icon = marker.getIcon();
     if (icon == null) {
       icon = loadDefaultIconForMarker(marker);
@@ -134,7 +123,7 @@ class IconManager {
     setTopOffsetPixels(marker, mapboxMap, icon);
   }
 
-  private void setTopOffsetPixels(Marker marker, MapboxMap mapboxMap, Icon icon) {
+  private void setTopOffsetPixels(Marker marker, @NonNull MapboxMap mapboxMap, @NonNull Icon icon) {
     // this seems to be a costly operation according to the profiler so I'm trying to save some calls
     Marker previousMarker = marker.getId() != -1 ? (Marker) mapboxMap.getAnnotation(marker.getId()) : null;
     if (previousMarker == null || previousMarker.getIcon() == null || previousMarker.getIcon() != marker.getIcon()) {
@@ -142,7 +131,7 @@ class IconManager {
     }
   }
 
-  void iconCleanup(Icon icon) {
+  void iconCleanup(@NonNull Icon icon) {
     Integer refCounter = iconMap.get(icon);
     if (refCounter != null) {
       refCounter--;
@@ -155,7 +144,7 @@ class IconManager {
   }
 
   private void remove(Icon icon) {
-    nativeMapView.removeAnnotationIcon(icon.getId());
+    nativeMap.removeAnnotationIcon(icon.getId());
     iconMap.remove(icon);
   }
 

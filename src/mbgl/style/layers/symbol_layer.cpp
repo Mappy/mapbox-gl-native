@@ -9,13 +9,28 @@
 #include <mbgl/style/conversion/transition_options.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion_impl.hpp>
-#include <mbgl/util/fnv_hash.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* SymbolLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"symbol",
+          LayerTypeInfo::Source::Required,
+          LayerTypeInfo::Pass3D::NotRequired,
+          LayerTypeInfo::Layout::Required,
+          LayerTypeInfo::Clipping::NotRequired
+        };
+    return &typeInfo;
+}
+
+
 SymbolLayer::SymbolLayer(const std::string& layerID, const std::string& sourceID)
-    : Layer(makeMutable<Impl>(LayerType::Symbol, layerID, sourceID)) {
+    : Layer(makeMutable<Impl>(layerID, sourceID)) {
 }
 
 SymbolLayer::SymbolLayer(Immutable<Impl> impl_)
@@ -41,62 +56,6 @@ std::unique_ptr<Layer> SymbolLayer::cloneRef(const std::string& id_) const {
 
 void SymbolLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>& writer) const {
     layout.stringify(writer);
-}
-
-// Source
-
-const std::string& SymbolLayer::getSourceID() const {
-    return impl().source;
-}
-
-void SymbolLayer::setSourceLayer(const std::string& sourceLayer) {
-    auto impl_ = mutableImpl();
-    impl_->sourceLayer = sourceLayer;
-    baseImpl = std::move(impl_);
-}
-
-const std::string& SymbolLayer::getSourceLayer() const {
-    return impl().sourceLayer;
-}
-
-// Filter
-
-void SymbolLayer::setFilter(const Filter& filter) {
-    auto impl_ = mutableImpl();
-    impl_->filter = filter;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-const Filter& SymbolLayer::getFilter() const {
-    return impl().filter;
-}
-
-// Visibility
-
-void SymbolLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void SymbolLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void SymbolLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -421,15 +380,15 @@ void SymbolLayer::setTextRotationAlignment(PropertyValue<AlignmentType> value) {
     baseImpl = std::move(impl_);
     observer->onLayerChanged(*this);
 }
-PropertyValue<std::string> SymbolLayer::getDefaultTextField() {
+PropertyValue<expression::Formatted> SymbolLayer::getDefaultTextField() {
     return TextField::defaultValue();
 }
 
-PropertyValue<std::string> SymbolLayer::getTextField() const {
+PropertyValue<expression::Formatted> SymbolLayer::getTextField() const {
     return impl().layout.get<TextField>();
 }
 
-void SymbolLayer::setTextField(PropertyValue<std::string> value) {
+void SymbolLayer::setTextField(PropertyValue<expression::Formatted> value) {
     if (value == getTextField())
         return;
     auto impl_ = mutableImpl();
@@ -1077,8 +1036,7 @@ TransitionOptions SymbolLayer::getTextTranslateAnchorTransition() const {
 using namespace conversion;
 
 optional<Error> SymbolLayer::setPaintProperty(const std::string& name, const Convertible& value) {
-    enum class Property {
-        Unknown,
+    enum class Property : uint8_t {
         IconOpacity,
         IconColor,
         IconHaloColor,
@@ -1109,154 +1067,43 @@ optional<Error> SymbolLayer::setPaintProperty(const std::string& name, const Con
         TextTranslateAnchorTransition,
     };
 
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    case util::hashFNV1a("icon-opacity"):
-        if (name == "icon-opacity") {
-            property = Property::IconOpacity;
-        }
-        break;
-    case util::hashFNV1a("icon-opacity-transition"):
-        if (name == "icon-opacity-transition") {
-            property = Property::IconOpacityTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-color"):
-        if (name == "icon-color") {
-            property = Property::IconColor;
-        }
-        break;
-    case util::hashFNV1a("icon-color-transition"):
-        if (name == "icon-color-transition") {
-            property = Property::IconColorTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-color"):
-        if (name == "icon-halo-color") {
-            property = Property::IconHaloColor;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-color-transition"):
-        if (name == "icon-halo-color-transition") {
-            property = Property::IconHaloColorTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-width"):
-        if (name == "icon-halo-width") {
-            property = Property::IconHaloWidth;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-width-transition"):
-        if (name == "icon-halo-width-transition") {
-            property = Property::IconHaloWidthTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-blur"):
-        if (name == "icon-halo-blur") {
-            property = Property::IconHaloBlur;
-        }
-        break;
-    case util::hashFNV1a("icon-halo-blur-transition"):
-        if (name == "icon-halo-blur-transition") {
-            property = Property::IconHaloBlurTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-translate"):
-        if (name == "icon-translate") {
-            property = Property::IconTranslate;
-        }
-        break;
-    case util::hashFNV1a("icon-translate-transition"):
-        if (name == "icon-translate-transition") {
-            property = Property::IconTranslateTransition;
-        }
-        break;
-    case util::hashFNV1a("icon-translate-anchor"):
-        if (name == "icon-translate-anchor") {
-            property = Property::IconTranslateAnchor;
-        }
-        break;
-    case util::hashFNV1a("icon-translate-anchor-transition"):
-        if (name == "icon-translate-anchor-transition") {
-            property = Property::IconTranslateAnchorTransition;
-        }
-        break;
-    case util::hashFNV1a("text-opacity"):
-        if (name == "text-opacity") {
-            property = Property::TextOpacity;
-        }
-        break;
-    case util::hashFNV1a("text-opacity-transition"):
-        if (name == "text-opacity-transition") {
-            property = Property::TextOpacityTransition;
-        }
-        break;
-    case util::hashFNV1a("text-color"):
-        if (name == "text-color") {
-            property = Property::TextColor;
-        }
-        break;
-    case util::hashFNV1a("text-color-transition"):
-        if (name == "text-color-transition") {
-            property = Property::TextColorTransition;
-        }
-        break;
-    case util::hashFNV1a("text-halo-color"):
-        if (name == "text-halo-color") {
-            property = Property::TextHaloColor;
-        }
-        break;
-    case util::hashFNV1a("text-halo-color-transition"):
-        if (name == "text-halo-color-transition") {
-            property = Property::TextHaloColorTransition;
-        }
-        break;
-    case util::hashFNV1a("text-halo-width"):
-        if (name == "text-halo-width") {
-            property = Property::TextHaloWidth;
-        }
-        break;
-    case util::hashFNV1a("text-halo-width-transition"):
-        if (name == "text-halo-width-transition") {
-            property = Property::TextHaloWidthTransition;
-        }
-        break;
-    case util::hashFNV1a("text-halo-blur"):
-        if (name == "text-halo-blur") {
-            property = Property::TextHaloBlur;
-        }
-        break;
-    case util::hashFNV1a("text-halo-blur-transition"):
-        if (name == "text-halo-blur-transition") {
-            property = Property::TextHaloBlurTransition;
-        }
-        break;
-    case util::hashFNV1a("text-translate"):
-        if (name == "text-translate") {
-            property = Property::TextTranslate;
-        }
-        break;
-    case util::hashFNV1a("text-translate-transition"):
-        if (name == "text-translate-transition") {
-            property = Property::TextTranslateTransition;
-        }
-        break;
-    case util::hashFNV1a("text-translate-anchor"):
-        if (name == "text-translate-anchor") {
-            property = Property::TextTranslateAnchor;
-        }
-        break;
-    case util::hashFNV1a("text-translate-anchor-transition"):
-        if (name == "text-translate-anchor-transition") {
-            property = Property::TextTranslateAnchorTransition;
-        }
-        break;
-    
-    }
+    MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
+        { "icon-opacity", static_cast<uint8_t>(Property::IconOpacity) },
+        { "icon-color", static_cast<uint8_t>(Property::IconColor) },
+        { "icon-halo-color", static_cast<uint8_t>(Property::IconHaloColor) },
+        { "icon-halo-width", static_cast<uint8_t>(Property::IconHaloWidth) },
+        { "icon-halo-blur", static_cast<uint8_t>(Property::IconHaloBlur) },
+        { "icon-translate", static_cast<uint8_t>(Property::IconTranslate) },
+        { "icon-translate-anchor", static_cast<uint8_t>(Property::IconTranslateAnchor) },
+        { "text-opacity", static_cast<uint8_t>(Property::TextOpacity) },
+        { "text-color", static_cast<uint8_t>(Property::TextColor) },
+        { "text-halo-color", static_cast<uint8_t>(Property::TextHaloColor) },
+        { "text-halo-width", static_cast<uint8_t>(Property::TextHaloWidth) },
+        { "text-halo-blur", static_cast<uint8_t>(Property::TextHaloBlur) },
+        { "text-translate", static_cast<uint8_t>(Property::TextTranslate) },
+        { "text-translate-anchor", static_cast<uint8_t>(Property::TextTranslateAnchor) },
+        { "icon-opacity-transition", static_cast<uint8_t>(Property::IconOpacityTransition) },
+        { "icon-color-transition", static_cast<uint8_t>(Property::IconColorTransition) },
+        { "icon-halo-color-transition", static_cast<uint8_t>(Property::IconHaloColorTransition) },
+        { "icon-halo-width-transition", static_cast<uint8_t>(Property::IconHaloWidthTransition) },
+        { "icon-halo-blur-transition", static_cast<uint8_t>(Property::IconHaloBlurTransition) },
+        { "icon-translate-transition", static_cast<uint8_t>(Property::IconTranslateTransition) },
+        { "icon-translate-anchor-transition", static_cast<uint8_t>(Property::IconTranslateAnchorTransition) },
+        { "text-opacity-transition", static_cast<uint8_t>(Property::TextOpacityTransition) },
+        { "text-color-transition", static_cast<uint8_t>(Property::TextColorTransition) },
+        { "text-halo-color-transition", static_cast<uint8_t>(Property::TextHaloColorTransition) },
+        { "text-halo-width-transition", static_cast<uint8_t>(Property::TextHaloWidthTransition) },
+        { "text-halo-blur-transition", static_cast<uint8_t>(Property::TextHaloBlurTransition) },
+        { "text-translate-transition", static_cast<uint8_t>(Property::TextTranslateTransition) },
+        { "text-translate-anchor-transition", static_cast<uint8_t>(Property::TextTranslateAnchorTransition) }
+    });
 
-    if (property == Property::Unknown) {
+    const auto it = properties.find(name.c_str());
+    if (it == properties.end()) {
         return Error { "layer doesn't support this property" };
     }
+
+    Property property = static_cast<Property>(it->second);
 
         
     if (property == Property::IconOpacity || property == Property::IconHaloWidth || property == Property::IconHaloBlur || property == Property::TextOpacity || property == Property::TextHaloWidth || property == Property::TextHaloBlur) {
@@ -1450,9 +1297,7 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
     if (name == "visibility") {
         return Layer::setVisibility(value);
     }
-
     enum class Property {
-        Unknown,
         SymbolPlacement,
         SymbolSpacing,
         SymbolAvoidEdges,
@@ -1491,237 +1336,52 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         TextIgnorePlacement,
         TextOptional,
     };
+    MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
+        { "symbol-placement", static_cast<uint8_t>(Property::SymbolPlacement) },
+        { "symbol-spacing", static_cast<uint8_t>(Property::SymbolSpacing) },
+        { "symbol-avoid-edges", static_cast<uint8_t>(Property::SymbolAvoidEdges) },
+        { "symbol-z-order", static_cast<uint8_t>(Property::SymbolZOrder) },
+        { "icon-allow-overlap", static_cast<uint8_t>(Property::IconAllowOverlap) },
+        { "icon-ignore-placement", static_cast<uint8_t>(Property::IconIgnorePlacement) },
+        { "icon-optional", static_cast<uint8_t>(Property::IconOptional) },
+        { "icon-rotation-alignment", static_cast<uint8_t>(Property::IconRotationAlignment) },
+        { "icon-size", static_cast<uint8_t>(Property::IconSize) },
+        { "icon-text-fit", static_cast<uint8_t>(Property::IconTextFit) },
+        { "icon-text-fit-padding", static_cast<uint8_t>(Property::IconTextFitPadding) },
+        { "icon-image", static_cast<uint8_t>(Property::IconImage) },
+        { "icon-rotate", static_cast<uint8_t>(Property::IconRotate) },
+        { "icon-padding", static_cast<uint8_t>(Property::IconPadding) },
+        { "icon-keep-upright", static_cast<uint8_t>(Property::IconKeepUpright) },
+        { "icon-offset", static_cast<uint8_t>(Property::IconOffset) },
+        { "icon-anchor", static_cast<uint8_t>(Property::IconAnchor) },
+        { "icon-pitch-alignment", static_cast<uint8_t>(Property::IconPitchAlignment) },
+        { "text-pitch-alignment", static_cast<uint8_t>(Property::TextPitchAlignment) },
+        { "text-rotation-alignment", static_cast<uint8_t>(Property::TextRotationAlignment) },
+        { "text-field", static_cast<uint8_t>(Property::TextField) },
+        { "text-font", static_cast<uint8_t>(Property::TextFont) },
+        { "text-size", static_cast<uint8_t>(Property::TextSize) },
+        { "text-max-width", static_cast<uint8_t>(Property::TextMaxWidth) },
+        { "text-line-height", static_cast<uint8_t>(Property::TextLineHeight) },
+        { "text-letter-spacing", static_cast<uint8_t>(Property::TextLetterSpacing) },
+        { "text-justify", static_cast<uint8_t>(Property::TextJustify) },
+        { "text-anchor", static_cast<uint8_t>(Property::TextAnchor) },
+        { "text-max-angle", static_cast<uint8_t>(Property::TextMaxAngle) },
+        { "text-rotate", static_cast<uint8_t>(Property::TextRotate) },
+        { "text-padding", static_cast<uint8_t>(Property::TextPadding) },
+        { "text-keep-upright", static_cast<uint8_t>(Property::TextKeepUpright) },
+        { "text-transform", static_cast<uint8_t>(Property::TextTransform) },
+        { "text-offset", static_cast<uint8_t>(Property::TextOffset) },
+        { "text-allow-overlap", static_cast<uint8_t>(Property::TextAllowOverlap) },
+        { "text-ignore-placement", static_cast<uint8_t>(Property::TextIgnorePlacement) },
+        { "text-optional", static_cast<uint8_t>(Property::TextOptional) }
+    });
 
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    
-    case util::hashFNV1a("symbol-placement"):
-        if (name == "symbol-placement") {
-            property = Property::SymbolPlacement;
-        }
-        break;
-    
-    case util::hashFNV1a("symbol-spacing"):
-        if (name == "symbol-spacing") {
-            property = Property::SymbolSpacing;
-        }
-        break;
-    
-    case util::hashFNV1a("symbol-avoid-edges"):
-        if (name == "symbol-avoid-edges") {
-            property = Property::SymbolAvoidEdges;
-        }
-        break;
-    
-    case util::hashFNV1a("symbol-z-order"):
-        if (name == "symbol-z-order") {
-            property = Property::SymbolZOrder;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-allow-overlap"):
-        if (name == "icon-allow-overlap") {
-            property = Property::IconAllowOverlap;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-ignore-placement"):
-        if (name == "icon-ignore-placement") {
-            property = Property::IconIgnorePlacement;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-optional"):
-        if (name == "icon-optional") {
-            property = Property::IconOptional;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-rotation-alignment"):
-        if (name == "icon-rotation-alignment") {
-            property = Property::IconRotationAlignment;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-size"):
-        if (name == "icon-size") {
-            property = Property::IconSize;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-text-fit"):
-        if (name == "icon-text-fit") {
-            property = Property::IconTextFit;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-text-fit-padding"):
-        if (name == "icon-text-fit-padding") {
-            property = Property::IconTextFitPadding;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-image"):
-        if (name == "icon-image") {
-            property = Property::IconImage;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-rotate"):
-        if (name == "icon-rotate") {
-            property = Property::IconRotate;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-padding"):
-        if (name == "icon-padding") {
-            property = Property::IconPadding;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-keep-upright"):
-        if (name == "icon-keep-upright") {
-            property = Property::IconKeepUpright;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-offset"):
-        if (name == "icon-offset") {
-            property = Property::IconOffset;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-anchor"):
-        if (name == "icon-anchor") {
-            property = Property::IconAnchor;
-        }
-        break;
-    
-    case util::hashFNV1a("icon-pitch-alignment"):
-        if (name == "icon-pitch-alignment") {
-            property = Property::IconPitchAlignment;
-        }
-        break;
-    
-    case util::hashFNV1a("text-pitch-alignment"):
-        if (name == "text-pitch-alignment") {
-            property = Property::TextPitchAlignment;
-        }
-        break;
-    
-    case util::hashFNV1a("text-rotation-alignment"):
-        if (name == "text-rotation-alignment") {
-            property = Property::TextRotationAlignment;
-        }
-        break;
-    
-    case util::hashFNV1a("text-field"):
-        if (name == "text-field") {
-            property = Property::TextField;
-        }
-        break;
-    
-    case util::hashFNV1a("text-font"):
-        if (name == "text-font") {
-            property = Property::TextFont;
-        }
-        break;
-    
-    case util::hashFNV1a("text-size"):
-        if (name == "text-size") {
-            property = Property::TextSize;
-        }
-        break;
-    
-    case util::hashFNV1a("text-max-width"):
-        if (name == "text-max-width") {
-            property = Property::TextMaxWidth;
-        }
-        break;
-    
-    case util::hashFNV1a("text-line-height"):
-        if (name == "text-line-height") {
-            property = Property::TextLineHeight;
-        }
-        break;
-    
-    case util::hashFNV1a("text-letter-spacing"):
-        if (name == "text-letter-spacing") {
-            property = Property::TextLetterSpacing;
-        }
-        break;
-    
-    case util::hashFNV1a("text-justify"):
-        if (name == "text-justify") {
-            property = Property::TextJustify;
-        }
-        break;
-    
-    case util::hashFNV1a("text-anchor"):
-        if (name == "text-anchor") {
-            property = Property::TextAnchor;
-        }
-        break;
-    
-    case util::hashFNV1a("text-max-angle"):
-        if (name == "text-max-angle") {
-            property = Property::TextMaxAngle;
-        }
-        break;
-    
-    case util::hashFNV1a("text-rotate"):
-        if (name == "text-rotate") {
-            property = Property::TextRotate;
-        }
-        break;
-    
-    case util::hashFNV1a("text-padding"):
-        if (name == "text-padding") {
-            property = Property::TextPadding;
-        }
-        break;
-    
-    case util::hashFNV1a("text-keep-upright"):
-        if (name == "text-keep-upright") {
-            property = Property::TextKeepUpright;
-        }
-        break;
-    
-    case util::hashFNV1a("text-transform"):
-        if (name == "text-transform") {
-            property = Property::TextTransform;
-        }
-        break;
-    
-    case util::hashFNV1a("text-offset"):
-        if (name == "text-offset") {
-            property = Property::TextOffset;
-        }
-        break;
-    
-    case util::hashFNV1a("text-allow-overlap"):
-        if (name == "text-allow-overlap") {
-            property = Property::TextAllowOverlap;
-        }
-        break;
-    
-    case util::hashFNV1a("text-ignore-placement"):
-        if (name == "text-ignore-placement") {
-            property = Property::TextIgnorePlacement;
-        }
-        break;
-    
-    case util::hashFNV1a("text-optional"):
-        if (name == "text-optional") {
-            property = Property::TextOptional;
-        }
-        break;
-    
-    }
-
-    if (property == Property::Unknown) {
+    const auto it = properties.find(name.c_str());
+    if (it == properties.end()) {
         return Error { "layer doesn't support this property" };
     }
+
+    Property property = static_cast<Property>(it->second);
 
         
     if (property == Property::SymbolPlacement) {
@@ -1928,22 +1588,15 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         
     }
     
-    if (property == Property::IconImage || property == Property::TextField) {
+    if (property == Property::IconImage) {
         Error error;
         optional<PropertyValue<std::string>> typedValue = convert<PropertyValue<std::string>>(value, error, true, true);
         if (!typedValue) {
             return error;
         }
         
-        if (property == Property::IconImage) {
-            setIconImage(*typedValue);
-            return nullopt;
-        }
-        
-        if (property == Property::TextField) {
-            setTextField(*typedValue);
-            return nullopt;
-        }
+        setIconImage(*typedValue);
+        return nullopt;
         
     }
     
@@ -1985,6 +1638,18 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
         
     }
     
+    if (property == Property::TextField) {
+        Error error;
+        optional<PropertyValue<expression::Formatted>> typedValue = convert<PropertyValue<expression::Formatted>>(value, error, true, true);
+        if (!typedValue) {
+            return error;
+        }
+        
+        setTextField(*typedValue);
+        return nullopt;
+        
+    }
+    
     if (property == Property::TextFont) {
         Error error;
         optional<PropertyValue<std::vector<std::string>>> typedValue = convert<PropertyValue<std::vector<std::string>>>(value, error, true, false);
@@ -2023,6 +1688,10 @@ optional<Error> SymbolLayer::setLayoutProperty(const std::string& name, const Co
     
 
     return Error { "layer doesn't support this property" };
+}
+
+Mutable<Layer::Impl> SymbolLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
 }
 
 } // namespace style

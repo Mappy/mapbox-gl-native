@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.testapp.activity.annotation;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -10,7 +11,7 @@ import android.widget.Toast;
 import com.mapbox.mapboxsdk.annotations.Polygon;
 import com.mapbox.mapboxsdk.annotations.PolygonOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
-import com.mapbox.mapboxsdk.constants.Style;
+import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
@@ -57,7 +58,6 @@ public class PolygonActivity extends AppCompatActivity implements OnMapReadyCall
     MapboxMapOptions options = new MapboxMapOptions()
       .attributionTintColor(RED_COLOR)
       .compassFadesWhenFacingNorth(false)
-      .styleUrl(Style.MAPBOX_STREETS)
       .camera(new CameraPosition.Builder()
         .target(new LatLng(45.520486, -122.673541))
         .zoom(12)
@@ -74,8 +74,9 @@ public class PolygonActivity extends AppCompatActivity implements OnMapReadyCall
   }
 
   @Override
-  public void onMapReady(MapboxMap map) {
+  public void onMapReady(@NonNull MapboxMap map) {
     mapboxMap = map;
+    map.setStyle(Style.MAPBOX_STREETS);
 
     map.setOnPolygonClickListener(polygon -> Toast.makeText(
       PolygonActivity.this,

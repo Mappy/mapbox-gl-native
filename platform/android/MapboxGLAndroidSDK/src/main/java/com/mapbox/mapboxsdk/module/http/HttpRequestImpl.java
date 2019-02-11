@@ -2,6 +2,7 @@ package com.mapbox.mapboxsdk.module.http;
 
 import android.os.Build;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -52,8 +53,8 @@ public class HttpRequestImpl implements HttpRequest {
   private Call call;
 
   @Override
-  public void executeRequest(HttpResponder httpRequest, long nativePtr, String resourceUrl,
-                             String etag, String modified) {
+  public void executeRequest(HttpResponder httpRequest, long nativePtr, @NonNull String resourceUrl,
+                             @NonNull String etag, @NonNull String modified) {
     OkHttpCallback callback = new OkHttpCallback(httpRequest);
     try {
       HttpUrl httpUrl = HttpUrl.parse(resourceUrl);
@@ -161,7 +162,7 @@ public class HttpRequestImpl implements HttpRequest {
         body);
     }
 
-    private void handleFailure(Call call, Exception e) {
+    private void handleFailure(@Nullable Call call, Exception e) {
       String errorMessage = e.getMessage() != null ? e.getMessage() : "Error processing the request";
       int type = getFailureType(e);
 
@@ -183,6 +184,7 @@ public class HttpRequestImpl implements HttpRequest {
     }
   }
 
+  @NonNull
   private static Dispatcher getDispatcher() {
     Dispatcher dispatcher = new Dispatcher();
     // Matches core limit set on

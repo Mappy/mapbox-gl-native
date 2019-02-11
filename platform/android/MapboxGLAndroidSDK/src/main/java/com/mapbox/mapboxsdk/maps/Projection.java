@@ -3,7 +3,6 @@ package com.mapbox.mapboxsdk.maps;
 import android.graphics.PointF;
 import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
-
 import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.constants.GeometryConstants;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -21,6 +20,7 @@ import java.util.List;
  */
 public class Projection {
 
+  @NonNull
   private final NativeMapView nativeMapView;
   private int[] contentPadding;
 
@@ -31,7 +31,11 @@ public class Projection {
 
   void setContentPadding(int[] contentPadding) {
     this.contentPadding = contentPadding;
-    nativeMapView.setContentPadding(contentPadding);
+    float[] output = new float[contentPadding.length];
+    for (int i = 0; i < contentPadding.length; i++) {
+      output[i] = contentPadding[i];
+    }
+    nativeMapView.setContentPadding(output);
   }
 
   int[] getContentPadding() {
@@ -96,7 +100,7 @@ public class Projection {
    */
   @NonNull
   public VisibleRegion getVisibleRegion() {
-    return getVisibleRegion(true, 0, 0, 0, 0);
+    return getVisibleRegion(true);
   }
 
   /**
@@ -109,44 +113,21 @@ public class Projection {
    */
   @NonNull
   public VisibleRegion getVisibleRegion(boolean ignorePadding) {
-    return getVisibleRegion(ignorePadding, 0, 0, 0, 0);
-  }
-
-
-  /**
-   * Mappy modif
-   * Gets a projection of the viewing frustum for converting between screen coordinates and
-   * geo-latitude/longitude coordinates.
-   *
-   * @return The projection of the viewing frustum in its current state.
-   */
-  public VisibleRegion getVisibleRegion(int additionalPaddingLeft, int additionalPaddingTop, int additionalPaddingRight, int additionalPaddingBottom) {
-    return getVisibleRegion(false, additionalPaddingLeft, additionalPaddingTop, additionalPaddingRight, additionalPaddingBottom);
-  }
-
-  /**
-   * Mappy modif
-   * Gets a projection of the viewing frustum for converting between screen coordinates and
-   * geo-latitude/longitude coordinates.
-   *
-   * @return The projection of the viewing frustum in its current state.
-   */
-  private VisibleRegion getVisibleRegion(boolean ignorePadding, int additionalPaddingLeft, int additionalPaddingTop, int additionalPaddingRight, int additionalPaddingBottom) {
     float left;
     float right;
     float top;
     float bottom;
 
     if (ignorePadding) {
-      left = additionalPaddingLeft;
-      right = nativeMapView.getWidth() - additionalPaddingRight;
-      top = additionalPaddingTop;
-      bottom = nativeMapView.getHeight() - additionalPaddingBottom;
+      left = 0;
+      right = nativeMapView.getWidth();
+      top = 0;
+      bottom = nativeMapView.getHeight();
     } else {
-      left = contentPadding[0] + additionalPaddingLeft;
-      right = nativeMapView.getWidth() - contentPadding[2] - additionalPaddingRight;
-      top = contentPadding[1] + additionalPaddingTop;
-      bottom = nativeMapView.getHeight() - contentPadding[3] - additionalPaddingBottom;
+      left = (float) contentPadding[0];
+      right = (float) (nativeMapView.getWidth() - contentPadding[2]);
+      top = (float) contentPadding[1];
+      bottom = (float) (nativeMapView.getHeight() - contentPadding[3]);
     }
 
     LatLng center = fromScreenLocation(new PointF(left + (right - left) / 2, top + (bottom - top) / 2));
@@ -195,6 +176,10 @@ public class Projection {
       }
     }
 
+    if (east < west) {
+      return new VisibleRegion(topLeft, topRight, bottomLeft, bottomRight,
+        LatLngBounds.from(north, east + GeometryConstants.LONGITUDE_SPAN, south, west));
+    }
     return new VisibleRegion(topLeft, topRight, bottomLeft, bottomRight,
       LatLngBounds.from(north, east, south, west));
   }

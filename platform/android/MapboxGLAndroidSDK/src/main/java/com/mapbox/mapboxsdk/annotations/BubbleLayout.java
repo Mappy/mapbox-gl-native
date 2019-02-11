@@ -5,6 +5,7 @@ import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.RectF;
+import android.support.annotation.NonNull;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.widget.LinearLayout;
@@ -13,7 +14,11 @@ import com.mapbox.mapboxsdk.R;
 
 /**
  * Bubble View for Android with custom stroke width and color, arrow size, position and direction.
+ * @deprecated As of 7.0.0,
+ * use <a href="https://github.com/mapbox/mapbox-plugins-android/tree/master/plugin-annotation">
+ *   Mapbox Annotation Plugin</a> instead
  */
+@Deprecated
 public class BubbleLayout extends LinearLayout {
 
   public static final float DEFAULT_STROKE_WIDTH = -1;
@@ -32,7 +37,7 @@ public class BubbleLayout extends LinearLayout {
    *
    * @param context The context used to inflate this bubble layout
    */
-  public BubbleLayout(Context context) {
+  public BubbleLayout(@NonNull Context context) {
     this(context, null, 0);
   }
 
@@ -42,7 +47,7 @@ public class BubbleLayout extends LinearLayout {
    * @param context The context used to inflate this bubble layout
    * @param attrs   The attribute set to initialise this bubble layout from
    */
-  public BubbleLayout(Context context, AttributeSet attrs) {
+  public BubbleLayout(@NonNull Context context, AttributeSet attrs) {
     this(context, attrs, 0);
   }
 
@@ -53,7 +58,7 @@ public class BubbleLayout extends LinearLayout {
    * @param attrs        The attribute set to initialise this bubble layout from
    * @param defStyleAttr The default style to apply this bubble layout with
    */
-  public BubbleLayout(Context context, AttributeSet attrs, int defStyleAttr) {
+  public BubbleLayout(@NonNull Context context, AttributeSet attrs, int defStyleAttr) {
     super(context, attrs, defStyleAttr);
 
     TypedArray a = getContext().obtainStyledAttributes(attrs, R.styleable.mapbox_BubbleLayout);
@@ -84,7 +89,7 @@ public class BubbleLayout extends LinearLayout {
   }
 
   @Override
-  protected void dispatchDraw(Canvas canvas) {
+  protected void dispatchDraw(@NonNull Canvas canvas) {
     if (bubble != null) {
       bubble.draw(canvas);
     }
@@ -111,6 +116,7 @@ public class BubbleLayout extends LinearLayout {
    * @param arrowDirection The direction of the arrow
    * @return this
    */
+  @NonNull
   public BubbleLayout setArrowDirection(ArrowDirection arrowDirection) {
     resetPadding();
     this.arrowDirection = arrowDirection;
@@ -133,6 +139,7 @@ public class BubbleLayout extends LinearLayout {
    * @param arrowWidth The width of the arrow
    * @return this
    */
+  @NonNull
   public BubbleLayout setArrowWidth(float arrowWidth) {
     resetPadding();
     this.arrowWidth = arrowWidth;
@@ -155,6 +162,7 @@ public class BubbleLayout extends LinearLayout {
    * @param arrowHeight The height of the arrow
    * @return this
    */
+  @NonNull
   public BubbleLayout setArrowHeight(float arrowHeight) {
     resetPadding();
     this.arrowHeight = arrowHeight;
@@ -177,6 +185,7 @@ public class BubbleLayout extends LinearLayout {
    * @param arrowPosition The arrow position
    * @return this
    */
+  @NonNull
   public BubbleLayout setArrowPosition(float arrowPosition) {
     resetPadding();
     this.arrowPosition = arrowPosition;
@@ -199,6 +208,7 @@ public class BubbleLayout extends LinearLayout {
    * @param cornersRadius The corner radius
    * @return this
    */
+  @NonNull
   public BubbleLayout setCornersRadius(float cornersRadius) {
     this.cornersRadius = cornersRadius;
     requestLayout();
@@ -220,6 +230,7 @@ public class BubbleLayout extends LinearLayout {
    * @param bubbleColor The buble color
    * @return this
    */
+  @NonNull
   public BubbleLayout setBubbleColor(int bubbleColor) {
     this.bubbleColor = bubbleColor;
     requestLayout();
@@ -241,6 +252,7 @@ public class BubbleLayout extends LinearLayout {
    * @param strokeWidth The stroke width
    * @return this
    */
+  @NonNull
   public BubbleLayout setStrokeWidth(float strokeWidth) {
     resetPadding();
     this.strokeWidth = strokeWidth;
@@ -263,6 +275,7 @@ public class BubbleLayout extends LinearLayout {
    * @param strokeColor The stroke color
    * @return this
    */
+  @NonNull
   public BubbleLayout setStrokeColor(int strokeColor) {
     this.strokeColor = strokeColor;
     requestLayout();

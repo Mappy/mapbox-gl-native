@@ -18,7 +18,7 @@
 #include "geojson/geometry.hpp"
 #include "geometry/lat_lng.hpp"
 #include "geometry/projected_meters.hpp"
-#include "style/layers/layers.hpp"
+#include "style/layers/layer_manager.hpp"
 #include "style/sources/source.hpp"
 #include "geometry/lat_lng_bounds.hpp"
 #include "map/camera_position.hpp"
@@ -56,9 +56,6 @@ public:
 
     virtual ~NativeMapView();
 
-    // Deprecated //
-    void notifyMapChange(mbgl::MapChange);
-
     // mbgl::RendererBackend (mbgl::MapObserver) //
     void onCameraWillChange(MapObserver::CameraChangeMode) override;
     void onCameraIsChanging() override;
@@ -70,6 +67,7 @@ public:
     void onDidFinishRenderingFrame(MapObserver::RenderMode) override;
     void onWillStartRenderingMap() override;
     void onDidFinishRenderingMap(MapObserver::RenderMode) override;
+    void onDidBecomeIdle() override;
     void onDidFinishLoadingStyle() override;
     void onSourceChanged(mbgl::style::Source&) override;
 
@@ -141,7 +139,9 @@ public:
 
     void setVisibleCoordinateBounds(JNIEnv&, const jni::Array<jni::Object<LatLng>>&, const jni::Object<RectF>&, jni::jdouble, jni::jlong);
 
-    void setContentPadding(JNIEnv&, double, double, double, double);
+    void setContentPadding(JNIEnv&, float, float, float, float);
+
+    jni::Local<jni::Array<jni::jfloat>> getContentPadding(JNIEnv&);
 
     void scheduleSnapshot(jni::JNIEnv&);
 
@@ -189,13 +189,9 @@ public:
 
     jni::jdouble getTopOffsetPixelsForAnnotationSymbol(JNIEnv&, const jni::String&);
 
-    jni::jlong getTransitionDuration(JNIEnv&);
+    jni::Local<jni::Object<TransitionOptions>> getTransitionOptions(JNIEnv&);
 
-    void setTransitionDuration(JNIEnv&, jni::jlong);
-
-    jni::jlong getTransitionDelay(JNIEnv&);
-
-    void setTransitionDelay(JNIEnv&, jni::jlong);
+    void setTransitionOptions(JNIEnv&, const jni::Object<TransitionOptions>&);
 
     jni::Local<jni::Array<jlong>> queryPointAnnotations(JNIEnv&, const jni::Object<RectF>&);
 
@@ -221,11 +217,9 @@ public:
 
     void addLayerAt(JNIEnv&, jni::jlong, jni::jint);
 
-    jni::Local<jni::Object<Layer>> removeLayerById(JNIEnv&, const jni::String&);
+    jni::jboolean removeLayerAt(JNIEnv&, jni::jint);
 
-    jni::Local<jni::Object<Layer>> removeLayerAt(JNIEnv&, jni::jint);
-
-    void removeLayer(JNIEnv&, jlong);
+    jni::jboolean removeLayer(JNIEnv&, jlong);
 
     jni::Local<jni::Array<jni::Object<Source>>> getSources(JNIEnv&);
 
@@ -233,9 +227,7 @@ public:
 
     void addSource(JNIEnv&, const jni::Object<Source>&, jlong nativePtr);
 
-    jni::Local<jni::Object<Source>> removeSourceById(JNIEnv&, const jni::String&);
-
-    void removeSource(JNIEnv&, const jni::Object<Source>&, jlong nativePtr);
+    jni::jboolean removeSource(JNIEnv&, const jni::Object<Source>&, jlong nativePtr);
 
     void addImage(JNIEnv&, const jni::String&, const jni::Object<Bitmap>& bitmap, jni::jfloat, jni::jboolean);
 
@@ -245,9 +237,9 @@ public:
 
     jni::Local<jni::Object<Bitmap>> getImage(JNIEnv&, const jni::String&);
 
-    void setPrefetchesTiles(JNIEnv&, jni::jboolean);
+    void setPrefetchTiles(JNIEnv&, jni::jboolean);
 
-    jni::jboolean getPrefetchesTiles(JNIEnv&);
+    jni::jboolean getPrefetchTiles(JNIEnv&);
 
     mbgl::Map& getMap();
 

@@ -53,6 +53,27 @@ mapbox::geometry::geometry<double> parseGeometry(const std::string& json) {
         });
 }
 
+std::ostream& operator<<(std::ostream& os, mbgl::Response::Error::Reason r) {
+    switch (r) {
+    case mbgl::Response::Error::Reason::Success:
+        return os << "Response::Error::Reason::Success";
+    case mbgl::Response::Error::Reason::NotFound:
+        return os << "Response::Error::Reason::NotFound";
+    case mbgl::Response::Error::Reason::Server:
+        return os << "Response::Error::Reason::Server";
+    case mbgl::Response::Error::Reason::Connection:
+        return os << "Response::Error::Reason::Connection";
+    case mbgl::Response::Error::Reason::RateLimit:
+        return os << "Response::Error::Reason::RateLimit";
+    case mbgl::Response::Error::Reason::Other:
+        return os << "Response::Error::Reason::Other";
+    }
+
+    // The above switch is exhaustive, but placate GCC nonetheless:
+    assert(false);
+    return os;
+}
+
 int main(int argc, char *argv[]) {
     args::ArgumentParser argumentParser("Mapbox GL offline tool");
     args::HelpFlag helpFlag(argumentParser, "help", "Display this help menu", {'h', "help"});
@@ -80,6 +101,7 @@ int main(int argc, char *argv[]) {
     args::ValueFlag<double> minZoomValue(argumentParser, "number", "Min zoom level", {"minZoom"});
     args::ValueFlag<double> maxZoomValue(argumentParser, "number", "Max zoom level", {"maxZoom"});
     args::ValueFlag<double> pixelRatioValue(argumentParser, "number", "Pixel ratio", {"pixelRatio"});
+    args::ValueFlag<bool> includeIdeographsValue(argumentParser, "boolean", "Include CJK glyphs", {"includeIdeographs"});
 
     try {
         argumentParser.ParseCLI(argc, argv);
@@ -106,6 +128,7 @@ int main(int argc, char *argv[]) {
     const double minZoom = minZoomValue ? args::get(minZoomValue) : 0.0;
     const double maxZoom = maxZoomValue ? args::get(maxZoomValue) : 15.0;
     const double pixelRatio = pixelRatioValue ? args::get(pixelRatioValue) : 1.0;
+    const bool includeIdeographs = includeIdeographsValue ? args::get(includeIdeographsValue) : false;
     const std::string output = outputValue ? args::get(outputValue) : "offline.db";
     
     using namespace mbgl;
@@ -115,8 +138,8 @@ int main(int argc, char *argv[]) {
             try {
                 std::string json = readFile(geometryValue.Get());
                 auto geometry = parseGeometry(json);
-                return OfflineRegionDefinition{ OfflineGeometryRegionDefinition(style, geometry, minZoom, maxZoom, pixelRatio) };
-            } catch(std::runtime_error e) {
+                return OfflineRegionDefinition{ OfflineGeometryRegionDefinition(style, geometry, minZoom, maxZoom, pixelRatio, includeIdeographs) };
+            } catch(const std::runtime_error& e) {
                 std::cerr << "Could not parse geojson file " << geometryValue.Get() << ": " << e.what() << std::endl;
                 exit(1);
             }
@@ -127,7 +150,7 @@ int main(int argc, char *argv[]) {
             const double south = southValue ? args::get(southValue) : 38.1;
             const double east = eastValue ? args::get(eastValue) : -121.7;
             LatLngBounds boundingBox = LatLngBounds::hull(LatLng(north, west), LatLng(south, east));
-            return OfflineRegionDefinition{ OfflineTilePyramidRegionDefinition(style, boundingBox, minZoom, maxZoom, pixelRatio) };
+            return OfflineRegionDefinition{ OfflineTilePyramidRegionDefinition(style, boundingBox, minZoom, maxZoom, pixelRatio, includeIdeographs) };
         }
     }();
 

@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
  If you only need to observe changes in a particular pack’s progress, you can
  alternatively observe KVO change notifications to the pack’s `progress` key
  path.
+ 
+ #### Related examples
+ See the <a href="https://docs.mapbox.com/ios/maps/examples/offline-pack/">
+ Download an offline map</a> example to learn how to calculate the progress
+ of an offline download.
  */
 FOUNDATION_EXTERN MGL_EXPORT const NSNotificationName MGLOfflinePackProgressChangedNotification;
 
@@ -177,6 +182,11 @@ typedef NS_ENUM(NSUInteger, MGLResourceKind) {
  packs. All of this class’s instance methods are asynchronous, reflecting the
  fact that offline resources are stored in a database. The shared object
  maintains a canonical collection of offline packs in its `packs` property.
+ 
+ #### Related examples
+ See the <a href="https://docs.mapbox.com/ios/maps/examples/offline-pack/">
+ Download an offline map</a> example to learn how to create and register an
+ offline pack for a defined region.
  */
 MGL_EXPORT
 @interface MGLOfflineStorage : NSObject
@@ -339,7 +349,29 @@ MGL_EXPORT
  */
 @property (nonatomic, readonly) unsigned long long countOfBytesCompleted;
 
-- (void)cleanAmbientCache;
+/*
+ Inserts the provided resource into the ambient cache.
+ 
+ This method mimics the caching that would take place if the equivalent resource
+ were requested in the process of map rendering. Use this method to pre-warm the
+ cache with resources you know will be requested.
+ 
+ This method is asynchronous; the data may not be immediately available for
+ in-progress requests, though subsequent requests should have access to the
+ cached data.
+ 
+ @param data Response data to store for this resource. The data is expected to
+    be uncompressed; internally, the cache will compress data as necessary.
+ @param url The URL at which the data can normally be found.
+ @param modified The date the resource was last modified.
+ @param expires The date after which the resource is no longer valid.
+ @param eTag An HTTP entity tag.
+ @param mustRevalidate A Boolean value indicating whether the data is still
+    usable past the expiration date.
+ */
+- (void)preloadData:(NSData *)data forURL:(NSURL *)url modificationDate:(nullable NSDate *)modified expirationDate:(nullable NSDate *)expires eTag:(nullable NSString *)eTag mustRevalidate:(BOOL)mustRevalidate NS_SWIFT_NAME(preload(_:for:modifiedOn:expiresOn:eTag:mustRevalidate:));
+
+- (void)putResourceWithUrl:(NSURL *)url data:(NSData *)data modified:(nullable NSDate *)modified expires:(nullable NSDate *)expires etag:(nullable NSString *)etag mustRevalidate:(BOOL)mustRevalidate __attribute__((deprecated("Use -preloadData:forURL:modificationDate:expirationDate:eTag:mustRevalidate:.")));
 
 @end
 

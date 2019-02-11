@@ -10,7 +10,9 @@ This document discusses the specific subset of the predicate and expression
 syntax supported by this SDK. For a more general introduction to predicates and
 expressions, consult the
 _[Predicate Programming Guide](https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/Predicates/AdditionalChapters/Introduction.html)_
-in Apple developer documentation.
+in Apple developer documentation. For additional detail on how this SDK has
+extended the `NSExpression` class, consult the [`NSExpression(MGLAdditions)`](./Categories/NSExpression(MGLAdditions).html)
+section of this documentation.
 
 ## Using predicates to filter vector data
 
@@ -118,7 +120,7 @@ dictionary contains the `floorCount` key, then the key path `floorCount` refers
 to the value of the `floorCount` attribute when evaluating that particular
 polygon.
 
-The following special attribute is also available on features that are produced
+The following special attributes are also available on features that are produced
 as a result of clustering multiple point features together in a shape source:
 
 <table>
@@ -126,6 +128,16 @@ as a result of clustering multiple point features together in a shape source:
 <tr><th>Attribute</th><th>Type</th><th>Meaning</th></tr>
 </thead>
 <tbody>
+<tr>
+   <td><code>cluster</code></td>
+   <td>Bool</td>
+   <td>True if the feature is a point cluster. If the attribute is false (or not present) then the  feature should not be considered a cluster.</td>
+</tr>
+<tr>
+   <td><code>cluster_id</code></td>
+   <td>Number</td>
+   <td>Identifier for the point cluster.</td>
+</tr>
 <tr>
    <td><code>point_count</code></td>
    <td>Number</td>
@@ -300,6 +312,17 @@ The following variables are defined by this SDK for use with style layers:
       variable may only appear as the target of a top-level interpolation or
       step expression. This variable corresponds to the
       <code>NSExpression.zoomLevelVariableExpression</code> property.
+   </td>
+</tr>
+<tr>
+   <td><code>$lineProgress</code></td>
+   <td>Number</td>
+   <td>
+      A number that indicates the relative distance along a line at a given
+      point along the line. This variable evaluates to 0 at the beginning of the
+      line and 1 at the end of the line. It can only be used with the
+      `MGLLineStyleLayer.lineGradient` property. It corresponds to the
+      <code>NSExpression.lineProgressVariableExpression</code> property.
    </td>
 </tr>
 </tbody>

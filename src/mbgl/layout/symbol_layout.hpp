@@ -44,8 +44,7 @@ public:
     bool hasSymbolInstances() const override;
     bool hasDependencies() const override;
 
-    std::map<std::string,
-        std::pair<style::IconPaintProperties::PossiblyEvaluated, style::TextPaintProperties::PossiblyEvaluated>> layerPaintProperties;
+    std::map<std::string, style::SymbolPaintProperties::PossiblyEvaluated> layerPaintProperties;
 
     const std::string bucketLeaderID;
     std::vector<SymbolInstance> symbolInstances;
@@ -55,7 +54,7 @@ private:
                     const SymbolFeature&,
                     const std::pair<Shaping, Shaping>& shapedTextOrientations,
                     optional<PositionedIcon> shapedIcon,
-                    const GlyphPositionMap&);
+                    const GlyphPositions&);
 
     bool anchorIsTooClose(const std::u16string& text, const float repeatDistance, const Anchor&);
     std::map<std::u16string, std::vector<Anchor>> compareText;

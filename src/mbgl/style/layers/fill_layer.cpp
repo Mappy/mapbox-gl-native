@@ -9,13 +9,28 @@
 #include <mbgl/style/conversion/transition_options.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion_impl.hpp>
-#include <mbgl/util/fnv_hash.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* FillLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"fill",
+          LayerTypeInfo::Source::Required,
+          LayerTypeInfo::Pass3D::NotRequired,
+          LayerTypeInfo::Layout::Required,
+          LayerTypeInfo::Clipping::Required
+        };
+    return &typeInfo;
+}
+
+
 FillLayer::FillLayer(const std::string& layerID, const std::string& sourceID)
-    : Layer(makeMutable<Impl>(LayerType::Fill, layerID, sourceID)) {
+    : Layer(makeMutable<Impl>(layerID, sourceID)) {
 }
 
 FillLayer::FillLayer(Immutable<Impl> impl_)
@@ -40,62 +55,6 @@ std::unique_ptr<Layer> FillLayer::cloneRef(const std::string& id_) const {
 }
 
 void FillLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
-}
-
-// Source
-
-const std::string& FillLayer::getSourceID() const {
-    return impl().source;
-}
-
-void FillLayer::setSourceLayer(const std::string& sourceLayer) {
-    auto impl_ = mutableImpl();
-    impl_->sourceLayer = sourceLayer;
-    baseImpl = std::move(impl_);
-}
-
-const std::string& FillLayer::getSourceLayer() const {
-    return impl().sourceLayer;
-}
-
-// Filter
-
-void FillLayer::setFilter(const Filter& filter) {
-    auto impl_ = mutableImpl();
-    impl_->filter = filter;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-const Filter& FillLayer::getFilter() const {
-    return impl().filter;
-}
-
-// Visibility
-
-void FillLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void FillLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void FillLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -295,8 +254,7 @@ TransitionOptions FillLayer::getFillPatternTransition() const {
 using namespace conversion;
 
 optional<Error> FillLayer::setPaintProperty(const std::string& name, const Convertible& value) {
-    enum class Property {
-        Unknown,
+    enum class Property : uint8_t {
         FillAntialias,
         FillOpacity,
         FillColor,
@@ -313,84 +271,29 @@ optional<Error> FillLayer::setPaintProperty(const std::string& name, const Conve
         FillPatternTransition,
     };
 
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    case util::hashFNV1a("fill-antialias"):
-        if (name == "fill-antialias") {
-            property = Property::FillAntialias;
-        }
-        break;
-    case util::hashFNV1a("fill-antialias-transition"):
-        if (name == "fill-antialias-transition") {
-            property = Property::FillAntialiasTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-opacity"):
-        if (name == "fill-opacity") {
-            property = Property::FillOpacity;
-        }
-        break;
-    case util::hashFNV1a("fill-opacity-transition"):
-        if (name == "fill-opacity-transition") {
-            property = Property::FillOpacityTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-color"):
-        if (name == "fill-color") {
-            property = Property::FillColor;
-        }
-        break;
-    case util::hashFNV1a("fill-color-transition"):
-        if (name == "fill-color-transition") {
-            property = Property::FillColorTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-outline-color"):
-        if (name == "fill-outline-color") {
-            property = Property::FillOutlineColor;
-        }
-        break;
-    case util::hashFNV1a("fill-outline-color-transition"):
-        if (name == "fill-outline-color-transition") {
-            property = Property::FillOutlineColorTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-translate"):
-        if (name == "fill-translate") {
-            property = Property::FillTranslate;
-        }
-        break;
-    case util::hashFNV1a("fill-translate-transition"):
-        if (name == "fill-translate-transition") {
-            property = Property::FillTranslateTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-translate-anchor"):
-        if (name == "fill-translate-anchor") {
-            property = Property::FillTranslateAnchor;
-        }
-        break;
-    case util::hashFNV1a("fill-translate-anchor-transition"):
-        if (name == "fill-translate-anchor-transition") {
-            property = Property::FillTranslateAnchorTransition;
-        }
-        break;
-    case util::hashFNV1a("fill-pattern"):
-        if (name == "fill-pattern") {
-            property = Property::FillPattern;
-        }
-        break;
-    case util::hashFNV1a("fill-pattern-transition"):
-        if (name == "fill-pattern-transition") {
-            property = Property::FillPatternTransition;
-        }
-        break;
-    
-    }
+    MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
+        { "fill-antialias", static_cast<uint8_t>(Property::FillAntialias) },
+        { "fill-opacity", static_cast<uint8_t>(Property::FillOpacity) },
+        { "fill-color", static_cast<uint8_t>(Property::FillColor) },
+        { "fill-outline-color", static_cast<uint8_t>(Property::FillOutlineColor) },
+        { "fill-translate", static_cast<uint8_t>(Property::FillTranslate) },
+        { "fill-translate-anchor", static_cast<uint8_t>(Property::FillTranslateAnchor) },
+        { "fill-pattern", static_cast<uint8_t>(Property::FillPattern) },
+        { "fill-antialias-transition", static_cast<uint8_t>(Property::FillAntialiasTransition) },
+        { "fill-opacity-transition", static_cast<uint8_t>(Property::FillOpacityTransition) },
+        { "fill-color-transition", static_cast<uint8_t>(Property::FillColorTransition) },
+        { "fill-outline-color-transition", static_cast<uint8_t>(Property::FillOutlineColorTransition) },
+        { "fill-translate-transition", static_cast<uint8_t>(Property::FillTranslateTransition) },
+        { "fill-translate-anchor-transition", static_cast<uint8_t>(Property::FillTranslateAnchorTransition) },
+        { "fill-pattern-transition", static_cast<uint8_t>(Property::FillPatternTransition) }
+    });
 
-    if (property == Property::Unknown) {
+    const auto it = properties.find(name.c_str());
+    if (it == properties.end()) {
         return Error { "layer doesn't support this property" };
     }
+
+    Property property = static_cast<Property>(it->second);
 
         
     if (property == Property::FillAntialias) {
@@ -523,22 +426,11 @@ optional<Error> FillLayer::setLayoutProperty(const std::string& name, const Conv
         return Layer::setVisibility(value);
     }
 
-    enum class Property {
-        Unknown,
-    };
-
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    
-    }
-
-    if (property == Property::Unknown) {
-        return Error { "layer doesn't support this property" };
-    }
-
-        
-
     return Error { "layer doesn't support this property" };
+}
+
+Mutable<Layer::Impl> FillLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
 }
 
 } // namespace style

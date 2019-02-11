@@ -1,24 +1,18 @@
-# Modify cmake/benchmark-files.txt to change the source files for this target.
-load_sources_list(MBGL_BENCHMARK_FILES cmake/benchmark-files.txt)
+# Run scripts/generate-file-lists.js to change the source files for this target.
+load_sources_list(MBGL_BENCHMARK_FILES benchmark/benchmark-files.json)
 add_executable(mbgl-benchmark ${MBGL_BENCHMARK_FILES})
 
 target_include_directories(mbgl-benchmark
     PRIVATE src
     PRIVATE benchmark/include
     PRIVATE benchmark/src
-    PRIVATE platform/default
+    PRIVATE platform/default/include
 )
 
 target_link_libraries(mbgl-benchmark
     PRIVATE mbgl-core
+    PRIVATE benchmark
 )
-
-target_add_mason_package(mbgl-benchmark PRIVATE boost)
-target_add_mason_package(mbgl-benchmark PRIVATE benchmark)
-target_add_mason_package(mbgl-benchmark PRIVATE geojson)
-target_add_mason_package(mbgl-benchmark PRIVATE rapidjson)
-target_add_mason_package(mbgl-benchmark PRIVATE protozero)
-target_add_mason_package(mbgl-benchmark PRIVATE vector-tile)
 
 mbgl_platform_benchmark()
 

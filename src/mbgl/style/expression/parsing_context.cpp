@@ -13,6 +13,7 @@
 #include <mbgl/style/expression/coercion.hpp>
 #include <mbgl/style/expression/compound_expression.hpp>
 #include <mbgl/style/expression/comparison.hpp>
+#include <mbgl/style/expression/format_expression.hpp>
 #include <mbgl/style/expression/interpolate.hpp>
 #include <mbgl/style/expression/length.hpp>
 #include <mbgl/style/expression/let.hpp>
@@ -27,6 +28,8 @@
 #include <mbgl/style/conversion_impl.hpp>
 
 #include <mbgl/util/string.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
@@ -94,38 +97,41 @@ ParseResult ParsingContext::parse(const Convertible& value, std::size_t index_, 
     return child.parse(value);
 }
 
-const ExpressionRegistry& getExpressionRegistry() {
-    static ExpressionRegistry registry {{
-        {"==", parseComparison},
-        {"!=", parseComparison},
-        {">", parseComparison},
-        {"<", parseComparison},
-        {">=", parseComparison},
-        {"<=", parseComparison},
-        {"all", All::parse},
-        {"any", Any::parse},
-        {"array", Assertion::parse},
-        {"at", At::parse},
-        {"boolean", Assertion::parse},
-        {"case", Case::parse},
-        {"coalesce", Coalesce::parse},
-        {"collator", CollatorExpression::parse},
-        {"interpolate", parseInterpolate},
-        {"length", Length::parse},
-        {"let", Let::parse},
-        {"literal", Literal::parse},
-        {"match", parseMatch},
-        {"number", Assertion::parse},
-        {"object", Assertion::parse},
-        {"step", Step::parse},
-        {"string", Assertion::parse},
-        {"to-boolean", Coercion::parse},
-        {"to-color", Coercion::parse},
-        {"to-number", Coercion::parse},
-        {"to-string", Coercion::parse},
-        {"var", Var::parse}
-    }};
-    return registry;
+using ParseFunction = ParseResult (*)(const conversion::Convertible&, ParsingContext&);
+MAPBOX_ETERNAL_CONSTEXPR const auto expressionRegistry = mapbox::eternal::hash_map<mapbox::eternal::string, ParseFunction>({
+    {"==", parseComparison},
+    {"!=", parseComparison},
+    {">", parseComparison},
+    {"<", parseComparison},
+    {">=", parseComparison},
+    {"<=", parseComparison},
+    {"all", All::parse},
+    {"any", Any::parse},
+    {"array", Assertion::parse},
+    {"at", At::parse},
+    {"boolean", Assertion::parse},
+    {"case", Case::parse},
+    {"coalesce", Coalesce::parse},
+    {"collator", CollatorExpression::parse},
+    {"format", FormatExpression::parse},
+    {"interpolate", parseInterpolate},
+    {"length", Length::parse},
+    {"let", Let::parse},
+    {"literal", Literal::parse},
+    {"match", parseMatch},
+    {"number", Assertion::parse},
+    {"object", Assertion::parse},
+    {"step", Step::parse},
+    {"string", Assertion::parse},
+    {"to-boolean", Coercion::parse},
+    {"to-color", Coercion::parse},
+    {"to-number", Coercion::parse},
+    {"to-string", Coercion::parse},
+    {"var", Var::parse},
+});
+
+bool isExpression(const std::string& name) {
+    return expressionRegistry.contains(name.c_str());
 }
 
 ParseResult ParsingContext::parse(const Convertible& value, optional<TypeAnnotationOption> typeAnnotationOption) {
@@ -148,9 +154,8 @@ ParseResult ParsingContext::parse(const Convertible& value, optional<TypeAnnotat
             return ParseResult();
         }
         
-        const ExpressionRegistry& registry = getExpressionRegistry();
-        auto parseFunction = registry.find(*op);
-        if (parseFunction != registry.end()) {
+        auto parseFunction = expressionRegistry.find(op->c_str());
+        if (parseFunction != expressionRegistry.end()) {
             parsed = parseFunction->second(value, *this);
         } else {
             parsed = parseCompoundExpression(*op, value, *this);
@@ -183,7 +188,7 @@ ParseResult ParsingContext::parse(const Convertible& value, optional<TypeAnnotat
         const type::Type actual = (*parsed)->getType();
         if ((*expected == type::String || *expected == type::Number || *expected == type::Boolean || *expected == type::Object || expected->is<type::Array>()) && actual == type::Value) {
             parsed = { annotate(std::move(*parsed), *expected, typeAnnotationOption.value_or(TypeAnnotationOption::assert)) };
-        } else if (*expected == type::Color && (actual == type::Value || actual == type::String)) {
+        } else if ((*expected == type::Color || *expected == type::Formatted) && (actual == type::Value || actual == type::String)) {
             parsed = { annotate(std::move(*parsed), *expected, typeAnnotationOption.value_or(TypeAnnotationOption::coerce)) };
         } else {
             checkType((*parsed)->getType());

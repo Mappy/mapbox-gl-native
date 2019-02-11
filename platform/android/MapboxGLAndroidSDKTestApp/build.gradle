@@ -1,12 +1,7 @@
 apply plugin: 'com.android.application'
 
-//mappy modif
-apply from: '../configuration.gradle'
-apply from: '../gradle/dependencies.gradle'
-//end mappy modif
 android {
     compileSdkVersion androidVersions.compileSdkVersion
-    buildToolsVersion androidVersions.buildToolsVersion
 
     defaultConfig {
         applicationId "com.mapbox.mapboxsdk.testapp"
@@ -15,9 +10,6 @@ android {
         versionCode 13
         versionName "6.0.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary true
-        }
     }
 
     compileOptions {
@@ -64,19 +56,16 @@ android {
 dependencies {
     implementation dependenciesList.kotlinLib
 
-    api(project(':MapboxGLAndroidSDKTestApp'))
-    implementation dependenciesList.mapboxJavaServices
-
-    implementation(project(':MapboxGLAndroidSDK'))
-    implementation(dependenciesList.mapboxJavaTurf)
+    implementation project(':MapboxGLAndroidSDK')
+    implementation dependenciesList.mapboxJavaTurf
 
     implementation dependenciesList.supportAppcompatV7
     implementation dependenciesList.supportRecyclerView
     implementation dependenciesList.supportDesign
     implementation dependenciesList.supportConstraintLayout
 
-    // implementation dependenciesList.lost
     implementation dependenciesList.gmsLocation
+    implementation dependenciesList.reLinker
     implementation dependenciesList.timber
     debugImplementation dependenciesList.leakCanaryDebug
     releaseImplementation dependenciesList.leakCanaryRelease
@@ -89,10 +78,10 @@ dependencies {
     androidTestImplementation dependenciesList.testEspressoContrib
 }
 
-apply from: "../gradle/gradle-make.gradle"
-apply from: "../gradle/gradle-config.gradle"
-apply from: "../gradle/gradle-checkstyle.gradle"
-apply from: "../gradle/gradle-lint.gradle"
+apply from: "${rootDir}/gradle/gradle-make.gradle"
+apply from: "${rootDir}/gradle/gradle-config.gradle"
+apply from: "${rootDir}/gradle/gradle-checkstyle.gradle"
+apply from: "${rootDir}/gradle/gradle-lint.gradle"
 
 
 

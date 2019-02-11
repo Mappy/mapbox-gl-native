@@ -16,7 +16,7 @@ import android.support.test.runner.AndroidJUnit4
 import android.support.v4.content.ContextCompat
 import com.mapbox.geojson.Point
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory
-import com.mapbox.mapboxsdk.constants.Style
+import com.mapbox.mapboxsdk.maps.Style
 import com.mapbox.mapboxsdk.geometry.LatLng
 import com.mapbox.mapboxsdk.location.LocationComponentConstants.*
 import com.mapbox.mapboxsdk.location.modes.CameraMode
@@ -27,8 +27,8 @@ import com.mapbox.mapboxsdk.location.utils.MapboxTestingUtils.Companion.MAP_CONN
 import com.mapbox.mapboxsdk.location.utils.MapboxTestingUtils.Companion.MAP_RENDER_DELAY
 import com.mapbox.mapboxsdk.location.utils.MapboxTestingUtils.Companion.pushSourceUpdates
 import com.mapbox.mapboxsdk.maps.MapboxMap
-import com.mapbox.mapboxsdk.testapp.activity.BaseActivityTest
-import com.mapbox.mapboxsdk.testapp.activity.SingleActivity
+import com.mapbox.mapboxsdk.testapp.activity.EspressoTest
+import com.mapbox.mapboxsdk.testapp.activity.espresso.EspressoTestActivity
 import com.mapbox.mapboxsdk.utils.ColorUtils
 import org.hamcrest.CoreMatchers.*
 import org.junit.*
@@ -37,15 +37,11 @@ import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class LocationComponentTest : BaseActivityTest() {
+class LocationComponentTest : EspressoTest() {
 
   @Rule
   @JvmField
   val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_FINE_LOCATION)
-
-  override fun getActivityClass(): Class<*> {
-    return SingleActivity::class.java
-  }
 
   private lateinit var styleChangeIdlingResource: StyleChangeIdlingResource
   private val location: Location by lazy {
@@ -55,6 +51,11 @@ class LocationComponentTest : BaseActivityTest() {
     initLocation.bearing = 10f
     initLocation.accuracy = 150f
     initLocation
+  }
+
+  override fun validateTestSetup() {
+    super.validateTestSetup()
+    assertThat(mapboxMap.getStyle(), notNullValue())
   }
 
   @Before
@@ -70,14 +71,13 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context)
+        component.activateLocationComponent(context, mapboxMap.style!!)
         component.isLocationComponentEnabled = true
 
         val locationEngine = component.locationEngine
         assertThat(locationEngine, notNullValue())
 
         uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
-        assertThat(locationEngine?.isConnected, `is`(true))
       }
     }
 
@@ -92,6 +92,7 @@ class LocationComponentTest : BaseActivityTest() {
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(
           context,
+          mapboxMap.style!!,
           LocationComponentOptions.builder(context)
             .staleStateTimeout(200)
             .enableStaleState(false)
@@ -107,7 +108,6 @@ class LocationComponentTest : BaseActivityTest() {
         assertThat(componentOptions, notNullValue())
 
         uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
-        assertThat(locationEngine?.isConnected, `is`(true))
         assertThat(componentOptions?.accuracyAlpha(), `is`(.5f))
         assertThat(componentOptions?.accuracyColor(), `is`(Color.BLUE))
       }
@@ -124,6 +124,7 @@ class LocationComponentTest : BaseActivityTest() {
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(
           context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .staleStateTimeout(200)
@@ -148,14 +149,16 @@ class LocationComponentTest : BaseActivityTest() {
     executeComponentTest(componentAction)
   }
 
-  @Test
+  @Test(expected = IllegalStateException::class)
   fun settingMapStyleImmediatelyBeforeLoadingComponent_doesStillLoadLayersProperly() {
     validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        mapboxMap.setStyle(Style.LIGHT)
-        component.activateLocationComponent(context, false)
+
+        val style =  mapboxMap.style!!
+        mapboxMap.setStyle(Style.Builder().fromUrl(Style.LIGHT))
+        component.activateLocationComponent(context, style,false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
@@ -164,7 +167,6 @@ class LocationComponentTest : BaseActivityTest() {
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(BACKGROUND_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(SHADOW_LAYER), `is`(true))
-        assertThat(mapboxMap.isLayerVisible(ACCURACY_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(BEARING_LAYER), `is`(false))
       }
     }
@@ -178,11 +180,11 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
 
         // Source should be present but empty
-        val mapView = (rule.activity as SingleActivity).mapView
+        val mapView = (rule.activity as EspressoTestActivity).mapView
         assertThat(mapboxMap.queryRenderedFeatures(
           RectF(0f, 0f, mapView.width.toFloat(), mapView.height.toFloat()), FOREGROUND_LAYER)
           .isEmpty(), `is`(true))
@@ -209,6 +211,7 @@ class LocationComponentTest : BaseActivityTest() {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .staleStateTimeout(200)
@@ -220,6 +223,7 @@ class LocationComponentTest : BaseActivityTest() {
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
         uiController.loopMainThreadForAtLeast(500)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         mapboxMap.querySourceFeatures(LOCATION_SOURCE).also {
           it.forEach {
             assertThat(it.getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(false))
@@ -233,10 +237,12 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun locationComponentOptions_loadsForegroundBitmapFromNameOption() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .foregroundName("custom-foreground-bitmap")
@@ -260,6 +266,7 @@ class LocationComponentTest : BaseActivityTest() {
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
         assertThat(mapboxMap.queryRenderedFeatures(location, FOREGROUND_LAYER).isEmpty(), `is`(false))
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         val feature = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0]
         assertThat(feature.getStringProperty(PROPERTY_FOREGROUND_ICON), `is`(equalTo("custom-foreground-bitmap")))
         assertThat(feature.getStringProperty(PROPERTY_BACKGROUND_ICON), `is`(equalTo("custom-background-bitmap")))
@@ -274,10 +281,12 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun locationComponentOptions_loadsGpsNameWithGpsRenderMode() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .foregroundName("custom-foreground-bitmap")
@@ -293,7 +302,7 @@ class LocationComponentTest : BaseActivityTest() {
           mapboxMap.addImageFromDrawable("custom-foreground-bitmap", it)
           mapboxMap.addImageFromDrawable("custom-gps-bitmap", it)
         }
-
+        mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
         val foregroundId = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getStringProperty(PROPERTY_FOREGROUND_ICON)
         assertThat(foregroundId, `is`(equalTo("custom-gps-bitmap")))
       }
@@ -304,10 +313,12 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun locationComponentOptions_customIconNameRevertsToDefault() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .foregroundName("custom-foreground-bitmap")
@@ -319,12 +330,14 @@ class LocationComponentTest : BaseActivityTest() {
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         val foregroundId = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getStringProperty(PROPERTY_FOREGROUND_ICON)
         assertThat(foregroundId, `is`(equalTo("custom-gps-bitmap")))
 
         component.applyStyle(LocationComponentOptions.builder(context).build())
 
         val renderCheck = {
+          mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
           mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getStringProperty(PROPERTY_FOREGROUND_ICON) == FOREGROUND_ICON
         }
         waitForRenderResult(uiController, renderCheck, true)
@@ -337,11 +350,13 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun locationComponentOptions_customGpsIconNameChangeBackWithMode() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
 
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .gpsName("custom-gps-bitmap")
@@ -352,12 +367,14 @@ class LocationComponentTest : BaseActivityTest() {
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         val foregroundId = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getStringProperty(PROPERTY_FOREGROUND_ICON)
         assertThat(foregroundId, `is`(equalTo("custom-gps-bitmap")))
 
         component.renderMode = RenderMode.NORMAL
 
         val renderCheck = {
+          mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
           mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getStringProperty(PROPERTY_FOREGROUND_ICON) == FOREGROUND_ICON
         }
         waitForRenderResult(uiController, renderCheck, true)
@@ -370,10 +387,12 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun stillStaleAfterResuming() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .staleStateTimeout(200)
@@ -385,6 +404,7 @@ class LocationComponentTest : BaseActivityTest() {
         uiController.loopMainThreadForAtLeast(250) // engaging stale state
 
         val renderCheck = {
+          mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
           mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE)
         }
         waitForRenderResult(uiController, renderCheck, true)
@@ -394,6 +414,7 @@ class LocationComponentTest : BaseActivityTest() {
         component.onStart()
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(true))
         assertThat(mapboxMap.isLayerVisible(ACCURACY_LAYER), `is`(false))
       }
@@ -404,19 +425,23 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun stillNotStaleAfterResuming() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
+
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(false))
 
         component.onStop()
         component.onStart()
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(false))
         assertThat(mapboxMap.isLayerVisible(ACCURACY_LAYER), `is`(true))
       }
@@ -426,6 +451,7 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun locationComponentOptions_accuracyRingWithColor() {
+    validateTestSetup()
     val color = Color.parseColor("#4A90E2")
     val rgbaColor = ColorUtils.colorToRgbaString(color)
 
@@ -433,6 +459,7 @@ class LocationComponentTest : BaseActivityTest() {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
         component.activateLocationComponent(context,
+          mapboxMap.style!!,
           null,
           LocationComponentOptions.builder(context)
             .accuracyColor(color)
@@ -443,6 +470,7 @@ class LocationComponentTest : BaseActivityTest() {
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
         // Check that the source property changes correctly
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         mapboxMap.querySourceFeatures(LOCATION_SOURCE).also {
           it.forEach {
             assertThat(it.getStringProperty(PROPERTY_ACCURACY_COLOR), `is`(equalTo(rgbaColor)))
@@ -456,14 +484,16 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun forceLocationUpdate_doesMoveLocationLayerIconToCorrectPosition() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         val point: Point = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].geometry() as Point
 
         assertThat(component.locationEngine, nullValue())
@@ -476,10 +506,11 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun disablingComponentHidesPuck() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
@@ -498,16 +529,17 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun disablingComponentAndChangingStyleAllowsToEnableAgain() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
         component.isLocationComponentEnabled = false
-        mapboxMap.setStyle(Style.LIGHT)
+        mapboxMap.setStyle(Style.Builder().fromUrl(Style.LIGHT))
 
         component.isLocationComponentEnabled = true
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
@@ -519,6 +551,7 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_isDisabledOnStart() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
@@ -526,7 +559,7 @@ class LocationComponentTest : BaseActivityTest() {
         component.onStop()
         component.onStart()
         assertThat(component.isLocationComponentEnabled, `is`(false))
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         assertThat(component.isLocationComponentEnabled, `is`(true))
       }
@@ -536,10 +569,11 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_keepsEnabledWhenStoppedAndStarted() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         assertThat(component.isLocationComponentEnabled, `is`(true))
         component.onStop()
@@ -552,10 +586,11 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_keepsDisabledWhenStoppedAndStarted() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.isLocationComponentEnabled = false
         assertThat(component.isLocationComponentEnabled, `is`(false))
@@ -569,16 +604,17 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_ableToChangeStyleAfterResuming() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
 
         component.onStop()
         component.onStart()
 
-        mapboxMap.setStyle(Style.DARK)
+        mapboxMap.setStyle(Style.Builder().fromUrl(Style.DARK))
         uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
       }
     }
@@ -587,12 +623,13 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_interruptedDuringStyleChange() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
-        mapboxMap.setStyle(Style.DARK)
+        mapboxMap.setStyle(Style.Builder().fromUrl(Style.DARK))
         component.onStop()
         component.onStart()
         uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
@@ -603,15 +640,17 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_forceLocationUpdateAfterStopped() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.onStop()
         component.forceLocationUpdate(location)
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE).isEmpty(), `is`(true))
       }
     }
@@ -620,16 +659,19 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_acceptAndReuseLocationUpdatesBeforeLayerStarted() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.onStop()
         component.forceLocationUpdate(location)
         component.onStart()
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
+        mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
         val point: Point = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].geometry() as Point
         assertEquals(point.latitude(), location.latitude, 0.1)
         assertEquals(point.longitude(), location.longitude, 0.1)
@@ -640,18 +682,20 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun lifecycle_lifecycleChangeRightAfterStyleReload() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
-        mapboxMap.setStyle(Style.LIGHT)
+        mapboxMap.setStyle(Style.Builder().fromUrl(Style.LIGHT))
         component.onStop()
         uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
         component.onStart()
         mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
 
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
         val point: Point = mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].geometry() as Point
         assertEquals(point.latitude(), location.latitude, 0.1)
         assertEquals(point.longitude(), location.longitude, 0.1)
@@ -668,12 +712,13 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun mapChange_settingComponentStyle() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
-        styleChangeIdlingResource.waitForStyle((rule.activity as SingleActivity).mapView, mapboxMap, MAPBOX_HEAVY_STYLE)
+        styleChangeIdlingResource.waitForStyle(mapboxMap, MAPBOX_HEAVY_STYLE)
         val options = LocationComponentOptions.builder(context)
           .accuracyColor(Color.RED)
           .build()
@@ -693,12 +738,13 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun mapChange_forcingLocation() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
-        styleChangeIdlingResource.waitForStyle((rule.activity as SingleActivity).mapView, mapboxMap, MAPBOX_HEAVY_STYLE)
+        styleChangeIdlingResource.waitForStyle(mapboxMap, MAPBOX_HEAVY_STYLE)
 
         pushSourceUpdates(styleChangeIdlingResource) {
           component.forceLocationUpdate(location)
@@ -715,11 +761,13 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun mapChange_settingMapStyleBeforeComponentCreation() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        styleChangeIdlingResource.waitForStyle((rule.activity as SingleActivity).mapView, mapboxMap, MAPBOX_HEAVY_STYLE)
-        component.activateLocationComponent(context, false)
+        styleChangeIdlingResource.waitForStyle(mapboxMap, MAPBOX_HEAVY_STYLE)
+        uiController.loopMainThreadForAtLeast(100)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
 
         val options = LocationComponentOptions.builder(context)
@@ -740,21 +788,28 @@ class LocationComponentTest : BaseActivityTest() {
 
   @Test
   fun animators_layerBearingCorrect() {
+    validateTestSetup()
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.GPS
         location.bearing = 77f
         component.forceLocationUpdate(location)
         uiController.loopMainThreadForAtLeast(MAX_ANIMATION_DURATION_MS + MAP_RENDER_DELAY)
-        assertEquals(77.0, mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getNumberProperty(PROPERTY_GPS_BEARING) as Double, 0.1)
+        assertThat(mapboxMap.style, notNullValue())
+        assertThat(mapboxMap.style?.getSource(LOCATION_SOURCE), notNullValue())
+        mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
+        assertEquals(77f, mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getNumberProperty(PROPERTY_GPS_BEARING).toFloat(), 0.1f)
 
         location.bearing = 92f
         component.forceLocationUpdate(location)
         uiController.loopMainThreadForAtLeast(MAX_ANIMATION_DURATION_MS + MAP_RENDER_DELAY) // Waiting for the animation to finish
-        assertEquals(92.0, mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getNumberProperty(PROPERTY_GPS_BEARING) as Double, 0.1)
+        mapboxMap.waitForSource(uiController, LOCATION_SOURCE)
+        mapboxMap.waitForLayer(uiController, location, FOREGROUND_LAYER)
+        assertEquals(92.0f, mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getNumberProperty(PROPERTY_GPS_BEARING).toFloat(), 0.1f)
       }
     }
 
@@ -766,7 +821,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING_GPS
         location.bearing = 77f
@@ -795,7 +850,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.NONE_GPS
         val latitude = mapboxMap.cameraPosition.target.latitude
@@ -827,7 +882,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.NONE
         val latitude = mapboxMap.cameraPosition.target.latitude
@@ -860,7 +915,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.cameraMode = CameraMode.NONE
@@ -879,7 +934,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.NONE
         val zoom = mapboxMap.cameraPosition.zoom
@@ -898,7 +953,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.zoomWhileTracking(10.0)
@@ -917,7 +972,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.zoomWhileTracking(15.0)
@@ -937,7 +992,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
 
         component.cameraMode = CameraMode.TRACKING
@@ -960,7 +1015,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.zoomWhileTracking(15.0)
@@ -980,7 +1035,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.NONE
         val tilt = mapboxMap.cameraPosition.tilt
@@ -999,7 +1054,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.tiltWhileTracking(30.0)
@@ -1018,7 +1073,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.tiltWhileTracking(30.0)
@@ -1038,7 +1093,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         val tilt = mapboxMap.cameraPosition.tilt
@@ -1060,7 +1115,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!,false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING
         component.tiltWhileTracking(30.0)
@@ -1080,7 +1135,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         component.cameraMode = CameraMode.TRACKING_GPS
         component.forceLocationUpdate(location)
@@ -1104,14 +1159,17 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
-        val target = LatLng(51.0, 17.0)
-        assertTrue(target.distanceTo(LatLng(location)) > LocationComponentConstants.INSTANT_LOCATION_TRANSITION_THRESHOLD)
         component.cameraMode = CameraMode.NONE
         component.forceLocationUpdate(location)
+
+        val target = LatLng(51.0, 17.0)
         mapboxMap.moveCamera(CameraUpdateFactory.newLatLng(target))
+        mapboxMap.moveCamera(CameraUpdateFactory.zoomTo(15.0))
         mapboxMap.moveCamera(CameraUpdateFactory.bearingTo(90.0))
+        assertTrue(Utils.immediateAnimation(mapboxMap.projection, mapboxMap.cameraPosition.target, LatLng(location)))
+
         component.cameraMode = CameraMode.TRACKING_GPS
         assertEquals(location.bearing.toDouble(), mapboxMap.cameraPosition.bearing, 0.1)
         assertEquals(location.latitude, mapboxMap.cameraPosition.target.latitude, 0.1)
@@ -1127,7 +1185,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         assertTrue(component.compassEngine is LocationComponentCompassEngine)
       }
@@ -1141,7 +1199,7 @@ class LocationComponentTest : BaseActivityTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, false)
+        component.activateLocationComponent(context, mapboxMap.style!!, false)
         component.isLocationComponentEnabled = true
         val engine: CompassEngine = object : CompassEngine {
           override fun addCompassListener(compassListener: CompassListener) {
@@ -1157,36 +1215,11 @@ class LocationComponentTest : BaseActivityTest() {
           override fun getLastAccuracySensorStatus(): Int {
             return 0
           }
-
-          override fun onStart() {
-          }
-
-          override fun onStop() {
-          }
         }
 
         component.compassEngine = engine
         assertThat(component.compassEngine, notNullValue())
         assertThat(component.compassEngine, `is`(equalTo(engine)))
-      }
-    }
-
-    executeComponentTest(componentAction)
-  }
-
-  @Test
-  fun defaultLocationEngine_deactivatedWhenDestroyed() {
-    val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
-      override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
-                                             uiController: UiController, context: Context) {
-        component.activateLocationComponent(context)
-        component.isLocationComponentEnabled = true
-        uiController.loopMainThreadForAtLeast(MAP_CONNECTION_DELAY)
-        assertThat(component.locationEngine?.isConnected, `is`(true))
-
-        component.onStop()
-        component.onDestroy()
-        assertThat(component.locationEngine?.isConnected, `is`(false))
       }
     }
 

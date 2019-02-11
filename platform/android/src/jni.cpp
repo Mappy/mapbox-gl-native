@@ -35,20 +35,27 @@
 #include "map_renderer.hpp"
 #include "map_renderer_runnable.hpp"
 #include "native_map_view.hpp"
+#ifndef MBGL_MODULE_OFFLINE_DISABLE
 #include "offline/offline_manager.hpp"
 #include "offline/offline_region.hpp"
 #include "offline/offline_region_definition.hpp"
 #include "offline/offline_region_error.hpp"
 #include "offline/offline_region_status.hpp"
+#endif
 #include "style/transition_options.hpp"
-#include "style/layers/layers.hpp"
+#include "style/layers/layer_manager.hpp"
 #include "style/sources/source.hpp"
 #include "style/light.hpp"
+#include "style/formatted.hpp"
+#include "style/formatted_section.hpp"
+#ifndef MBGL_MODULE_SNAPSHOT_DISABLE
 #include "snapshotter/map_snapshotter.hpp"
 #include "snapshotter/map_snapshot.hpp"
+#endif
 #include "text/collator_jni.hpp"
 #include "text/local_glyph_rasterizer_jni.hpp"
 #include "logger.hpp"
+#include "math/math.hpp"
 
 namespace mbgl {
 namespace android {
@@ -112,6 +119,7 @@ void registerNatives(JavaVM *vm) {
     // Basic types
     java::registerNatives(env);
     java::util::registerNative(env);
+    math::registerNative(env);
     PointF::registerNative(env);
     RectF::registerNative(env);
 
@@ -158,10 +166,12 @@ void registerNatives(JavaVM *vm) {
 
     // Style
     TransitionOptions::registerNative(env);
-    registerNativeLayers(env);
+    LayerManagerAndroid::get()->registerNative(env);
     Source::registerNative(env);
     Light::registerNative(env);
     Position::registerNative(env);
+    Formatted::registerNative(env);
+    FormattedSection::registerNative(env);
 
     // Map
     CameraPosition::registerNative(env);
@@ -171,6 +181,7 @@ void registerNatives(JavaVM *vm) {
     ConnectivityListener::registerNative(env);
 
     // Offline
+#ifndef MBGL_MODULE_OFFLINE_DISABLE
     OfflineManager::registerNative(env);
     OfflineRegion::registerNative(env);
     OfflineRegionDefinition::registerNative(env);
@@ -178,10 +189,13 @@ void registerNatives(JavaVM *vm) {
     OfflineGeometryRegionDefinition::registerNative(env);
     OfflineRegionError::registerNative(env);
     OfflineRegionStatus::registerNative(env);
+#endif
 
     // Snapshotter
+#ifndef MBGL_MODULE_SNAPSHOT_DISABLE
     MapSnapshotter::registerNative(env);
     MapSnapshot::registerNative(env);
+#endif
 
     // text
     LocalGlyphRasterizer::registerNative(env);

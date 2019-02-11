@@ -18,7 +18,7 @@ namespace mbgl {
 using namespace style;
 
 RenderLineLayer::RenderLineLayer(Immutable<style::LineLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Line, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()),
       colorRamp({256, 1}) {
 }
@@ -28,7 +28,8 @@ const style::LineLayer::Impl& RenderLineLayer::impl() const {
 }
 
 std::unique_ptr<Bucket> RenderLineLayer::createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const {
-    assert(false); // Should be calling createLayout() instead.
+    // Should be calling createLayout() instead.
+    assert(baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::NotRequired);
     return nullptr;
 }
 
@@ -125,7 +126,7 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
 
             parameters.lineAtlas.bind(parameters.context, 0);
 
-            draw(parameters.programs.lineSDF,
+            draw(parameters.programs.getLineLayerPrograms().lineSDF,
                  LineSDFProgram::uniformValues(
                      evaluated,
                      parameters.pixelRatio,
@@ -147,7 +148,7 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
             optional<ImagePosition> posA = geometryTile.getPattern(linePatternValue.from);
             optional<ImagePosition> posB = geometryTile.getPattern(linePatternValue.to);
 
-            draw(parameters.programs.linePattern,
+            draw(parameters.programs.getLineLayerPrograms().linePattern,
                  LinePatternProgram::uniformValues(
                      evaluated,
                      tile,
@@ -164,14 +165,14 @@ void RenderLineLayer::render(PaintParameters& parameters, RenderSource*) {
             }
             parameters.context.bindTexture(*colorRampTexture, 0, gl::TextureFilter::Linear);
 
-            draw(parameters.programs.lineGradient,
+            draw(parameters.programs.getLineLayerPrograms().lineGradient,
                  LineGradientProgram::uniformValues(
                     evaluated,
                     tile,
                     parameters.state,
                     parameters.pixelsToGLUnits), {}, {});
         } else {
-            draw(parameters.programs.line,
+            draw(parameters.programs.getLineLayerPrograms().line,
                  LineProgram::uniformValues(
                      evaluated,
                      tile,
@@ -293,5 +294,9 @@ float RenderLineLayer::getLineWidth(const GeometryTileFeature& feature, const fl
     }
 }
 
+
+void RenderLineLayer::update() {
+    updateColorRamp();
+}
 
 } // namespace mbgl

@@ -4,7 +4,6 @@
 #include <mbgl/algorithm/update_tile_masks.hpp>
 #include <mbgl/geometry/dem_data.hpp>
 #include <mbgl/renderer/buckets/hillshade_bucket.hpp>
-#include <iostream>
 
 namespace mbgl {
 
@@ -39,9 +38,7 @@ void RenderRasterDEMSource::update(Immutable<style::Source::Impl> baseImpl_,
         maxzoom = tileset->zoomRange.max;
         // TODO: this removes existing buckets, and will cause flickering.
         // Should instead refresh tile data in place.
-        tilePyramid.tiles.clear();
-        tilePyramid.renderTiles.clear();
-        tilePyramid.cache.clear();
+        tilePyramid.clearAll();
     }
     // Allow clearing the tile pyramid first, before the early return in case
     //  the new tileset is not yet available or has an error in loading

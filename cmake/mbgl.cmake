@@ -70,10 +70,10 @@ if(WITH_NODEJS)
         list(APPEND MBGL_SUBMODULES platform/ios/vendor/mapbox-events-ios)
     endif()
 
-    message(STATUS "Updating submodules...")
-    execute_process(
-        COMMAND git submodule update --init ${MBGL_SUBMODULES}
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    #message(STATUS "Updating submodules...")
+    #execute_process(
+    #    COMMAND git submodule update --init ${MBGL_SUBMODULES}
+    #    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
     if(NOT EXISTS "${CMAKE_SOURCE_DIR}/mapbox-gl-js/node_modules")
         # Symlink mapbox-gl-js/node_modules so that the modules that are
@@ -121,12 +121,14 @@ endfunction()
 
 function(load_sources_list VAR FILELIST)
     set(_FILES)
-    file(STRINGS "${FILELIST}" _LINES)
-    foreach(_LINE IN LISTS _LINES)
-        string(STRIP "${_LINE}" _LINE)
-        string(REGEX MATCH "^([^;#]+)" _FILE "${_LINE}")
-        if (_FILE)
-            list(APPEND _FILES "${_FILE}")
+    file(READ "${FILELIST}" _LINES)
+    # Note: this isn't really parsing JSON, but it's good enough for our purposes.
+    set(_REGEX "(^|\n) *(\"([^\"]+)\" *: *)?\"([^\"]+)\",?(\n|$)")
+    string(REGEX MATCHALL "${_REGEX}" _MATCHES "${_LINES}")
+    foreach(_MATCH IN LISTS _MATCHES)
+        string(REGEX MATCH "${_REGEX}" _FILE "${_MATCH}")
+        if (_FILE AND NOT CMAKE_MATCH_3 STREQUAL "//")
+            list(APPEND _FILES "${CMAKE_SOURCE_DIR}/${CMAKE_MATCH_4}")
         endif()
     endforeach()
     set(${VAR} "${_FILES}" PARENT_SCOPE)
@@ -155,7 +157,7 @@ function(add_vendor_target NAME TYPE)
     foreach(FILE IN LISTS FILES)
         target_sources(${NAME} ${SOURCE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/${FILE}")
     endforeach()
-    target_include_directories(${NAME} ${INCLUDE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/include")
+    target_include_directories(${NAME} SYSTEM ${INCLUDE_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/${NAME}/include")
     create_source_groups(${NAME})
 endfunction()
 
@@ -209,10 +211,10 @@ function(initialize_xcode_cxx_build_settings target)
     set_xcode_property(${target} CLANG_WARN_RANGE_LOOP_ANALYSIS YES)
 
     # -flto
-    set_xcode_property(${target} LLVM_LTO $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebugInfo>>:YES>)
+    set_xcode_property(${target} LLVM_LTO $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:YES>)
 
-    # Make releases debuggable.
-    set_xcode_property(${target} GCC_GENERATE_DEBUGGING_SYMBOLS YES)
+    # Make all build configurations debuggable — except Release.
+    set_xcode_property(${target} GCC_GENERATE_DEBUGGING_SYMBOLS $<$<NOT:$<CONFIG:Release>>:YES>)
 endfunction()
 
 # CMake 3.1 does not have this yet.

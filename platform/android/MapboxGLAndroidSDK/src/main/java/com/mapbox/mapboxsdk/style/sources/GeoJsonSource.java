@@ -62,7 +62,7 @@ public class GeoJsonSource extends Source {
    * @param id      the source id
    * @param geoJson raw Json FeatureCollection
    */
-  public GeoJsonSource(String id, String geoJson) {
+  public GeoJsonSource(String id, @Nullable String geoJson) {
     super();
     if (geoJson == null || geoJson.startsWith("http")) {
       throw new IllegalArgumentException("Expected a raw json body");
@@ -78,7 +78,7 @@ public class GeoJsonSource extends Source {
    * @param geoJson raw Json body
    * @param options options
    */
-  public GeoJsonSource(String id, String geoJson, GeoJsonOptions options) {
+  public GeoJsonSource(String id, @Nullable String geoJson, GeoJsonOptions options) {
     super();
     if (geoJson == null || geoJson.startsWith("http")) {
       throw new IllegalArgumentException("Expected a raw json body");
@@ -194,6 +194,9 @@ public class GeoJsonSource extends Source {
    * @param feature the GeoJSON {@link Feature} to set
    */
   public void setGeoJson(Feature feature) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetFeature(feature);
   }
@@ -205,6 +208,9 @@ public class GeoJsonSource extends Source {
    * @param geometry the GeoJSON {@link Geometry} to set
    */
   public void setGeoJson(Geometry geometry) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetGeometry(geometry);
   }
@@ -216,6 +222,9 @@ public class GeoJsonSource extends Source {
    * @param features the GeoJSON FeatureCollection
    */
   public void setGeoJson(FeatureCollection features) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetFeatureCollection(features);
   }
@@ -227,6 +236,9 @@ public class GeoJsonSource extends Source {
    * @param json the raw GeoJson FeatureCollection string
    */
   public void setGeoJson(String json) {
+    if (detached) {
+      return;
+    }
     checkThread();
     nativeSetGeoJsonString(json);
   }
@@ -236,7 +248,7 @@ public class GeoJsonSource extends Source {
    *
    * @param url the GeoJSON FeatureCollection url
    */
-  public void setUrl(URL url) {
+  public void setUrl(@NonNull URL url) {
     checkThread();
     setUrl(url.toExternalForm());
   }
@@ -273,12 +285,61 @@ public class GeoJsonSource extends Source {
     return features != null ? Arrays.asList(features) : new ArrayList<Feature>();
   }
 
+  /**
+   * Returns the children of a cluster (on the next zoom level) given its id (cluster_id value from feature properties).
+   * <p>
+   * Requires configuring this source as a cluster by calling {@link GeoJsonOptions#withCluster(boolean)}.
+   * </p>
+   *
+   * @param cluster cluster from which to retrieve children from
+   * @return a list of features for the underlying children
+   */
+  @NonNull
+  public FeatureCollection getClusterChildren(@NonNull Feature cluster) {
+    checkThread();
+    return FeatureCollection.fromFeatures(nativeGetClusterChildren(cluster));
+  }
+
+  /**
+   * Returns all the leaves of a cluster (given its cluster_id), with pagination support: limit is the number of leaves
+   * to return (set to Infinity for all points), and offset is the amount of points to skip (for pagination).
+   * <p>
+   * Requires configuring this source as a cluster by calling {@link GeoJsonOptions#withCluster(boolean)}.
+   * </p>
+   *
+   * @param cluster cluster from which to retrieve leaves from
+   * @param limit  limit is the number of points to return
+   * @param offset  offset is the amount of points to skip (for pagination)
+   * @return a list of features for the underlying leaves
+   */
+  @NonNull
+  public FeatureCollection getClusterLeaves(@NonNull Feature cluster, long limit, long offset) {
+    checkThread();
+    return FeatureCollection.fromFeatures(nativeGetClusterLeaves(cluster, limit, offset));
+  }
+
+  /**
+   * Returns the zoom on which the cluster expands into several children (useful for "click to zoom" feature)
+   * given the cluster's cluster_id (cluster_id value from feature properties).
+   * <p>
+   * Requires configuring this source as a cluster by calling {@link GeoJsonOptions#withCluster(boolean)}.
+   * </p>
+   *
+   * @param cluster cluster from which to retrieve the expansion zoom from
+   * @return the zoom on which the cluster expands into several children
+   */
+  public int getClusterExpansionZoom(@NonNull Feature cluster) {
+    checkThread();
+    return nativeGetClusterExpansionZoom(cluster);
+  }
+
   @Keep
   protected native void initialize(String layerId, Object options);
 
   @Keep
   protected native void nativeSetUrl(String url);
 
+  @NonNull
   @Keep
   protected native String nativeGetUrl();
 
@@ -294,8 +355,18 @@ public class GeoJsonSource extends Source {
   @Keep
   private native void nativeSetGeometry(Geometry geometry);
 
+  @NonNull
   @Keep
   private native Feature[] querySourceFeatures(Object[] filter);
+
+  @Keep
+  private native Feature[]  nativeGetClusterChildren(Feature feature);
+
+  @Keep
+  private native Feature[]  nativeGetClusterLeaves(Feature feature, long limit, long offset);
+
+  @Keep
+  private native int nativeGetClusterExpansionZoom(Feature feature);
 
   @Override
   @Keep

@@ -126,7 +126,8 @@ void OfflineManager::registerNative(jni::JNIEnv& env) {
         METHOD(&OfflineManager::listOfflineRegions, "listOfflineRegions"),
         METHOD(&OfflineManager::createOfflineRegion, "createOfflineRegion"),
         METHOD(&OfflineManager::cleanAmbientCache, "cleanAmbientCache"),
-        METHOD(&OfflineManager::mergeOfflineRegions, "mergeOfflineRegions"));
+        METHOD(&OfflineManager::mergeOfflineRegions, "mergeOfflineRegions"),
+        METHOD(&OfflineManager::putResourceWithUrl, "putResourceWithUrl"));
 }
 
 // OfflineManager::ListOfflineRegionsCallback //
@@ -204,6 +205,33 @@ void OfflineManager::MergeOfflineRegionsCallback::onMerge(jni::JNIEnv& env,
     }
 
     callback.Call(env, method, jregions);
+}
+
+void OfflineManager::putResourceWithUrl(jni::JNIEnv& env,
+                                        const jni::String& url_,
+                                        const jni::Array<jni::jbyte>& arr,
+                                        jlong modified,
+                                        jlong expires,
+                                        const jni::String& eTag_,
+                                        jboolean mustRevalidate) {
+    auto url =  jni::Make<std::string>(env, url_);
+    auto data = std::make_shared<std::string>(arr.Length(env), char());
+    jni::GetArrayRegion(env, *arr, 0, data->size(), reinterpret_cast<jbyte*>(&(*data)[0]));
+    mbgl::Resource resource(mbgl::Resource::Kind::Unknown, url);
+    mbgl::Response response;
+    response.data = data;
+    response.mustRevalidate = mustRevalidate;
+    if (eTag_) {
+        response.etag = jni::Make<std::string>(env, eTag_);
+    }
+    if (modified > 0) {
+        response.modified = Timestamp(mbgl::Seconds(modified));
+    }
+    if (expires > 0) {
+        response.expires = Timestamp(mbgl::Seconds(expires));
+    }
+
+    fileSource.put(resource, response);
 }
 
 } // namespace android

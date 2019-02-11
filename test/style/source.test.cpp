@@ -11,8 +11,8 @@
 #include <mbgl/style/sources/geojson_source.hpp>
 #include <mbgl/style/sources/image_source.hpp>
 #include <mbgl/style/sources/custom_geometry_source.hpp>
-#include <mbgl/style/layers/hillshade_layer.cpp>
-#include <mbgl/style/layers/raster_layer.cpp>
+#include <mbgl/style/layers/hillshade_layer.hpp>
+#include <mbgl/style/layers/raster_layer.hpp>
 #include <mbgl/style/layers/line_layer.hpp>
 
 #include <mbgl/renderer/sources/render_raster_source.hpp>
@@ -76,7 +76,7 @@ public:
         Log::setObserver(std::make_unique<Log::NullObserver>());
 
         transform.resize({ 512, 512 });
-        transform.setLatLngZoom({0, 0}, 0);
+        transform.jumpTo(CameraOptions().withCenter(LatLng()).withZoom(0.0));
 
         transformState = transform.getState();
     }
@@ -127,7 +127,7 @@ TEST(Source, LoadingCorrupt) {
 
     test.styleObserver.sourceError = [&] (Source& source, std::exception_ptr error) {
         EXPECT_EQ("source", source.getID());
-        EXPECT_EQ("0 - Invalid value.", util::toString(error));
+        EXPECT_EQ("Invalid value. at offset 0", util::toString(error));
         test.end();
     };
 

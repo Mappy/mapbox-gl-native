@@ -19,8 +19,6 @@
 #include <mbgl/util/logging.hpp>
 #include <mbgl/actor/scheduler.hpp>
 
-#include <iostream>
-
 namespace mbgl {
 
 using namespace style;
@@ -99,8 +97,7 @@ void GeometryTile::setLayers(const std::vector<Immutable<Layer::Impl>>& layers) 
 
     for (const auto& layer : layers) {
         // Skip irrelevant layers.
-        if (layer->type == LayerType::Background ||
-            layer->type == LayerType::Custom ||
+        if (layer->getTypeInfo()->source == LayerTypeInfo::Source::NotRequired ||
             layer->source != sourceID ||
             id.overscaledZ < std::floor(layer->minZoom) ||
             id.overscaledZ >= std::ceil(layer->maxZoom) ||
@@ -203,9 +200,10 @@ Bucket* GeometryTile::getBucket(const Layer::Impl& layer) const {
     if (it == buckets.end()) {
         return nullptr;
     }
-
-    assert(it->second);
-    return it->second.get();
+    Bucket* result = it->second.get();
+    assert(result);
+    // Bucket might be outdated, see issue #12432.
+    return result->supportsLayer(layer) ? result : nullptr;
 }
 
 float GeometryTile::getQueryPadding(const std::vector<const RenderLayer*>& layers) {

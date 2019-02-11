@@ -30,8 +30,7 @@ struct GeometryTooLongException : std::exception {};
 FillBucket::FillBucket(const FillBucket::PossiblyEvaluatedLayoutProperties,
                        std::map<std::string, FillBucket::PossiblyEvaluatedPaintProperties> layerPaintProperties,
                        const float zoom,
-                       const uint32_t)
-    : Bucket(LayerType::Fill) {
+                       const uint32_t) {
 
     for (const auto& pair : layerPaintProperties) {
         paintPropertyBinders.emplace(
@@ -42,6 +41,8 @@ FillBucket::FillBucket(const FillBucket::PossiblyEvaluatedLayoutProperties,
                 zoom));
     }
 }
+
+FillBucket::~FillBucket() = default;
 
 void FillBucket::addFeature(const GeometryTileFeature& feature,
                             const GeometryCollection& geometry,
@@ -136,14 +137,15 @@ bool FillBucket::hasData() const {
     return !triangleSegments.empty() || !lineSegments.empty();
 }
 
+bool FillBucket::supportsLayer(const style::Layer::Impl& impl) const {
+    return style::FillLayer::Impl::staticTypeInfo() == impl.getTypeInfo();
+}
+
+
 float FillBucket::getQueryRadius(const RenderLayer& layer) const {
-    if (!layer.is<RenderFillLayer>()) {
-        return 0;
-    }
-
-    const std::array<float, 2>& translate = layer.as<RenderFillLayer>()->evaluated.get<FillTranslate>();
+    const RenderFillLayer* fillLayer = toRenderFillLayer(&layer);
+    const std::array<float, 2>& translate = fillLayer->evaluated.get<FillTranslate>();
     return util::length(translate[0], translate[1]);
-
 }
 
 } // namespace mbgl

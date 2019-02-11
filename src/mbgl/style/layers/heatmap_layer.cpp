@@ -9,13 +9,28 @@
 #include <mbgl/style/conversion/transition_options.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion_impl.hpp>
-#include <mbgl/util/fnv_hash.hpp>
+
+#include <mapbox/eternal.hpp>
 
 namespace mbgl {
 namespace style {
 
+
+// static
+const LayerTypeInfo* HeatmapLayer::Impl::staticTypeInfo() noexcept {
+    const static LayerTypeInfo typeInfo
+        {"heatmap",
+          LayerTypeInfo::Source::Required,
+          LayerTypeInfo::Pass3D::Required,
+          LayerTypeInfo::Layout::NotRequired,
+          LayerTypeInfo::Clipping::NotRequired
+        };
+    return &typeInfo;
+}
+
+
 HeatmapLayer::HeatmapLayer(const std::string& layerID, const std::string& sourceID)
-    : Layer(makeMutable<Impl>(LayerType::Heatmap, layerID, sourceID)) {
+    : Layer(makeMutable<Impl>(layerID, sourceID)) {
 }
 
 HeatmapLayer::HeatmapLayer(Immutable<Impl> impl_)
@@ -40,62 +55,6 @@ std::unique_ptr<Layer> HeatmapLayer::cloneRef(const std::string& id_) const {
 }
 
 void HeatmapLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>&) const {
-}
-
-// Source
-
-const std::string& HeatmapLayer::getSourceID() const {
-    return impl().source;
-}
-
-void HeatmapLayer::setSourceLayer(const std::string& sourceLayer) {
-    auto impl_ = mutableImpl();
-    impl_->sourceLayer = sourceLayer;
-    baseImpl = std::move(impl_);
-}
-
-const std::string& HeatmapLayer::getSourceLayer() const {
-    return impl().sourceLayer;
-}
-
-// Filter
-
-void HeatmapLayer::setFilter(const Filter& filter) {
-    auto impl_ = mutableImpl();
-    impl_->filter = filter;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-const Filter& HeatmapLayer::getFilter() const {
-    return impl().filter;
-}
-
-// Visibility
-
-void HeatmapLayer::setVisibility(VisibilityType value) {
-    if (value == getVisibility())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->visibility = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-// Zoom range
-
-void HeatmapLayer::setMinZoom(float minZoom) {
-    auto impl_ = mutableImpl();
-    impl_->minZoom = minZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void HeatmapLayer::setMaxZoom(float maxZoom) {
-    auto impl_ = mutableImpl();
-    impl_->maxZoom = maxZoom;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
 }
 
 // Layout properties
@@ -243,8 +202,7 @@ TransitionOptions HeatmapLayer::getHeatmapOpacityTransition() const {
 using namespace conversion;
 
 optional<Error> HeatmapLayer::setPaintProperty(const std::string& name, const Convertible& value) {
-    enum class Property {
-        Unknown,
+    enum class Property : uint8_t {
         HeatmapRadius,
         HeatmapWeight,
         HeatmapIntensity,
@@ -257,64 +215,25 @@ optional<Error> HeatmapLayer::setPaintProperty(const std::string& name, const Co
         HeatmapOpacityTransition,
     };
 
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    case util::hashFNV1a("heatmap-radius"):
-        if (name == "heatmap-radius") {
-            property = Property::HeatmapRadius;
-        }
-        break;
-    case util::hashFNV1a("heatmap-radius-transition"):
-        if (name == "heatmap-radius-transition") {
-            property = Property::HeatmapRadiusTransition;
-        }
-        break;
-    case util::hashFNV1a("heatmap-weight"):
-        if (name == "heatmap-weight") {
-            property = Property::HeatmapWeight;
-        }
-        break;
-    case util::hashFNV1a("heatmap-weight-transition"):
-        if (name == "heatmap-weight-transition") {
-            property = Property::HeatmapWeightTransition;
-        }
-        break;
-    case util::hashFNV1a("heatmap-intensity"):
-        if (name == "heatmap-intensity") {
-            property = Property::HeatmapIntensity;
-        }
-        break;
-    case util::hashFNV1a("heatmap-intensity-transition"):
-        if (name == "heatmap-intensity-transition") {
-            property = Property::HeatmapIntensityTransition;
-        }
-        break;
-    case util::hashFNV1a("heatmap-color"):
-        if (name == "heatmap-color") {
-            property = Property::HeatmapColor;
-        }
-        break;
-    case util::hashFNV1a("heatmap-color-transition"):
-        if (name == "heatmap-color-transition") {
-            property = Property::HeatmapColorTransition;
-        }
-        break;
-    case util::hashFNV1a("heatmap-opacity"):
-        if (name == "heatmap-opacity") {
-            property = Property::HeatmapOpacity;
-        }
-        break;
-    case util::hashFNV1a("heatmap-opacity-transition"):
-        if (name == "heatmap-opacity-transition") {
-            property = Property::HeatmapOpacityTransition;
-        }
-        break;
-    
-    }
+    MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
+        { "heatmap-radius", static_cast<uint8_t>(Property::HeatmapRadius) },
+        { "heatmap-weight", static_cast<uint8_t>(Property::HeatmapWeight) },
+        { "heatmap-intensity", static_cast<uint8_t>(Property::HeatmapIntensity) },
+        { "heatmap-color", static_cast<uint8_t>(Property::HeatmapColor) },
+        { "heatmap-opacity", static_cast<uint8_t>(Property::HeatmapOpacity) },
+        { "heatmap-radius-transition", static_cast<uint8_t>(Property::HeatmapRadiusTransition) },
+        { "heatmap-weight-transition", static_cast<uint8_t>(Property::HeatmapWeightTransition) },
+        { "heatmap-intensity-transition", static_cast<uint8_t>(Property::HeatmapIntensityTransition) },
+        { "heatmap-color-transition", static_cast<uint8_t>(Property::HeatmapColorTransition) },
+        { "heatmap-opacity-transition", static_cast<uint8_t>(Property::HeatmapOpacityTransition) }
+    });
 
-    if (property == Property::Unknown) {
+    const auto it = properties.find(name.c_str());
+    if (it == properties.end()) {
         return Error { "layer doesn't support this property" };
     }
+
+    Property property = static_cast<Property>(it->second);
 
         
     if (property == Property::HeatmapRadius || property == Property::HeatmapWeight) {
@@ -408,22 +327,11 @@ optional<Error> HeatmapLayer::setLayoutProperty(const std::string& name, const C
         return Layer::setVisibility(value);
     }
 
-    enum class Property {
-        Unknown,
-    };
-
-    Property property = Property::Unknown;
-    switch (util::hashFNV1a(name.c_str())) {
-    
-    }
-
-    if (property == Property::Unknown) {
-        return Error { "layer doesn't support this property" };
-    }
-
-        
-
     return Error { "layer doesn't support this property" };
+}
+
+Mutable<Layer::Impl> HeatmapLayer::mutableBaseImpl() const {
+    return staticMutableCast<Layer::Impl>(mutableImpl());
 }
 
 } // namespace style

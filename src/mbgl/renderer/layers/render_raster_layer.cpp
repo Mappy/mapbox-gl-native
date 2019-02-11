@@ -14,7 +14,7 @@ namespace mbgl {
 using namespace style;
 
 RenderRasterLayer::RenderRasterLayer(Immutable<style::RasterLayer::Impl> _impl)
-    : RenderLayer(style::LayerType::Raster, _impl),
+    : RenderLayer(std::move(_impl)),
       unevaluated(impl().paint.untransitioned()) {
 }
 
@@ -83,7 +83,7 @@ void RenderRasterLayer::render(PaintParameters& parameters, RenderSource* source
                      const auto& vertexBuffer,
                      const auto& indexBuffer,
                      const auto& segments) {
-        auto& programInstance = parameters.programs.raster;
+        auto& programInstance = parameters.programs.getRasterLayerPrograms().raster;
 
         const auto allUniformValues = programInstance.computeAllUniformValues(
             RasterProgram::UniformValues {

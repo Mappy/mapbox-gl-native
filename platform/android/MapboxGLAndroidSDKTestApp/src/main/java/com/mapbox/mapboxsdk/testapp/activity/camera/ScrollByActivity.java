@@ -12,10 +12,10 @@ import android.view.MenuItem;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.maps.UiSettings;
 import com.mapbox.mapboxsdk.testapp.R;
 
@@ -36,7 +36,7 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_scroll_by);
 
-    Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+    Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
 
     ActionBar actionBar = getSupportActionBar();
@@ -45,33 +45,34 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
       actionBar.setDisplayShowHomeEnabled(true);
     }
 
-    seekBarX = (SeekBar) findViewById(R.id.seekbar_move_x);
-    TextView textViewX = (TextView) findViewById(R.id.textview_x);
+    seekBarX = findViewById(R.id.seekbar_move_x);
+    TextView textViewX = findViewById(R.id.textview_x);
     seekBarX.setOnSeekBarChangeListener(new PixelBarChangeListener(textViewX, R.string.scrollby_x_value));
 
-    seekBarY = (SeekBar) findViewById(R.id.seekbar_move_y);
-    TextView textViewY = (TextView) findViewById(R.id.textview_y);
+    seekBarY = findViewById(R.id.seekbar_move_y);
+    TextView textViewY = findViewById(R.id.textview_y);
     seekBarY.setOnSeekBarChangeListener(new PixelBarChangeListener(textViewY, R.string.scrollby_y_value));
 
-    mapView = (MapView) findViewById(R.id.mapView);
+    mapView = findViewById(R.id.mapView);
     mapView.setTag(true);
     mapView.onCreate(savedInstanceState);
     mapView.getMapAsync(this);
   }
 
   @Override
-  public void onMapReady(MapboxMap map) {
+  public void onMapReady(@NonNull MapboxMap map) {
     mapboxMap = map;
+    mapboxMap.setStyle(Style.DARK);
+
     UiSettings uiSettings = mapboxMap.getUiSettings();
     uiSettings.setLogoEnabled(false);
     uiSettings.setAttributionEnabled(false);
-
-    FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+    FloatingActionButton fab = findViewById(R.id.fab);
     fab.setColorFilter(ContextCompat.getColor(ScrollByActivity.this, R.color.primary));
-    fab.setOnClickListener(view -> mapboxMap.easeCamera(CameraUpdateFactory.scrollBy(
+    fab.setOnClickListener(view -> mapboxMap.scrollBy(
       seekBarX.getProgress() * MULTIPLIER_PER_PIXEL,
       seekBarY.getProgress() * MULTIPLIER_PER_PIXEL)
-    ));
+    );
   }
 
   @Override
@@ -133,7 +134,7 @@ public class ScrollByActivity extends AppCompatActivity implements OnMapReadyCal
     private int prefixTextResource;
     private TextView valueView;
 
-    public PixelBarChangeListener(@NonNull TextView textView, @StringRes int textRes) {
+    PixelBarChangeListener(@NonNull TextView textView, @StringRes int textRes) {
       valueView = textView;
       prefixTextResource = textRes;
     }

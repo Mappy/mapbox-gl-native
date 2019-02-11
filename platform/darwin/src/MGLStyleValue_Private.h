@@ -5,12 +5,14 @@
 #import "NSValue+MGLStyleAttributeAdditions.h"
 #import "NSValue+MGLAdditions.h"
 #import "NSExpression+MGLPrivateAdditions.h"
+#import "NSDate+MGLAdditions.h"
 #import "MGLTypes.h"
 
 #import "MGLConversion.h"
 #include <mbgl/style/conversion/color_ramp_property_value.hpp>
 #include <mbgl/style/conversion/property_value.hpp>
 #include <mbgl/style/conversion/position.hpp>
+#import <mbgl/style/transition_options.hpp>
 #import <mbgl/style/types.hpp>
 
 #import <mbgl/util/enum.hpp>
@@ -28,6 +30,19 @@ namespace mbgl {
             class Expression;
         }
     }
+}
+
+NS_INLINE MGLTransition MGLTransitionFromOptions(const mbgl::style::TransitionOptions& options) {
+    MGLTransition transition;
+    transition.duration = MGLTimeIntervalFromDuration(options.duration.value_or(mbgl::Duration::zero()));
+    transition.delay = MGLTimeIntervalFromDuration(options.delay.value_or(mbgl::Duration::zero()));
+    
+    return transition;
+}
+
+NS_INLINE mbgl::style::TransitionOptions MGLOptionsFromTransition(MGLTransition transition) {
+    mbgl::style::TransitionOptions options { { MGLDurationFromTimeInterval(transition.duration) }, { MGLDurationFromTimeInterval(transition.delay) } };
+    return options;
 }
 
 id MGLJSONObjectFromMBGLExpression(const mbgl::style::expression::Expression &mbglExpression);
@@ -162,6 +177,11 @@ private: // Private utilities for converting from mgl to mbgl values
         mbglValue = rawValue.UTF8String;
     }
 
+    // Formatted
+    void getMBGLValue(NSString *rawValue, mbgl::style::expression::Formatted &mbglValue) {
+        mbglValue = mbgl::style::expression::Formatted(rawValue.UTF8String);
+    }
+
     // Offsets
     void getMBGLValue(id rawValue, std::array<float, 2> &mbglValue) {
         if ([rawValue isKindOfClass:[NSValue class]]) {
@@ -248,6 +268,11 @@ private: // Private utilities for converting from mbgl to mgl values
     // String
     static NSString *toMGLRawStyleValue(const std::string &mbglStopValue) {
         return @(mbglStopValue.c_str());
+    }
+
+    // Formatted
+    static NSString *toMGLRawStyleValue(const mbgl::style::expression::Formatted &mbglStopValue) {
+        return @(mbglStopValue.toString().c_str());
     }
 
     // Offsets

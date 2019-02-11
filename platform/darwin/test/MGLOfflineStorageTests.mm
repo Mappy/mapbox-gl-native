@@ -1,10 +1,13 @@
 #import <Mapbox/Mapbox.h>
 
 #import "MGLOfflineStorage_Private.h"
+#import "NSDate+MGLAdditions.h"
 
 #import <XCTest/XCTest.h>
 
 #include <mbgl/util/run_loop.hpp>
+
+#pragma clang diagnostic ignored "-Wshadow"
 
 @interface MGLOfflineStorageTests : XCTestCase <MGLOfflineStorageDelegate>
 
@@ -137,7 +140,7 @@
     MGLShape *shape = [MGLShape shapeWithData: [geojson dataUsingEncoding:NSUTF8StringEncoding] encoding: NSUTF8StringEncoding error:&error];
     XCTAssertNil(error);
     MGLShapeOfflineRegion *region = [[MGLShapeOfflineRegion alloc] initWithStyleURL:styleURL shape:shape fromZoomLevel:zoomLevel toZoomLevel:zoomLevel];
-    
+    region.includesIdeographicGlyphs = NO;
     
     NSString *nameKey = @"Name";
     NSString *name = @"Utrecht centrum";
@@ -247,7 +250,7 @@
 }
 
 - (void)testCountOfBytesCompleted {
-    XCTAssertGreaterThan([MGLOfflineStorage sharedOfflineStorage].countOfBytesCompleted, 0);
+    XCTAssertGreaterThan([MGLOfflineStorage sharedOfflineStorage].countOfBytesCompleted, 0UL);
 }
 
 - (NSURL *)offlineStorage:(MGLOfflineStorage *)storage
@@ -392,6 +395,63 @@
         
     }
     
+}
+
+- (void)testPutResourceForURL {
+    NSURL *styleURL = [NSURL URLWithString:@"https://api.mapbox.com/some/thing"];
+    
+    MGLOfflineStorage *os = [MGLOfflineStorage sharedOfflineStorage];
+    std::string testData("test data");
+    NSData *data = [NSData dataWithBytes:testData.c_str() length:testData.length()];
+    [os preloadData:data forURL:styleURL modificationDate:nil expirationDate:nil eTag:nil mustRevalidate:NO];
+    
+    auto fs = os.mbglFileSource;
+    const mbgl::Resource resource { mbgl::Resource::Unknown, "https://api.mapbox.com/some/thing" };
+    std::unique_ptr<mbgl::AsyncRequest> req;
+    req = fs->request(resource, [&](mbgl::Response res) {
+        req.reset();
+        XCTAssertFalse(res.error.get(), @"Request should not return an error");
+        XCTAssertTrue(res.data.get(), @"Request should return data");
+        XCTAssertFalse(res.modified, @"Request should not have a modification timestamp");
+        XCTAssertFalse(res.expires, @"Request should not have an expiration timestamp");
+        XCTAssertFalse(res.etag, @"Request should not have an entity tag");
+        XCTAssertFalse(res.mustRevalidate, @"Request should not require revalidation");
+        XCTAssertEqual("test data", *res.data, @"Request did not return expected data");
+        CFRunLoopStop(CFRunLoopGetCurrent());
+    });
+    
+    CFRunLoopRun();
+}
+
+- (void)testPutResourceForURLWithTimestamps {
+    NSURL *styleURL = [NSURL URLWithString:@"https://api.mapbox.com/some/thing"];
+    
+    MGLOfflineStorage *os = [MGLOfflineStorage sharedOfflineStorage];
+    std::string testData("test data");
+    NSDate *now = [NSDate date];
+    NSDate *future = [now dateByAddingTimeInterval:600];
+    NSData *data = [NSData dataWithBytes:testData.c_str() length:testData.length()];
+    [os preloadData:data forURL:styleURL modificationDate:now expirationDate:future eTag:@"some etag" mustRevalidate:YES];
+    
+    auto fs = os.mbglFileSource;
+    const mbgl::Resource resource { mbgl::Resource::Unknown, "https://api.mapbox.com/some/thing" };
+    std::unique_ptr<mbgl::AsyncRequest> req;
+    req = fs->request(resource, [&](mbgl::Response res) {
+        req.reset();
+        XCTAssertFalse(res.error.get(), @"Request should not return an error");
+        XCTAssertTrue(res.data.get(), @"Request should return data");
+        XCTAssertTrue(res.modified, @"Request should have a modification timestamp");
+        XCTAssertEqual(MGLTimeIntervalFromDuration(res.modified->time_since_epoch()), floor(now.timeIntervalSince1970), @"Modification timestamp should roundtrip");
+        XCTAssertTrue(res.expires, @"Request should have an expiration timestamp");
+        XCTAssertEqual(MGLTimeIntervalFromDuration(res.expires->time_since_epoch()), floor(future.timeIntervalSince1970), @"Expiration timestamp should roundtrip");
+        XCTAssertTrue(res.etag, @"Request should have an entity tag");
+        XCTAssertEqual(*res.etag, "some etag", @"Entity tag should roundtrip");
+        XCTAssertTrue(res.mustRevalidate, @"Request should require revalidation");
+        XCTAssertEqual("test data", *res.data, @"Request did not return expected data");
+        CFRunLoopStop(CFRunLoopGetCurrent());
+    });
+    
+    CFRunLoopRun();
 }
 
 @end

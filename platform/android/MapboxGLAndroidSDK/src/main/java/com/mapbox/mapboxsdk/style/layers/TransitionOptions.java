@@ -1,6 +1,8 @@
 package com.mapbox.mapboxsdk.style.layers;
 
 import android.support.annotation.Keep;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 /**
  * Resembles transition property from the style specification.
@@ -9,7 +11,9 @@ import android.support.annotation.Keep;
  */
 public class TransitionOptions {
 
+  @Keep
   private long duration;
+  @Keep
   private long delay;
 
   /**
@@ -54,7 +58,7 @@ public class TransitionOptions {
   }
 
   @Override
-  public boolean equals(Object o) {
+  public boolean equals(@Nullable Object o) {
     if (this == o) {
       return true;
     }
@@ -77,6 +81,7 @@ public class TransitionOptions {
     return result;
   }
 
+  @NonNull
   @Override
   public String toString() {
     return "TransitionOptions{"
