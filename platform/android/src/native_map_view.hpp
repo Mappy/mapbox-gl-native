@@ -173,6 +173,8 @@ public:
 
     jni::Local<jni::Array<jlong>> addPolylines(JNIEnv&, const jni::Array<jni::Object<Polyline>>&);
 
+    jni::Array<jni::jlong> addPolylinesWithStroke(JNIEnv&, jni::Array<jni::Object<Polyline>>, jni::jboolean);
+
     jni::Local<jni::Array<jlong>> addPolygons(JNIEnv&, const jni::Array<jni::Object<Polygon>>&);
 
     void updatePolyline(JNIEnv&, jlong, const jni::Object<Polyline>&);

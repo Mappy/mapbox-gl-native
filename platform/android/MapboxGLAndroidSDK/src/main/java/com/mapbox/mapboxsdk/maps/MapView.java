@@ -193,6 +193,11 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     // notify Map object about current connectivity state
     nativeMapView.setReachability(Mapbox.isConnected());
 
+    //Mappy modifs
+    if(mapBoxMapCreatedListener != null){
+      mapBoxMapCreatedListener.onMapBoxMapCreatedListener(mapboxMap);
+    }
+
     // initialise MapboxMap
     if (savedInstanceState == null) {
       mapboxMap.initialise(context, mapboxMapOptions);
@@ -264,9 +269,11 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
   @UiThread
   public void onCreate(@Nullable Bundle savedInstanceState) {
     if (savedInstanceState == null) {
-      TelemetryDefinition telemetry = Mapbox.getTelemetry();
-      if (telemetry != null) {
-        telemetry.onAppUserTurnstileEvent();
+      if (Mapbox.ENABLE_METRICS_ON_MAPPY) {
+        TelemetryDefinition telemetry = Mapbox.getTelemetry();
+        if (telemetry != null) {
+          telemetry.onAppUserTurnstileEvent();
+        }
       }
     } else if (savedInstanceState.getBoolean(MapboxConstants.STATE_HAS_SAVED_STATE)) {
       this.savedInstanceState = savedInstanceState;
@@ -306,6 +313,19 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     nativeMapView = new NativeMapView(
       getContext(), getPixelRatio(), crossSourceCollisions, this, mapChangeReceiver, mapRenderer
     );
+
+    // deprecated API
+    nativeMapView.addOnMapChangedListener(new OnMapChangedListener() {
+      @Override
+      public void onMapChanged(int change) {
+        // dispatch events to external listeners
+        if (!onMapChangedListeners.isEmpty()) {
+          for (OnMapChangedListener onMapChangedListener : onMapChangedListeners) {
+            onMapChangedListener.onMapChanged(change);
+          }
+        }
+      }
+    });
   }
 
   private void onSurfaceCreated() {
@@ -464,6 +484,10 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
       return super.onTouchEvent(event);
     }
 
+    // Mappy modif : on touch down, stop map inertia
+    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+        nativeMapView.cancelTransitions();
+    }
     return mapGestureDetector.onTouchEvent(event) || super.onTouchEvent(event);
   }
 
@@ -740,8 +764,6 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
   }
 
   /**
-
-   /**
    * Set a callback that's invoked when the style has finished loading.
    *
    * @param listener The callback that's invoked when the style has finished loading
@@ -962,12 +984,31 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    */
   @UiThread
   public void getMapAsync(final @NonNull OnMapReadyCallback callback) {
-    if (mapboxMap == null) {
+    if (mapCallback.isInitialLoad() || mapboxMap == null) {
       // Add callback to the list only if the style hasn't loaded, or the drawing surface isn't ready
       mapCallback.addOnMapReadyCallback(callback);
     } else {
       callback.onMapReady(mapboxMap);
     }
+  }
+
+
+  // mappy modif
+  /**
+   * Set the minimum zoom
+   * @param zoom minimum zoom
+   */
+  public void setMinZoomPreference(double zoom) {
+    mapboxMap.setMinZoomPreference(zoom);
+  }
+
+  // mappy modif
+  /**
+   * Set the maximum zoom
+   * @param zoom maximum zoom
+   */
+  public void setMaxZoomPreference(double zoom) {
+    mapboxMap.setMaxZoomPreference(zoom);
   }
 
   private boolean isGestureDetectorInitialized() {
@@ -1244,6 +1285,16 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
         return defaultDialogManager;
       }
     }
+  }
+
+  //Mappy modifs
+  public interface OnMapBoxMapCreatedListener{
+      void onMapBoxMapCreatedListener(MapboxMap mapboxMap);
+  }
+  private OnMapBoxMapCreatedListener mapBoxMapCreatedListener;
+
+  public void setMapBoxMapCreatedListener(OnMapBoxMapCreatedListener mapBoxMapCreatedListener){
+      this.mapBoxMapCreatedListener = mapBoxMapCreatedListener;
   }
 
   /**

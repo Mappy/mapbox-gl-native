@@ -9,8 +9,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
 import com.mapbox.mapboxsdk.maps.MapView
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback
-import com.mapbox.mapboxsdk.maps.Style
 import com.mapbox.mapboxsdk.testapp.R
 import kotlinx.android.synthetic.main.activity_recyclerview.*
 
@@ -67,7 +65,6 @@ class RecyclerViewActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             return if (viewType == TYPE_MAP) {
                 val mapView = inflater.inflate(R.layout.item_map, parent, false) as MapView
-                mapView.getMapAsync { mapboxMap -> mapboxMap.setStyle(Style.MAPBOX_STREETS) }
                 mapHolder = MapHolder(mapView, savedInstanceState)
                 return mapHolder as MapHolder
             } else {

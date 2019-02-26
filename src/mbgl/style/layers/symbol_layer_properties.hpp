@@ -118,8 +118,13 @@ struct TextField : DataDrivenLayoutProperty<expression::Formatted> {
 };
 
 struct TextFont : DataDrivenLayoutProperty<std::vector<std::string>> {
+<<<<<<< HEAD
     static constexpr const char *name() { return "text-font"; }
     static std::vector<std::string> defaultValue() { return { "Open Sans Regular", "Arial Unicode MS Regular" }; }
+=======
+    static constexpr const char * key = "text-font";
+    static std::vector<std::string> defaultValue() { return { "DejaVu Sans Condensed" }; }
+>>>>>>> 3b71bc900e3d2336a8d62154eda840f1da9296d1
 };
 
 struct TextSize : DataDrivenLayoutProperty<float> {

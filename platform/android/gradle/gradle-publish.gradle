@@ -53,22 +53,28 @@ afterEvaluate { project ->
     uploadArchives {
         repositories {
             mavenDeployer {
-                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
+                //for mappy
+//                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                //end for mappy
+                
                 pom.groupId = GROUP
                 pom.artifactId = POM_ARTIFACT_ID
                 pom.version = VERSION_NAME
 
-                if (isLocalBuild()) {
-                    repository(url: obtainMavenLocalUrl())
-                } else {
-                    repository(url: getReleaseRepositoryUrl()) {
-                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
-                    }
-                    snapshotRepository(url: getSnapshotRepositoryUrl()) {
-                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
-                    }
-                }
+                //for mappy
+                repository(url: "file://${System.env.MAVEN}")
+//
+//                if (isLocalBuild()) {
+//                    repository(url: obtainMavenLocalUrl())
+//                } else {
+//                    repository(url: getReleaseRepositoryUrl()) {
+//                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
+//                    }
+//                    snapshotRepository(url: getSnapshotRepositoryUrl()) {
+//                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
+//                    }
+//                }
+                //end for mappy
 
                 pom.project {
                     name POM_NAME
@@ -100,44 +106,46 @@ afterEvaluate { project ->
             }
         }
     }
-
-    signing {
-        required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
-        sign configurations.archives
-    }
-
-    task androidJavadocs(type: Javadoc) {
-        source = android.sourceSets.main.java.sourceFiles
-        classpath = files(android.bootClasspath)
-    }
-
-    task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
-        classifier = 'javadoc'
-        from androidJavadocs.destinationDir
-    }
-
-    task androidSourcesJar(type: Jar) {
-        classifier = 'sources'
-        from android.sourceSets.main.java.sourceFiles
-    }
-
-    tasks.withType(Javadoc) {
-        options.addStringOption('encoding', 'UTF-8')
-        options.addStringOption('docencoding', 'UTF-8')
-        options.addStringOption('charset', 'UTF-8')
-    }
-
-    artifacts {
-        archives androidSourcesJar
-        archives androidJavadocsJar
-    }
 }
 
-// See: https://github.com/chrisbanes/gradle-mvn-push/issues/43#issuecomment-84140513
-afterEvaluate { project ->
-    android.libraryVariants.all { variant ->
-        tasks.androidJavadocs.doFirst {
-            classpath += files(variant.javaCompile.classpath.files)
-        }
-    }
-}
+    //for mappy
+//    signing {
+//        required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
+//        sign configurations.archives
+//    }
+//
+//    task androidJavadocs(type: Javadoc) {
+//        source = android.sourceSets.main.java.sourceFiles
+//        classpath = files(android.bootClasspath)
+//    }
+//
+//    task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+//        classifier = 'javadoc'
+//        from androidJavadocs.destinationDir
+//    }
+//
+//    task androidSourcesJar(type: Jar) {
+//        classifier = 'sources'
+//        from android.sourceSets.main.java.sourceFiles
+//    }
+//
+//    tasks.withType(Javadoc) {
+//        options.addStringOption('encoding', 'UTF-8')
+//        options.addStringOption('docencoding', 'UTF-8')
+//        options.addStringOption('charset', 'UTF-8')
+//    }
+//
+//    artifacts {
+//        archives androidSourcesJar
+//        archives androidJavadocsJar
+//    }
+//}
+//
+//// See: https://github.com/chrisbanes/gradle-mvn-push/issues/43#issuecomment-84140513
+//afterEvaluate { project ->
+//    android.libraryVariants.all { variant ->
+//        tasks.androidJavadocs.doFirst {
+//            classpath += files(variant.javaCompile.classpath.files)
+//        }
+//    }
+    //end for mappy

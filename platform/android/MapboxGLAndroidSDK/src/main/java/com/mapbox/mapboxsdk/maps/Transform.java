@@ -99,6 +99,7 @@ final class Transform implements MapView.OnCameraDidChangeListener {
   final void moveCamera(@NonNull MapboxMap mapboxMap, CameraUpdate update,
                         @Nullable final MapboxMap.CancelableCallback callback) {
     CameraPosition cameraPosition = update.getCameraPosition(mapboxMap);
+    //if (cameraPosition!= null && !cameraPosition.equals(this.cameraPosition)) {
     if (isValidCameraPosition(cameraPosition)) {
       cancelTransitions();
       cameraChangeDispatcher.onCameraMoveStarted(OnCameraMoveStartedListener.REASON_API_ANIMATION);

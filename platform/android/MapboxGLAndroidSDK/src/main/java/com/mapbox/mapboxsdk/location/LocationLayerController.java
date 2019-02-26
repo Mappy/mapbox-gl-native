@@ -69,7 +69,6 @@ final class LocationLayerController implements MapboxAnimator.OnLayerAnimationsV
 
   private final List<String> layerMap = new ArrayList<>();
   private Feature locationFeature;
-  private GeoJsonSource locationSource;
 
   private boolean isHidden = true;
 
@@ -143,7 +142,8 @@ final class LocationLayerController implements MapboxAnimator.OnLayerAnimationsV
         case RenderMode.COMPASS:
           styleForeground(options);
           setLayerVisibility(SHADOW_LAYER, true);
-          setLayerVisibility(FOREGROUND_LAYER, true);
+          // Mappy modif : "Foreground" layer not displayed in compass mode
+          setLayerVisibility(FOREGROUND_LAYER, false);
           setLayerVisibility(BACKGROUND_LAYER, true);
           setLayerVisibility(ACCURACY_LAYER, !isStale);
           setLayerVisibility(BEARING_LAYER, true);
@@ -242,8 +242,12 @@ final class LocationLayerController implements MapboxAnimator.OnLayerAnimationsV
   }
 
   private void addLayerToMap(Layer layer, @NonNull String idBelowLayer) {
-    style.addLayerBelow(layer, idBelowLayer);
-    layerMap.add(layer.getId());
+    String layerId = layer.getId();
+    Layer existingLayer = style.getLayer(layerId);
+    if (existingLayer == null) {
+      style.addLayerBelow(layer, idBelowLayer);
+    }
+    layerMap.add(layerId);
   }
 
   private void removeLayers() {
@@ -270,14 +274,16 @@ final class LocationLayerController implements MapboxAnimator.OnLayerAnimationsV
   //
 
   private void addLocationSource() {
-    locationSource = layerSourceProvider.generateSource(locationFeature);
-    style.addSource(locationSource);
+    if (style.getSource(LOCATION_SOURCE) == null) {
+      GeoJsonSource locationSource = layerSourceProvider.generateSource(locationFeature);
+      style.addSource(locationSource);
+    }
   }
 
   private void refreshSource() {
     GeoJsonSource source = style.getSourceAs(LOCATION_SOURCE);
     if (source != null) {
-      locationSource.setGeoJson(locationFeature);
+        source.setGeoJson(locationFeature);
     }
   }
 

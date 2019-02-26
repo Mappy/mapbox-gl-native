@@ -5,13 +5,24 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+
 import com.mapbox.mapboxsdk.BuildConfig;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
-import com.mapbox.mapboxsdk.http.HttpRequest;
 import com.mapbox.mapboxsdk.http.HttpIdentifier;
 import com.mapbox.mapboxsdk.http.HttpLogger;
-import com.mapbox.mapboxsdk.http.HttpResponder;
+import com.mapbox.mapboxsdk.http.HttpRequest;
 import com.mapbox.mapboxsdk.http.HttpRequestUrl;
+import com.mapbox.mapboxsdk.http.HttpResponder;
+
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.NoRouteToHostException;
+import java.net.ProtocolException;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+
+import javax.net.ssl.SSLException;
+
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Dispatcher;
@@ -21,17 +32,12 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-import javax.net.ssl.SSLException;
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.net.NoRouteToHostException;
-import java.net.ProtocolException;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-
 import static com.mapbox.mapboxsdk.module.http.HttpRequestUtil.toHumanReadableAscii;
 
 public class HttpRequestImpl implements HttpRequest {
+
+  //Mappy modifs
+  public static HttpRequestHeaderProvider httpRequestHeaderProvider;
 
   private static final String userAgentString = toHumanReadableAscii(
     String.format("%s %s (%s) Android/%s (%s)",
@@ -62,12 +68,20 @@ public class HttpRequestImpl implements HttpRequest {
 
       final Request.Builder builder = new Request.Builder()
         .url(resourceUrl)
-        .tag(resourceUrl.toLowerCase(MapboxConstants.MAPBOX_LOCALE))
-        .addHeader("User-Agent", userAgentString);
+        .tag(resourceUrl.toLowerCase(MapboxConstants.MAPBOX_LOCALE));
+        // Mappy Modif : User-Agent is set later
+        //.addHeader("User-Agent", userAgentString);
       if (etag.length() > 0) {
         builder.addHeader("If-None-Match", etag);
       } else if (modified.length() > 0) {
         builder.addHeader("If-Modified-Since", modified);
+      }
+
+      //Mappy modifs
+      if (httpRequestHeaderProvider != null) {
+        httpRequestHeaderProvider.addHeader(builder);
+      } else {
+        builder.addHeader("User-Agent", userAgentString); //Use MapBox Header only if mappy Header is null
       }
 
       final Request request = builder.build();
@@ -177,5 +191,10 @@ public class HttpRequestImpl implements HttpRequest {
     // https://github.com/mapbox/mapbox-gl-native/blob/master/platform/android/src/http_file_source.cpp#L192
     dispatcher.setMaxRequestsPerHost(20);
     return dispatcher;
+  }
+
+  //Mappy modifs
+  interface HttpRequestHeaderProvider {
+    void addHeader(Request.Builder builder);
   }
 }

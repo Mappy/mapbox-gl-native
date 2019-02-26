@@ -90,11 +90,13 @@ RunLoop::Impl::Impl(RunLoop* runLoop_, RunLoop::Type type) : runLoop(runLoop_) {
     ALooper_acquire(loop);
 
     if (pipe(fds)) {
-        throw std::runtime_error("Failed to create pipe.");
+//        throw std::runtime_error("Failed to create pipe.");
+        return;
     }
 
     if (fcntl(fds[PIPE_OUT], F_SETFL, O_NONBLOCK)) {
-        throw std::runtime_error("Failed to set pipe read end non-blocking.");
+//        throw std::runtime_error("Failed to set pipe read end non-blocking.");
+        return;
     }
 
     int ret = 0;

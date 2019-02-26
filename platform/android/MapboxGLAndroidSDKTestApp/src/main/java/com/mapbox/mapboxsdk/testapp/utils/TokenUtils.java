@@ -20,18 +20,6 @@ public class TokenUtils {
    * @return The Mapbox access token or null if not found.
    */
   public static String getMapboxAccessToken(@NonNull Context context) {
-    try {
-      // Read out AndroidManifest
-      String token = Mapbox.getAccessToken();
-      if (token == null || token.isEmpty()) {
-        throw new IllegalArgumentException();
-      }
-      return token;
-    } catch (Exception exception) {
-      // Use fallback on string resource, used for development
-      int tokenResId = context.getResources()
-        .getIdentifier("mapbox_access_token", "string", context.getPackageName());
-      return tokenResId != 0 ? context.getString(tokenResId) : null;
-    }
+      return "sk.eyJ1IjoieGF2aWVyY291dGluIiwiYSI6IldfdlRPVlkifQ.Kdk-xoV7zPNAcD_FJtA-UQ";
   }
 }

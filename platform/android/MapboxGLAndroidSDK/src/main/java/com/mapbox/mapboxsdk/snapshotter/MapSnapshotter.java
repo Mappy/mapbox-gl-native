@@ -535,7 +535,8 @@ public class MapSnapshotter {
       @Override
       public void run() {
         if (callback != null) {
-          addOverlay(snapshot);
+          // Mappy modif not used default copyright
+          // addOverlay(snapshot);
           callback.onSnapshotReady(snapshot);
           reset();
         }

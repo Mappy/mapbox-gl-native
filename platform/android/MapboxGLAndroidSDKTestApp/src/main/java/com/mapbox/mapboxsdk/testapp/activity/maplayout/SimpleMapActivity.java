@@ -1,6 +1,7 @@
 package com.mapbox.mapboxsdk.testapp.activity.maplayout;
 
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.Style;
@@ -18,6 +19,7 @@ public class SimpleMapActivity extends AppCompatActivity {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_map_simple);
     mapView = findViewById(R.id.mapView);
+    mapView.setStyleUrl("https://map.mappyrecette.net/map/1.0/vector/standard_v1.json");
     mapView.onCreate(savedInstanceState);
     mapView.getMapAsync(mapboxMap -> mapboxMap.setStyle(
       new Style.Builder().fromUrl(Style.MAPBOX_STREETS)
@@ -34,6 +36,16 @@ public class SimpleMapActivity extends AppCompatActivity {
   protected void onResume() {
     super.onResume();
     mapView.onResume();
+
+      new Handler().postDelayed(() -> {
+          mapView.getMapAsync(mapboxMap -> mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(
+                  new CameraPosition.Builder()
+                          .target(new LatLng(48.85, 2.35))
+                          .zoom(9)
+                          .build()
+                  ), 10000
+          ));
+      }, 2000L);
   }
 
   @Override

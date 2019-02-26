@@ -42,6 +42,11 @@ void OfflineManager::listOfflineRegions(jni::JNIEnv& env_, const jni::Object<Fil
     });
 }
 
+// Mappy
+void OfflineManager::cleanAmbientCache(jni::JNIEnv&, jni::Object<FileSource>&) {
+    fileSource.cleanAmbientCache();
+}
+
 void OfflineManager::createOfflineRegion(jni::JNIEnv& env_,
                                          const jni::Object<FileSource>& jFileSource_,
                                          const jni::Object<OfflineRegionDefinition>& definition_,
@@ -120,6 +125,7 @@ void OfflineManager::registerNative(jni::JNIEnv& env) {
         "finalize",
         METHOD(&OfflineManager::setOfflineMapboxTileCountLimit, "setOfflineMapboxTileCountLimit"),
         METHOD(&OfflineManager::listOfflineRegions, "listOfflineRegions"),
+        METHOD(&OfflineManager::cleanAmbientCache, "cleanAmbientCache"),
         METHOD(&OfflineManager::createOfflineRegion, "createOfflineRegion"),
         METHOD(&OfflineManager::mergeOfflineRegions, "mergeOfflineRegions"),
         METHOD(&OfflineManager::putResourceWithUrl, "putResourceWithUrl"));

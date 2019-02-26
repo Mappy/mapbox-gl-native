@@ -20,6 +20,7 @@ import com.mapbox.mapboxsdk.annotations.PolylineOptions;
 import com.mapbox.mapboxsdk.log.Logger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -108,8 +109,17 @@ class AnnotationManager {
       if (selectedMarkers.contains(marker)) {
         selectedMarkers.remove(marker);
       }
-      // do icon cleanup
-      iconManager.iconCleanup(marker.getIcon());
+
+      if (marker instanceof MarkerView) {  // TODO migrate
+          //mappy
+          final MarkerView markerView = (MarkerView) marker;
+          markerViewManager.removeOnMarkerViewAddedListener(markerView);
+          markerViewManager.removeMarkerView(markerView);
+          //mappy
+      } else {
+        // do icon cleanup
+        iconManager.iconCleanup(marker.getIcon());
+      }
     }
     annotations.removeBy(annotation);
   }
@@ -122,7 +132,16 @@ class AnnotationManager {
         if (selectedMarkers.contains(marker)) {
           selectedMarkers.remove(marker);
         }
-        iconManager.iconCleanup(marker.getIcon());
+
+        if (marker instanceof MarkerView) {  // TODO Migrate
+            //mappy
+            final MarkerView markerView = (MarkerView) marker;
+            markerViewManager.removeOnMarkerViewAddedListener(markerView);
+            markerViewManager.removeMarkerView(markerView);
+            //mappy
+        } else {
+          iconManager.iconCleanup(marker.getIcon());
+        }
       }
     }
     annotations.removeBy(annotationList);
@@ -139,7 +158,15 @@ class AnnotationManager {
       if (annotation instanceof Marker) {
         Marker marker = (Marker) annotation;
         marker.hideInfoWindow();
-        iconManager.iconCleanup(marker.getIcon());
+        if (marker instanceof MarkerView) {   // TODO Migrate
+            //mappy
+            final MarkerView markerView = (MarkerView) marker;
+            markerViewManager.removeOnMarkerViewAddedListener(markerView);
+            markerViewManager.removeMarkerView(markerView);
+            //mappy
+        } else {
+          iconManager.iconCleanup(marker.getIcon());
+        }
       }
     }
     annotations.removeAll();
@@ -210,7 +237,13 @@ class AnnotationManager {
     return polylines.addBy(polylineOptions, mapboxMap);
   }
 
+  // TODO Migrate polylines
   List<Polyline> addPolylines(@NonNull List<PolylineOptions> polylineOptionsList, @NonNull MapboxMap mapboxMap) {
+    return polylines.addBy(polylineOptionsList, mapboxMap);
+  }
+
+  //Mappy modif, but annotation polyline with the border white is deactivated
+  List<Polyline> addPolylines(@NonNull List<PolylineOptions> polylineOptionsList, @NonNull MapboxMap mapboxMap, boolean withWhiteStroke) {
     return polylines.addBy(polylineOptionsList, mapboxMap);
   }
 
@@ -249,12 +282,25 @@ class AnnotationManager {
       deselectMarkers();
     }
 
-    if (infoWindowManager.isInfoWindowValidForMarker(marker) || infoWindowManager.getInfoWindowAdapter() != null) {
-      infoWindowManager.add(marker.showInfoWindow(mapboxMap, mapView));
+    boolean handledDefaultClick = true;
+    if (onMarkerClickListener != null) {
+      // end developer has provided a custom click listener
+      handledDefaultClick = onMarkerClickListener.onMarkerClick(marker);
     }
 
-    // only add to selected markers if user didn't handle the click event themselves #3176
-    selectedMarkers.add(marker);
+    if (!handledDefaultClick) {
+      if (marker instanceof MarkerView) {  // TODO Migrate
+        markerViewManager.select((MarkerView) marker, false);
+        markerViewManager.ensureInfoWindowOffset((MarkerView) marker);
+      }
+
+      if (infoWindowManager.isInfoWindowValidForMarker(marker) || infoWindowManager.getInfoWindowAdapter() != null) {
+        infoWindowManager.add(marker.showInfoWindow(mapboxMap, mapView));
+      }
+
+      // only add to selected markers if user didn't handle the click event themselves #3176
+      selectedMarkers.add(marker);
+    }
   }
 
   void deselectMarkers() {
@@ -376,8 +422,18 @@ class AnnotationManager {
   }
 
   private boolean isClickHandledForMarker(long markerId) {
-    Marker marker = (Marker) getAnnotation(markerId);
-    boolean handledDefaultClick = onClickMarker(marker);
+    return isClickHandledForMarker((Marker) getAnnotation(markerId));
+  }
+
+  //MAPPY Modif
+  private boolean isClickHandledForMarker(Marker marker) {
+    boolean handledDefaultClick;
+    if (marker instanceof MarkerView) {  // TODO Migrate
+      handledDefaultClick = markerViewManager.onClickMarkerView((MarkerView) marker);
+    } else {
+      handledDefaultClick = onClickMarker(marker);
+    }
+
     if (!handledDefaultClick) {
       toggleMarkerSelectionState(marker);
     }

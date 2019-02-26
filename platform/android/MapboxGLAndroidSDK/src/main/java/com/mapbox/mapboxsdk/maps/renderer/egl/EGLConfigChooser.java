@@ -3,15 +3,17 @@ package com.mapbox.mapboxsdk.maps.renderer.egl;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.support.annotation.NonNull;
+
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.log.Logger;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLDisplay;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import static com.mapbox.mapboxsdk.utils.Compare.compare;
 import static javax.microedition.khronos.egl.EGL10.EGL_ALPHA_MASK_SIZE;
@@ -283,7 +285,8 @@ public class EGLConfigChooser implements GLSurfaceView.EGLConfigChooser {
   }
 
   private int[] getConfigAttributes() {
-    boolean emulator = inEmulator() || inGenymotion();
+    // Mappy Modif :  Used to detect genymotion emulator correctly
+    boolean emulator = inEmulator() || isGenymotionEmulator();
     Logger.i(TAG, String.format("In emulator: %s", emulator));
 
     // Get all configs at least RGB 565 with 16 depth and 8 stencil
@@ -308,7 +311,20 @@ public class EGLConfigChooser implements GLSurfaceView.EGLConfigChooser {
    * Detect if we are in emulator.
    */
   private boolean inEmulator() {
+    return System.getProperty("ro.kernel.qemu") != null || isGenymotionEmulator()|| buildModelContainsEmulatorHints();
+  }
+
+  private boolean isGenymotionEmulator() {
+    String buildManufacturer = Build.MANUFACTURER;
+    return buildManufacturer != null &&
+            (buildManufacturer.contains("Genymotion") || buildManufacturer.equals("unknown"));
+  }
+
+  private boolean buildModelContainsEmulatorHints() {
+    String buildModel = Build.MODEL;
     return Build.FINGERPRINT.startsWith("generic")
+      || buildModel.startsWith("sdk")
+      || buildModel.contains("Android SDK")
       || Build.FINGERPRINT.startsWith("unknown")
       || Build.MODEL.contains("google_sdk")
       || Build.MODEL.contains("Emulator")
@@ -316,13 +332,6 @@ public class EGLConfigChooser implements GLSurfaceView.EGLConfigChooser {
       || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
       || "google_sdk".equals(Build.PRODUCT)
       || System.getProperty("ro.kernel.qemu") != null;
-  }
-
-  /**
-   * Detect if we are in genymotion
-   */
-  private boolean inGenymotion() {
-    return Build.MANUFACTURER.contains("Genymotion");
   }
 
 }

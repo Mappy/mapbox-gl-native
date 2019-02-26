@@ -87,6 +87,7 @@ public class OfflineManager {
    */
   @Keep
   public interface CreateOfflineRegionCallback {
+
     /**
      * Receives the newly created offline region.
      *
@@ -167,6 +168,11 @@ public class OfflineManager {
     }
 
     return instance;
+  }
+
+  public static synchronized boolean isAvailable() {
+    //Log.d("OffLineManager"," isAvailable="+(instance != null || FileSource.isAvailable()));
+    return instance != null || FileSource.isAvailable();
   }
 
   private Handler getHandler() {
@@ -427,6 +433,10 @@ public class OfflineManager {
     }
   }
 
+    public void cleanAmbientCache() {
+        cleanAmbientCache(fileSource);
+    }
+
   /**
    * Validates if the offline region definition bounds is valid for an offline region download.
    *
@@ -459,6 +469,9 @@ public class OfflineManager {
   @Keep
   private native void createOfflineRegion(FileSource fileSource, OfflineRegionDefinition definition,
                                           byte[] metadata, CreateOfflineRegionCallback callback);
+
+  @Keep
+  private native void cleanAmbientCache(FileSource fileSource);
 
   @Keep
   private native void mergeOfflineRegions(FileSource fileSource, String path, MergeOfflineRegionsCallback callback);

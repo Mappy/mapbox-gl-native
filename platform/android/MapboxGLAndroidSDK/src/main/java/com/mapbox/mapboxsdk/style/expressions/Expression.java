@@ -4310,7 +4310,7 @@ public class Expression {
   public static class Stop {
 
     private Object value;
-    private Object output;
+    public Object output;
 
     Stop(Object value, Object output) {
       this.value = value;

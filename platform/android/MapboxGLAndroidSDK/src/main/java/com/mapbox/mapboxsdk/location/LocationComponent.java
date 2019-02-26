@@ -31,6 +31,9 @@ import com.mapbox.mapboxsdk.maps.MapboxMap.OnCameraMoveListener;
 import com.mapbox.mapboxsdk.maps.MapboxMap.OnMapClickListener;
 import com.mapbox.mapboxsdk.maps.Style;
 
+
+import org.jetbrains.annotations.NotNull;
+
 import java.lang.ref.WeakReference;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -461,6 +464,8 @@ public final class LocationComponent {
   public void setCameraMode(@CameraMode.Mode int cameraMode,
                             @Nullable OnLocationCameraTransitionListener transitionListener) {
     locationCameraController.setCameraMode(cameraMode, lastLocation, new CameraTransitionListener(transitionListener));
+    boolean isGpsNorth = cameraMode == CameraMode.TRACKING_GPS_NORTH;
+    locationAnimatorCoordinator.resetAllCameraAnimations(mapboxMap.getCameraPosition(), isGpsNorth);
     updateCompassListenerState(true);
   }
 
@@ -534,6 +539,18 @@ public final class LocationComponent {
   public int getRenderMode() {
     return locationLayerController.getRenderMode();
   }
+
+  // Mappy modifs : Sometimes we need to show / hide Location marker
+
+  public void hide() {
+    locationLayerController.hide();
+  }
+
+  public void show() {
+    locationLayerController.show();
+  }
+
+  // End of Mappy modifs
 
   /**
    * Returns the current location options being used.
@@ -688,21 +705,22 @@ public final class LocationComponent {
     locationAnimatorCoordinator.cancelTiltAnimation();
   }
 
-  /**
-   * Use to either force a location update or to manually control when the user location gets
-   * updated.
-   *
-   * @param location where the location icon is placed on the map
-   */
-  public void forceLocationUpdate(@Nullable Location location) {
-    updateLocation(location, false);
-  }
+    /**
+     * Use to either force a location update or to manually control when the user location gets
+     * updated.
+     *
+     * @param location where the location icon is placed on the map
+     * @param forceShow (Mappy Modif) whether to force rendering of Location Marker
+     */
+    public void forceLocationUpdate(@Nullable Location location, /* Mappy Modif */ boolean forceShow) {
+        updateLocation(location, false, forceShow);
+    }
 
   /**
    * Set the location engine to update the current user location.
    * <p>
    * If {@code null} is passed in, all updates will have to occur through the
-   * {@link LocationComponent#forceLocationUpdate(Location)} method.
+   * {@link LocationComponent#forceLocationUpdate(Location, boolean)} method.
    *
    * @param locationEngine a {@link LocationEngine} this component should use to handle updates
    */
@@ -788,7 +806,53 @@ public final class LocationComponent {
   @Nullable
   @RequiresPermission(anyOf = {ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION})
   public Location getLastKnownLocation() {
-    return lastLocation;
+    Location location = locationEngine != null ? locationEngine.getLastLocation() : null;
+    if (location == null) {
+      location = lastLocation;
+    }
+    return location;
+  }
+
+  /**
+   * Return the last known {@link CompassEngine} accuracy status of the location component.
+   * <p>
+   * The last known accuracy of the compass sensor, one of SensorManager.SENSOR_STATUS_*
+   *
+   * @return the last know compass accuracy bearing
+   * @deprecated Use {@link #getCompassEngine()}
+   */
+  @Deprecated
+  public float getLastKnownCompassAccuracyStatus() {
+    return compassEngine != null ? compassEngine.getLastAccuracySensorStatus() : 0;
+  }
+
+  /**
+   * Add a compass listener to get heading updates every second. Once the first listener gets added,
+   * the sensor gets initiated and starts returning values.
+   *
+   * @param compassListener a {@link CompassListener} for listening into compass heading and
+   *                        accuracy changes
+   * @deprecated Use {@link #getCompassEngine()}
+   */
+  @Deprecated
+  public void addCompassListener(@NonNull CompassListener compassListener) {
+    if (compassEngine != null) {
+      compassEngine.addCompassListener(compassListener);
+    }
+  }
+
+  /**
+   * Remove a compass listener.
+   *
+   * @param compassListener the {@link CompassListener} which you'd like to remove from the listener
+   *                        list.
+   * @deprecated Use {@link #getCompassEngine()}
+   */
+  @Deprecated
+  public void removeCompassListener(@NonNull CompassListener compassListener) {
+    if (compassEngine != null) {
+      compassEngine.removeCompassListener(compassListener);
+    }
   }
 
   /**
@@ -883,7 +947,7 @@ public final class LocationComponent {
    */
   public void onStart() {
     isComponentStarted = true;
-    onLocationLayerStart();
+    onLocationLayerStart(true);
   }
 
   /**
@@ -908,19 +972,27 @@ public final class LocationComponent {
   }
 
   /**
-   * Internal use.
+   * Internal use. {@link #reInitLayers(boolean show)}
    */
   public void onFinishLoadingStyle() {
+    // MAPPY MODIF : see #reInitLayers(boolean show)
+//    if (isComponentInitialized) {
+//      style = mapboxMap.getStyle();
+//      locationLayerController.initializeComponents(style, options);
+//    }
+//    onLocationLayerStart();
+
+  }
+
+  public void reInitLayers(boolean show) {
     if (isComponentInitialized) {
-      style = mapboxMap.getStyle();
-      locationLayerController.initializeComponents(style, options);
-      locationCameraController.initializeOptions(options);
-      onLocationLayerStart();
+      locationLayerController.initializeComponents(options);
     }
+    onLocationLayerStart(show);
   }
 
   @SuppressLint("MissingPermission")
-  private void onLocationLayerStart() {
+  private void onLocationLayerStart(boolean forceShow) {
     if (!isComponentInitialized || !isComponentStarted || mapboxMap.getStyle() == null) {
       return;
     }
@@ -1016,7 +1088,7 @@ public final class LocationComponent {
 
     isComponentInitialized = true;
 
-    onLocationLayerStart();
+    onLocationLayerStart(true);
   }
 
   private void initializeLocationEngine(@NonNull Context context) {
@@ -1058,9 +1130,41 @@ public final class LocationComponent {
     }
   }
 
+  private void updateCompassListenerState(boolean canListen) {
+    if (compassEngine != null) {
+      if (!canListen) {
+        // We shouldn't listen, simply unregistering
+        removeCompassListener(compassEngine);
+        return;
+      }
+
+      if (!isInitialized || !isComponentStarted || !isEnabled) {
+        return;
+      }
+
+      if (locationCameraController.isConsumingCompass() || locationLayerController.isConsumingCompass()) {
+        // If we have a consumer, and not yet listening, then start listening
+        if (!isListeningToCompass) {
+          isListeningToCompass = true;
+          compassEngine.addCompassListener(compassListener);
+        }
+      } else {
+        // If we have no consumers, stop listening
+        removeCompassListener(compassEngine);
+      }
+    }
+  }
+
+  private void removeCompassListener(@NonNull CompassEngine engine) {
+    if (isListeningToCompass) {
+      isListeningToCompass = false;
+      engine.removeCompassListener(compassListener);
+    }
+  }
+
   private void enableLocationComponent() {
     isEnabled = true;
-    onLocationLayerStart();
+    onLocationLayerStart(true);
   }
 
   private void disableLocationComponent() {
@@ -1082,7 +1186,7 @@ public final class LocationComponent {
    *
    * @param location the latest user location
    */
-  private void updateLocation(@Nullable final Location location, boolean fromLastLocation) {
+  private void updateLocation(@Nullable final Location location, boolean fromLastLocation, /* Mappy Modif */ boolean forceShow) {
     if (location == null) {
       return;
     } else if (!isLayerReady) {
@@ -1097,7 +1201,9 @@ public final class LocationComponent {
       }
     }
 
-    showLocationLayerIfHidden();
+    if (forceShow) {
+      showLocationLayerIfHidden();
+    }
 
     if (!fromLastLocation) {
       staleStateManager.updateLatestLocationTime();
@@ -1129,7 +1235,7 @@ public final class LocationComponent {
     if (locationEngine != null) {
       locationEngine.getLastLocation(lastLocationEngineListener);
     } else {
-      updateLocation(getLastKnownLocation(), true);
+      updateLocation(getLastKnownLocation(), true, true);
     }
   }
 

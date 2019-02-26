@@ -35,6 +35,8 @@ public:
     static Color red()   { return { 1.0f, 0.0f, 0.0f, 1.0f }; };
     static Color green() { return { 0.0f, 1.0f, 0.0f, 1.0f }; };
     static Color blue()  { return { 0.0f, 0.0f, 1.0f, 1.0f }; };
+    //Mappy modifs
+    static Color salmon()  { return {0.9607f, 0.9411f, 0.9019f, 1.0f}; };
 
     static optional<Color> parse(const std::string&);
     std::string stringify() const;

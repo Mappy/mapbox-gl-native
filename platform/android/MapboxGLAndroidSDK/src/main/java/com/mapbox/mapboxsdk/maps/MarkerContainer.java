@@ -109,6 +109,19 @@ class MarkerContainer implements Markers {
     return new ArrayList<>(annotations);
   }
 
+  // TODO Report this in plugin ?
+  /**
+  -    markerViewManager.setEnabled(true);
+-    markerViewManager.setWaitingForRenderInvoke(true);
++
+        +    //MAPPY Modif
+        +    markerViewManager.setForUpdate();
++    //markerViewManager.setEnabled(true);
+        +    //markerViewManager.setWaitingForRenderInvoke(true);
+        +
+   **/
+
+
   @Override
   public void reload() {
     iconManager.reloadIcons();
