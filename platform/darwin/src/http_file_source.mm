@@ -91,7 +91,14 @@ public:
 
             session = [NSURLSession sessionWithConfiguration:sessionConfig];
 
-            userAgent = getUserAgent();
+			if ([NSString respondsToSelector:@selector(userAgentWithBundle:)])
+			{
+				userAgent = [NSString performSelector:@selector(userAgentWithBundle:) withObject:[NSBundle mainBundle]];
+			}
+			else
+			{
+            	userAgent = getUserAgent();
+			}
 
             accountType = [[NSUserDefaults standardUserDefaults] integerForKey:@"MGLMapboxAccountType"];
         }
