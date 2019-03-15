@@ -19,7 +19,7 @@ NSString * const MBXMapboxAccessTokenDefaultsKey = @"MBXMapboxAccessToken";
             // the token.
             accessToken = [[NSUserDefaults standardUserDefaults] objectForKey:MBXMapboxAccessTokenDefaultsKey];
         }
-        [MGLAccountManager setAccessToken:@"sk.eyJ1IjoieGF2aWVyY291dGluIiwiYSI6IldfdlRPVlkifQ.Kdk-xoV7zPNAcD_FJtA-UQ"];
+        [MGLAccountManager setAccessToken:@"pk.eyJ1IjoibWFwcHlpb3MiLCJhIjoiY2pqaWh5OGZuMTJ2MzN2cm1heHpmZmVjbCJ9.zT4TP13qJsNthxAUuYMYmg"];
     }
 
     self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
