@@ -13,6 +13,7 @@ elif [[ $1 != "static" && $1 != "dynamic" ]]; then
     exit
 fi
 
+git submodule update --init
 make clean && make distclean
 make iframework FORMAT=$1 BUILDTYPE=Release SYMBOLS=NO
 
