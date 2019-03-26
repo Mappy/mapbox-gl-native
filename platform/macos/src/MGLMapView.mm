@@ -938,8 +938,9 @@ public:
     if (!_mbglMap) {
         return;
     }
+    
     if ([self.delegate respondsToSelector:@selector(mapViewDidBecomeIdle:)]) {
-		[self.delegate mapViewDidBecomeIdle:self];
+        [self.delegate mapViewDidBecomeIdle:self];
     }
 }
 
