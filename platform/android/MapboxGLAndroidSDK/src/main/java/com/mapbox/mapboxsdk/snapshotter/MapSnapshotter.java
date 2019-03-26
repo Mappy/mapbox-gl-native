@@ -99,7 +99,7 @@ public class MapSnapshotter {
     private LatLngBounds region;
     private CameraPosition cameraPosition;
     private boolean showLogo = true;
-    private String localIdeographFontFamily;
+    private String localIdeographFontFamily = "sans-serif";
     private String apiBaseUrl;
 
     /**
@@ -183,6 +183,7 @@ public class MapSnapshotter {
      * <p>
      * The font family argument is passed to {@link android.graphics.Typeface#create(String, int)}.
      * Default system fonts are defined in &#x27;/system/etc/fonts.xml&#x27;
+     * Default font for local ideograph font family is "sans-serif".
      *
      * @param fontFamily font family for local ideograph generation.
      * @return the mutated {@link Options}
@@ -250,7 +251,8 @@ public class MapSnapshotter {
     }
 
     /**
-     * @return the font family used for locally generating ideographs
+     * @return the font family used for locally generating ideographs,
+     * Default font for local ideograph font family is "sans-serif".
      */
     public String getLocalIdeographFontFamily() {
       return localIdeographFontFamily;

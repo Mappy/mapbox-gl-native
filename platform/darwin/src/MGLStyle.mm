@@ -524,22 +524,27 @@ static_assert(6 == mbgl::util::default_styles::numOrderedStyles,
 
 - (void)setTransition:(MGLTransition)transition
 {
-    auto transitionOptions = self.rawStyle->getTransitionOptions();
-    transitionOptions.duration = MGLDurationFromTimeInterval(transition.duration);
-    transitionOptions.delay = MGLDurationFromTimeInterval(transition.delay);
-    
-    self.rawStyle->setTransitionOptions(transitionOptions);
+    self.rawStyle->setTransitionOptions(MGLOptionsFromTransition(transition));
 }
 
 - (MGLTransition)transition
 {
-    MGLTransition transition;
     const mbgl::style::TransitionOptions transitionOptions = self.rawStyle->getTransitionOptions();
-
-    transition.delay = MGLTimeIntervalFromDuration(transitionOptions.delay.value_or(mbgl::Duration::zero()));
-    transition.duration = MGLTimeIntervalFromDuration(transitionOptions.duration.value_or(mbgl::Duration::zero()));
     
-    return transition;
+    return MGLTransitionFromOptions(transitionOptions);
+}
+
+- (void)setPerformsPlacementTransitions:(BOOL)performsPlacementTransitions
+{
+    mbgl::style::TransitionOptions transitionOptions = self.rawStyle->getTransitionOptions();
+    transitionOptions.enablePlacementTransitions = static_cast<bool>(performsPlacementTransitions);
+    self.rawStyle->setTransitionOptions(transitionOptions);
+}
+
+- (BOOL)performsPlacementTransitions
+{
+    mbgl::style::TransitionOptions transitionOptions = self.rawStyle->getTransitionOptions();
+    return transitionOptions.enablePlacementTransitions;
 }
 
 #pragma mark Style light
@@ -600,7 +605,7 @@ static_assert(6 == mbgl::util::default_styles::numOrderedStyles,
 - (NSArray<MGLStyleLayer *> *)placeStyleLayers {
     NSSet *streetsSourceIdentifiers = [self.mapboxStreetsSources valueForKey:@"identifier"];
     
-    NSSet *placeSourceLayerIdentifiers = [NSSet setWithObjects:@"marine_label", @"country_label", @"state_label", @"place_label", @"water_label", @"poi_label", @"rail_station_label", @"mountain_peak_label", nil];
+    NSSet *placeSourceLayerIdentifiers = [NSSet setWithObjects:@"marine_label", @"country_label", @"state_label", @"place_label", @"water_label", @"poi_label", @"rail_station_label", @"mountain_peak_label", @"natural_label", @"transit_stop_label", nil];
     NSPredicate *isPlacePredicate = [NSPredicate predicateWithBlock:^BOOL (MGLVectorStyleLayer * _Nullable layer, NSDictionary<NSString *, id> * _Nullable bindings) {
         return [layer isKindOfClass:[MGLVectorStyleLayer class]] && [streetsSourceIdentifiers containsObject:layer.sourceIdentifier] && [placeSourceLayerIdentifiers containsObject:layer.sourceLayerIdentifier];
     }];
@@ -609,9 +614,10 @@ static_assert(6 == mbgl::util::default_styles::numOrderedStyles,
 
 - (NSArray<MGLStyleLayer *> *)roadStyleLayers {
     NSSet *streetsSourceIdentifiers = [self.mapboxStreetsSources valueForKey:@"identifier"];
-    
+
+    NSSet *roadStyleLayerIdentifiers = [NSSet setWithObjects:@"road_label", @"road", nil];
     NSPredicate *isPlacePredicate = [NSPredicate predicateWithBlock:^BOOL (MGLVectorStyleLayer * _Nullable layer, NSDictionary<NSString *, id> * _Nullable bindings) {
-        return [layer isKindOfClass:[MGLVectorStyleLayer class]] && [streetsSourceIdentifiers containsObject:layer.sourceIdentifier] && [layer.sourceLayerIdentifier isEqualToString:@"road_label"];
+        return [layer isKindOfClass:[MGLVectorStyleLayer class]] && [streetsSourceIdentifiers containsObject:layer.sourceIdentifier] && [roadStyleLayerIdentifiers containsObject:layer.sourceLayerIdentifier];
     }];
     return [self.layers filteredArrayUsingPredicate:isPlacePredicate];
 }

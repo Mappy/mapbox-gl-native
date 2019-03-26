@@ -152,9 +152,6 @@ const CGFloat MGLAnnotationImagePaddingForCallout = 1;
 
 const CGSize MGLAnnotationAccessibilityElementMinimumSize = CGSizeMake(10, 10);
 
-/// Padding to edge of view that an offscreen annotation must have when being brought onscreen (by being selected)
-const UIEdgeInsets MGLMapViewOffscreenAnnotationPadding = UIEdgeInsetsMake(-20.0f, -20.0f, -20.0f, -20.0f);
-
 /// An indication that the requested annotation was not found or is nonexistent.
 enum { MGLAnnotationTagNotFound = UINT32_MAX };
 
@@ -222,6 +219,9 @@ public:
 @property (nonatomic) UILongPressGestureRecognizer *quickZoom;
 @property (nonatomic) UIPanGestureRecognizer *twoFingerDrag;
 
+@property (nonatomic) UIInterfaceOrientation currentOrientation;
+@property (nonatomic) UIInterfaceOrientationMask applicationSupportedInterfaceOrientations;
+
 @property (nonatomic) MGLCameraChangeReason cameraChangeReasonBitmask;
 
 /// Mapping from reusable identifiers to annotation images.
@@ -229,6 +229,11 @@ public:
 
 /// Currently shown popover representing the selected annotation.
 @property (nonatomic) UIView<MGLCalloutView> *calloutViewForSelectedAnnotation;
+
+/// Anchor coordinate from which to present callout views (for example, for shapes this
+/// could be the touch point rather than its centroid)
+@property (nonatomic) CLLocationCoordinate2D anchorCoordinateForSelectedAnnotation;
+
 @property (nonatomic) MGLUserLocationAnnotationView *userLocationAnnotationView;
 
 /// Indicates how thoroughly the map view is tracking the user location.
@@ -612,9 +617,11 @@ public:
     // so causes a loop when asking for location permission. See: https://github.com/mapbox/mapbox-gl-native/issues/11225
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didReceiveMemoryWarning) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+
+    // Device orientation management
+    self.currentOrientation = UIInterfaceOrientationUnknown;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(deviceOrientationDidChange:) name:UIDeviceOrientationDidChangeNotification object:nil];
     [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
-
 
     // set initial position
     //
@@ -1113,11 +1120,13 @@ public:
 
 - (void)setContentInset:(UIEdgeInsets)contentInset
 {
+    MGLLogDebug(@"Setting contentInset: %@", NSStringFromUIEdgeInsets(contentInset));
     [self setContentInset:contentInset animated:NO];
 }
 
 - (void)setContentInset:(UIEdgeInsets)contentInset animated:(BOOL)animated
 {
+    MGLLogDebug(@"Setting contentInset: %@ animated:", NSStringFromUIEdgeInsets(contentInset), MGLStringFromBOOL(animated));
     if (UIEdgeInsetsEqualToEdgeInsets(contentInset, self.contentInset))
     {
         return;
@@ -1228,7 +1237,7 @@ public:
             self.mbglMap.setConstrainMode(mbgl::ConstrainMode::HeightOnly);
         }
 
-        _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
+        _displayLink = [self.window.screen displayLinkWithTarget:self selector:@selector(updateFromDisplayLink)];
         [self updateDisplayLinkPreferredFramesPerSecond];
         [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         _needsDisplayRefresh = YES;
@@ -1279,6 +1288,7 @@ public:
 
 - (void)setPreferredFramesPerSecond:(MGLMapViewPreferredFramesPerSecond)preferredFramesPerSecond
 {
+    MGLLogDebug(@"Setting preferredFramesPerSecond: %ld", preferredFramesPerSecond);
     if (_preferredFramesPerSecond == preferredFramesPerSecond)
     {
         return;
@@ -1286,6 +1296,11 @@ public:
 
     _preferredFramesPerSecond = preferredFramesPerSecond;
     [self updateDisplayLinkPreferredFramesPerSecond];
+}
+
+- (void)willMoveToWindow:(UIWindow *)newWindow {
+    [super willMoveToWindow:newWindow];
+    [self refreshSupportedInterfaceOrientationsWithWindow:newWindow];
 }
 
 - (void)didMoveToWindow
@@ -1300,13 +1315,112 @@ public:
     [super didMoveToSuperview];
 }
 
+- (void)refreshSupportedInterfaceOrientationsWithWindow:(UIWindow *)window {
+    
+    // "The system intersects the view controller's supported orientations with
+    // the app's supported orientations (as determined by the Info.plist file or
+    // the app delegate's application:supportedInterfaceOrientationsForWindow:
+    // method) and the device's supported orientations to determine whether to rotate.
+    
+    UIApplication *application = [UIApplication sharedApplication];
+    
+    if (window && [application.delegate respondsToSelector:@selector(application:supportedInterfaceOrientationsForWindow:)]) {
+        self.applicationSupportedInterfaceOrientations = [application.delegate application:application supportedInterfaceOrientationsForWindow:window];
+        return;
+    }
+    
+    // If no delegate method, check the application's plist.
+    static UIInterfaceOrientationMask orientationMask = UIInterfaceOrientationMaskAll;
+
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // No application delegate
+        NSArray *orientations = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UISupportedInterfaceOrientations"];
+        
+        // Application's info plist provided supported orientations.
+        if (orientations.count > 0) {
+            orientationMask = 0;
+            
+            NSDictionary *lookup =
+            @{
+              @"UIInterfaceOrientationPortrait" : @(UIInterfaceOrientationMaskPortrait),
+              @"UIInterfaceOrientationPortraitUpsideDown" : @(UIInterfaceOrientationMaskPortraitUpsideDown),
+              @"UIInterfaceOrientationLandscapeLeft" : @(UIInterfaceOrientationMaskLandscapeLeft),
+              @"UIInterfaceOrientationLandscapeRight" : @(UIInterfaceOrientationMaskLandscapeRight)
+              };
+            
+            for (NSString *orientation in orientations) {
+                UIInterfaceOrientationMask mask = ((NSNumber*)lookup[orientation]).unsignedIntegerValue;
+                orientationMask |= mask;
+            }
+        }
+    });
+
+    self.applicationSupportedInterfaceOrientations = orientationMask;
+}
+
 - (void)deviceOrientationDidChange:(__unused NSNotification *)notification
 {
+    UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
+    
+    // The docs for `UIViewController.supportedInterfaceOrientations` states:
+    //
+    //  When the user changes the device orientation, the system calls this method
+    //  on the root view controller or the topmost presented view controller that
+    //  fills the window. If the view controller supports the new orientation, the
+    //  window and view controller are rotated to the new orientation. This method
+    //  is only called if the view controller's shouldAutorotate method returns YES.
+    //
+    // We want to match similar behaviour. However, it may be preferable to look
+    // at the owning view controller (in cases where the map view may be covered
+    // by another view.
+    
+    UIViewController *viewController = [self.window.rootViewController mgl_topMostViewController];
+    
+    if (![viewController shouldAutorotate]) {
+        return;
+    }
+    
+    if ((self.currentOrientation == (UIInterfaceOrientation)deviceOrientation) &&
+        (self.currentOrientation != UIInterfaceOrientationUnknown)) {
+        return;
+    }
+    
+    // "The system intersects the view controller's supported orientations with
+    // the app's supported orientations (as determined by the Info.plist file or
+    // the app delegate's application:supportedInterfaceOrientationsForWindow:
+    // method) and the device's supported orientations to determine whether to rotate.
+    
+    UIInterfaceOrientationMask supportedOrientations = viewController.supportedInterfaceOrientations;
+    supportedOrientations &= self.applicationSupportedInterfaceOrientations;
+    
+    // Interface orientations are defined by device orientations
+    UIInterfaceOrientationMask interfaceOrientation = 1 << deviceOrientation;
+    UIInterfaceOrientationMask validOrientation = interfaceOrientation & UIInterfaceOrientationMaskAll;
+    
+    if (!(validOrientation & supportedOrientations)) {
+        return;
+    }
+    
+    self.currentOrientation = (UIInterfaceOrientation)deviceOrientation;
+
+    // Q. Do we need to re-layout if we're just going from Portrait -> Portrait
+    // Upside Down (or from Left to Right)?
     [self setNeedsLayout];
 }
 
 - (void)sleepGL:(__unused NSNotification *)notification
 {
+    // If this view targets an external display, such as AirPlay or CarPlay, we
+    // can safely continue to render OpenGL content without tripping
+    // gpus_ReturnNotPermittedKillClient in libGPUSupportMercury, because the
+    // external connection keeps the application from truly receding to the
+    // background.
+    if (self.window.screen != [UIScreen mainScreen])
+    {
+        return;
+    }
+    
     MGLLogInfo(@"Entering background.");
     MGLAssertIsMainThread();
     
@@ -1783,7 +1897,7 @@ public:
     {
         CGPoint calloutPoint = [singleTap locationInView:self];
         CGRect positionRect = [self positioningRectForAnnotation:annotation defaultCalloutPoint:calloutPoint];
-        [self selectAnnotation:annotation moveOnscreen:YES animateSelection:YES calloutPositioningRect:positionRect];
+        [self selectAnnotation:annotation moveIntoView:YES animateSelection:YES calloutPositioningRect:positionRect];
     }
     else if (self.selectedAnnotation)
     {
@@ -1968,9 +2082,11 @@ public:
     [self cancelTransitions];
 
     self.cameraChangeReasonBitmask |= MGLCameraChangeReasonGestureTilt;
-
+    static CGFloat initialPitch;
+    
     if (twoFingerDrag.state == UIGestureRecognizerStateBegan)
     {
+        initialPitch = self.mbglMap.getPitch();
         [self trackGestureEvent:MMEEventGesturePitchStart forRecognizer:twoFingerDrag];
         [self notifyGestureDidBegin];
     }
@@ -1978,10 +2094,9 @@ public:
     if (twoFingerDrag.state == UIGestureRecognizerStateBegan || twoFingerDrag.state == UIGestureRecognizerStateChanged)
     {
         CGFloat gestureDistance = CGPoint([twoFingerDrag translationInView:twoFingerDrag.view]).y;
-        CGFloat currentPitch = self.mbglMap.getPitch();
-        CGFloat slowdown = 20.0;
+        CGFloat slowdown = 2.0;
 
-        CGFloat pitchNew = currentPitch - (gestureDistance / slowdown);
+        CGFloat pitchNew = initialPitch - (gestureDistance / slowdown);
 
         CGPoint centerPoint = [self anchorPointForGesture:twoFingerDrag];
 
@@ -3351,12 +3466,10 @@ public:
     {
         latLngs.push_back({coordinates[i].latitude, coordinates[i].longitude});
     }
+    
+    CLLocationDirection cameraDirection = direction >= 0 ? direction : 0;
 
-    mbgl::CameraOptions cameraOptions = self.mbglMap.cameraForLatLngs(latLngs, padding);
-    if (direction >= 0)
-    {
-        cameraOptions.angle = direction;
-    }
+    mbgl::CameraOptions cameraOptions = self.mbglMap.cameraForLatLngs(latLngs, padding, cameraDirection);
 
     mbgl::AnimationOptions animationOptions;
     if (duration > 0)
@@ -4582,9 +4695,9 @@ public:
 }
 
 
-- (BOOL)isBringingAnnotationOnscreenSupportedForAnnotation:(id<MGLAnnotation>)annotation animated:(BOOL)animated {
+- (BOOL)isMovingAnnotationIntoViewSupportedForAnnotation:(id<MGLAnnotation>)annotation animated:(BOOL)animated {
     // Consider delegating
-    return animated && [annotation isKindOfClass:[MGLPointAnnotation class]];
+    return [annotation isKindOfClass:[MGLPointAnnotation class]];
 }
 
 - (id <MGLAnnotation>)selectedAnnotation
@@ -4634,12 +4747,17 @@ public:
 
 - (void)selectAnnotation:(id <MGLAnnotation>)annotation animated:(BOOL)animated
 {
-    MGLLogDebug(@"Selecting annotation: %@ animated: %@", annotation, MGLStringFromBOOL(animated));
-    CGRect positioningRect = [self positioningRectForAnnotation:annotation defaultCalloutPoint:CGPointZero];
-    [self selectAnnotation:annotation moveOnscreen:animated animateSelection:YES calloutPositioningRect:positioningRect];
+    [self selectAnnotation:annotation moveIntoView:animated animateSelection:animated];
 }
 
-- (void)selectAnnotation:(id <MGLAnnotation>)annotation moveOnscreen:(BOOL)moveOnscreen animateSelection:(BOOL)animateSelection calloutPositioningRect:(CGRect)calloutPositioningRect
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation moveIntoView:(BOOL)moveIntoView animateSelection:(BOOL)animateSelection
+{
+    MGLLogDebug(@"Selecting annotation: %@ moveIntoView: %@ animateSelection: %@", annotation, MGLStringFromBOOL(moveIntoView), MGLStringFromBOOL(animateSelection));
+    CGRect positioningRect = [self positioningRectForAnnotation:annotation defaultCalloutPoint:CGPointZero];
+    [self selectAnnotation:annotation moveIntoView:moveIntoView animateSelection:animateSelection calloutPositioningRect:positioningRect];
+}
+
+- (void)selectAnnotation:(id <MGLAnnotation>)annotation moveIntoView:(BOOL)moveIntoView animateSelection:(BOOL)animateSelection calloutPositioningRect:(CGRect)calloutPositioningRect
 {
     if ( ! annotation) return;
 
@@ -4674,8 +4792,8 @@ public:
     self.selectedAnnotation = annotation;
 
     // Determine if we're allowed to move this offscreen annotation on screen, even though we've asked it to
-    if (moveOnscreen) {
-        moveOnscreen = [self isBringingAnnotationOnscreenSupportedForAnnotation:annotation animated:animateSelection];
+    if (moveIntoView) {
+        moveIntoView = [self isMovingAnnotationIntoViewSupportedForAnnotation:annotation animated:animateSelection];
     }
 
     // If we have an invalid positioning rect, we need to provide a suitable default.
@@ -4686,12 +4804,15 @@ public:
         CGPoint originPoint = [self convertCoordinate:origin toPointToView:self];
         calloutPositioningRect = { .origin = originPoint, .size = CGSizeZero };
     }
-
-    CGRect expandedPositioningRect = UIEdgeInsetsInsetRect(calloutPositioningRect, MGLMapViewOffscreenAnnotationPadding);
+    
+    CGRect expandedPositioningRect = calloutPositioningRect;
 
     // Used for callout positioning, and moving offscreen annotations onscreen.
-    CGRect constrainedRect = UIEdgeInsetsInsetRect(self.bounds, self.contentInset);
+    CGRect constrainedRect = self.contentFrame;
+    CGRect bounds = constrainedRect;
 
+    BOOL expandedPositioningRectToMoveCalloutIntoViewWithMargins = NO;
+    
     UIView <MGLCalloutView> *calloutView = nil;
 
     if ([annotation respondsToSelector:@selector(title)] &&
@@ -4759,40 +4880,58 @@ public:
 
         // If the callout view provides inset (outset) information, we can use it to expand our positioning
         // rect, which we then use to help move the annotation on-screen if want need to.
-        if (moveOnscreen && [calloutView respondsToSelector:@selector(marginInsetsHintForPresentationFromRect:)]) {
+        if (moveIntoView && [calloutView respondsToSelector:@selector(marginInsetsHintForPresentationFromRect:)]) {
             UIEdgeInsets margins = [calloutView marginInsetsHintForPresentationFromRect:calloutPositioningRect];
             expandedPositioningRect = UIEdgeInsetsInsetRect(expandedPositioningRect, margins);
+            expandedPositioningRectToMoveCalloutIntoViewWithMargins = YES;
         }
     }
-
-    if (moveOnscreen)
+    
+    if (!expandedPositioningRectToMoveCalloutIntoViewWithMargins)
     {
-        moveOnscreen = NO;
+        // We don't have a callout (OR our callout didn't implement
+        // marginInsetsHintForPresentationFromRect: - in this case we need to
+        // ensure that partially off-screen annotations are NOT moved into view.
+        //
+        // We may want to create (and fallback to) an `MGLMapViewDelegate` version
+        // of the `-[MGLCalloutView marginInsetsHintForPresentationFromRect:]
+        // protocol method.
+        bounds = CGRectInset(bounds, -calloutPositioningRect.size.width, -calloutPositioningRect.size.height);
+    }        
 
-        // Need to consider the content insets.
-        CGRect bounds = UIEdgeInsetsInsetRect(self.bounds, self.contentInset);
+    if (moveIntoView)
+    {
+        moveIntoView = NO;
 
         // Any one of these cases should trigger a move onscreen
-        if (CGRectGetMinX(calloutPositioningRect) < CGRectGetMinX(bounds))
-        {
-            constrainedRect.origin.x = expandedPositioningRect.origin.x;
-            moveOnscreen = YES;
+        CGFloat minX = CGRectGetMinX(expandedPositioningRect);
+        
+        if (minX < CGRectGetMinX(bounds)) {
+            constrainedRect.origin.x = minX;
+            moveIntoView = YES;
         }
-        else if (CGRectGetMaxX(calloutPositioningRect) > CGRectGetMaxX(bounds))
-        {
-            constrainedRect.origin.x = CGRectGetMaxX(expandedPositioningRect) - constrainedRect.size.width;
-            moveOnscreen = YES;
+        else {
+            CGFloat maxX = CGRectGetMaxX(expandedPositioningRect);
+            
+            if (maxX > CGRectGetMaxX(bounds)) {
+                constrainedRect.origin.x = maxX - CGRectGetWidth(constrainedRect);
+                moveIntoView = YES;
+            }
         }
 
-        if (CGRectGetMinY(calloutPositioningRect) < CGRectGetMinY(bounds))
-        {
-            constrainedRect.origin.y = expandedPositioningRect.origin.y;
-            moveOnscreen = YES;
+        CGFloat minY = CGRectGetMinY(expandedPositioningRect);
+        
+        if (minY < CGRectGetMinY(bounds)) {
+            constrainedRect.origin.y = minY;
+            moveIntoView = YES;
         }
-        else if (CGRectGetMaxY(calloutPositioningRect) > CGRectGetMaxY(bounds))
-        {
-            constrainedRect.origin.y = CGRectGetMaxY(expandedPositioningRect) - constrainedRect.size.height;
-            moveOnscreen = YES;
+        else {
+            CGFloat maxY = CGRectGetMaxY(expandedPositioningRect);
+            
+            if (maxY > CGRectGetMaxY(bounds)) {
+                constrainedRect.origin.y = maxY - CGRectGetHeight(constrainedRect);
+                moveIntoView = YES;
+            }
         }
     }
 
@@ -4802,6 +4941,17 @@ public:
                       constrainedToRect:constrainedRect
                                animated:animateSelection];
 
+    // Save the anchor coordinate
+    if ([annotation isKindOfClass:[MGLPointAnnotation class]]) {
+        self.anchorCoordinateForSelectedAnnotation = annotation.coordinate;
+    }
+    else {
+        // This is used for features like polygons, so that if the map is dragged
+        // the callout doesn't ping to its coordinate.
+        CGPoint anchorPoint = CGPointMake(CGRectGetMidX(calloutPositioningRect), CGRectGetMidY(calloutPositioningRect));
+        self.anchorCoordinateForSelectedAnnotation = [self convertPoint:anchorPoint toCoordinateFromView:self];
+    }
+        
     // notify delegate
     if ([self.delegate respondsToSelector:@selector(mapView:didSelectAnnotation:)])
     {
@@ -4813,7 +4963,7 @@ public:
         [self.delegate mapView:self didSelectAnnotationView:annotationView];
     }
 
-    if (moveOnscreen)
+    if (moveIntoView)
     {
         CGPoint center = CGPointMake(CGRectGetMidX(constrainedRect), CGRectGetMidY(constrainedRect));
         CLLocationCoordinate2D centerCoord = [self convertPoint:center toCoordinateFromView:self];
@@ -4866,8 +5016,18 @@ public:
         return CGRectNull;
     }
     
+    CLLocationCoordinate2D coordinate;
+    
+    if ((annotation == self.selectedAnnotation) &&
+        CLLocationCoordinate2DIsValid(self.anchorCoordinateForSelectedAnnotation)) {
+        coordinate = self.anchorCoordinateForSelectedAnnotation;
+    }
+    else {
+        coordinate = annotation.coordinate;
+    }
+    
     if ([annotation isKindOfClass:[MGLMultiPoint class]]) {
-        CLLocationCoordinate2D origin = annotation.coordinate;
+        CLLocationCoordinate2D origin = coordinate;
         CGPoint originPoint = [self convertCoordinate:origin toPointToView:self];
         return CGRectMake(originPoint.x, originPoint.y, MGLAnnotationImagePaddingForHitTest, MGLAnnotationImagePaddingForHitTest);
     }
@@ -4882,7 +5042,7 @@ public:
         return CGRectZero;
     }
 
-    CGRect positioningRect = [self frameOfImage:image centeredAtCoordinate:annotation.coordinate];
+    CGRect positioningRect = [self frameOfImage:image centeredAtCoordinate:coordinate];
     positioningRect.origin.x -= 0.5;
 
     return CGRectInset(positioningRect, -MGLAnnotationImagePaddingForCallout,
@@ -4937,6 +5097,7 @@ public:
         // clean up
         self.calloutViewForSelectedAnnotation = nil;
         self.selectedAnnotation = nil;
+        self.anchorCoordinateForSelectedAnnotation = kCLLocationCoordinate2DInvalid;
 
         // notify delegate
         if ([self.delegate respondsToSelector:@selector(mapView:didDeselectAnnotation:)])
@@ -5233,12 +5394,6 @@ public:
     MGLLogDebug(@"Setting userTrackingMode: %lu animated: %@", mode, MGLStringFromBOOL(animated));
     if (mode == _userTrackingMode) return;
 
-    if ((mode == MGLUserTrackingModeFollowWithHeading || mode == MGLUserTrackingModeFollowWithCourse) &&
-        ! CLLocationCoordinate2DIsValid(self.userLocation.coordinate))
-    {
-        mode = MGLUserTrackingModeNone;
-    }
-
     MGLUserTrackingMode oldMode = _userTrackingMode;
     [self willChangeValueForKey:@"userTrackingMode"];
     _userTrackingMode = mode;
@@ -5319,11 +5474,13 @@ public:
 
 - (void)setTargetCoordinate:(CLLocationCoordinate2D)targetCoordinate
 {
+    MGLLogDebug(@"Setting targetCoordinate: %@", MGLStringFromCLLocationCoordinate2D(targetCoordinate));
     [self setTargetCoordinate:targetCoordinate animated:YES];
 }
 
 - (void)setTargetCoordinate:(CLLocationCoordinate2D)targetCoordinate animated:(BOOL)animated
 {
+    MGLLogDebug(@"Setting targetCoordinate: %@ animated: %@", MGLStringFromCLLocationCoordinate2D(targetCoordinate), MGLStringFromBOOL(animated));
     if (targetCoordinate.latitude != self.targetCoordinate.latitude
         || targetCoordinate.longitude != self.targetCoordinate.longitude)
     {
@@ -6053,6 +6210,16 @@ public:
     }
 }
 
+- (void)mapViewDidBecomeIdle {
+    if (!_mbglMap) {
+        return;
+    }
+    
+    if ([self.delegate respondsToSelector:@selector(mapViewDidBecomeIdle:)]) {
+        [self.delegate mapViewDidBecomeIdle:self];
+    }
+}
+
 - (void)didFinishLoadingStyle {
     if (!_mbglMap)
     {
@@ -6202,7 +6369,9 @@ public:
             annotationView = self.userLocationAnnotationView;
         }
 
-        CGRect positioningRect = annotationView ? annotationView.frame : [self positioningRectForCalloutForAnnotationWithTag:tag];
+        CGRect positioningRect = annotationView ?
+            annotationView.frame :
+            [self positioningRectForCalloutForAnnotationWithTag:tag];
 
         MGLAssert( ! CGRectIsNull(positioningRect), @"Positioning rect should not be CGRectNull by this point");
 
@@ -6444,7 +6613,7 @@ public:
 
     // Link
     UIButton *linkButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [linkButton setTitle:NSLocalizedStringWithDefaultValue(@"FIRST_STEPS_URL", nil, nil, @"mapbox.com/help/first-steps-ios-sdk", @"Setup documentation URL display string; keep as short as possible") forState:UIControlStateNormal];
+    [linkButton setTitle:NSLocalizedStringWithDefaultValue(@"FIRST_STEPS_URL", nil, nil, @"docs.mapbox.com/help/tutorials/first-steps-ios-sdk", @"Setup documentation URL display string; keep as short as possible") forState:UIControlStateNormal];
     linkButton.translatesAutoresizingMaskIntoConstraints = NO;
     linkButton.titleLabel.numberOfLines = 0;
     [linkButton setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
@@ -6616,6 +6785,10 @@ public:
         [nativeView mapViewDidFinishRenderingMapFullyRendered:fullyRendered];
     }
 
+    void onDidBecomeIdle() override {
+        [nativeView mapViewDidBecomeIdle];
+    }
+    
     void onDidFinishLoadingStyle() override {
         [nativeView didFinishLoadingStyle];
     }

@@ -75,6 +75,8 @@ public final class MapboxMap {
   @Nullable
   private Style style;
 
+  private boolean debugActive;
+
   MapboxMap(NativeMapView map, Transform transform, UiSettings ui, Projection projection,
             OnGesturesManagerInteractionListener listener, CameraChangeDispatcher cameraChangeDispatcher) {
     this.nativeMapView = map;
@@ -145,7 +147,7 @@ public final class MapboxMap {
    */
   void onSaveInstanceState(@NonNull Bundle outState) {
     outState.putParcelable(MapboxConstants.STATE_CAMERA_POSITION, transform.getCameraPosition());
-    outState.putBoolean(MapboxConstants.STATE_DEBUG_ACTIVE, nativeMapView.getDebug());
+    outState.putBoolean(MapboxConstants.STATE_DEBUG_ACTIVE, isDebugActive());
     uiSettings.onSaveInstanceState(outState);
   }
 
@@ -226,6 +228,13 @@ public final class MapboxMap {
     }
   }
 
+  /**
+   * Experimental feature. Do not use.
+   */
+  long getNativeMapPtr() {
+    return nativeMapView.getNativePtr();
+  }
+
   // Style
 
   /**
@@ -244,7 +253,7 @@ public final class MapboxMap {
    * @param enable true to enable
    */
   public void setPrefetchesTiles(boolean enable) {
-    nativeMapView.setPrefetchesTiles(enable);
+    nativeMapView.setPrefetchTiles(enable);
   }
 
   /**
@@ -254,7 +263,7 @@ public final class MapboxMap {
    * @see MapboxMap#setPrefetchesTiles(boolean)
    */
   public boolean getPrefetchesTiles() {
-    return nativeMapView.getPrefetchesTiles();
+    return nativeMapView.getPrefetchTiles();
   }
 
   //
@@ -595,7 +604,7 @@ public final class MapboxMap {
    * @param y Amount of pixels to scroll to in y direction
    */
   public void scrollBy(float x, float y) {
-    nativeMapView.moveBy(x, y);
+    nativeMapView.moveBy(x, y, 0);
   }
 
   /**
@@ -696,7 +705,7 @@ public final class MapboxMap {
    * @return If true, map debug information is currently shown.
    */
   public boolean isDebugActive() {
-    return nativeMapView.getDebug();
+    return debugActive;
   }
 
   /**
@@ -708,6 +717,7 @@ public final class MapboxMap {
    * @param debugActive If true, map debug information is shown.
    */
   public void setDebugActive(boolean debugActive) {
+    this.debugActive = debugActive;
     nativeMapView.setDebug(debugActive);
   }
 
@@ -722,6 +732,7 @@ public final class MapboxMap {
    */
   public void cycleDebugOptions() {
     nativeMapView.cycleDebugOptions();
+    this.debugActive = nativeMapView.getDebug();
   }
 
   //

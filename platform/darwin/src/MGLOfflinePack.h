@@ -103,6 +103,20 @@ typedef struct __attribute__((objc_boxable)) MGLOfflinePackProgress {
  To create an instance of `MGLOfflinePack`, use the
  `+[MGLOfflineStorage addPackForRegion:withContext:completionHandler:]` method.
  A pack created using `-[MGLOfflinePack init]` is immediately invalid.
+ 
+ ### Example
+ ```swift
+ MGLOfflineStorage.shared.addPack(for: region, withContext: context) { (pack, error) in
+     guard let pack = pack else {
+         // If adding the pack fails, log an error to console.
+         print("Error:", error?.localizedDescription ?? "unknown error adding pack at \(#file)(\(#line)) in \(#function)")
+         return
+     }
+ 
+     // Start an MGLOfflinePack download
+     pack.resume()
+ }
+ ```
  */
 MGL_EXPORT
 @interface MGLOfflinePack : NSObject

@@ -95,6 +95,11 @@ private:
     void onSurfaceChanged(JNIEnv&, jint width, jint height);
 
 private:
+    // Called on either Main or GL thread //
+
+    void onSurfaceDestroyed(JNIEnv&);
+
+private:
     jni::WeakReference<jni::Object<MapRenderer>, jni::EnvAttachingDeleter> javaPeer;
 
     float pixelRatio;

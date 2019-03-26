@@ -64,10 +64,11 @@ public class MapboxMapOptions implements Parcelable {
   private boolean tiltGesturesEnabled = true;
   private boolean zoomGesturesEnabled = true;
   private boolean doubleTapGesturesEnabled = true;
+  private boolean quickZoomGesturesEnabled = true;
 
   private boolean prefetchesTiles = true;
   private boolean zMediaOverlay = false;
-  private String localIdeographFontFamily;
+  private String localIdeographFontFamily = "sans-serif";
 
   private String apiBaseUrl;
 
@@ -118,6 +119,7 @@ public class MapboxMapOptions implements Parcelable {
     tiltGesturesEnabled = in.readByte() != 0;
     zoomGesturesEnabled = in.readByte() != 0;
     doubleTapGesturesEnabled = in.readByte() != 0;
+    quickZoomGesturesEnabled = in.readByte() != 0;
 
     apiBaseUrl = in.readString();
     textureMode = in.readByte() != 0;
@@ -156,6 +158,8 @@ public class MapboxMapOptions implements Parcelable {
         typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiTiltGestures, true));
       mapboxMapOptions.doubleTapGesturesEnabled(
         typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiDoubleTapGestures, true));
+      mapboxMapOptions.quickZoomGesturesEnabled(
+        typedArray.getBoolean(R.styleable.mapbox_MapView_mapbox_uiQuickZoomGestures, true));
 
       mapboxMapOptions.maxZoomPreference(typedArray.getFloat(R.styleable.mapbox_MapView_mapbox_cameraZoomMax,
         MapboxConstants.MAXIMUM_ZOOM));
@@ -506,6 +510,18 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
+   * Specifies whether the user may zoom the map by tapping twice, holding and moving the pointer up and down.
+   *
+   * @param enabled True and gesture will be enabled
+   * @return This
+   */
+  @NonNull
+  public MapboxMapOptions quickZoomGesturesEnabled(boolean enabled) {
+    quickZoomGesturesEnabled = enabled;
+    return this;
+  }
+
+  /**
    * Enable {@link android.view.TextureView} as rendered surface.
    * <p>
    * Since the 5.2.0 release we replaced our TextureView with an {@link android.opengl.GLSurfaceView}
@@ -578,6 +594,7 @@ public class MapboxMapOptions implements Parcelable {
    * <p>
    * The font family argument is passed to {@link android.graphics.Typeface#create(String, int)}.
    * Default system fonts are defined in &#x27;/system/etc/fonts.xml&#x27;
+   * Default font for local ideograph font family is "sans-serif".
    *
    * @param fontFamily font family for local ideograph generation.
    * @return This
@@ -791,6 +808,15 @@ public class MapboxMapOptions implements Parcelable {
   }
 
   /**
+   * Get whether the user may zoom the map by tapping twice, holding and moving the pointer up and down.
+   *
+   * @return True indicates gesture is enabled
+   */
+  public boolean getQuickZoomGesturesEnabled() {
+    return quickZoomGesturesEnabled;
+  }
+
+  /**
    * Get the current configured visibility state for attribution for a map view.
    *
    * @return Visibility state of the attribution
@@ -862,6 +888,7 @@ public class MapboxMapOptions implements Parcelable {
   /**
    * Returns the font-family for locally overriding generation of glyphs in the
    * &#x27;CJK Unified Ideographs&#x27; and &#x27;Hangul Syllables&#x27; ranges.
+   * Default font for local ideograph font family is "sans-serif".
    *
    * @return Local ideograph font family name.
    */
@@ -922,6 +949,7 @@ public class MapboxMapOptions implements Parcelable {
     dest.writeByte((byte) (tiltGesturesEnabled ? 1 : 0));
     dest.writeByte((byte) (zoomGesturesEnabled ? 1 : 0));
     dest.writeByte((byte) (doubleTapGesturesEnabled ? 1 : 0));
+    dest.writeByte((byte) (quickZoomGesturesEnabled ? 1 : 0));
 
     dest.writeString(apiBaseUrl);
     dest.writeByte((byte) (textureMode ? 1 : 0));
@@ -998,6 +1026,9 @@ public class MapboxMapOptions implements Parcelable {
     if (doubleTapGesturesEnabled != options.doubleTapGesturesEnabled) {
       return false;
     }
+    if (quickZoomGesturesEnabled != options.quickZoomGesturesEnabled) {
+      return false;
+    }
     if (cameraPosition != null ? !cameraPosition.equals(options.cameraPosition) : options.cameraPosition != null) {
       return false;
     }
@@ -1061,6 +1092,7 @@ public class MapboxMapOptions implements Parcelable {
     result = 31 * result + (tiltGesturesEnabled ? 1 : 0);
     result = 31 * result + (zoomGesturesEnabled ? 1 : 0);
     result = 31 * result + (doubleTapGesturesEnabled ? 1 : 0);
+    result = 31 * result + (quickZoomGesturesEnabled ? 1 : 0);
     result = 31 * result + (apiBaseUrl != null ? apiBaseUrl.hashCode() : 0);
     result = 31 * result + (textureMode ? 1 : 0);
     result = 31 * result + (translucentTextureSurface ? 1 : 0);
