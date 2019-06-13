@@ -2338,6 +2338,24 @@ public:
     // TODO: Add sibling disappear method
 }
 
+- (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+{
+	if ([gestureRecognizer isMemberOfClass:[UITapGestureRecognizer class]])
+	{
+		UITapGestureRecognizer *tapGesture = (UITapGestureRecognizer *)gestureRecognizer;
+		if (tapGesture.numberOfTapsRequired == 1
+			&& tapGesture.numberOfTouchesRequired == 1)
+		{
+			if ( ! [tapGesture isEqual:_singleTapGestureRecognizer])
+			{
+				[tapGesture requireGestureRecognizerToFail:_singleTapGestureRecognizer];
+			}
+		}
+	}
+	
+	[super addGestureRecognizer:gestureRecognizer];
+}
+
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
 {
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]])
