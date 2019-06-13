@@ -2,7 +2,6 @@
 
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/style/style.hpp>
-#include <mbgl/util/shared_thread_pool.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/string.hpp>
 #include <mbgl/actor/scheduler.hpp>
@@ -27,8 +26,7 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
                                const jni::String& _programCacheDir,
                                const jni::String& _localIdeographFontFamily)
         : javaPeer(_env, _obj)
-        , pixelRatio(_pixelRatio)
-        , threadPool(sharedThreadPool()) {
+        , pixelRatio(_pixelRatio) {
 
     // Get a reference to the JavaVM for callbacks
     if (_env.GetJavaVM(&vm) < 0) {
@@ -37,7 +35,6 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
     }
 
     jFileSource = FileSource::getNativePeer(_env, _jFileSource);
-    auto& fileSource = mbgl::android::FileSource::getDefaultFileSource(_env, _jFileSource);
     auto size = mbgl::Size { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
 
     optional<mbgl::CameraOptions> cameraOptions;
@@ -56,12 +53,10 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
     } else {
         style = std::make_pair(false, jni::Make<std::string>(_env, styleURL));
     }
-    
+
     showLogo = _showLogo;
     // Create the core snapshotter
-    snapshotter = std::make_unique<mbgl::MapSnapshotter>(&fileSource,
-                                                         threadPool,
-                                                         style,
+    snapshotter = std::make_unique<mbgl::MapSnapshotter>(style,
                                                          size,
                                                          pixelRatio,
                                                          cameraOptions,
@@ -69,8 +64,8 @@ MapSnapshotter::MapSnapshotter(jni::JNIEnv& _env,
                                                          jni::Make<std::string>(_env, _programCacheDir),
                                                          _localIdeographFontFamily ?
                                                             jni::Make<std::string>(_env, _localIdeographFontFamily) :
-                                                            optional<std::string>{});
-
+                                                            optional<std::string>{},
+                                                         mbgl::android::FileSource::getSharedResourceOptions(_env, _jFileSource));
 }
 
 MapSnapshotter::~MapSnapshotter() = default;

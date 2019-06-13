@@ -62,7 +62,7 @@ namespace mbgl {
         if (pitchWithMap) {
             matrix::scale(m, m, 1 / pixelsToTileUnits, 1 / pixelsToTileUnits, 1);
             if (!rotateWithMap) {
-                matrix::rotate_z(m, m, state.getAngle());
+                matrix::rotate_z(m, m, state.getBearing());
             }
         } else {
             matrix::scale(m, m, state.getSize().width / 2.0, -(state.getSize().height / 2.0), 1.0);
@@ -82,7 +82,7 @@ namespace mbgl {
             matrix::multiply(m, m, posMatrix);
             matrix::scale(m, m, pixelsToTileUnits, pixelsToTileUnits, 1);
             if (!rotateWithMap) {
-                matrix::rotate_z(m, m, -state.getAngle());
+                matrix::rotate_z(m, m, -state.getBearing());
             }
         } else {
             matrix::scale(m, m, 1, -1, 1);
@@ -122,15 +122,15 @@ namespace mbgl {
     }
 
     void addDynamicAttributes(const Point<float>& anchorPoint, const float angle,
-            gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex>& dynamicVertexArray) {
-        auto dynamicVertex = SymbolDynamicLayoutAttributes::vertex(anchorPoint, angle);
+            gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertexArray) {
+        auto dynamicVertex = SymbolSDFIconProgram::dynamicLayoutVertex(anchorPoint, angle);
         dynamicVertexArray.emplace_back(dynamicVertex);
         dynamicVertexArray.emplace_back(dynamicVertex);
         dynamicVertexArray.emplace_back(dynamicVertex);
         dynamicVertexArray.emplace_back(dynamicVertex);
     }
 
-    void hideGlyphs(size_t numGlyphs, gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex>& dynamicVertexArray) {
+    void hideGlyphs(size_t numGlyphs, gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertexArray) {
         const Point<float> offscreenPoint = { -INFINITY, -INFINITY };
         for (size_t i = 0; i < numGlyphs; i++) {
             addDynamicAttributes(offscreenPoint, 0, dynamicVertexArray);
@@ -288,12 +288,12 @@ namespace mbgl {
                               const mat4& posMatrix,
                               const mat4& labelPlaneMatrix,
                               const mat4& glCoordMatrix,
-                              gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex>& dynamicVertexArray,
+                              gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertexArray,
                               const Point<float>& projectedAnchorPoint,
                               const float aspectRatio) {
-        const float fontScale = fontSize / 24.0;
-        const float lineOffsetX = symbol.lineOffset[0] * fontSize;
-        const float lineOffsetY = symbol.lineOffset[1] * fontSize;
+        const float fontScale = fontSize / util::ONE_EM;
+        const float lineOffsetX = symbol.lineOffset[0] * fontScale;
+        const float lineOffsetY = symbol.lineOffset[1] * fontScale;
 
         std::vector<PlacedGlyph> placedGlyphs;
         if (symbol.glyphOffsets.size() > 1) {
@@ -360,7 +360,7 @@ namespace mbgl {
     }
 
 
-    void reprojectLineLabels(gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex>& dynamicVertexArray, const std::vector<PlacedSymbol>& placedSymbols,
+    void reprojectLineLabels(gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertexArray, const std::vector<PlacedSymbol>& placedSymbols,
 			const mat4& posMatrix, const style::SymbolPropertyValues& values,
             const RenderTile& tile, const SymbolSizeBinder& sizeBinder, const TransformState& state) {
 

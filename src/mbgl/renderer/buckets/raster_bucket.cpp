@@ -1,32 +1,35 @@
 #include <mbgl/renderer/buckets/raster_bucket.hpp>
 #include <mbgl/renderer/layers/render_raster_layer.hpp>
 #include <mbgl/programs/raster_program.hpp>
-#include <mbgl/gl/context.hpp>
+#include <mbgl/gfx/upload_pass.hpp>
+#include <mbgl/util/id.hpp>
 
 namespace mbgl {
 
 using namespace style;
 
 RasterBucket::RasterBucket(PremultipliedImage&& image_)
-    : image(std::make_shared<PremultipliedImage>(std::move(image_))) {
+    : image(std::make_shared<PremultipliedImage>(std::move(image_))),
+      drawScopeID(util::toHex(util::nextID())) {
 }
 
 RasterBucket::RasterBucket(std::shared_ptr<PremultipliedImage> image_)
-    : image(std::move(image_)) {
+    : image(std::move(image_)),
+      drawScopeID(util::toHex(util::nextID())) {
 }
 
 RasterBucket::~RasterBucket() = default;
 
-void RasterBucket::upload(gl::Context& context) {
+void RasterBucket::upload(gfx::UploadPass& uploadPass) {
     if (!hasData()) {
         return;
     }
     if (!texture) {
-        texture = context.createTexture(*image);
+        texture = uploadPass.createTexture(*image);
     }
     if (!segments.empty()) {
-        vertexBuffer = context.createVertexBuffer(std::move(vertices));
-        indexBuffer = context.createIndexBuffer(std::move(indices));
+        vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
+        indexBuffer = uploadPass.createIndexBuffer(std::move(indices));
     }
     uploaded = true;
 }
@@ -79,7 +82,7 @@ void RasterBucket::setMask(TileMask&& mask_) {
 
         if (segments.back().vertexLength + vertexLength > std::numeric_limits<uint16_t>::max()) {
             // Move to a new segments because the old one can't hold the geometry.
-            segments.emplace_back(vertices.vertexSize(), indices.indexSize());
+            segments.emplace_back(vertices.elements(), indices.elements());
         }
 
         vertices.emplace_back(

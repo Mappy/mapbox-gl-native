@@ -2,19 +2,18 @@
 
 #include <mbgl/renderer/render_pass.hpp>
 #include <mbgl/renderer/render_light.hpp>
-#include <mbgl/renderer/mode.hpp>
 #include <mbgl/map/mode.hpp>
-#include <mbgl/gl/depth_mode.hpp>
-#include <mbgl/gl/stencil_mode.hpp>
-#include <mbgl/gl/color_mode.hpp>
+#include <mbgl/gfx/depth_mode.hpp>
+#include <mbgl/gfx/stencil_mode.hpp>
+#include <mbgl/gfx/color_mode.hpp>
 #include <mbgl/util/mat4.hpp>
-#include <mbgl/algorithm/generate_clip_ids.hpp>
 
 #include <array>
+#include <map>
+#include <vector>
 
 namespace mbgl {
 
-class RendererBackend;
 class UpdateParameters;
 class RenderStaticData;
 class Programs;
@@ -22,21 +21,32 @@ class TransformState;
 class ImageManager;
 class LineAtlas;
 class UnwrappedTileID;
+class RenderSource;
+class RenderTile;
+
+namespace gfx {
+class Context;
+class RendererBackend;
+class CommandEncoder;
+class RenderPass;
+} // namespace gfx
 
 class PaintParameters {
 public:
-    PaintParameters(gl::Context&,
+    PaintParameters(gfx::Context&,
                     float pixelRatio,
-                    GLContextMode,
-                    RendererBackend&,
+                    gfx::RendererBackend&,
                     const UpdateParameters&,
                     const EvaluatedLight&,
                     RenderStaticData&,
                     ImageManager&,
                     LineAtlas&);
+    ~PaintParameters();
 
-    gl::Context& context;
-    RendererBackend& backend;
+    gfx::Context& context;
+    gfx::RendererBackend& backend;
+    const std::unique_ptr<gfx::CommandEncoder> encoder;
+    std::unique_ptr<gfx::RenderPass> renderPass;
 
     const TransformState& state;
     const EvaluatedLight& evaluatedLight;
@@ -48,19 +58,16 @@ public:
     RenderPass pass = RenderPass::Opaque;
     MapMode mapMode;
     MapDebugOptions debugOptions;
-    GLContextMode contextMode;
     TimePoint timePoint;
 
     float pixelRatio;
     std::array<float, 2> pixelsToGLUnits;
-    algorithm::ClipIDGenerator clipIDGenerator;
 
     Programs& programs;
 
-    gl::DepthMode depthModeForSublayer(uint8_t n, gl::DepthMode::Mask) const;
-    gl::DepthMode depthModeFor3D(gl::DepthMode::Mask) const;
-    gl::StencilMode stencilModeForClipping(const ClipID&) const;
-    gl::ColorMode colorModeForRenderPass() const;
+    gfx::DepthMode depthModeForSublayer(uint8_t n, gfx::DepthMaskType) const;
+    gfx::DepthMode depthModeFor3D() const;
+    gfx::ColorMode colorModeForRenderPass() const;
 
     mat4 matrixForTile(const UnwrappedTileID&, bool aligned = false) const;
 
@@ -68,11 +75,26 @@ public:
     mat4 alignedProjMatrix;
     mat4 nearClippedProjMatrix;
 
+    // Stencil handling
+public:
+    void renderTileClippingMasks(const std::vector<std::reference_wrapper<RenderTile>>&);
+    gfx::StencilMode stencilModeForClipping(const UnwrappedTileID&) const;
+    gfx::StencilMode stencilModeFor3D();
+
+private:
+    void clearStencil();
+
+    // This needs to be an ordered map so that we have the same order as the renderTiles.
+    std::map<UnwrappedTileID, int32_t> tileClippingMaskIDs;
+    int32_t nextStencilID = 1;
+
+public:
     int numSublayers = 3;
     uint32_t currentLayer;
     float depthRangeSize;
     const float depthEpsilon = 1.0f / (1 << 16);
-    
+
+
     float symbolFadeChange;
 };
 

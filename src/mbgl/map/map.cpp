@@ -1,7 +1,7 @@
 #include <mbgl/map/map.hpp>
+#include <mbgl/map/map_impl.hpp>
 #include <mbgl/map/camera.hpp>
 #include <mbgl/map/transform.hpp>
-#include <mbgl/map/transform_state.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/layermanager/layer_manager.hpp>
 #include <mbgl/style/style_impl.hpp>
@@ -17,136 +17,24 @@
 #include <mbgl/util/exception.hpp>
 #include <mbgl/util/mapbox.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
-#include <mbgl/actor/scheduler.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/math/log2.hpp>
+
 #include <utility>
 
 namespace mbgl {
 
 using namespace style;
 
-struct StillImageRequest {
-    StillImageRequest(Map::StillImageCallback&& callback_)
-        : callback(std::move(callback_)) {
-    }
+Map::Map(RendererFrontend& frontend,
+         MapObserver& observer,
+         const MapOptions& mapOptions,
+         const ResourceOptions& resourceOptions)
+    : impl(std::make_unique<Impl>(frontend, observer,
+                                  FileSource::getSharedFileSource(resourceOptions),
+                                  mapOptions)) {}
 
-    Map::StillImageCallback callback;
-};
-
-class Map::Impl : public style::Observer,
-                  public RendererObserver {
-public:
-    Impl(Map&,
-         RendererFrontend&,
-         MapObserver&,
-         float pixelRatio,
-         FileSource&,
-         Scheduler&,
-         MapMode,
-         ConstrainMode,
-         ViewportMode,
-         bool);
-
-    ~Impl();
-
-    // StyleObserver
-    void onSourceChanged(style::Source&) override;
-    void onUpdate() override;
-    void onStyleLoading() override;
-    void onStyleLoaded() override;
-    void onStyleError(std::exception_ptr) override;
-
-    // RendererObserver
-    void onInvalidate() override;
-    void onResourceError(std::exception_ptr) override;
-    void onWillStartRenderingFrame() override;
-    void onDidFinishRenderingFrame(RenderMode, bool) override;
-    void onWillStartRenderingMap() override;
-    void onDidFinishRenderingMap() override;
-
-    Map& map;
-    MapObserver& observer;
-    RendererFrontend& rendererFrontend;
-    FileSource& fileSource;
-    Scheduler& scheduler;
-
-    Transform transform;
-
-    const MapMode mode;
-    const float pixelRatio;
-    const bool crossSourceCollisions;
-
-    MapDebugOptions debugOptions { MapDebugOptions::NoDebug };
-
-    std::unique_ptr<Style> style;
-    AnnotationManager annotationManager;
-
-    bool cameraMutated = false;
-
-    uint8_t prefetchZoomDelta = util::DEFAULT_PREFETCH_ZOOM_DELTA;
-
-    bool loading = false;
-    bool rendererFullyLoaded;
-    std::unique_ptr<StillImageRequest> stillImageRequest;
-};
-
-Map::Map(RendererFrontend& rendererFrontend,
-         MapObserver& mapObserver,
-         const Size size,
-         const float pixelRatio,
-         FileSource& fileSource,
-         Scheduler& scheduler,
-         MapMode mapMode,
-         ConstrainMode constrainMode,
-         ViewportMode viewportMode,
-         bool crossSourceCollisions)
-    : impl(std::make_unique<Impl>(*this,
-                                  rendererFrontend,
-                                  mapObserver,
-                                  pixelRatio,
-                                  fileSource,
-                                  scheduler,
-                                  mapMode,
-                                  constrainMode,
-                                  viewportMode,
-                                  crossSourceCollisions)) {
-    impl->transform.resize(size);
-}
-
-Map::Impl::Impl(Map& map_,
-                RendererFrontend& frontend,
-                MapObserver& mapObserver,
-                float pixelRatio_,
-                FileSource& fileSource_,
-                Scheduler& scheduler_,
-                MapMode mode_,
-                ConstrainMode constrainMode_,
-                ViewportMode viewportMode_,
-                bool crossSourceCollisions_)
-    : map(map_),
-      observer(mapObserver),
-      rendererFrontend(frontend),
-      fileSource(fileSource_),
-      scheduler(scheduler_),
-      transform(observer,
-                constrainMode_,
-                viewportMode_),
-      mode(mode_),
-      pixelRatio(pixelRatio_),
-      crossSourceCollisions(crossSourceCollisions_),
-      style(std::make_unique<Style>(scheduler, fileSource, pixelRatio)),
-      annotationManager(*style) {
-
-    style->impl->setObserver(this);
-    rendererFrontend.setObserver(*this);
-}
-
-Map::Impl::~Impl() {
-    // Explicitly reset the RendererFrontend first to ensure it releases
-    // All shared resources (AnnotationManager)
-    rendererFrontend.reset();
-};
+Map::Map(std::unique_ptr<Impl> impl_) : impl(std::move(impl_)) {}
 
 Map::~Map() = default;
 
@@ -186,47 +74,6 @@ void Map::renderStill(const CameraOptions& camera, MapDebugOptions debugOptions,
 void Map::triggerRepaint() {
     impl->onUpdate();
 }
-
-#pragma mark - Map::Impl RendererObserver
-
-void Map::Impl::onWillStartRenderingMap() {
-    if (mode == MapMode::Continuous) {
-        observer.onWillStartRenderingMap();
-    }
-}
-
-void Map::Impl::onWillStartRenderingFrame() {
-    if (mode == MapMode::Continuous) {
-        observer.onWillStartRenderingFrame();
-    }
-}
-
-void Map::Impl::onDidFinishRenderingFrame(RenderMode renderMode, bool needsRepaint) {
-    rendererFullyLoaded = renderMode == RenderMode::Full;
-
-    if (mode == MapMode::Continuous) {
-        observer.onDidFinishRenderingFrame(MapObserver::RenderMode(renderMode));
-
-        if (needsRepaint || transform.inTransition()) {
-            onUpdate();
-        } else if (rendererFullyLoaded) {
-            observer.onDidBecomeIdle();
-        }
-    } else if (stillImageRequest && rendererFullyLoaded) {
-        auto request = std::move(stillImageRequest);
-        request->callback(nullptr);
-    }
-}
-
-void Map::Impl::onDidFinishRenderingMap() {
-    if (mode == MapMode::Continuous && loading) {
-        observer.onDidFinishRenderingMap(MapObserver::RenderMode::Full);
-        if (loading) {
-            loading = false;
-            observer.onDidFinishLoadingMap();
-        }
-    }
-};
 
 #pragma mark - Style
 
@@ -286,9 +133,7 @@ CameraOptions Map::getCameraOptions(const EdgeInsets& padding) const {
 }
 
 void Map::jumpTo(const CameraOptions& camera) {
-    impl->cameraMutated = true;
-    impl->transform.jumpTo(camera);
-    impl->onUpdate();
+    impl->jumpTo(camera);
 }
 
 void Map::easeTo(const CameraOptions& camera, const AnimationOptions& animation) {
@@ -303,56 +148,25 @@ void Map::flyTo(const CameraOptions& camera, const AnimationOptions& animation) 
     impl->onUpdate();
 }
 
-#pragma mark - Position
-
 void Map::moveBy(const ScreenCoordinate& point, const AnimationOptions& animation) {
     impl->cameraMutated = true;
     impl->transform.moveBy(point, animation);
     impl->onUpdate();
 }
 
-void Map::setLatLng(const LatLng& latLng, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withCenter(latLng), animation);
+void Map::pitchBy(double pitch, const AnimationOptions& animation) {
+    easeTo(CameraOptions().withPitch((impl->transform.getPitch() * util::RAD2DEG) - pitch), animation);
 }
 
-void Map::setLatLng(const LatLng& latLng, const EdgeInsets& padding, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withCenter(latLng).withPadding(padding), animation);
-}
-
-LatLng Map::getLatLng(const EdgeInsets& padding) const {
-    return impl->transform.getLatLng(padding);
-}
-
-void Map::resetPosition(const EdgeInsets& padding) {
-    impl->cameraMutated = true;
-    impl->transform.jumpTo(CameraOptions().withCenter(LatLng()).withPadding(padding).withZoom(0.0).withAngle(0.0).withPitch(0.0));
-    impl->onUpdate();
-}
-
-#pragma mark - Zoom
-
-void Map::setZoom(double zoom, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withZoom(zoom), animation);
-}
-
-void Map::setZoom(double zoom, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
+void Map::scaleBy(double scale, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
+    const double zoom = impl->transform.getZoom() + impl->transform.getState().scaleZoom(scale);
     easeTo(CameraOptions().withZoom(zoom).withAnchor(anchor), animation);
 }
 
-void Map::setZoom(double zoom, const EdgeInsets& padding, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withZoom(zoom).withPadding(padding), animation);
-}
-
-double Map::getZoom() const {
-    return impl->transform.getZoom();
-}
-
-void Map::setLatLngZoom(const LatLng& latLng, double zoom, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withCenter(latLng).withZoom(zoom), animation);
-}
-
-void Map::setLatLngZoom(const LatLng& latLng, double zoom, const EdgeInsets& padding, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withCenter(latLng).withZoom(zoom).withPadding(padding), animation);
+void Map::rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& animation) {
+    impl->cameraMutated = true;
+    impl->transform.rotateBy(first, second, animation);
+    impl->onUpdate();
 }
 
 CameraOptions Map::cameraForLatLngBounds(const LatLngBounds& bounds, const EdgeInsets& padding, optional<double> bearing, optional<double> pitch) const {
@@ -392,8 +206,13 @@ CameraOptions cameraForLatLngs(const std::vector<LatLng>& latLngs, const Transfo
         scaleY -= (padding.top() + padding.bottom()) / height;
         minScale = util::min(scaleX, scaleY);
     }
-    double zoom = transform.getZoom() + util::log2(minScale);
-    zoom = util::clamp(zoom, transform.getState().getMinZoom(), transform.getState().getMaxZoom());
+
+    double zoom = transform.getZoom();
+    if (minScale > 0) {
+        zoom = util::clamp(zoom + util::log2(minScale), transform.getState().getMinZoom(), transform.getState().getMaxZoom());
+    } else {
+        Log::Error(Event::General, "Unable to calculate appropriate zoom level for bounds. Vertical or horizontal padding is greater than map's height or width.");
+    }
 
     // Calculate the center point of a virtual bounds that is extended in all directions by padding.
     ScreenCoordinate centerPixel = nePixel + swPixel;
@@ -423,11 +242,11 @@ CameraOptions Map::cameraForLatLngs(const std::vector<LatLng>& latLngs, const Ed
     Transform transform(impl->transform.getState());
 
     if (bearing || pitch) {
-        transform.jumpTo(CameraOptions().withAngle(bearing).withPitch(pitch));
+        transform.jumpTo(CameraOptions().withBearing(bearing).withPitch(pitch));
     }
 
     return mbgl::cameraForLatLngs(latLngs, transform, padding)
-        .withAngle(-transform.getAngle() * util::RAD2DEG)
+        .withBearing(-transform.getBearing() * util::RAD2DEG)
         .withPitch(transform.getPitch() * util::RAD2DEG);
 }
 
@@ -435,7 +254,7 @@ CameraOptions Map::cameraForGeometry(const Geometry<double>& geometry, const Edg
 
     std::vector<LatLng> latLngs;
     forEachPoint(geometry, [&](const Point<double>& pt) {
-        latLngs.push_back({ pt.y, pt.x });
+        latLngs.emplace_back(pt.y, pt.x);
     });
     return cameraForLatLngs(latLngs, padding, bearing, pitch);
 }
@@ -451,180 +270,87 @@ LatLngBounds Map::latLngBoundsForCamera(const CameraOptions& camera) const {
     );
 }
 
-void Map::resetZoom() {
-    impl->cameraMutated = true;
-    setZoom(0);
-}
-
 #pragma mark - Bounds
 
-optional<LatLngBounds> Map::getLatLngBounds() const {
-    return impl->transform.getState().getLatLngBounds();
-}
+void Map::setBounds(const BoundOptions& options) {
+    bool changeCamera = false;
+    CameraOptions cameraOptions;
 
-void Map::setLatLngBounds(optional<LatLngBounds> bounds) {
-    impl->cameraMutated = true;
-    impl->transform.setLatLngBounds(bounds);
-    impl->onUpdate();
-}
+    if (options.bounds) {
+        changeCamera = true;
+        impl->transform.setLatLngBounds(*options.bounds);
+    }
 
-void Map::setMinZoom(const double minZoom) {
-    impl->transform.setMinZoom(minZoom);
-    if (getZoom() < minZoom) {
-        setZoom(minZoom);
+    if (options.minZoom) {
+        impl->transform.setMinZoom(*options.minZoom);
+        if (impl->transform.getZoom() < *options.minZoom) {
+            changeCamera = true;
+            cameraOptions.withZoom(*options.minZoom);
+        }
+    }
+
+    if (options.maxZoom) {
+        impl->transform.setMaxZoom(*options.maxZoom);
+        if (impl->transform.getZoom() > *options.maxZoom) {
+            changeCamera = true;
+            cameraOptions.withZoom(*options.maxZoom);
+        }
+    }
+
+    if (changeCamera) {
+        jumpTo(cameraOptions);
     }
 }
 
-double Map::getMinZoom() const {
-    return impl->transform.getState().getMinZoom();
+BoundOptions Map::getBounds() const {
+    return BoundOptions()
+        .withLatLngBounds(impl->transform.getState().getLatLngBounds())
+        .withMinZoom(impl->transform.getState().getMinZoom())
+        .withMaxZoom(impl->transform.getState().getMaxZoom());
 }
 
-void Map::setMaxZoom(const double maxZoom) {
-    impl->transform.setMaxZoom(maxZoom);
-    if (getZoom() > maxZoom) {
-        setZoom(maxZoom);
-    }
-}
-
-double Map::getMaxZoom() const {
-    return impl->transform.getState().getMaxZoom();
-}
-
-void Map::setMinPitch(double minPitch) {
-    impl->transform.setMinPitch(minPitch * util::DEG2RAD);
-    if (getPitch() < minPitch) {
-        setPitch(minPitch);
-    }
-}
-
-double Map::getMinPitch() const {
-    return impl->transform.getState().getMinPitch() * util::RAD2DEG;
-}
-
-void Map::setMaxPitch(double maxPitch) {
-    impl->transform.setMaxPitch(maxPitch * util::DEG2RAD);
-    if (getPitch() > maxPitch) {
-        setPitch(maxPitch);
-    }
-}
-
-double Map::getMaxPitch() const {
-    return impl->transform.getState().getMaxPitch() * util::RAD2DEG;
-}
-
-#pragma mark - Size
+#pragma mark - Map options
 
 void Map::setSize(const Size size) {
     impl->transform.resize(size);
     impl->onUpdate();
 }
 
-Size Map::getSize() const {
-    return impl->transform.getState().getSize();
-}
-
-#pragma mark - Rotation
-
-void Map::rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& animation) {
-    impl->cameraMutated = true;
-    impl->transform.rotateBy(first, second, animation);
-    impl->onUpdate();
-}
-
-void Map::setBearing(double degrees, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withAngle(degrees), animation);
-}
-
-void Map::setBearing(double degrees, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    return easeTo(CameraOptions().withAngle(degrees).withAnchor(anchor), animation);
-}
-
-void Map::setBearing(double degrees, const EdgeInsets& padding, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withAngle(degrees).withPadding(padding), animation);
-}
-
-double Map::getBearing() const {
-    return -impl->transform.getAngle() * util::RAD2DEG;
-}
-
-void Map::resetNorth(const AnimationOptions& animation) {
-    easeTo(CameraOptions().withAngle(0.0), animation);
-}
-
-#pragma mark - Pitch
-
-void Map::setPitch(double pitch, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withPitch(pitch), animation);
-}
-
-void Map::setPitch(double pitch, optional<ScreenCoordinate> anchor, const AnimationOptions& animation) {
-    easeTo(CameraOptions().withPitch(pitch).withAnchor(anchor), animation);
-}
-
-double Map::getPitch() const {
-    return impl->transform.getPitch() * util::RAD2DEG;
-}
-
-#pragma mark - North Orientation
-
 void Map::setNorthOrientation(NorthOrientation orientation) {
     impl->transform.setNorthOrientation(orientation);
     impl->onUpdate();
 }
-
-NorthOrientation Map::getNorthOrientation() const {
-    return impl->transform.getNorthOrientation();
-}
-
-#pragma mark - Constrain mode
 
 void Map::setConstrainMode(mbgl::ConstrainMode mode) {
     impl->transform.setConstrainMode(mode);
     impl->onUpdate();
 }
 
-ConstrainMode Map::getConstrainMode() const {
-    return impl->transform.getConstrainMode();
-}
-
-#pragma mark - Viewport mode
-
 void Map::setViewportMode(mbgl::ViewportMode mode) {
     impl->transform.setViewportMode(mode);
     impl->onUpdate();
 }
 
-ViewportMode Map::getViewportMode() const {
-    return impl->transform.getViewportMode();
+MapOptions Map::getMapOptions() const {
+    return std::move(MapOptions()
+        .withMapMode(impl->mode)
+        .withConstrainMode(impl->transform.getConstrainMode())
+        .withViewportMode(impl->transform.getViewportMode())
+        .withCrossSourceCollisions(impl->crossSourceCollisions)
+        .withNorthOrientation(impl->transform.getNorthOrientation())
+        .withSize(impl->transform.getState().getSize())
+        .withPixelRatio(impl->pixelRatio));
 }
 
 #pragma mark - Projection mode
 
-void Map::setAxonometric(bool axonometric) {
-    impl->transform.setAxonometric(axonometric);
+void Map::setProjectionMode(const ProjectionMode& options) {
+    impl->transform.setProjectionMode(options);
     impl->onUpdate();
 }
 
-bool Map::getAxonometric() const {
-    return impl->transform.getAxonometric();
-}
-
-void Map::setXSkew(double xSkew) {
-    impl->transform.setXSkew(xSkew);
-    impl->onUpdate();
-}
-
-double Map::getXSkew() const {
-    return impl->transform.getXSkew();
-}
-
-void Map::setYSkew(double ySkew) {
-    impl->transform.setYSkew(ySkew);
-    impl->onUpdate();
-}
-
-double Map::getYSkew() const {
-    return impl->transform.getYSkew();
+ProjectionMode Map::getProjectionMode() const {
+    return impl->transform.getProjectionMode();
 }
 
 #pragma mark - Projection
@@ -634,7 +360,7 @@ ScreenCoordinate Map::pixelForLatLng(const LatLng& latLng) const {
     // antimeridian, we unwrap the point longitude so it would be seen if
     // e.g. the next antimeridian side is visible.
     LatLng unwrappedLatLng = latLng.wrapped();
-    unwrappedLatLng.unwrapForShortestPath(getLatLng());
+    unwrappedLatLng.unwrapForShortestPath(impl->transform.getLatLng());
     return impl->transform.latLngToScreenCoordinate(unwrappedLatLng);
 }
 
@@ -732,74 +458,6 @@ uint8_t Map::getPrefetchZoomDelta() const {
 
 bool Map::isFullyLoaded() const {
     return impl->style->impl->isLoaded() && impl->rendererFullyLoaded;
-}
-
-void Map::Impl::onSourceChanged(style::Source& source) {
-    observer.onSourceChanged(source);
-}
-
-void Map::Impl::onInvalidate() {
-    onUpdate();
-}
-
-void Map::Impl::onUpdate() {
-    // Don't load/render anything in still mode until explicitly requested.
-    if (mode != MapMode::Continuous && !stillImageRequest) {
-        return;
-    }
-
-    TimePoint timePoint = mode == MapMode::Continuous ? Clock::now() : Clock::time_point::max();
-
-    transform.updateTransitions(timePoint);
-
-    UpdateParameters params = {
-        style->impl->isLoaded(),
-        mode,
-        pixelRatio,
-        debugOptions,
-        timePoint,
-        transform.getState(),
-        style->impl->getGlyphURL(),
-        style->impl->spriteLoaded,
-        style->impl->getTransitionOptions(),
-        style->impl->getLight()->impl,
-        style->impl->getImageImpls(),
-        style->impl->getSourceImpls(),
-        style->impl->getLayerImpls(),
-        annotationManager,
-        prefetchZoomDelta,
-        bool(stillImageRequest),
-        crossSourceCollisions
-    };
-
-    rendererFrontend.update(std::make_shared<UpdateParameters>(std::move(params)));
-}
-
-void Map::Impl::onStyleLoading() {
-    loading = true;
-    rendererFullyLoaded = false;
-    observer.onWillStartLoadingMap();
-}
-
-void Map::Impl::onStyleLoaded() {
-    if (!cameraMutated) {
-        map.jumpTo(style->getDefaultCamera());
-    }
-    if (LayerManager::annotationsEnabled) {
-        annotationManager.onStyleLoaded();
-    }
-    observer.onDidFinishLoadingStyle();
-}
-
-void Map::Impl::onStyleError(std::exception_ptr error) {
-    observer.onDidFailLoadingMap(error);
-}
-
-void Map::Impl::onResourceError(std::exception_ptr error) {
-    if (mode != MapMode::Continuous && stillImageRequest) {
-        auto request = std::move(stillImageRequest);
-        request->callback(error);
-    }
 }
 
 void Map::dumpDebugLogs() const {

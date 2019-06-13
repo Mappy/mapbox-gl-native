@@ -16,8 +16,8 @@ import android.widget.Toast;
 import com.mapbox.android.core.location.LocationEngineRequest;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
-import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.location.LocationComponent;
+import com.mapbox.mapboxsdk.location.LocationComponentActivationOptions;
 import com.mapbox.mapboxsdk.location.LocationComponentOptions;
 import com.mapbox.mapboxsdk.location.OnCameraTrackingChangedListener;
 import com.mapbox.mapboxsdk.location.OnLocationCameraTransitionListener;
@@ -126,12 +126,16 @@ public class LocationModesActivity extends AppCompatActivity implements OnMapRea
 
     mapboxMap.setStyle(Style.MAPBOX_STREETS, style -> {
       locationComponent = mapboxMap.getLocationComponent();
-      locationComponent.activateLocationComponent(this, style, true,
-        new LocationEngineRequest.Builder(750)
-          .setFastestInterval(750)
-          .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY)
-          .build()
-      );
+      locationComponent.activateLocationComponent(
+        LocationComponentActivationOptions
+          .builder(this, style)
+          .useDefaultLocationEngine(true)
+          .locationEngineRequest(new LocationEngineRequest.Builder(750)
+            .setFastestInterval(750)
+            .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY)
+            .build())
+          .build());
+
       toggleStyle();
       locationComponent.setLocationComponentEnabled(true);
       locationComponent.addOnLocationClickListener(this);
@@ -178,6 +182,22 @@ public class LocationModesActivity extends AppCompatActivity implements OnMapRea
       locationComponent.setMaxAnimationFps(5);
     } else if (id == R.id.action_component_throttling_disabled) {
       locationComponent.setMaxAnimationFps(Integer.MAX_VALUE);
+    } else if (id == R.id.action_component_animate_while_tracking) {
+      locationComponent.zoomWhileTracking(17, 750, new MapboxMap.CancelableCallback() {
+        @Override
+        public void onCancel() {
+          // No impl
+        }
+
+        @Override
+        public void onFinish() {
+          locationComponent.tiltWhileTracking(60);
+        }
+      });
+      if (locationComponent.getCameraMode() == CameraMode.NONE) {
+
+        Toast.makeText(this, "Not possible to animate - not tracking", Toast.LENGTH_SHORT).show();
+      }
     }
 
     return super.onOptionsItemSelected(item);
@@ -202,7 +222,6 @@ public class LocationModesActivity extends AppCompatActivity implements OnMapRea
 
       options = options.toBuilder()
         .padding(padding)
-        .layerBelow("road-label")
         .build();
     }
 
@@ -366,31 +385,18 @@ public class LocationModesActivity extends AppCompatActivity implements OnMapRea
   }
 
   private void setCameraTrackingMode(@CameraMode.Mode int mode) {
-    locationComponent.setCameraMode(mode, new OnLocationCameraTransitionListener() {
-      @Override
-      public void onLocationCameraTransitionFinished(@CameraMode.Mode int cameraMode) {
-        if (mode != CameraMode.NONE) {
-          locationComponent.zoomWhileTracking(15, 750, new MapboxMap.CancelableCallback() {
-            @Override
-            public void onCancel() {
-              // No impl
-            }
-
-            @Override
-            public void onFinish() {
-              locationComponent.tiltWhileTracking(45);
-            }
-          });
-        } else {
-          mapboxMap.easeCamera(CameraUpdateFactory.tiltTo(0));
+    locationComponent.setCameraMode(mode, 1200, 16.0, null, 45.0,
+      new OnLocationCameraTransitionListener() {
+        @Override
+        public void onLocationCameraTransitionFinished(@CameraMode.Mode int cameraMode) {
+          Toast.makeText(LocationModesActivity.this, "Transition finished", Toast.LENGTH_SHORT).show();
         }
-      }
 
-      @Override
-      public void onLocationCameraTransitionCanceled(@CameraMode.Mode int cameraMode) {
-        // No impl
-      }
-    });
+        @Override
+        public void onLocationCameraTransitionCanceled(@CameraMode.Mode int cameraMode) {
+          Toast.makeText(LocationModesActivity.this, "Transition canceled", Toast.LENGTH_SHORT).show();
+        }
+      });
   }
 
   @Override

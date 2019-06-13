@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mbgl/renderer/mode.hpp>
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/renderer/render_source_observer.hpp>
 #include <mbgl/renderer/render_light.hpp>
@@ -11,6 +10,7 @@
 #include <mbgl/map/zoom_history.hpp>
 #include <mbgl/text/cross_tile_symbol_index.hpp>
 #include <mbgl/text/glyph_manager_observer.hpp>
+#include <mbgl/renderer/image_manager_observer.hpp>
 #include <mbgl/text/placement.hpp>
 
 #include <memory>
@@ -19,7 +19,6 @@
 
 namespace mbgl {
 
-class RendererBackend;
 class RendererObserver;
 class RenderSource;
 class RenderLayer;
@@ -27,18 +26,23 @@ class UpdateParameters;
 class RenderStaticData;
 class RenderedQueryOptions;
 class SourceQueryOptions;
-class FileSource;
-class Scheduler;
 class GlyphManager;
 class ImageManager;
 class LineAtlas;
 class CrossTileSymbolIndex;
 
+namespace gfx {
+class RendererBackend;
+} // namespace gfx
+
 class Renderer::Impl : public GlyphManagerObserver,
+                       public ImageManagerObserver,
                        public RenderSourceObserver{
 public:
-    Impl(RendererBackend&, float pixelRatio_, FileSource&, Scheduler&, GLContextMode,
-         const optional<std::string> programCacheDir, const optional<std::string> localFontFamily);
+    Impl(gfx::RendererBackend&,
+         float pixelRatio_,
+         const optional<std::string> programCacheDir,
+         const optional<std::string> localFontFamily_);
     ~Impl() final;
 
     void markContextLost() {
@@ -60,7 +64,7 @@ public:
                                                  const optional<std::map<std::string, Value>>& args) const;
 
     void reduceMemoryUse();
-    void dumDebugLogs();
+    void dumpDebugLogs();
 
 private:
     bool isLoaded() const;
@@ -85,19 +89,20 @@ private:
     void onTileChanged(RenderSource&, const OverscaledTileID&) override;
     void onTileError(RenderSource&, const OverscaledTileID&, std::exception_ptr) override;
 
+    // ImageManagerObserver implementation
+    void onStyleImageMissing(const std::string&, std::function<void()>) override;
+
     void updateFadingTiles();
 
     friend class Renderer;
 
-    RendererBackend& backend;
-    Scheduler& scheduler;
-    FileSource& fileSource;
+    gfx::RendererBackend& backend;
 
     RendererObserver* observer;
 
-    const GLContextMode contextMode;
     const float pixelRatio;
     const optional<std::string> programCacheDir;
+    const optional<std::string> localFontFamily;
 
     enum class RenderState {
         Never,

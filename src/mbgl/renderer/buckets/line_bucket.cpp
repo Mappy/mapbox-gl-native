@@ -11,10 +11,10 @@ namespace mbgl {
 using namespace style;
 
 LineBucket::LineBucket(const style::LineLayoutProperties::PossiblyEvaluated layout_,
-                       std::map<std::string, RenderLinePaintProperties::PossiblyEvaluated> layerPaintProperties,
+                       const std::map<std::string, Immutable<style::LayerProperties>>& layerPaintProperties,
                        const float zoom_,
                        const uint32_t overscaling_)
-    : layout(layout_),
+    : layout(std::move(layout_)),
       zoom(zoom_),
       overscaling(overscaling_) {
 
@@ -23,7 +23,7 @@ LineBucket::LineBucket(const style::LineLayoutProperties::PossiblyEvaluated layo
             std::piecewise_construct,
             std::forward_as_tuple(pair.first),
             std::forward_as_tuple(
-                pair.second,
+                getEvaluated<LineLayerProperties>(pair.second),
                 zoom));
     }
 }
@@ -41,9 +41,9 @@ void LineBucket::addFeature(const GeometryTileFeature& feature,
     for (auto& pair : paintPropertyBinders) {
         const auto it = patternDependencies.find(pair.first);
         if (it != patternDependencies.end()){
-            pair.second.populateVertexVectors(feature, vertices.vertexSize(), patternPositions, it->second);
+            pair.second.populateVertexVectors(feature, vertices.elements(), patternPositions, it->second);
         } else {
-            pair.second.populateVertexVectors(feature, vertices.vertexSize(), patternPositions, {});
+            pair.second.populateVertexVectors(feature, vertices.elements(), patternPositions, {});
         }
     }
 }
@@ -164,7 +164,7 @@ void LineBucket::addGeometry(const GeometryCoordinates& coordinates, const Geome
         nextNormal = util::perp(util::unit(convertPoint<double>(firstCoordinate - *currentCoordinate)));
     }
 
-    const std::size_t startVertex = vertices.vertexSize();
+    const std::size_t startVertex = vertices.elements();
     std::vector<TriangleElement> triangleStore;
 
     for (std::size_t i = first; i < len; ++i) {
@@ -421,11 +421,11 @@ void LineBucket::addGeometry(const GeometryCoordinates& coordinates, const Geome
         startOfLine = false;
     }
 
-    const std::size_t endVertex = vertices.vertexSize();
+    const std::size_t endVertex = vertices.elements();
     const std::size_t vertexCount = endVertex - startVertex;
 
     if (segments.empty() || segments.back().vertexLength + vertexCount > std::numeric_limits<uint16_t>::max()) {
-        segments.emplace_back(startVertex, triangles.indexSize());
+        segments.emplace_back(startVertex, triangles.elements());
     }
 
     auto& segment = segments.back();
@@ -455,7 +455,7 @@ void LineBucket::addCurrentVertex(const GeometryCoordinate& currentCoordinate,
     if (endLeft)
         extrude = extrude - (util::perp(normal) * endLeft);
     vertices.emplace_back(LineProgram::layoutVertex(currentCoordinate, extrude, round, false, endLeft, scaledDistance * LINE_DISTANCE_SCALE));
-    e3 = vertices.vertexSize() - 1 - startVertex;
+    e3 = vertices.elements() - 1 - startVertex;
     if (e1 >= 0 && e2 >= 0) {
         triangleStore.emplace_back(e1, e2, e3);
     }
@@ -466,7 +466,7 @@ void LineBucket::addCurrentVertex(const GeometryCoordinate& currentCoordinate,
     if (endRight)
         extrude = extrude - (util::perp(normal) * endRight);
     vertices.emplace_back(LineProgram::layoutVertex(currentCoordinate, extrude, round, true, -endRight, scaledDistance * LINE_DISTANCE_SCALE));
-    e3 = vertices.vertexSize() - 1 - startVertex;
+    e3 = vertices.elements() - 1 - startVertex;
     if (e1 >= 0 && e2 >= 0) {
         triangleStore.emplace_back(e1, e2, e3);
     }
@@ -496,7 +496,7 @@ void LineBucket::addPieSliceVertex(const GeometryCoordinate& currentVertex,
     }
 
     vertices.emplace_back(LineProgram::layoutVertex(currentVertex, flippedExtrude, false, lineTurnsLeft, 0, distance * LINE_DISTANCE_SCALE));
-    e3 = vertices.vertexSize() - 1 - startVertex;
+    e3 = vertices.elements() - 1 - startVertex;
     if (e1 >= 0 && e2 >= 0) {
         triangleStore.emplace_back(e1, e2, e3);
     }
@@ -508,12 +508,12 @@ void LineBucket::addPieSliceVertex(const GeometryCoordinate& currentVertex,
     }
 }
 
-void LineBucket::upload(gl::Context& context) {
-    vertexBuffer = context.createVertexBuffer(std::move(vertices));
-    indexBuffer = context.createIndexBuffer(std::move(triangles));
+void LineBucket::upload(gfx::UploadPass& uploadPass) {
+    vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
+    indexBuffer = uploadPass.createIndexBuffer(std::move(triangles));
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.upload(context);
+        pair.second.upload(uploadPass);
     }
 
     uploaded = true;
@@ -528,31 +528,26 @@ bool LineBucket::supportsLayer(const style::Layer::Impl& impl) const {
 }
 
 template <class Property>
-static float get(const RenderLineLayer& layer, const std::map<std::string, LineProgram::PaintPropertyBinders>& paintPropertyBinders) {
-    auto it = paintPropertyBinders.find(layer.getID());
+static float get(const LinePaintProperties::PossiblyEvaluated& evaluated, const std::string& id, const std::map<std::string, LineProgram::Binders>& paintPropertyBinders) {
+    auto it = paintPropertyBinders.find(id);
     if (it == paintPropertyBinders.end() || !it->second.statistics<Property>().max()) {
-        return layer.evaluated.get<Property>().constantOr(Property::defaultValue());
+        return evaluated.get<Property>().constantOr(Property::defaultValue());
     } else {
         return *it->second.statistics<Property>().max();
     }
 }
 
-float LineBucket::getLineWidth(const RenderLineLayer& layer) const {
-    float lineWidth = get<LineWidth>(layer, paintPropertyBinders);
-    float gapWidth = get<LineGapWidth>(layer, paintPropertyBinders);
-
-    if (gapWidth) {
-        return gapWidth + 2 * lineWidth;
-    } else {
-        return lineWidth;
-    }
-}
-
 float LineBucket::getQueryRadius(const RenderLayer& layer) const {
-    const RenderLineLayer* lineLayer = toRenderLineLayer(&layer);
-    const std::array<float, 2>& translate = lineLayer->evaluated.get<LineTranslate>();
-    float offset = get<LineOffset>(*lineLayer, paintPropertyBinders);
-    return getLineWidth(*lineLayer) / 2.0 + std::abs(offset) + util::length(translate[0], translate[1]);
+    const auto& evaluated = getEvaluated<LineLayerProperties>(layer.evaluatedProperties);
+    const std::array<float, 2>& translate = evaluated.get<LineTranslate>();
+    float offset = get<LineOffset>(evaluated, layer.getID(), paintPropertyBinders);
+    float lineWidth = get<LineWidth>(evaluated, layer.getID(), paintPropertyBinders);
+    float gapWidth = get<LineGapWidth>(evaluated, layer.getID(), paintPropertyBinders);
+    if (gapWidth) {
+        lineWidth = gapWidth + 2 * lineWidth;
+    }
+
+    return lineWidth / 2.0f + std::abs(offset) + util::length(translate[0], translate[1]);
 }
 
 } // namespace mbgl

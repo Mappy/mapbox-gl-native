@@ -19,11 +19,11 @@ static constexpr const size_t stubBitmapLength = 900;
 
 class StubLocalGlyphRasterizer : public LocalGlyphRasterizer {
 public:
-    bool canRasterizeGlyph(const FontStack&, GlyphID glyphID) {
+    bool canRasterizeGlyph(const FontStack&, GlyphID glyphID) override {
         return util::i18n::allowsIdeographicBreaking(glyphID);
     }
 
-    Glyph rasterizeGlyph(const FontStack&, GlyphID glyphID) {
+    Glyph rasterizeGlyph(const FontStack&, GlyphID glyphID) override {
         Glyph stub;
         stub.id = glyphID;
         
@@ -68,7 +68,7 @@ public:
     StubFileSource fileSource;
     StubGlyphManagerObserver observer;
     StubGlyphRequestor requestor;
-    GlyphManager glyphManager{ fileSource, std::make_unique<StubLocalGlyphRasterizer>() };
+    GlyphManager glyphManager{ std::make_unique<StubLocalGlyphRasterizer>() };
 
     void run(const std::string& url, GlyphDependencies dependencies) {
         // Squelch logging.
@@ -76,7 +76,7 @@ public:
 
         glyphManager.setURL(url);
         glyphManager.setObserver(&observer);
-        glyphManager.getGlyphs(requestor, std::move(dependencies));
+        glyphManager.getGlyphs(requestor, std::move(dependencies), fileSource);
 
         loop.run();
     }
@@ -298,7 +298,7 @@ TEST(GlyphManager, ImmediateFileSource) {
         StubFileSource fileSource = { StubFileSource::ResponseType::Synchronous };
         StubGlyphManagerObserver observer;
         StubGlyphRequestor requestor;
-        GlyphManager glyphManager { fileSource };
+        GlyphManager glyphManager;
 
         void run(const std::string& url, GlyphDependencies dependencies) {
             // Squelch logging.
@@ -306,7 +306,7 @@ TEST(GlyphManager, ImmediateFileSource) {
 
             glyphManager.setURL(url);
             glyphManager.setObserver(&observer);
-            glyphManager.getGlyphs(requestor, std::move(dependencies));
+            glyphManager.getGlyphs(requestor, std::move(dependencies), fileSource);
 
             loop.run();
         }

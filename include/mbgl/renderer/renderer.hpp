@@ -1,7 +1,6 @@
 #pragma once
 
 #include <mbgl/renderer/query.hpp>
-#include <mbgl/renderer/mode.hpp>
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/util/geo.hpp>
 #include <mbgl/util/geojson.hpp>
@@ -13,18 +12,18 @@
 
 namespace mbgl {
 
-class FileSource;
-class RendererBackend;
 class RendererObserver;
 class RenderedQueryOptions;
-class Scheduler;
 class SourceQueryOptions;
 class UpdateParameters;
 
+namespace gfx {
+class RendererBackend;
+} // namespace gfx
+
 class Renderer {
 public:
-    Renderer(RendererBackend&, float pixelRatio_, FileSource&, Scheduler&,
-             GLContextMode = GLContextMode::Unique,
+    Renderer(gfx::RendererBackend&, float pixelRatio_,
              const optional<std::string> programCacheDir = {},
              const optional<std::string> localFontFamily = {});
     ~Renderer();

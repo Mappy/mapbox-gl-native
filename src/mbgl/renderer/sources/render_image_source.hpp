@@ -15,11 +15,12 @@ public:
 
     bool isLoaded() const final;
 
-    void startRender(PaintParameters&) final;
+    void upload(gfx::UploadPass&) final;
+    void prepare(PaintParameters&) final;
     void finishRender(PaintParameters&) final;
 
     void update(Immutable<style::Source::Impl>,
-                const std::vector<Immutable<style::Layer::Impl>>&,
+                const std::vector<Immutable<style::LayerProperties>>&,
                 bool needsRendering,
                 bool needsRelayout,
                 const TileParameters&) final;

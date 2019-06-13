@@ -8,7 +8,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringDef;
 import android.util.DisplayMetrics;
-
+import android.util.Pair;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.style.layers.Layer;
 import com.mapbox.mapboxsdk.style.layers.TransitionOptions;
@@ -21,6 +21,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,8 +99,8 @@ public class Style {
    */
   public void addSource(@NonNull Source source) {
     validateState("addSource");
-    sources.put(source.getId(), source);
     nativeMap.addSource(source);
+    sources.put(source.getId(), source);
   }
 
   /**
@@ -170,8 +171,8 @@ public class Style {
    */
   public void addLayer(@NonNull Layer layer) {
     validateState("addLayer");
-    layers.put(layer.getId(), layer);
     nativeMap.addLayer(layer);
+    layers.put(layer.getId(), layer);
   }
 
   /**
@@ -182,8 +183,8 @@ public class Style {
    */
   public void addLayerBelow(@NonNull Layer layer, @NonNull String below) {
     validateState("addLayerBelow");
-    layers.put(layer.getId(), layer);
     nativeMap.addLayerBelow(layer, below);
+    layers.put(layer.getId(), layer);
   }
 
   /**
@@ -194,8 +195,8 @@ public class Style {
    */
   public void addLayerAbove(@NonNull Layer layer, @NonNull String above) {
     validateState("addLayerAbove");
-    layers.put(layer.getId(), layer);
     nativeMap.addLayerAbove(layer, above);
+    layers.put(layer.getId(), layer);
   }
 
   /**
@@ -207,8 +208,8 @@ public class Style {
    */
   public void addLayerAt(@NonNull Layer layer, @IntRange(from = 0) int index) {
     validateState("addLayerAbove");
-    layers.put(layer.getId(), layer);
     nativeMap.addLayerAt(layer, index);
+    layers.put(layer.getId(), layer);
   }
 
   /**
@@ -322,13 +323,49 @@ public class Style {
    * @param bitmap the pre-multiplied Bitmap
    * @param sdf    the flag indicating image is an SDF or template image
    */
-  public void addImage(@NonNull final String name, @NonNull final Bitmap bitmap, boolean sdf) {
+  public void addImage(@NonNull final String name, @NonNull Bitmap bitmap, boolean sdf) {
     validateState("addImage");
-    new BitmapImageConversionTask(nativeMap, sdf).execute(new Builder.ImageWrapper(name, bitmap, sdf));
+    nativeMap.addImages(new Image[]{toImage(new Builder.ImageWrapper(name, bitmap, sdf))});
   }
 
   /**
-   * Adds an images to be used in the map's style.
+   * Adds an image asynchronously, to be used in the map's style.
+   *
+   * @param name  the name of the image
+   * @param image the pre-multiplied Bitmap
+   */
+  public void addImageAsync(@NonNull String name, @NonNull Bitmap image) {
+    addImageAsync(name, image, false);
+  }
+
+  /**
+   * Adds an drawable asynchronously, to be converted into a bitmap to be used in the map's style.
+   *
+   * @param name     the name of the image
+   * @param drawable the drawable instance to convert
+   */
+  public void addImageAsync(@NonNull String name, @NonNull Drawable drawable) {
+    Bitmap bitmap = BitmapUtils.getBitmapFromDrawable(drawable);
+    if (bitmap == null) {
+      throw new IllegalArgumentException("Provided drawable couldn't be converted to a Bitmap.");
+    }
+    addImageAsync(name, bitmap, false);
+  }
+
+  /**
+   * Adds an image asynchronously, to be used in the map's style.
+   *
+   * @param name   the name of the image
+   * @param bitmap the pre-multiplied Bitmap
+   * @param sdf    the flag indicating image is an SDF or template image
+   */
+  public void addImageAsync(@NonNull final String name, @NonNull Bitmap bitmap, boolean sdf) {
+    validateState("addImage");
+    new BitmapImageConversionTask(nativeMap).execute(new Builder.ImageWrapper(name, bitmap, sdf));
+  }
+
+  /**
+   * Adds images to be used in the map's style.
    *
    * @param images the map of images to add
    */
@@ -337,14 +374,41 @@ public class Style {
   }
 
   /**
-   * Adds an images to be used in the map's style.
+   * Adds images to be used in the map's style.
    *
    * @param images the map of images to add
    * @param sdf    the flag indicating image is an SDF or template image
    */
   public void addImages(@NonNull HashMap<String, Bitmap> images, boolean sdf) {
+    validateState("addImage");
+    Image[] convertedImages = new Image[images.size()];
+    int index = 0;
+    for (Builder.ImageWrapper imageWrapper : Builder.ImageWrapper.convertToImageArray(images, sdf)) {
+      convertedImages[index] = toImage(imageWrapper);
+      index++;
+    }
+
+    nativeMap.addImages(convertedImages);
+  }
+
+  /**
+   * Adds images asynchronously, to be used in the map's style.
+   *
+   * @param images the map of images to add
+   */
+  public void addImagesAsync(@NonNull HashMap<String, Bitmap> images) {
+    addImagesAsync(images, false);
+  }
+
+  /**
+   * Adds images asynchronously, to be used in the map's style.
+   *
+   * @param images the map of images to add
+   * @param sdf    the flag indicating image is an SDF or template image
+   */
+  public void addImagesAsync(@NonNull HashMap<String, Bitmap> images, boolean sdf) {
     validateState("addImages");
-    new BitmapImageConversionTask(nativeMap, sdf).execute(Builder.ImageWrapper.convertToImageArray(images, sdf));
+    new BitmapImageConversionTask(nativeMap).execute(Builder.ImageWrapper.convertToImageArray(images, sdf));
   }
 
   /**
@@ -435,10 +499,11 @@ public class Style {
   //
 
   /**
-   * Called when the underlying map will start loading a new style. This method will clean up this style
-   * by setting the java sources and layers in a detached state and removing them from core.
+   * Called when the underlying map will start loading a new style or the map is destroyed.
+   * This method will clean up this style by setting the java sources and layers
+   * in a detached state and removing them from core.
    */
-  void onWillStartLoadingMap() {
+  void clear() {
     fullyLoaded = false;
     for (Source source : sources.values()) {
       if (source != null) {
@@ -608,6 +673,18 @@ public class Style {
     }
 
     /**
+     * Will add the sources when map style has loaded.
+     *
+     * @param sources the sources to add
+     * @return this
+     */
+    @NonNull
+    public Builder withSources(@NonNull Source... sources) {
+      this.sources.addAll(Arrays.asList(sources));
+      return this;
+    }
+
+    /**
      * Will add the layer when the style has loaded.
      *
      * @param layer the layer to be added
@@ -616,6 +693,20 @@ public class Style {
     @NonNull
     public Builder withLayer(@NonNull Layer layer) {
       layers.add(new LayerWrapper(layer));
+      return this;
+    }
+
+    /**
+     * Will add the layers when the style has loaded.
+     *
+     * @param layers the layers to be added
+     * @return this
+     */
+    @NonNull
+    public Builder withLayers(@NonNull Layer... layers) {
+      for (Layer layer : layers) {
+        this.layers.add(new LayerWrapper(layer));
+      }
       return this;
     }
 
@@ -684,6 +775,17 @@ public class Style {
     }
 
     /**
+     * Will add the drawables as images when the map style has loaded.
+     *
+     * @param values pairs, where first is the id for te image and second is the drawable
+     * @return this
+     */
+    @NonNull
+    public Builder withDrawableImages(@NonNull Pair<String, Drawable>... values) {
+      return this.withDrawableImages(false, values);
+    }
+
+    /**
      * Will add the image when the map style has loaded.
      *
      * @param id    the id for the image
@@ -693,6 +795,20 @@ public class Style {
     @NonNull
     public Builder withImage(@NonNull String id, @NonNull Bitmap image) {
       return this.withImage(id, image, false);
+    }
+
+    /**
+     * Will add the images when the map style has loaded.
+     *
+     * @param values pairs, where first is the id for te image and second is the bitmap
+     * @return this
+     */
+    @NonNull
+    public Builder withBitmapImages(@NonNull Pair<String, Bitmap>... values) {
+      for (Pair<String, Bitmap> value : values) {
+        this.withImage(value.first, value.second, false);
+      }
+      return this;
     }
 
     /**
@@ -713,6 +829,25 @@ public class Style {
     }
 
     /**
+     * Will add the drawables as images when the map style has loaded.
+     *
+     * @param sdf    the flag indicating image is an SDF or template image
+     * @param values pairs, where first is the id for te image and second is the drawable
+     * @return this
+     */
+    @NonNull
+    public Builder withDrawableImages(boolean sdf, @NonNull Pair<String, Drawable>... values) {
+      for (Pair<String, Drawable> value : values) {
+        Bitmap bitmap = BitmapUtils.getBitmapFromDrawable(value.second);
+        if (bitmap == null) {
+          throw new IllegalArgumentException("Provided drawable couldn't be converted to a Bitmap.");
+        }
+        this.withImage(value.first, bitmap, sdf);
+      }
+      return this;
+    }
+
+    /**
      * Will add the image when the map style has loaded.
      *
      * @param id    the id for the image
@@ -723,6 +858,21 @@ public class Style {
     @NonNull
     public Builder withImage(@NonNull String id, @NonNull Bitmap image, boolean sdf) {
       images.add(new ImageWrapper(id, image, sdf));
+      return this;
+    }
+
+    /**
+     * Will add the images when the map style has loaded.
+     *
+     * @param sdf    the flag indicating image is an SDF or template image
+     * @param values pairs, where first is the id for te image and second is the bitmap
+     * @return this
+     */
+    @NonNull
+    public Builder withBitmapImages(boolean sdf, @NonNull Pair<String, Bitmap>... values) {
+      for (Pair<String, Bitmap> value : values) {
+        this.withImage(value.first, value.second, sdf);
+      }
       return this;
     }
 
@@ -815,49 +965,45 @@ public class Style {
     }
   }
 
-  private static class BitmapImageConversionTask extends AsyncTask<Builder.ImageWrapper, Void, List<Image>> {
+  private static Image toImage(Builder.ImageWrapper imageWrapper) {
+    Bitmap bitmap = imageWrapper.bitmap;
+    if (bitmap.getConfig() != Bitmap.Config.ARGB_8888) {
+      bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false);
+    }
+
+    ByteBuffer buffer = ByteBuffer.allocate(bitmap.getByteCount());
+    bitmap.copyPixelsToBuffer(buffer);
+    float pixelRatio = (float) bitmap.getDensity() / DisplayMetrics.DENSITY_DEFAULT;
+
+    return new Image(buffer.array(), pixelRatio, imageWrapper.id,
+      bitmap.getWidth(), bitmap.getHeight(), imageWrapper.sdf
+    );
+  }
+
+  private static class BitmapImageConversionTask extends AsyncTask<Builder.ImageWrapper, Void, Image[]> {
 
     private WeakReference<NativeMap> nativeMap;
-    private boolean sdf;
 
-    BitmapImageConversionTask(NativeMap nativeMap, boolean sdf) {
+    BitmapImageConversionTask(NativeMap nativeMap) {
       this.nativeMap = new WeakReference<>(nativeMap);
-      this.sdf = sdf;
     }
 
     @NonNull
     @Override
-    protected List<Image> doInBackground(Builder.ImageWrapper... params) {
+    protected Image[] doInBackground(Builder.ImageWrapper... params) {
       List<Image> images = new ArrayList<>();
-      ByteBuffer buffer;
-      String name;
-      Bitmap bitmap;
-
       for (Builder.ImageWrapper param : params) {
-        name = param.id;
-        bitmap = param.bitmap;
-
-        if (bitmap.getConfig() != Bitmap.Config.ARGB_8888) {
-          bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false);
-        }
-
-        buffer = ByteBuffer.allocate(bitmap.getByteCount());
-        bitmap.copyPixelsToBuffer(buffer);
-
-        float pixelRatio = (float) bitmap.getDensity() / DisplayMetrics.DENSITY_DEFAULT;
-
-        images.add(new Image(buffer.array(), pixelRatio, name, bitmap.getWidth(), bitmap.getHeight(), sdf));
+        images.add(toImage(param));
       }
-
-      return images;
+      return images.toArray(new Image[images.size()]);
     }
 
     @Override
-    protected void onPostExecute(@NonNull List<Image> images) {
+    protected void onPostExecute(@NonNull Image[] images) {
       super.onPostExecute(images);
       NativeMap nativeMap = this.nativeMap.get();
       if (nativeMap != null && !nativeMap.isDestroyed()) {
-        nativeMap.addImages(images.toArray(new Image[images.size()]));
+        nativeMap.addImages(images);
       }
     }
   }

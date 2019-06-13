@@ -7,6 +7,7 @@
 #include <mbgl/renderer/tile_parameters.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/programs/programs.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
 #include <mbgl/util/tile_cover.hpp>
 #include <mbgl/util/logging.hpp>
@@ -30,23 +31,25 @@ bool RenderImageSource::isLoaded() const {
     return !!bucket;
 }
 
-void RenderImageSource::startRender(PaintParameters& parameters) {
+void RenderImageSource::upload(gfx::UploadPass& uploadPass) {
+    if (bucket->needsUpload()) {
+        bucket->upload(uploadPass);
+    }
+}
+
+void RenderImageSource::prepare(PaintParameters& parameters) {
     if (!isLoaded()) {
         return;
     }
 
     matrices.clear();
 
-    for (size_t i = 0; i < tileIds.size(); i++) {
+    for (auto& tileId : tileIds) {
         mat4 matrix;
         matrix::identity(matrix);
-        parameters.state.matrixFor(matrix, tileIds[i]);
+        parameters.state.matrixFor(matrix, tileId);
         matrix::multiply(matrix, parameters.alignedProjMatrix, matrix);
         matrices.push_back(matrix);
-    }
-
-    if (bucket->needsUpload()) {
-        bucket->upload(parameters.context);
     }
 }
 
@@ -56,34 +59,36 @@ void RenderImageSource::finishRender(PaintParameters& parameters) {
     }
 
     static const style::Properties<>::PossiblyEvaluated properties {};
-    static const DebugProgram::PaintPropertyBinders paintAttributeData(properties, 0);
+    static const DebugProgram::Binders paintAttributeData(properties, 0);
 
     auto& programInstance = parameters.programs.debug;
 
     for (auto matrix : matrices) {
         programInstance.draw(
             parameters.context,
-            gl::LineStrip { 4.0f * parameters.pixelRatio },
-            gl::DepthMode::disabled(),
-            gl::StencilMode::disabled(),
-            gl::ColorMode::unblended(),
-            gl::CullFaceMode::disabled(),
-            parameters.staticData.tileBorderIndexBuffer,
+            *parameters.renderPass,
+            gfx::LineStrip { 4.0f * parameters.pixelRatio },
+            gfx::DepthMode::disabled(),
+            gfx::StencilMode::disabled(),
+            gfx::ColorMode::unblended(),
+            gfx::CullFaceMode::disabled(),
+            *parameters.staticData.tileBorderIndexBuffer,
             parameters.staticData.tileBorderSegments,
             programInstance.computeAllUniformValues(
-                DebugProgram::UniformValues {
-                    uniforms::u_matrix::Value( matrix ),
-                    uniforms::u_color::Value( Color::red() )
+                DebugProgram::LayoutUniformValues {
+                    uniforms::matrix::Value( matrix ),
+                    uniforms::color::Value( Color::red() )
                 },
                 paintAttributeData,
                 properties,
                 parameters.state.getZoom()
             ),
             programInstance.computeAllAttributeBindings(
-                parameters.staticData.tileVertexBuffer,
+                *parameters.staticData.tileVertexBuffer,
                 paintAttributeData,
                 properties
             ),
+            DebugProgram::TextureBindings{},
             "image"
         );
     }
@@ -103,7 +108,7 @@ std::vector<Feature> RenderImageSource::querySourceFeatures(const SourceQueryOpt
 }
 
 void RenderImageSource::update(Immutable<style::Source::Impl> baseImpl_,
-                               const std::vector<Immutable<Layer::Impl>>&,
+                               const std::vector<Immutable<LayerProperties>>&,
                                const bool needsRendering,
                                const bool,
                                const TileParameters& parameters) {
@@ -164,7 +169,7 @@ void RenderImageSource::update(Immutable<style::Source::Impl> baseImpl_,
     auto idealTiles = util::tileCover(transformState, transformState.getZoom());
     for (auto tile : idealTiles) {
         if (tile.wrap != 0 && tileCover[0].canonical.isChildOf(tile.canonical)) {
-            tileIds.push_back({ tile.wrap, tileCover[0].canonical });
+            tileIds.emplace_back(tile.wrap, tileCover[0].canonical);
             hasVisibleTile = true;
         }
         else if (!hasVisibleTile) {

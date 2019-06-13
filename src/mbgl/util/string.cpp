@@ -78,9 +78,13 @@ std::string toPaddedHex(T x) {
     return result;
 }
 
+} // namespace
+
+std::string toHex(uint32_t value) {
+    return toPaddedHex(value);
 }
 
-std::string toHex(size_t value) {
+std::string toHex(uint64_t value) {
     return toPaddedHex(value);
 }
 

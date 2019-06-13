@@ -4,9 +4,6 @@
 #include <mbgl/tile/geojson_tile.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
 
-#include <mbgl/algorithm/generate_clip_ids.hpp>
-#include <mbgl/algorithm/generate_clip_ids_impl.hpp>
-
 #include <mapbox/eternal.hpp>
 
 namespace mbgl {
@@ -66,7 +63,7 @@ MAPBOX_ETERNAL_CONSTEXPR const auto extensionGetters = mapbox::eternal::hash_map
     {"expansion-zoom", &getClusterExpansionZoom}
 });
 
-}
+} // namespace
 
 RenderGeoJSONSource::RenderGeoJSONSource(Immutable<style::GeoJSONSource::Impl> impl_)
     : RenderSource(impl_) {
@@ -84,7 +81,7 @@ bool RenderGeoJSONSource::isLoaded() const {
 }
 
 void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
-                                 const std::vector<Immutable<Layer::Impl>>& layers,
+                                 const std::vector<Immutable<LayerProperties>>& layers,
                                  const bool needsRendering,
                                  const bool needsRelayout,
                                  const TileParameters& parameters) {
@@ -126,9 +123,12 @@ void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
                        });
 }
 
-void RenderGeoJSONSource::startRender(PaintParameters& parameters) {
-    parameters.clipIDGenerator.update(tilePyramid.getRenderTiles());
-    tilePyramid.startRender(parameters);
+void RenderGeoJSONSource::upload(gfx::UploadPass& parameters) {
+    tilePyramid.upload(parameters);
+}
+
+void RenderGeoJSONSource::prepare(PaintParameters& parameters) {
+    tilePyramid.prepare(parameters);
 }
 
 void RenderGeoJSONSource::finishRender(PaintParameters& parameters) {

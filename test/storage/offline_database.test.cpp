@@ -91,7 +91,7 @@ const Response response = [] {
     return res;
 }();
 
-} // namespace
+} // namespace fixture
 
 TEST(OfflineDatabase, TEST_REQUIRES_WRITE(Create)) {
     FixtureLog log;
@@ -1352,3 +1352,25 @@ TEST(OfflineDatabase, TEST_REQUIRES_WRITE(MergeDatabaseWithDiskFull)) {
 }
 #endif // __QT__
 
+TEST(OfflineDatabse, ChangePath) {
+    std::string newPath("test/fixtures/offline_database/test.db");
+    OfflineDatabase db(":memory:");
+    db.changePath(newPath);
+    mapbox::sqlite::Database::open(newPath, mapbox::sqlite::ReadOnly);
+    util::deleteFile(newPath);
+}
+
+TEST(OfflineDatabse, resetCache) {
+    FixtureLog log;
+    deleteDatabaseFiles();
+    util::copyFile(filename, "test/fixtures/offline_database/satellite_test.db");
+
+    OfflineDatabase db(filename);
+    auto result = db.resetCache();
+    EXPECT_FALSE(result);
+
+    auto regions = db.listRegions().value();
+    EXPECT_EQ(0u, regions.size());
+    EXPECT_EQ(1u, log.count({ EventSeverity::Warning, Event::Database, -1, "Removing existing incompatible offline database" }));
+    EXPECT_EQ(0u, log.uncheckedCount());
+}

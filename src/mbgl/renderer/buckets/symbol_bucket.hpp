@@ -2,8 +2,8 @@
 
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/map/mode.hpp>
-#include <mbgl/gl/vertex_buffer.hpp>
-#include <mbgl/gl/index_buffer.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
+#include <mbgl/gfx/index_buffer.hpp>
 #include <mbgl/programs/segment.hpp>
 #include <mbgl/programs/symbol_program.hpp>
 #include <mbgl/programs/collision_box_program.hpp>
@@ -35,12 +35,14 @@ public:
     std::vector<float> glyphOffsets;
     bool hidden;
     size_t vertexStartIndex;
+    // The crossTileID is only filled/used on the foreground for variable text anchors
+    uint32_t crossTileID = 0u;
 };
 
 class SymbolBucket final : public Bucket {
 public:
     SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated,
-                 const std::map<std::string, style::SymbolPaintProperties::PossiblyEvaluated>&,
+                 const std::map<std::string, Immutable<style::LayerProperties>>&,
                  const style::PropertyValue<float>& textSize,
                  const style::PropertyValue<float>& iconSize,
                  float zoom,
@@ -48,19 +50,23 @@ public:
                  bool iconsNeedLinear,
                  bool sortFeaturesByY,
                  const std::string bucketLeaderID,
-                 const std::vector<SymbolInstance>&&);
+                 const std::vector<SymbolInstance>&&,
+                 const float tilePixelRatio);
     ~SymbolBucket() override;
 
-    void upload(gl::Context&) override;
+    void upload(gfx::UploadPass&) override;
     bool hasData() const override;
     bool supportsLayer(const style::Layer::Impl&) const override;
     bool hasTextData() const;
     bool hasIconData() const;
     bool hasCollisionBoxData() const;
     bool hasCollisionCircleData() const;
+    bool hasFormatSectionOverrides() const;
 
     void updateOpacity();
     void sortFeatures(const float angle);
+    // The result contains references to the `symbolInstances` items, sorted by viewport Y.
+    std::vector<std::reference_wrapper<SymbolInstance>> getSortedSymbols(const float angle);
 
     const style::SymbolLayoutProperties::PossiblyEvaluated layout;
     const bool sdfIcons;
@@ -79,66 +85,56 @@ public:
     std::vector<SymbolInstance> symbolInstances;
 
     struct PaintProperties {
-        style::SymbolPaintProperties::PossiblyEvaluated evaluated;
-        SymbolIconProgram::PaintPropertyBinders iconBinders;
-        SymbolSDFTextProgram::PaintPropertyBinders textBinders;
+        SymbolIconProgram::Binders iconBinders;
+        SymbolSDFTextProgram::Binders textBinders;
     };
     std::map<std::string, PaintProperties> paintProperties;
 
     std::unique_ptr<SymbolSizeBinder> textSizeBinder;
 
-    struct TextBuffer {
-        gl::VertexVector<SymbolLayoutVertex> vertices;
-        gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex> dynamicVertices;
-        gl::VertexVector<SymbolOpacityAttributes::Vertex> opacityVertices;
-        gl::IndexVector<gl::Triangles> triangles;
+    struct Buffer {
+        gfx::VertexVector<SymbolLayoutVertex> vertices;
+        gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>> dynamicVertices;
+        gfx::VertexVector<gfx::Vertex<SymbolOpacityAttributes>> opacityVertices;
+        gfx::IndexVector<gfx::Triangles> triangles;
         SegmentVector<SymbolTextAttributes> segments;
         std::vector<PlacedSymbol> placedSymbols;
 
-        optional<gl::VertexBuffer<SymbolLayoutVertex>> vertexBuffer;
-        optional<gl::VertexBuffer<SymbolDynamicLayoutAttributes::Vertex>> dynamicVertexBuffer;
-        optional<gl::VertexBuffer<SymbolOpacityAttributes::Vertex>> opacityVertexBuffer;
-        optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+        optional<gfx::VertexBuffer<SymbolLayoutVertex>> vertexBuffer;
+        optional<gfx::VertexBuffer<gfx::Vertex<SymbolDynamicLayoutAttributes>>> dynamicVertexBuffer;
+        optional<gfx::VertexBuffer<gfx::Vertex<SymbolOpacityAttributes>>> opacityVertexBuffer;
+        optional<gfx::IndexBuffer> indexBuffer;
     } text;
 
     std::unique_ptr<SymbolSizeBinder> iconSizeBinder;
 
-    struct IconBuffer {
-        gl::VertexVector<SymbolLayoutVertex> vertices;
-        gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex> dynamicVertices;
-        gl::VertexVector<SymbolOpacityAttributes::Vertex> opacityVertices;
-        gl::IndexVector<gl::Triangles> triangles;
-        SegmentVector<SymbolIconAttributes> segments;
-        std::vector<PlacedSymbol> placedSymbols;
+    struct IconBuffer : public Buffer {
         PremultipliedImage atlasImage;
-
-        optional<gl::VertexBuffer<SymbolLayoutVertex>> vertexBuffer;
-        optional<gl::VertexBuffer<SymbolDynamicLayoutAttributes::Vertex>> dynamicVertexBuffer;
-        optional<gl::VertexBuffer<SymbolOpacityAttributes::Vertex>> opacityVertexBuffer;
-        optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
     } icon;
 
     struct CollisionBuffer {
-        gl::VertexVector<CollisionBoxLayoutAttributes::Vertex> vertices;
-        gl::VertexVector<CollisionBoxDynamicAttributes::Vertex> dynamicVertices;
-        SegmentVector<CollisionBoxProgram::Attributes> segments;
+        gfx::VertexVector<gfx::Vertex<CollisionBoxLayoutAttributes>> vertices;
+        gfx::VertexVector<gfx::Vertex<CollisionBoxDynamicAttributes>> dynamicVertices;
+        SegmentVector<CollisionBoxProgram::AttributeList> segments;
 
-        optional<gl::VertexBuffer<CollisionBoxLayoutAttributes::Vertex>> vertexBuffer;
-        optional<gl::VertexBuffer<CollisionBoxDynamicAttributes::Vertex>> dynamicVertexBuffer;
+        optional<gfx::VertexBuffer<gfx::Vertex<CollisionBoxLayoutAttributes>>> vertexBuffer;
+        optional<gfx::VertexBuffer<gfx::Vertex<CollisionBoxDynamicAttributes>>> dynamicVertexBuffer;
     };
 
     struct CollisionBoxBuffer : public CollisionBuffer {
-        gl::IndexVector<gl::Lines> lines;
-        optional<gl::IndexBuffer<gl::Lines>> indexBuffer;
+        gfx::IndexVector<gfx::Lines> lines;
+        optional<gfx::IndexBuffer> indexBuffer;
     } collisionBox;
 
     struct CollisionCircleBuffer : public CollisionBuffer {
-        gl::IndexVector<gl::Triangles> triangles;
-        optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+        gfx::IndexVector<gfx::Triangles> triangles;
+        optional<gfx::IndexBuffer> indexBuffer;
     } collisionCircle;
 
+    const float tilePixelRatio;
     uint32_t bucketInstanceId = 0;
     bool justReloaded = false;
+    mutable optional<bool> hasFormatSectionOverrides_;
 
     std::shared_ptr<std::vector<size_t>> featureSortOrder;
 };

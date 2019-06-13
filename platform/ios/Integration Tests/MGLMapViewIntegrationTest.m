@@ -1,7 +1,7 @@
 #import "MGLMapViewIntegrationTest.h"
 
 @interface MGLMapView (MGLMapViewIntegrationTest)
-- (void)updateFromDisplayLink;
+- (void)updateFromDisplayLink:(CADisplayLink *)displayLink;
 @end
 
 @implementation MGLMapViewIntegrationTest
@@ -57,6 +57,7 @@
     self.renderFinishedExpectation = nil;
     self.mapView = nil;
     self.style = nil;
+    [MGLAccountManager setAccessToken:nil];
 
     [super tearDown];
 }
@@ -147,15 +148,20 @@
     else if (self.mapView) {
         // Before iOS 10 it seems that the display link is not called during the
         // waitForExpectations below
+        
         timer = [NSTimer scheduledTimerWithTimeInterval:1.0/30.0
-                                                 target:self.mapView
-                                               selector:@selector(updateFromDisplayLink)
+                                                 target:self
+                                               selector:@selector(updateMapViewDisplayLinkFromTimer:)
                                                userInfo:nil
                                                 repeats:YES];
     }
 
     [super waitForExpectations:expectations timeout:seconds];
     [timer invalidate];
+}
+
+- (void)updateMapViewDisplayLinkFromTimer:(NSTimer *)timer {
+    [self.mapView updateFromDisplayLink:nil];
 }
 
 - (MGLStyle *)style {

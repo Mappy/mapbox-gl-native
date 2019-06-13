@@ -1,12 +1,12 @@
 #include <mbgl/annotation/annotation_manager.hpp>
 #include <mbgl/layermanager/layer_manager.hpp>
 #include <mbgl/renderer/renderer_impl.hpp>
-#include <mbgl/renderer/renderer_backend.hpp>
 #include <mbgl/renderer/renderer_observer.hpp>
 #include <mbgl/renderer/render_source.hpp>
 #include <mbgl/renderer/render_layer.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/renderer/update_parameters.hpp>
+#include <mbgl/renderer/upload_parameters.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/transition_parameters.hpp>
 #include <mbgl/renderer/property_evaluation_parameters.hpp>
@@ -14,9 +14,14 @@
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/renderer/style_diff.hpp>
 #include <mbgl/renderer/query.hpp>
-#include <mbgl/renderer/backend_scope.hpp>
+#include <mbgl/gfx/backend_scope.hpp>
 #include <mbgl/renderer/image_manager.hpp>
-#include <mbgl/gl/debugging.hpp>
+#include <mbgl/gfx/renderer_backend.hpp>
+#include <mbgl/gfx/upload_pass.hpp>
+#include <mbgl/gfx/render_pass.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
+#include <mbgl/gfx/context.hpp>
+#include <mbgl/gfx/renderable.hpp>
 #include <mbgl/geometry/line_atlas.hpp>
 #include <mbgl/style/source_impl.hpp>
 #include <mbgl/style/transition_options.hpp>
@@ -35,21 +40,16 @@ static RendererObserver& nullObserver() {
     return observer;
 }
 
-Renderer::Impl::Impl(RendererBackend& backend_,
+Renderer::Impl::Impl(gfx::RendererBackend& backend_,
                      float pixelRatio_,
-                     FileSource& fileSource_,
-                     Scheduler& scheduler_,
-                     GLContextMode contextMode_,
                      const optional<std::string> programCacheDir_,
                      const optional<std::string> localFontFamily_)
     : backend(backend_)
-    , scheduler(scheduler_)
-    , fileSource(fileSource_)
     , observer(&nullObserver())
-    , contextMode(contextMode_)
     , pixelRatio(pixelRatio_)
-    , programCacheDir(programCacheDir_)
-    , glyphManager(std::make_unique<GlyphManager>(fileSource, std::make_unique<LocalGlyphRasterizer>(localFontFamily_)))
+    , programCacheDir(std::move(programCacheDir_))
+    , localFontFamily(std::move(localFontFamily_))
+    , glyphManager(std::make_unique<GlyphManager>(std::make_unique<LocalGlyphRasterizer>(localFontFamily)))
     , imageManager(std::make_unique<ImageManager>())
     , lineAtlas(std::make_unique<LineAtlas>(Size{ 256, 512 }))
     , imageImpls(makeMutable<std::vector<Immutable<style::Image::Impl>>>())
@@ -58,10 +58,11 @@ Renderer::Impl::Impl(RendererBackend& backend_,
     , renderLight(makeMutable<Light::Impl>())
     , placement(std::make_unique<Placement>(TransformState{}, MapMode::Static, TransitionOptions{}, true)) {
     glyphManager->setObserver(this);
+    imageManager->setObserver(this);
 }
 
 Renderer::Impl::~Impl() {
-    assert(BackendScope::exists());
+    assert(gfx::BackendScope::exists());
 
     if (contextLost) {
         // Signal all RenderLayers that the context was lost
@@ -80,19 +81,18 @@ void Renderer::Impl::setObserver(RendererObserver* observer_) {
 }
 
 void Renderer::Impl::render(const UpdateParameters& updateParameters) {
-    if (updateParameters.mode != MapMode::Continuous) {
+    const bool isMapModeContinuous = updateParameters.mode == MapMode::Continuous;
+    if (!isMapModeContinuous) {
         // Reset zoom history state.
         zoomHistory.first = true;
     }
-    
-    assert(BackendScope::exists());
+
+    assert(gfx::BackendScope::exists());
     if (LayerManager::annotationsEnabled) {
         updateParameters.annotationManager.updateData();
     }
 
     const bool zoomChanged = zoomHistory.update(updateParameters.transformState.getZoom(), updateParameters.timePoint);
-
-    const bool isMapModeContinuous = updateParameters.mode == MapMode::Continuous;
 
     const TransitionOptions transitionOptions = isMapModeContinuous ? updateParameters.transitionOptions : TransitionOptions();
 
@@ -111,8 +111,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         updateParameters.pixelRatio,
         updateParameters.debugOptions,
         updateParameters.transformState,
-        scheduler,
-        fileSource,
+        updateParameters.fileSource,
         updateParameters.mode,
         updateParameters.annotationManager,
         *imageManager,
@@ -138,6 +137,9 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     const ImageDifference imageDiff = diffImages(imageImpls, updateParameters.images);
     imageImpls = updateParameters.images;
 
+    // Only trigger tile reparse for changed images. Changed images only need a relayout when they have a different size.
+    bool hasImageDiff = !imageDiff.removed.empty();
+
     // Remove removed images from sprite atlas.
     for (const auto& entry : imageDiff.removed) {
         imageManager->removeImage(entry.first);
@@ -150,11 +152,11 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
     // Update changed images.
     for (const auto& entry : imageDiff.changed) {
-        imageManager->updateImage(entry.second.after);
+        hasImageDiff = imageManager->updateImage(entry.second.after) || hasImageDiff;
     }
 
+    imageManager->notifyIfMissingImageAdded();
     imageManager->setLoaded(updateParameters.spriteLoaded);
-
 
     const LayerDifference layerDiff = diffLayers(layerImpls, updateParameters.layers);
     layerImpls = updateParameters.layers;
@@ -166,12 +168,14 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
     // Create render layers for newly added layers.
     for (const auto& entry : layerDiff.added) {
-        renderLayers.emplace(entry.first, LayerManager::get()->createRenderLayer(entry.second));
+        auto renderLayer = LayerManager::get()->createRenderLayer(entry.second);
+        renderLayer->transition(transitionParameters);
+        renderLayers.emplace(entry.first, std::move(renderLayer));
     }
 
     // Update render layers for changed layers.
     for (const auto& entry : layerDiff.changed) {
-        renderLayers.at(entry.first)->setImpl(entry.second.after);
+        renderLayers.at(entry.first)->transition(transitionParameters, entry.second.after);
     }
 
     if (!layerDiff.removed.empty() || !layerDiff.added.empty() || !layerDiff.changed.empty()) {
@@ -181,15 +185,8 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // Update layers for class and zoom changes.
     for (const auto& entry : renderLayers) {
         RenderLayer& layer = *entry.second;
-        const bool layerAdded = layerDiff.added.count(entry.first);
-        const bool layerChanged = layerDiff.changed.count(entry.first);
-
-        if (layerAdded || layerChanged) {
-            layer.transition(transitionParameters);
-            layer.update();
-        }
-
-        if (layerAdded || layerChanged || zoomChanged || layer.hasTransition() || layer.hasCrossfade()) {
+        const bool layerAddedOrChanged = layerDiff.added.count(entry.first) || layerDiff.changed.count(entry.first);
+        if (layerAddedOrChanged || zoomChanged || layer.hasTransition() || layer.hasCrossfade()) {
             layer.evaluate(evaluationParameters);
         }
     }
@@ -209,60 +206,82 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         renderSource->setObserver(this);
         renderSources.emplace(entry.first, std::move(renderSource));
     }
-
-    const bool hasImageDiff = !(imageDiff.added.empty() && imageDiff.removed.empty() && imageDiff.changed.empty());
-
-    // Update all sources.
-    for (const auto& source : *sourceImpls) {
-        std::vector<Immutable<Layer::Impl>> filteredLayers;
-        bool needsRendering = false;
-        bool needsRelayout = false;
-
-        for (const auto& layer : *layerImpls) {
-
-            if (layer->getTypeInfo()->source == LayerTypeInfo::Source::NotRequired
-                    || layer->source != source->id) {
-                continue;
-            }
-
-            if (!needsRendering && getRenderLayer(layer->id)->needsRendering(zoomHistory.lastZoom)) {
-                needsRendering = true;
-            }
-
-            if (!needsRelayout && (hasImageDiff || hasLayoutDifference(layerDiff, layer->id))) {
-                needsRelayout = true;
-            }
-
-            filteredLayers.push_back(layer);
-        }
-
-        renderSources.at(source->id)->update(source,
-                                             filteredLayers,
-                                             needsRendering,
-                                             needsRelayout,
-                                             tileParameters);
-    }
-
     transformState = updateParameters.transformState;
 
     if (!staticData) {
         staticData = std::make_unique<RenderStaticData>(backend.getContext(), pixelRatio, programCacheDir);
     }
 
-    PaintParameters parameters {
-        backend.getContext(),
-        pixelRatio,
-        contextMode,
-        backend,
-        updateParameters,
-        renderLight.getEvaluated(),
-        *staticData,
-        *imageManager,
-        *lineAtlas
+    Color backgroundColor;
+
+    struct RenderItem {
+        RenderItem(RenderLayer& layer_, RenderSource* source_, uint32_t index_)
+            : layer(layer_), source(source_), index(index_) {}
+        std::reference_wrapper<RenderLayer> layer;
+        RenderSource* source;
+        uint32_t index;
+        bool operator<(const RenderItem& other) const { return index < other.index; }
     };
 
-    bool loaded = updateParameters.styleLoaded && isLoaded();
-    if (updateParameters.mode != MapMode::Continuous && !loaded) {
+    std::set<RenderItem> renderItems;
+    std::vector<const RenderLayerSymbolInterface*> renderItemsWithSymbols;
+    auto renderItemsEmplaceHint = renderItems.begin();
+
+    // Update all sources and initialize renderItems.
+    staticData->has3D = false;
+    for (const auto& sourceImpl : *sourceImpls) {
+        RenderSource* source = renderSources.at(sourceImpl->id).get();
+        std::vector<Immutable<LayerProperties>> filteredLayersForSource;
+        filteredLayersForSource.reserve(layerImpls->size());
+        bool sourceNeedsRendering = false;
+        bool sourceNeedsRelayout = false;       
+        
+        uint32_t index = 0u;
+        const auto begin = layerImpls->begin();
+        const auto end = layerImpls->end();
+        for (auto it = begin; it != end; ++it, ++index) {
+            const Immutable<Layer::Impl>& layerImpl = *it;
+            RenderLayer* layer = getRenderLayer(layerImpl->id);
+            const auto* layerInfo = layerImpl->getTypeInfo();
+            const bool layerNeedsRendering = layer->needsRendering();
+            const bool zoomFitsLayer = layer->supportsZoom(zoomHistory.lastZoom);
+            staticData->has3D = (staticData->has3D || layerInfo->pass3d == LayerTypeInfo::Pass3D::Required);
+
+            if (layerInfo->source != LayerTypeInfo::Source::NotRequired) {
+                if (layerImpl->source == sourceImpl->id) {
+                    sourceNeedsRelayout = (sourceNeedsRelayout || hasImageDiff || hasLayoutDifference(layerDiff, layerImpl->id));
+                    if (layerNeedsRendering) {
+                        filteredLayersForSource.push_back(layer->evaluatedProperties);
+                        if (zoomFitsLayer) {
+                            sourceNeedsRendering = true;
+                            renderItemsEmplaceHint = renderItems.emplace_hint(renderItemsEmplaceHint, *layer, source, index);
+                        }
+                    }
+                }
+                continue;
+            } 
+
+            // Handle layers without source.
+            if (layerNeedsRendering && zoomFitsLayer && sourceImpl.get() == sourceImpls->at(0).get()) {
+                if (!backend.contextIsShared() && layerImpl.get() == layerImpls->at(0).get()) {
+                    const auto& solidBackground = layer->getSolidBackground();
+                    if (solidBackground) {
+                        backgroundColor = *solidBackground;
+                        continue; // This layer is shown with background color, and it shall not be added to render items. 
+                    }
+                }
+                renderItemsEmplaceHint = renderItems.emplace_hint(renderItemsEmplaceHint, *layer, nullptr, index);
+            }
+        }
+        source->update(sourceImpl,
+                       filteredLayersForSource,
+                       sourceNeedsRendering,
+                       sourceNeedsRelayout,
+                       tileParameters);
+    }
+
+    const bool loaded = updateParameters.styleLoaded && isLoaded();
+    if (!isMapModeContinuous && !loaded) {
         return;
     }
 
@@ -272,100 +291,90 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
     observer->onWillStartRenderingFrame();
 
-    backend.updateAssumedState();
-
-    if (parameters.contextMode == GLContextMode::Shared) {
-        parameters.context.setDirtyState();
-    }
-
-    Color backgroundColor;
-
-    struct RenderItem {
-        RenderItem(RenderLayer& layer_, RenderSource* source_)
-            : layer(layer_), source(source_) {}
-        RenderLayer& layer;
-        RenderSource* source;
-    };
-
-    std::vector<RenderItem> order;
-
-    for (auto& layerImpl : *layerImpls) {
-        RenderLayer* layer = getRenderLayer(layerImpl->id);
-        assert(layer);
-
-        parameters.staticData.has3D |=
-                (layerImpl->getTypeInfo()->pass3d == LayerTypeInfo::Pass3D::Required);
-
-        if (!layer->needsRendering(zoomHistory.lastZoom)) {
+    // Set render tiles to the render items.
+    for (auto& renderItem : renderItems) {
+        if (!renderItem.source) {
             continue;
         }
-
-        if (parameters.contextMode == GLContextMode::Unique
-            && layerImpl.get() == layerImpls->at(0).get()) {
-            const auto& solidBackground = layer->getSolidBackground();
-            if (solidBackground) {
-                backgroundColor = *solidBackground;
-                continue;
-            }
+        RenderLayer& renderLayer = renderItem.layer;
+        renderLayer.setRenderTiles(renderItem.source->getRenderTiles(), updateParameters.transformState);
+        if (const RenderLayerSymbolInterface* symbolLayer = renderLayer.getSymbolInterface()) {
+            renderItemsWithSymbols.push_back(symbolLayer);
         }
-
-        if (layerImpl->getTypeInfo()->source == LayerTypeInfo::Source::NotRequired) {
-            order.emplace_back(*layer, nullptr);
-            continue;
-        }
-
-        RenderSource* source = getRenderSource(layer->baseImpl->source);
-        if (!source) {
-            Log::Warning(Event::Render, "can't find source for layer '%s'", layer->getID().c_str());
-            continue;
-        }
-
-        layer->setRenderTiles(source->getRenderTiles(), parameters.state);
-        order.emplace_back(*layer, source);
     }
 
     {
-        if (parameters.mapMode != MapMode::Continuous) {
+        if (!isMapModeContinuous) {
             // TODO: Think about right way for symbol index to handle still rendering
             crossTileSymbolIndex.reset();
         }
 
-        std::vector<RenderItem> renderItemsWithSymbols;
-        std::copy_if(order.rbegin(), order.rend(), std::back_inserter(renderItemsWithSymbols),
-                [](const auto& item) { return item.layer.getSymbolInterface() != nullptr; });
-
         bool symbolBucketsChanged = false;
-        const bool placementChanged = !placement->stillRecent(parameters.timePoint);
-        std::unique_ptr<Placement> newPlacement;
+        const bool placementChanged = !placement->stillRecent(updateParameters.timePoint);
         std::set<std::string> usedSymbolLayers;
 
         if (placementChanged) {
-            newPlacement = std::make_unique<Placement>(parameters.state, parameters.mapMode, updateParameters.transitionOptions, updateParameters.crossSourceCollisions);
+            placement = std::make_unique<Placement>(
+                updateParameters.transformState, updateParameters.mode,
+                updateParameters.transitionOptions, updateParameters.crossSourceCollisions,
+                std::move(placement));
         }
 
-        for (const auto& item : renderItemsWithSymbols) {
-            if (crossTileSymbolIndex.addLayer(*item.layer.getSymbolInterface(), parameters.state.getLatLng().longitude())) symbolBucketsChanged = true;
+        for (auto it = renderItemsWithSymbols.rbegin(); it != renderItemsWithSymbols.rend(); ++it) {
+            const RenderLayerSymbolInterface *symbolLayer = *it;
+            if (crossTileSymbolIndex.addLayer(*symbolLayer, updateParameters.transformState.getLatLng().longitude())) symbolBucketsChanged = true;
 
-            if (newPlacement) {
-                usedSymbolLayers.insert(item.layer.getID());
-                newPlacement->placeLayer(*item.layer.getSymbolInterface(), parameters.projMatrix, parameters.debugOptions & MapDebugOptions::Collision);
+            if (placementChanged) {
+                usedSymbolLayers.insert(symbolLayer->layerID());
+                mat4 projMatrix;
+                updateParameters.transformState.getProjMatrix(projMatrix);
+                placement->placeLayer(*symbolLayer, projMatrix, updateParameters.debugOptions & MapDebugOptions::Collision);
             }
         }
 
-        if (newPlacement) {
-            newPlacement->commit(*placement, parameters.timePoint);
+        if (placementChanged) {
+            placement->commit(updateParameters.timePoint);
             crossTileSymbolIndex.pruneUnusedLayers(usedSymbolLayers);
-            placement = std::move(newPlacement);
             updateFadingTiles();
         } else {
             placement->setStale();
         }
 
-        parameters.symbolFadeChange = placement->symbolFadeChange(parameters.timePoint);
 
         if (placementChanged || symbolBucketsChanged) {
-            for (const auto& item : renderItemsWithSymbols) {
-                placement->updateLayerOpacities(*item.layer.getSymbolInterface());
+            for (auto it = renderItemsWithSymbols.rbegin(); it != renderItemsWithSymbols.rend(); ++it) {
+                const RenderLayerSymbolInterface *symbolLayer = *it;
+                placement->updateLayerOpacities(*symbolLayer);
+            }
+        }
+    }
+
+    auto& context = backend.getContext();
+
+    // Blocks execution until the renderable is available.
+    backend.getDefaultRenderable().wait();
+
+    PaintParameters parameters {
+        context,
+        pixelRatio,
+        backend,
+        updateParameters,
+        renderLight.getEvaluated(),
+        *staticData,
+        *imageManager,
+        *lineAtlas,
+    };
+
+    parameters.symbolFadeChange = placement->symbolFadeChange(updateParameters.timePoint);
+
+    // TODO: move this pass to before the PaintParameters initialization
+    // - PREPARE PASS -------------------------------------------------------------------------------
+    // Runs an initialization pass for all sources.
+    {
+        // Update all matrices and generate data that we should upload to the GPU.
+        for (const auto& entry : renderSources) {
+            if (entry.second->isEnabled()) {
+                entry.second->prepare(parameters);
             }
         }
     }
@@ -373,41 +382,57 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // - UPLOAD PASS -------------------------------------------------------------------------------
     // Uploads all required buffers and images before we do any actual rendering.
     {
-        MBGL_DEBUG_GROUP(parameters.context, "upload");
+        const auto uploadPass = parameters.encoder->createUploadPass("upload");
 
-        parameters.imageManager.upload(parameters.context, 0);
-        parameters.lineAtlas.upload(parameters.context, 0);
-        
         // Update all clipping IDs + upload buckets.
         for (const auto& entry : renderSources) {
             if (entry.second->isEnabled()) {
-                entry.second->startRender(parameters);
+                entry.second->upload(*uploadPass);
             }
         }
+
+        UploadParameters uploadParameters{
+            updateParameters.transformState,
+            placement->getVariableOffsets(),
+            *imageManager,
+            *lineAtlas,
+        };
+
+        for (auto& renderItem : renderItems) {
+            RenderLayer& renderLayer = renderItem.layer;
+            if (renderLayer.hasRenderPass(RenderPass::Upload)) {
+                renderLayer.upload(*uploadPass, uploadParameters);
+            }
+        }
+
+        staticData->upload(*uploadPass);
+        imageManager->upload(*uploadPass);
+        lineAtlas->upload(*uploadPass);
     }
 
     // - 3D PASS -------------------------------------------------------------------------------------
     // Renders any 3D layers bottom-to-top to unique FBOs with texture attachments, but share the same
     // depth rbo between them.
     if (parameters.staticData.has3D) {
-        parameters.staticData.backendSize = parameters.backend.getFramebufferSize();
+        parameters.staticData.backendSize = parameters.backend.getDefaultRenderable().getSize();
 
-        MBGL_DEBUG_GROUP(parameters.context, "3d");
+        const auto debugGroup(parameters.encoder->createDebugGroup("3d"));
         parameters.pass = RenderPass::Pass3D;
 
         if (!parameters.staticData.depthRenderbuffer ||
-            parameters.staticData.depthRenderbuffer->size != parameters.staticData.backendSize) {
+            parameters.staticData.depthRenderbuffer->getSize() != parameters.staticData.backendSize) {
             parameters.staticData.depthRenderbuffer =
-                parameters.context.createRenderbuffer<gl::RenderbufferType::DepthComponent>(parameters.staticData.backendSize);
+                parameters.context.createRenderbuffer<gfx::RenderbufferPixelType::Depth>(parameters.staticData.backendSize);
         }
-        parameters.staticData.depthRenderbuffer->shouldClear(true);
+        parameters.staticData.depthRenderbuffer->setShouldClear(true);
 
-        uint32_t i = static_cast<uint32_t>(order.size()) - 1;
-        for (auto it = order.begin(); it != order.end(); ++it, --i) {
+        uint32_t i = static_cast<uint32_t>(renderItems.size()) - 1;
+        for (auto it = renderItems.begin(); it != renderItems.end(); ++it, --i) {
             parameters.currentLayer = i;
-            if (it->layer.hasRenderPass(parameters.pass)) {
-                MBGL_DEBUG_GROUP(parameters.context, it->layer.getID());
-                it->layer.render(parameters, it->source);
+            RenderLayer& renderLayer = it->layer;
+            if (renderLayer.hasRenderPass(parameters.pass)) {
+                const auto layerDebugGroup(parameters.encoder->createDebugGroup(renderLayer.getID().c_str()));
+                renderLayer.render(parameters, it->source);
             }
         }
     }
@@ -416,111 +441,32 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // Renders the backdrop of the OpenGL view. This also paints in areas where we don't have any
     // tiles whatsoever.
     {
-        using namespace gl::value;
-
-        MBGL_DEBUG_GROUP(parameters.context, "clear");
-        parameters.backend.bind();
+        optional<Color> color;
         if (parameters.debugOptions & MapDebugOptions::Overdraw) {
-            parameters.context.clear(Color::black(), ClearDepth::Default, ClearStencil::Default);
-        } else if (parameters.contextMode == GLContextMode::Shared) {
-            parameters.context.clear({}, ClearDepth::Default, ClearStencil::Default);
-        } else {
-            parameters.context.clear(backgroundColor, ClearDepth::Default, ClearStencil::Default);
+            color = Color::black();
+        } else if (!backend.contextIsShared()) {
+            color = backgroundColor;
         }
+        parameters.renderPass = parameters.encoder->createRenderPass("main buffer", { parameters.backend.getDefaultRenderable(), color, 1, 0 });
     }
-
-    // - CLIPPING MASKS ----------------------------------------------------------------------------
-    // Draws the clipping masks to the stencil buffer.
-    {
-        MBGL_DEBUG_GROUP(parameters.context, "clipping masks");
-
-        static const Properties<>::PossiblyEvaluated properties {};
-        static const ClippingMaskProgram::PaintPropertyBinders paintAttributeData(properties, 0);
-
-        for (const auto& clipID : parameters.clipIDGenerator.getClipIDs()) {
-            auto& program = parameters.staticData.programs.clippingMask;
-
-            program.draw(
-                parameters.context,
-                gl::Triangles(),
-                gl::DepthMode::disabled(),
-                gl::StencilMode {
-                    gl::StencilMode::Always(),
-                    static_cast<int32_t>(clipID.second.reference.to_ulong()),
-                    0b11111111,
-                    gl::StencilMode::Keep,
-                    gl::StencilMode::Keep,
-                    gl::StencilMode::Replace
-                },
-                gl::ColorMode::disabled(),
-                gl::CullFaceMode::disabled(),
-                parameters.staticData.quadTriangleIndexBuffer,
-                parameters.staticData.tileTriangleSegments,
-                program.computeAllUniformValues(
-                    ClippingMaskProgram::UniformValues {
-                        uniforms::u_matrix::Value( parameters.matrixForTile(clipID.first) ),
-                    },
-                    paintAttributeData,
-                    properties,
-                    parameters.state.getZoom()
-                ),
-                program.computeAllAttributeBindings(
-                    parameters.staticData.tileVertexBuffer,
-                    paintAttributeData,
-                    properties
-                ),
-                "clipping"
-            );
-        }
-    }
-
-#if not MBGL_USE_GLES2 and not defined(NDEBUG)
-    // Render tile clip boundaries, using stencil buffer to calculate fill color.
-    if (parameters.debugOptions & MapDebugOptions::StencilClip) {
-        parameters.context.setStencilMode(gl::StencilMode::disabled());
-        parameters.context.setDepthMode(gl::DepthMode::disabled());
-        parameters.context.setColorMode(gl::ColorMode::unblended());
-        parameters.context.program = 0;
-
-        // Reset the value in case someone else changed it, or it's dirty.
-        parameters.context.pixelTransferStencil = gl::value::PixelTransferStencil::Default;
-
-        // Read the stencil buffer
-        const auto viewport = parameters.context.viewport.getCurrentValue();
-        auto image = parameters.context.readFramebuffer<AlphaImage, gl::TextureFormat::Stencil>(viewport.size, false);
-
-        // Scale the Stencil buffer to cover the entire color space.
-        auto it = image.data.get();
-        auto end = it + viewport.size.width * viewport.size.height;
-        const auto factor = 255.0f / *std::max_element(it, end);
-        for (; it != end; ++it) {
-            *it *= factor;
-        }
-
-        parameters.context.pixelZoom = { 1, 1 };
-        parameters.context.rasterPos = { -1, -1, 0, 1 };
-        parameters.context.drawPixels(image);
-
-        return;
-    }
-#endif
 
     // Actually render the layers
 
-    parameters.depthRangeSize = 1 - (order.size() + 2) * parameters.numSublayers * parameters.depthEpsilon;
+    parameters.depthRangeSize = 1 - (renderItems.size() + 2) * parameters.numSublayers * parameters.depthEpsilon;
 
     // - OPAQUE PASS -------------------------------------------------------------------------------
     // Render everything top-to-bottom by using reverse iterators. Render opaque objects first.
     {
         parameters.pass = RenderPass::Opaque;
-        MBGL_DEBUG_GROUP(parameters.context, "opaque");
+        const auto debugGroup(parameters.renderPass->createDebugGroup("opaque"));
 
         uint32_t i = 0;
-        for (auto it = order.rbegin(); it != order.rend(); ++it, ++i) {
+        for (auto it = renderItems.rbegin(); it != renderItems.rend(); ++it, ++i) {
             parameters.currentLayer = i;
-            if (it->layer.hasRenderPass(parameters.pass)) {
-                MBGL_DEBUG_GROUP(parameters.context, it->layer.getID());
-                it->layer.render(parameters, it->source);
+            RenderLayer& renderLayer = it->layer;
+            if (renderLayer.hasRenderPass(parameters.pass)) {
+                const auto layerDebugGroup(parameters.renderPass->createDebugGroup(renderLayer.getID().c_str()));
+                renderLayer.render(parameters, it->source);
             }
         }
     }
@@ -529,14 +475,15 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // Make a second pass, rendering translucent objects. This time, we render bottom-to-top.
     {
         parameters.pass = RenderPass::Translucent;
-        MBGL_DEBUG_GROUP(parameters.context, "translucent");
+        const auto debugGroup(parameters.renderPass->createDebugGroup("translucent"));
 
-        uint32_t i = static_cast<uint32_t>(order.size()) - 1;
-        for (auto it = order.begin(); it != order.end(); ++it, --i) {
+        uint32_t i = static_cast<uint32_t>(renderItems.size()) - 1;
+        for (auto it = renderItems.begin(); it != renderItems.end(); ++it, --i) {
             parameters.currentLayer = i;
-            if (it->layer.hasRenderPass(parameters.pass)) {
-                MBGL_DEBUG_GROUP(parameters.context, it->layer.getID());
-                it->layer.render(parameters, it->source);
+            RenderLayer& renderLayer = it->layer;
+            if (renderLayer.hasRenderPass(parameters.pass)) {
+                const auto layerDebugGroup(parameters.renderPass->createDebugGroup(renderLayer.getID().c_str()));
+                renderLayer.render(parameters, it->source);
             }
         }
     }
@@ -544,7 +491,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // - DEBUG PASS --------------------------------------------------------------------------------
     // Renders debug overlays.
     {
-        MBGL_DEBUG_GROUP(parameters.context, "debug");
+        const auto debugGroup(parameters.renderPass->createDebugGroup("debug"));
 
         // Finalize the rendering, e.g. by calling debug render calls per tile.
         // This guarantees that we have at least one function per tile called.
@@ -557,45 +504,19 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         }
     }
 
-#if not MBGL_USE_GLES2 and not defined(NDEBUG)
-    // Render the depth buffer.
-    if (parameters.debugOptions & MapDebugOptions::DepthBuffer) {
-        parameters.context.setStencilMode(gl::StencilMode::disabled());
-        parameters.context.setDepthMode(gl::DepthMode::disabled());
-        parameters.context.setColorMode(gl::ColorMode::unblended());
-        parameters.context.program = 0;
-
-        // Scales the values in the depth buffer so that they cover the entire grayscale range. This
-        // makes it easier to spot tiny differences.
-        const float base = 1.0f / (1.0f - parameters.depthRangeSize);
-        parameters.context.pixelTransferDepth = { base, 1.0f - base };
-
-        // Read the stencil buffer
-        auto viewport = parameters.context.viewport.getCurrentValue();
-        auto image = parameters.context.readFramebuffer<AlphaImage, gl::TextureFormat::Depth>(viewport.size, false);
-
-        parameters.context.pixelZoom = { 1, 1 };
-        parameters.context.rasterPos = { -1, -1, 0, 1 };
-        parameters.context.drawPixels(image);
+#if not defined(NDEBUG)
+    if (parameters.debugOptions & MapDebugOptions::StencilClip) {
+        // Render tile clip boundaries, using stencil buffer to calculate fill color.
+        parameters.context.visualizeStencilBuffer();
+    } else if (parameters.debugOptions & MapDebugOptions::DepthBuffer) {
+        // Render the depth buffer.
+        parameters.context.visualizeDepthBuffer(parameters.depthRangeSize);
     }
 #endif
 
-    // TODO: Find a better way to unbind VAOs after we're done with them without introducing
-    // unnecessary bind(0)/bind(N) sequences.
-    {
-        MBGL_DEBUG_GROUP(parameters.context, "cleanup");
-
-        parameters.context.activeTextureUnit = 1;
-        parameters.context.texture[1] = 0;
-        parameters.context.activeTextureUnit = 0;
-        parameters.context.texture[0] = 0;
-
-        parameters.context.bindVertexArray = 0;
-    }
-
     observer->onDidFinishRenderingFrame(
         loaded ? RendererObserver::RenderMode::Full : RendererObserver::RenderMode::Partial,
-        updateParameters.mode == MapMode::Continuous && hasTransitions(parameters.timePoint)
+        isMapModeContinuous && hasTransitions(parameters.timePoint)
     );
 
     if (!loaded) {
@@ -605,8 +526,11 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         observer->onDidFinishRenderingMap();
     }
 
-    // Cleanup only after signaling completion
-    parameters.context.performCleanup();
+    if (updateParameters.mode == MapMode::Continuous) {
+        parameters.encoder->present(parameters.backend.getDefaultRenderable());
+    }
+
+    // CommandEncoder destructor submits render commands.
 }
 
 std::vector<Feature> Renderer::Impl::queryRenderedFeatures(const ScreenLineString& geometry, const RenderedQueryOptions& options) const {
@@ -634,10 +558,10 @@ void Renderer::Impl::queryRenderedSymbols(std::unordered_map<std::string, std::v
     auto renderedSymbols = placement->getCollisionIndex().queryRenderedSymbols(geometry);
     std::vector<std::reference_wrapper<const RetainedQueryData>> bucketQueryData;
     for (auto entry : renderedSymbols) {
-        bucketQueryData.push_back(placement->getQueryData(entry.first));
+        bucketQueryData.emplace_back(placement->getQueryData(entry.first));
     }
     // Although symbol query is global, symbol results are only sortable within a bucket
-    // For a predictable global sort order, we sort the buckets based on their corresponding tile position
+    // For a predictable global sort renderItems, we sort the buckets based on their corresponding tile position
     std::sort(bucketQueryData.begin(), bucketQueryData.end(), [](const RetainedQueryData& a, const RetainedQueryData& b) {
         return
             std::tie(a.tileID.canonical.z, a.tileID.canonical.y, a.tileID.wrap, a.tileID.canonical.x) <
@@ -684,12 +608,13 @@ std::vector<Feature> Renderer::Impl::queryRenderedFeatures(const ScreenLineStrin
         return result;
     }
 
-    // Combine all results based on the style layer order.
+    // Combine all results based on the style layer renderItems.
     for (const auto& layerImpl : *layerImpls) {
         const RenderLayer* layer = getRenderLayer(layerImpl->id);
-        if (!layer->needsRendering(zoomHistory.lastZoom)) {
+        if (!layer->needsRendering() || !layer->supportsZoom(zoomHistory.lastZoom)) {
             continue;
         }
+
         auto it = resultsByLayer.find(layer->baseImpl->id);
         if (it != resultsByLayer.end()) {
             std::move(it->second.begin(), it->second.end(), std::back_inserter(result));
@@ -734,15 +659,18 @@ FeatureExtensionValue Renderer::Impl::queryFeatureExtensions(const std::string& 
 }
 
 void Renderer::Impl::reduceMemoryUse() {
-    assert(BackendScope::exists());
+    assert(gfx::BackendScope::exists());
     for (const auto& entry : renderSources) {
         entry.second->reduceMemoryUse();
     }
     backend.getContext().performCleanup();
     observer->onInvalidate();
+    if (imageManager) {
+        imageManager->reduceMemoryUse();
+    }
 }
 
-void Renderer::Impl::dumDebugLogs() {
+void Renderer::Impl::dumpDebugLogs() {
     for (const auto& entry : renderSources) {
         entry.second->dumpDebugLogs();
     }
@@ -828,6 +756,10 @@ void Renderer::Impl::onTileError(RenderSource& source, const OverscaledTileID& t
 
 void Renderer::Impl::onTileChanged(RenderSource&, const OverscaledTileID&) {
     observer->onInvalidate();
+}
+
+void Renderer::Impl::onStyleImageMissing(const std::string& id, std::function<void()> done) {
+    observer->onStyleImageMissing(id, std::move(done));
 }
 
 } // namespace mbgl

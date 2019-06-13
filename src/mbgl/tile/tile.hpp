@@ -11,7 +11,7 @@
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/storage/resource.hpp>
-#include <mbgl/style/layer_impl.hpp>
+#include <mbgl/style/layer_properties.hpp>
 
 #include <string>
 #include <memory>
@@ -20,26 +20,27 @@
 
 namespace mbgl {
 
-class DebugBucket;
+class LayerRenderData;
 class TransformState;
 class TileObserver;
 class RenderLayer;
 class RenderedQueryOptions;
 class SourceQueryOptions;
-
 class CollisionIndex;
 
-namespace gl {
-class Context;
-} // namespace gl
+namespace gfx {
+class UploadPass;
+} // namespace gfx
 
-class Tile : private util::noncopyable {
+class Tile {
 public:
     enum class Kind : uint8_t {
         Geometry,
         Raster,
         RasterDEM
     };
+    Tile(const Tile&) = delete;
+    Tile& operator=(const Tile&) = delete;
 
     Tile(Kind, OverscaledTileID);
     virtual ~Tile();
@@ -51,8 +52,16 @@ public:
     // Mark this tile as no longer needed and cancel any pending work.
     virtual void cancel();
 
-    virtual void upload(gl::Context&) = 0;
+    virtual void upload(gfx::UploadPass&) = 0;
     virtual Bucket* getBucket(const style::Layer::Impl&) const = 0;
+    virtual const LayerRenderData* getLayerRenderData(const style::Layer::Impl&) const {
+        assert(false);
+        return nullptr;
+    }
+    // Updates the contained layer render data with the given properties.
+    // Returns `true` if the corresponding render layer data is present in this tile (and i.e. it
+    // was succesfully updated); returns `false` otherwise.
+    virtual bool updateLayerProperties(const Immutable<style::LayerProperties>&) { return true; }
 
     template <class T>
     T* getBucket(const style::Layer::Impl& layer) const {
@@ -60,7 +69,7 @@ public:
     }
 
     virtual void setShowCollisionBoxes(const bool) {}
-    virtual void setLayers(const std::vector<Immutable<style::Layer::Impl>>&) {}
+    virtual void setLayers(const std::vector<Immutable<style::LayerProperties>>&) {}
     virtual void setMask(TileMask&&) {}
 
     virtual void queryRenderedFeatures(
@@ -128,9 +137,6 @@ public:
     OverscaledTileID id;
     optional<Timestamp> modified;
     optional<Timestamp> expires;
-
-    // Contains the tile ID string for painting debug information.
-    std::unique_ptr<DebugBucket> debugBucket;
 
 protected:
     bool triedOptional = false;

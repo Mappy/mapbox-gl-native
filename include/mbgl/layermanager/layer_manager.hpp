@@ -2,10 +2,19 @@
 
 #include <mbgl/style/layer.hpp>
 
-namespace mbgl {
+#include <vector>
 
+namespace mbgl {
+namespace style {
+class LayerProperties;
+}  // namespace style
+class GeometryTileLayer;
 class LayerFactory;
 class RenderLayer;
+class Bucket;
+class BucketParameters;
+class Layout;
+class LayoutParameters;
 
 /**
  * @brief A singleton class responsible for creating layer instances.
@@ -25,11 +34,16 @@ public:
      */
     static LayerManager* get() noexcept;
 
-    /// Returns a new Layer instance on success call; returns `nulltptr` otherwise.
+    /// Returns a new Layer instance on success call; returns `nullptr` otherwise.
     std::unique_ptr<style::Layer> createLayer(const std::string& type, const std::string& id,
                                               const style::conversion::Convertible& value, style::conversion::Error& error) noexcept;
-    /// Returns a new RenderLayer instance on success call; returns `nulltptr` otherwise.
+    /// Returns a new RenderLayer instance on success call; returns `nullptr` otherwise.
     std::unique_ptr<RenderLayer> createRenderLayer(Immutable<style::Layer::Impl>) noexcept;
+    /// Returns a new Bucket instance on success call; returns `nullptr` otherwise.
+    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<Immutable<style::LayerProperties>>&) noexcept;
+    /// Returns a new Layout instance on success call; returns `nullptr` otherwise. 
+    std::unique_ptr<Layout> createLayout(const LayoutParameters&, std::unique_ptr<GeometryTileLayer>,
+                                         const std::vector<Immutable<style::LayerProperties>>&) noexcept;
 
     /**
      * @brief a build-time flag to enable/disable annotations in mapbox-gl-native core.

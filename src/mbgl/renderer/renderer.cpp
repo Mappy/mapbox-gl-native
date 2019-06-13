@@ -2,24 +2,23 @@
 
 #include <mbgl/layermanager/layer_manager.hpp>
 #include <mbgl/renderer/renderer_impl.hpp>
-#include <mbgl/renderer/backend_scope.hpp>
+#include <mbgl/gfx/backend_scope.hpp>
 #include <mbgl/annotation/annotation_manager.hpp>
 
 namespace mbgl {
 
-Renderer::Renderer(RendererBackend& backend,
+Renderer::Renderer(gfx::RendererBackend& backend,
                    float pixelRatio_,
-                   FileSource& fileSource_,
-                   Scheduler& scheduler_,
-                   GLContextMode contextMode_,
                    const optional<std::string> programCacheDir_,
                    const optional<std::string> localFontFamily_)
-        : impl(std::make_unique<Impl>(backend, pixelRatio_, fileSource_, scheduler_,
-                                      contextMode_, std::move(programCacheDir_), std::move(localFontFamily_))) {
+    : impl(std::make_unique<Impl>(backend,
+                                  pixelRatio_,
+                                  std::move(programCacheDir_),
+                                  std::move(localFontFamily_))) {
 }
 
 Renderer::~Renderer() {
-    BackendScope guard { impl->backend };
+    gfx::BackendScope guard { impl->backend };
     impl.reset();
 }
 
@@ -109,11 +108,11 @@ FeatureExtensionValue Renderer::queryFeatureExtensions(const std::string& source
 }
 
 void Renderer::dumpDebugLogs() {
-    impl->dumDebugLogs();
+    impl->dumpDebugLogs();
 }
 
 void Renderer::reduceMemoryUse() {
-    BackendScope guard { impl->backend };
+    gfx::BackendScope guard { impl->backend };
     impl->reduceMemoryUse();
 }
 

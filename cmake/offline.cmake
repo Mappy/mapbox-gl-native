@@ -12,9 +12,8 @@ target_include_directories(mbgl-offline
 
 target_link_libraries(mbgl-offline
     PRIVATE mbgl-core
+    PRIVATE args
 )
-
-target_add_mason_package(mbgl-offline PRIVATE args)
 
 mbgl_platform_offline()
 

@@ -383,6 +383,7 @@ In style specification | Method, function, or predicate type | Format string syn
 `zoom`                 | `NSExpression.zoomLevelVariableExpression` | `$zoomLevel`
 `heatmap-density`      | `NSExpression.heatmapDensityVariableExpression` | `$heatmapDensity`
 `line-progress`        | `NSExpression.lineProgressVariableExpression` | `$lineProgress`
+`format`               | `+[NSExpression mgl_expressionForAttributedExpressions:]` or `mgl_attributed:`  | `mgl_attributed({x, y, z})`
 
 For operators that have no corresponding `NSExpression` symbol, use the
 `MGL_FUNCTION()` format string syntax.
@@ -409,6 +410,17 @@ In style JSON             | In the format string
 `["all", f0, …, fn]`      | `p0 AND … AND pn`
 `["any", f0, …, fn]`      | `p0 OR … OR pn`
 `["none", f0, …, fn]`     | `NOT (p0 OR … OR pn)`
+
+## Specifying the text format
+
+The following format attributes are defined as `NSString` constans that you
+can use to update the formatting of `MGLSymbolStyleLayer.text` property.
+
+In style JSON | In Objective-C        | In Swift
+--------------|-----------------------|---------
+`text-font`      | `MGLFontNamesAttribute` | `.fontNamesAttribute`
+`font-scale`      | `MGLFontScaleAttribute` | `.fontScaleAttribute`
+`text-color`  | `MGLFontColorAttribute` | `.fontColorAttribute`
 
 See the “[Predicates and Expressions](predicates-and-expressions.html)” guide for
 a full description of the supported operators and operand types.

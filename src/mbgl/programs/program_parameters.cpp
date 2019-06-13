@@ -34,19 +34,10 @@ optional<std::string> ProgramParameters::cachePath(const char* name) const {
         result += "/com.mapbox.gl.shader.";
         result += name;
         result += '.';
-        result += util::toHex(std::hash<std::string>()(defines));
+        result += util::toHex(static_cast<uint64_t>(std::hash<std::string>()(defines)));
         result += ".pbf";
         return result;
     }
-}
-
-ProgramParameters ProgramParameters::withAdditionalDefines(const std::vector<std::string>& additionalDefines) const {
-    ProgramParameters result(*this);
-    for (const auto& define : additionalDefines) {
-        result.defines += define;
-        result.defines += "\n";
-    }
-    return result;
 }
 
 } // namespace mbgl

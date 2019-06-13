@@ -69,10 +69,13 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.NORMAL
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(style.getSource(LOCATION_SOURCE), notNullValue())
       }
@@ -89,11 +92,14 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.NORMAL
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(BACKGROUND_LAYER), `is`(true))
@@ -110,11 +116,14 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.COMPASS
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(BACKGROUND_LAYER), `is`(true))
@@ -131,11 +140,14 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.GPS
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(true))
         assertThat(mapboxMap.isLayerVisible(BACKGROUND_LAYER), `is`(true))
@@ -152,11 +164,14 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
         component.isLocationComponentEnabled = false
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         component.renderMode = RenderMode.GPS
 
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(false))
@@ -174,12 +189,15 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.NORMAL
         component.forceLocationUpdate(location)
         component.isLocationComponentEnabled = false
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         // Check that all layers visibilities are set to none
         assertThat(mapboxMap.isLayerVisible(FOREGROUND_LAYER), `is`(false))
@@ -197,12 +215,15 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.renderMode = RenderMode.NORMAL
         component.forceLocationUpdate(location)
         styleChangeIdlingResource.waitForStyle(mapboxMap, Style.LIGHT)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(component.renderMode, `is`(equalTo(RenderMode.NORMAL)))
 
@@ -226,17 +247,20 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.applyStyle(LocationComponentOptions.builder(context).staleStateTimeout(100).build())
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         uiController.loopMainThreadForAtLeast(150)
 
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(true))
 
         mapboxMap.setStyle(Style.Builder().fromUrl(Style.LIGHT))
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(mapboxMap.querySourceFeatures(LOCATION_SOURCE)[0].getBooleanProperty(PROPERTY_LOCATION_STALE), `is`(true))
       }
@@ -249,22 +273,24 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         component.isLocationComponentEnabled = false
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         assertThat(mapboxMap.queryRenderedFeatures(location, FOREGROUND_LAYER).isEmpty(), `is`(true))
 
-        val options =
-          LocationComponentOptions.createFromAttributes(context, com.mapbox.mapboxsdk.testapp.R.style.CustomLocationComponent)
+        val options = component.locationComponentOptions
             .toBuilder()
             .layerBelow("road-label")
             .build()
 
         component.applyStyle(options)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         assertThat(mapboxMap.queryRenderedFeatures(location, FOREGROUND_LAYER).isEmpty(), `is`(true))
       }
     }
@@ -276,7 +302,10 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.applyStyle(LocationComponentOptions.builder(context).staleStateTimeout(1).build())
         styleChangeIdlingResource.waitForStyle(mapboxMap, MAPBOX_HEAVY_STYLE)
@@ -299,13 +328,16 @@ class LocationLayerControllerTest : EspressoTest() {
         styleChangeIdlingResource.waitForStyle(mapboxMap, MAPBOX_HEAVY_STYLE)
         uiController.loopMainThreadForAtLeast(100)
         var show = true
-        component.activateLocationComponent(context, mapboxMap.style!!, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, mapboxMap.style!!)
+                .useDefaultLocationEngine(false)
+                .build())
         pushSourceUpdates(styleChangeIdlingResource) {
           component.isLocationComponentEnabled = show
           show = !show
         }
 
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
       }
     }
     executeComponentTest(componentAction)
@@ -319,11 +351,14 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(location), 16.0))
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
         uiController.loopMainThreadForAtLeast(ACCURACY_RADIUS_ANIMATION_DURATION)
 
         assertEquals(Utils.calculateZoomLevelRadius(mapboxMap, location) /*meters projected to radius on zoom 16*/,
@@ -339,7 +374,10 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
 
@@ -347,7 +385,7 @@ class LocationLayerControllerTest : EspressoTest() {
         val zoom = 16.0
         mapboxMap.easeCamera(CameraUpdateFactory.newLatLngZoom(target, zoom), 300)
         uiController.loopMainThreadForAtLeast(300)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
 
         assertThat(Math.abs(zoom - mapboxMap.cameraPosition.zoom) < 0.1
@@ -369,14 +407,17 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
 
         val target = LatLng(location)
         val zoom = 16.0
         mapboxMap.moveCamera(CameraUpdateFactory.newLatLngZoom(target, zoom))
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         assertThat(Math.abs(zoom - mapboxMap.cameraPosition.zoom) < 0.1
           && Math.abs(target.latitude - mapboxMap.cameraPosition.target.latitude) < 0.1
@@ -397,10 +438,13 @@ class LocationLayerControllerTest : EspressoTest() {
     val componentAction = object : LocationComponentAction.OnPerformLocationComponentAction {
       override fun onLocationComponentAction(component: LocationComponent, mapboxMap: MapboxMap,
                                              style: Style, uiController: UiController, context: Context) {
-        component.activateLocationComponent(context, style, false)
+        component.activateLocationComponent(LocationComponentActivationOptions
+                .builder(context, style)
+                .useDefaultLocationEngine(false)
+                .build())
         component.isLocationComponentEnabled = true
         component.forceLocationUpdate(location)
-        TestingAsyncUtils.waitForLayer(uiController, idlingResource.mapView)
+        TestingAsyncUtils.waitForLayer(uiController, mapView)
 
         component.applyStyle(LocationComponentOptions.builder(context).layerBelow("road-label").build())
 

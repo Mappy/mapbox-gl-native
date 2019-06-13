@@ -3,7 +3,6 @@
 #include <mbgl/actor/scheduler.hpp>
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/renderer/renderer_observer.hpp>
-#include <mbgl/storage/file_source.hpp>
 #include <mbgl/util/async_task.hpp>
 #include <mbgl/util/thread.hpp>
 #include <mbgl/util/run_loop.hpp>
@@ -49,6 +48,10 @@ public:
 
     void onDidFinishRenderingMap() override {
         delegate.invoke(&RendererObserver::onDidFinishRenderingMap);
+    }
+
+    void onStyleImageMissing(const std::string& id, StyleImageMissingCallback done) override {
+        delegate.invoke(&RendererObserver::onStyleImageMissing, id, done);
     }
 
 private:

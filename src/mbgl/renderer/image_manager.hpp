@@ -5,7 +5,8 @@
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/immutable.hpp>
 #include <mbgl/util/optional.hpp>
-#include <mbgl/gl/texture.hpp>
+#include <mbgl/gfx/texture.hpp>
+#include <mbgl/renderer/image_manager_observer.hpp>
 
 #include <mapbox/shelf-pack.hpp>
 
@@ -14,15 +15,14 @@
 
 namespace mbgl {
 
-namespace gl {
-class Context;
-} // namespace gl
+template <class T>
+class Actor;
 
-class ImageRequestor {
-public:
-    virtual ~ImageRequestor() = default;
-    virtual void onImagesAvailable(ImageMap icons, ImageMap patterns, uint64_t imageCorrelationID) = 0;
-};
+namespace gfx {
+class UploadPass;
+} // namespace gfx
+
+class ImageRequestor;
 
 /*
     ImageManager does two things:
@@ -39,6 +39,8 @@ public:
     ImageManager();
     ~ImageManager();
 
+    void setObserver(ImageManagerObserver*);
+
     void setLoaded(bool);
     bool isLoaded() const;
 
@@ -47,26 +49,42 @@ public:
     const style::Image::Impl* getImage(const std::string&) const;
 
     void addImage(Immutable<style::Image::Impl>);
-    void updateImage(Immutable<style::Image::Impl>);
+    bool updateImage(Immutable<style::Image::Impl>);
     void removeImage(const std::string&);
 
     void getImages(ImageRequestor&, ImageRequestPair&&);
     void removeRequestor(ImageRequestor&);
+    void notifyIfMissingImageAdded();
+    void reduceMemoryUse();
+
+    ImageVersionMap updatedImageVersions;
 
 private:
+    void checkMissingAndNotify(ImageRequestor&, const ImageRequestPair&);
     void notify(ImageRequestor&, const ImageRequestPair&) const;
+    void removePattern(const std::string&);
 
     bool loaded = false;
 
-    std::unordered_map<ImageRequestor*, ImageRequestPair> requestors;
+    std::map<ImageRequestor*, ImageRequestPair> requestors;
+    using Callback = std::function<void()>;
+    using ActorCallback = Actor<Callback>;
+    struct MissingImageRequestPair {
+        ImageRequestPair pair;
+        std::map<std::string, std::unique_ptr<ActorCallback>> callbacks;
+    };
+    std::map<ImageRequestor*, MissingImageRequestPair> missingImageRequestors;
+    std::map<std::string, std::set<ImageRequestor*>> requestedImages;
     ImageMap images;
+
+    ImageManagerObserver* observer = nullptr;
 
 // Pattern stuff
 public:
     optional<ImagePosition> getPattern(const std::string& name);
 
-    void bind(gl::Context&, gl::TextureUnit unit);
-    void upload(gl::Context&, gl::TextureUnit unit);
+    gfx::TextureBinding textureBinding();
+    void upload(gfx::UploadPass&);
 
     Size getPixelSize() const;
 
@@ -84,8 +102,17 @@ private:
     mapbox::ShelfPack shelfPack;
     std::unordered_map<std::string, Pattern> patterns;
     PremultipliedImage atlasImage;
-    mbgl::optional<gl::Texture> atlasTexture;
+    mbgl::optional<gfx::Texture> atlasTexture;
     bool dirty = true;
+};
+
+class ImageRequestor {
+public:
+    explicit ImageRequestor(ImageManager&);
+    virtual ~ImageRequestor();
+    virtual void onImagesAvailable(ImageMap icons, ImageMap patterns, ImageVersionMap versionMap, uint64_t imageCorrelationID) = 0;
+private:
+    ImageManager& imageManager;
 };
 
 } // namespace mbgl

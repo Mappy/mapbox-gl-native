@@ -23,7 +23,7 @@ const LayerTypeInfo* BackgroundLayer::Impl::staticTypeInfo() noexcept {
           LayerTypeInfo::Source::NotRequired,
           LayerTypeInfo::Pass3D::NotRequired,
           LayerTypeInfo::Layout::NotRequired,
-          LayerTypeInfo::Clipping::NotRequired
+          LayerTypeInfo::FadingTiles::NotRequired
         };
     return &typeInfo;
 }
@@ -66,11 +66,11 @@ PropertyValue<Color> BackgroundLayer::getDefaultBackgroundColor() {
     return { Color::black() };
 }
 
-PropertyValue<Color> BackgroundLayer::getBackgroundColor() const {
+const PropertyValue<Color>& BackgroundLayer::getBackgroundColor() const {
     return impl().paint.template get<BackgroundColor>().value;
 }
 
-void BackgroundLayer::setBackgroundColor(PropertyValue<Color> value) {
+void BackgroundLayer::setBackgroundColor(const PropertyValue<Color>& value) {
     if (value == getBackgroundColor())
         return;
     auto impl_ = mutableImpl();
@@ -89,42 +89,15 @@ TransitionOptions BackgroundLayer::getBackgroundColorTransition() const {
     return impl().paint.template get<BackgroundColor>().options;
 }
 
-PropertyValue<std::string> BackgroundLayer::getDefaultBackgroundPattern() {
-    return { "" };
-}
-
-PropertyValue<std::string> BackgroundLayer::getBackgroundPattern() const {
-    return impl().paint.template get<BackgroundPattern>().value;
-}
-
-void BackgroundLayer::setBackgroundPattern(PropertyValue<std::string> value) {
-    if (value == getBackgroundPattern())
-        return;
-    auto impl_ = mutableImpl();
-    impl_->paint.template get<BackgroundPattern>().value = value;
-    baseImpl = std::move(impl_);
-    observer->onLayerChanged(*this);
-}
-
-void BackgroundLayer::setBackgroundPatternTransition(const TransitionOptions& options) {
-    auto impl_ = mutableImpl();
-    impl_->paint.template get<BackgroundPattern>().options = options;
-    baseImpl = std::move(impl_);
-}
-
-TransitionOptions BackgroundLayer::getBackgroundPatternTransition() const {
-    return impl().paint.template get<BackgroundPattern>().options;
-}
-
 PropertyValue<float> BackgroundLayer::getDefaultBackgroundOpacity() {
     return { 1 };
 }
 
-PropertyValue<float> BackgroundLayer::getBackgroundOpacity() const {
+const PropertyValue<float>& BackgroundLayer::getBackgroundOpacity() const {
     return impl().paint.template get<BackgroundOpacity>().value;
 }
 
-void BackgroundLayer::setBackgroundOpacity(PropertyValue<float> value) {
+void BackgroundLayer::setBackgroundOpacity(const PropertyValue<float>& value) {
     if (value == getBackgroundOpacity())
         return;
     auto impl_ = mutableImpl();
@@ -143,25 +116,52 @@ TransitionOptions BackgroundLayer::getBackgroundOpacityTransition() const {
     return impl().paint.template get<BackgroundOpacity>().options;
 }
 
+PropertyValue<std::string> BackgroundLayer::getDefaultBackgroundPattern() {
+    return { "" };
+}
+
+const PropertyValue<std::string>& BackgroundLayer::getBackgroundPattern() const {
+    return impl().paint.template get<BackgroundPattern>().value;
+}
+
+void BackgroundLayer::setBackgroundPattern(const PropertyValue<std::string>& value) {
+    if (value == getBackgroundPattern())
+        return;
+    auto impl_ = mutableImpl();
+    impl_->paint.template get<BackgroundPattern>().value = value;
+    baseImpl = std::move(impl_);
+    observer->onLayerChanged(*this);
+}
+
+void BackgroundLayer::setBackgroundPatternTransition(const TransitionOptions& options) {
+    auto impl_ = mutableImpl();
+    impl_->paint.template get<BackgroundPattern>().options = options;
+    baseImpl = std::move(impl_);
+}
+
+TransitionOptions BackgroundLayer::getBackgroundPatternTransition() const {
+    return impl().paint.template get<BackgroundPattern>().options;
+}
+
 using namespace conversion;
 
 optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const Convertible& value) {
     enum class Property : uint8_t {
         BackgroundColor,
-        BackgroundPattern,
         BackgroundOpacity,
+        BackgroundPattern,
         BackgroundColorTransition,
-        BackgroundPatternTransition,
         BackgroundOpacityTransition,
+        BackgroundPatternTransition,
     };
 
     MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
         { "background-color", static_cast<uint8_t>(Property::BackgroundColor) },
-        { "background-pattern", static_cast<uint8_t>(Property::BackgroundPattern) },
         { "background-opacity", static_cast<uint8_t>(Property::BackgroundOpacity) },
+        { "background-pattern", static_cast<uint8_t>(Property::BackgroundPattern) },
         { "background-color-transition", static_cast<uint8_t>(Property::BackgroundColorTransition) },
-        { "background-pattern-transition", static_cast<uint8_t>(Property::BackgroundPatternTransition) },
-        { "background-opacity-transition", static_cast<uint8_t>(Property::BackgroundOpacityTransition) }
+        { "background-opacity-transition", static_cast<uint8_t>(Property::BackgroundOpacityTransition) },
+        { "background-pattern-transition", static_cast<uint8_t>(Property::BackgroundPatternTransition) }
     });
 
     const auto it = properties.find(name.c_str());
@@ -169,7 +169,7 @@ optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const
         return Error { "layer doesn't support this property" };
     }
 
-    Property property = static_cast<Property>(it->second);
+    auto property = static_cast<Property>(it->second);
 
         
     if (property == Property::BackgroundColor) {
@@ -180,18 +180,6 @@ optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const
         }
         
         setBackgroundColor(*typedValue);
-        return nullopt;
-        
-    }
-    
-    if (property == Property::BackgroundPattern) {
-        Error error;
-        optional<PropertyValue<std::string>> typedValue = convert<PropertyValue<std::string>>(value, error, false, false);
-        if (!typedValue) {
-            return error;
-        }
-        
-        setBackgroundPattern(*typedValue);
         return nullopt;
         
     }
@@ -208,6 +196,18 @@ optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const
         
     }
     
+    if (property == Property::BackgroundPattern) {
+        Error error;
+        optional<PropertyValue<std::string>> typedValue = convert<PropertyValue<std::string>>(value, error, false, false);
+        if (!typedValue) {
+            return error;
+        }
+        
+        setBackgroundPattern(*typedValue);
+        return nullopt;
+        
+    }
+    
 
     Error error;
     optional<TransitionOptions> transition = convert<TransitionOptions>(value, error);
@@ -220,13 +220,13 @@ optional<Error> BackgroundLayer::setPaintProperty(const std::string& name, const
         return nullopt;
     }
     
-    if (property == Property::BackgroundPatternTransition) {
-        setBackgroundPatternTransition(*transition);
+    if (property == Property::BackgroundOpacityTransition) {
+        setBackgroundOpacityTransition(*transition);
         return nullopt;
     }
     
-    if (property == Property::BackgroundOpacityTransition) {
-        setBackgroundOpacityTransition(*transition);
+    if (property == Property::BackgroundPatternTransition) {
+        setBackgroundPatternTransition(*transition);
         return nullopt;
     }
     

@@ -48,6 +48,24 @@ typedef NS_ENUM(NSUInteger, MGLAnnotationVerticalAlignment) {
     MGLAnnotationVerticalAlignmentBottom,
 };
 
+/**
+ The position of scale bar, compass, logo and attribution in a map view. Used with
+ `MGLMapView.scaleBarPosition`,
+ `MGLMapView.compassViewPosition`,
+ `MGLMapView.logoViewPosition`,
+ `MGLMapView.attributionButtonPosition`.
+ */
+typedef NS_ENUM(NSUInteger, MGLOrnamentPosition) {
+    /** Place the ornament in the top left of the map view. */
+    MGLOrnamentPositionTopLeft = 0,
+    /** Place the ornament in the top right of the map view. */
+    MGLOrnamentPositionTopRight,
+    /** Place the ornament in the bottom left of the map view. */
+    MGLOrnamentPositionBottomLeft,
+    /** Place the ornament in the bottom right of the map view. */
+    MGLOrnamentPositionBottomRight,
+};
+
 /** Options for `MGLMapView.preferredFramesPerSecond`. */
 typedef NSInteger MGLMapViewPreferredFramesPerSecond NS_TYPED_EXTENSIBLE_ENUM;
 
@@ -122,7 +140,7 @@ FOUNDATION_EXTERN MGL_EXPORT MGLExceptionName const MGLResourceNotFoundException
  See the <a href="https://docs.mapbox.com/ios/maps/examples/simple-map-view/">
  Simple map view</a> example to learn how to initialize a basic `MGLMapView`.
  */
-MGL_EXPORT IB_DESIGNABLE
+MGL_EXPORT
 @interface MGLMapView : UIView
 
 #pragma mark Creating Instances
@@ -248,10 +266,30 @@ MGL_EXPORT IB_DESIGNABLE
 @property (nonatomic, readonly) UIView *scaleBar;
 
 /**
+ The position of the scale bar. The default value is `MGLOrnamentPositionTopLeft`.
+ */
+@property (nonatomic, assign) MGLOrnamentPosition scaleBarPosition;
+
+/**
+ A `CGPoint` indicating the position offset of the scale bar.
+ */
+@property (nonatomic, assign) CGPoint scaleBarMargins;
+
+/**
  A control indicating the map’s direction and allowing the user to manipulate
  the direction, positioned in the upper-right corner.
  */
 @property (nonatomic, readonly) UIImageView *compassView;
+
+/**
+ The position of the compass view. The default value is `MGLOrnamentPositionTopRight`.
+ */
+@property (nonatomic, assign) MGLOrnamentPosition compassViewPosition;
+
+/**
+ A `CGPoint` indicating the position offset of the compass.
+ */
+@property (nonatomic, assign) CGPoint compassViewMargins;
 
 /**
  The Mapbox logo, positioned in the lower-left corner.
@@ -263,6 +301,17 @@ MGL_EXPORT IB_DESIGNABLE
     hide this view or change its contents.
  */
 @property (nonatomic, readonly) UIImageView *logoView;
+
+/**
+ The position of the logo view. The default value is `MGLOrnamentPositionBottomLeft`.
+ */
+@property (nonatomic, assign) MGLOrnamentPosition logoViewPosition;
+
+/**
+ A `CGPoint` indicating the position offset of the logo.
+ */
+@property (nonatomic, assign) CGPoint logoViewMargins;
+
 
 /**
  A view showing legally required copyright notices and telemetry settings,
@@ -290,6 +339,16 @@ MGL_EXPORT IB_DESIGNABLE
 @property (nonatomic, readonly) UIButton *attributionButton;
 
 /**
+ The position of the attribution button. The default value is `MGLOrnamentPositionBottomRight`.
+ */
+@property (nonatomic, assign) MGLOrnamentPosition attributionButtonPosition;
+
+/**
+ A `CGPoint` indicating the position offset of the attribution.
+ */
+@property (nonatomic, assign) CGPoint attributionButtonMargins;
+
+/**
  Show the attribution and telemetry action sheet.
 
  This action is performed when the user taps on the attribution button provided
@@ -313,6 +372,18 @@ MGL_EXPORT IB_DESIGNABLE
  */
 @property (nonatomic, assign) MGLMapViewPreferredFramesPerSecond preferredFramesPerSecond;
 
+/**
+ A Boolean value indicating whether the map should prefetch tiles.
+ 
+ When this property is set to `YES`, the map view prefetches tiles designed for
+ a low zoom level and displays them until receiving more detailed tiles for the
+ current zoom level. The prefetched tiles typically contain simplified versions
+ of each shape, improving the map view’s perceived performance.
+ 
+ The default value of this property is `YES`.
+ */
+@property (nonatomic, assign) BOOL prefetchesTiles;
+
 @property (nonatomic) NSArray<NSString *> *styleClasses __attribute__((unavailable("Support for style classes has been removed.")));
 
 - (BOOL)hasStyleClass:(NSString *)styleClass __attribute__((unavailable("Support for style classes has been removed.")));
@@ -324,17 +395,18 @@ MGL_EXPORT IB_DESIGNABLE
 #pragma mark Displaying the User’s Location
 
 /**
- The object that this map view uses to start and stop the delivery of location-related
- updates.
+ The object that this map view uses to start and stop the delivery of
+ location-related updates.
 
- To receive the current user location, implement the `-[MGLMapViewDelegate mapView:didUpdateUserLocation:]`
- and `-[MGLMapViewDelegate mapView:didFailToLocateUserWithError:]` methods.
+ To receive the current user location, implement the
+ `-[MGLMapViewDelegate mapView:didUpdateUserLocation:]` and
+ `-[MGLMapViewDelegate mapView:didFailToLocateUserWithError:]` methods.
 
- If setting this property to `nil` or if no custom manager is provided this property
- is set to the default location manager.
+ If setting this property to `nil` or if no custom manager is provided this
+ property is set to the default location manager.
 
- `MGLMapView` uses a default location manager. If you want to substitute your own
- location manager, you should do so by setting this property before setting
+ `MGLMapView` uses a default location manager. If you want to substitute your
+ own location manager, you should do so by setting this property before setting
  `showsUserLocation` to `YES`. To restore the default location manager,
  set this property to `nil`.
  */
@@ -633,7 +705,7 @@ MGL_EXPORT IB_DESIGNABLE
  @param centerCoordinate The new center coordinate for the map.
  @param zoomLevel The new zoom level for the map.
  @param direction The new direction for the map, measured in degrees relative to
-    true north.
+    true north. A negative value leaves the map’s direction unchanged.
  @param animated Specify `YES` if you want the map view to animate scrolling,
     zooming, and rotating to the new location or `NO` if you want the map to
     display the new location immediately.
@@ -650,7 +722,7 @@ MGL_EXPORT IB_DESIGNABLE
  @param centerCoordinate The new center coordinate for the map.
  @param zoomLevel The new zoom level for the map.
  @param direction The new direction for the map, measured in degrees relative to
-    true north.
+    true north. A negative value leaves the map’s direction unchanged.
  @param animated Specify `YES` if you want the map view to animate scrolling,
     zooming, and rotating to the new location or `NO` if you want the map to
     display the new location immediately.
@@ -831,7 +903,8 @@ MGL_EXPORT IB_DESIGNABLE
  @param insets The minimum padding (in screen points) that will be visible
     around the given coordinate bounds.
  @param direction The direction to rotate the map to, measured in degrees
-    relative to true north.
+    relative to true north. A negative value leaves the map’s direction
+    unchanged.
  @param duration The duration to animate the change in seconds.
  @param function The timing function to animate the change.
  @param completion The block executed after the animation finishes.

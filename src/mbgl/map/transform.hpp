@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mbgl/map/camera.hpp>
+#include <mbgl/map/projection_mode.hpp>
 #include <mbgl/map/map_observer.hpp>
 #include <mbgl/map/mode.hpp>
 #include <mbgl/map/transform_state.hpp>
@@ -46,29 +47,24 @@ public:
         @param offset The distance to pan the map by, measured in pixels from
             top to bottom and from left to right. */
     void moveBy(const ScreenCoordinate& offset, const AnimationOptions& = {});
-    LatLng getLatLng(const EdgeInsets& = {}) const;
+    LatLng getLatLng(const EdgeInsets& = {}, LatLng::WrapMode = LatLng::Wrapped) const;
     ScreenCoordinate getScreenCoordinate(const EdgeInsets& = {}) const;
 
     // Bounds
 
-    void setLatLngBounds(optional<LatLngBounds>);
+    void setLatLngBounds(LatLngBounds);
     void setMinZoom(double);
     void setMaxZoom(double);
-    void setMinPitch(double);
-    void setMaxPitch(double);
 
     // Zoom
 
     /** Returns the zoom level. */
     double getZoom() const;
 
-    // Angle
+    // Bearing
 
     void rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& = {});
-    /** Returns the angle of rotation.
-        @return The angle of rotation, measured in radians counterclockwise from
-            true north. */
-    double getAngle() const;
+    double getBearing() const;
 
     // Pitch
 
@@ -87,12 +83,8 @@ public:
     ViewportMode getViewportMode() const;
 
     // Projection mode
-    void setAxonometric(bool);
-    bool getAxonometric() const;
-    void setXSkew(double xSkew);
-    double getXSkew() const;
-    void setYSkew(double ySkew);
-    double getYSkew() const;
+    void setProjectionMode(const ProjectionMode&);
+    ProjectionMode getProjectionMode() const;
 
     // Transitions
     bool inTransition() const;

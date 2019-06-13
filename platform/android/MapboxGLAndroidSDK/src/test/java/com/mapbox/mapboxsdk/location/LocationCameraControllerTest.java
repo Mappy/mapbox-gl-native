@@ -22,6 +22,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Set;
 
+import static com.mapbox.mapboxsdk.location.LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS;
 import static com.mapbox.mapboxsdk.location.MapboxAnimator.ANIMATOR_CAMERA_COMPASS_BEARING;
 import static com.mapbox.mapboxsdk.location.MapboxAnimator.ANIMATOR_CAMERA_GPS_BEARING;
 import static com.mapbox.mapboxsdk.location.MapboxAnimator.ANIMATOR_CAMERA_LATLNG;
@@ -408,6 +409,7 @@ public class LocationCameraControllerTest {
     MapboxMap mapboxMap = mock(MapboxMap.class);
     AndroidGesturesManager initialGesturesManager = mock(AndroidGesturesManager.class);
     AndroidGesturesManager internalGesturesManager = mock(AndroidGesturesManager.class);
+    when(mapboxMap.getGesturesManager()).thenReturn(initialGesturesManager);
     LocationCameraController camera = buildCamera(mapboxMap, initialGesturesManager, internalGesturesManager);
     LocationComponentOptions options = mock(LocationComponentOptions.class);
     when(options.trackingGesturesManagement()).thenReturn(true);
@@ -421,12 +423,41 @@ public class LocationCameraControllerTest {
     MapboxMap mapboxMap = mock(MapboxMap.class);
     AndroidGesturesManager initialGesturesManager = mock(AndroidGesturesManager.class);
     AndroidGesturesManager internalGesturesManager = mock(AndroidGesturesManager.class);
+    when(mapboxMap.getGesturesManager()).thenReturn(internalGesturesManager);
     LocationCameraController camera = buildCamera(mapboxMap, initialGesturesManager, internalGesturesManager);
     LocationComponentOptions options = mock(LocationComponentOptions.class);
     when(options.trackingGesturesManagement()).thenReturn(false);
     camera.initializeOptions(options);
 
     verify(mapboxMap).setGesturesManager(initialGesturesManager, true, true);
+  }
+
+  @Test
+  public void gesturesManagement_optionNotChangedInitial() {
+    MapboxMap mapboxMap = mock(MapboxMap.class);
+    AndroidGesturesManager initialGesturesManager = mock(AndroidGesturesManager.class);
+    AndroidGesturesManager internalGesturesManager = mock(AndroidGesturesManager.class);
+    when(mapboxMap.getGesturesManager()).thenReturn(initialGesturesManager);
+    LocationCameraController camera = buildCamera(mapboxMap, initialGesturesManager, internalGesturesManager);
+    LocationComponentOptions options = mock(LocationComponentOptions.class);
+    when(options.trackingGesturesManagement()).thenReturn(false);
+    camera.initializeOptions(options);
+
+    verify(mapboxMap, times(0)).setGesturesManager(initialGesturesManager, true, true);
+  }
+
+  @Test
+  public void gesturesManagement_optionNotChangedInternal() {
+    MapboxMap mapboxMap = mock(MapboxMap.class);
+    AndroidGesturesManager initialGesturesManager = mock(AndroidGesturesManager.class);
+    AndroidGesturesManager internalGesturesManager = mock(AndroidGesturesManager.class);
+    when(mapboxMap.getGesturesManager()).thenReturn(internalGesturesManager);
+    LocationCameraController camera = buildCamera(mapboxMap, initialGesturesManager, internalGesturesManager);
+    LocationComponentOptions options = mock(LocationComponentOptions.class);
+    when(options.trackingGesturesManagement()).thenReturn(true);
+    camera.initializeOptions(options);
+
+    verify(mapboxMap, times(0)).setGesturesManager(internalGesturesManager, true, true);
   }
 
   @Test
@@ -492,7 +523,7 @@ public class LocationCameraControllerTest {
     camera.initializeOptions(mock(LocationComponentOptions.class));
     OnLocationCameraTransitionListener listener = mock(OnLocationCameraTransitionListener.class);
 
-    camera.setCameraMode(TRACKING, null, listener);
+    camera.setCameraMode(TRACKING, null, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
     Assert.assertEquals(TRACKING, camera.getCameraMode());
     verify(listener).onLocationCameraTransitionFinished(TRACKING);
     verify(mapboxMap, times(0))
@@ -507,7 +538,7 @@ public class LocationCameraControllerTest {
     OnLocationCameraTransitionListener listener = mock(OnLocationCameraTransitionListener.class);
     Location location = mock(Location.class);
 
-    camera.setCameraMode(NONE, location, listener);
+    camera.setCameraMode(NONE, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
     verify(listener, times(1)).onLocationCameraTransitionFinished(NONE);
     verify(mapboxMap, times(0))
       .animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback.class));
@@ -534,7 +565,7 @@ public class LocationCameraControllerTest {
     }).when(mapboxMap).animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback
       .class));
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
     verify(listener).onLocationCameraTransitionFinished(TRACKING);
     verify(mapboxMap)
       .animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback.class));
@@ -552,7 +583,7 @@ public class LocationCameraControllerTest {
     final OnLocationCameraTransitionListener listener = mock(OnLocationCameraTransitionListener.class);
     Location location = mock(Location.class);
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     doAnswer(new Answer<Void>() {
       @Override
@@ -563,7 +594,7 @@ public class LocationCameraControllerTest {
     }).when(mapboxMap).animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback
       .class));
 
-    camera.setCameraMode(TRACKING_GPS_NORTH, location, listener);
+    camera.setCameraMode(TRACKING_GPS_NORTH, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
     verify(listener, times(1)).onLocationCameraTransitionFinished(TRACKING_GPS_NORTH);
     verify(mapboxMap, times(1))
       .animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback.class));
@@ -590,7 +621,7 @@ public class LocationCameraControllerTest {
     }).when(mapboxMap).animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback
       .class));
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
     verify(listener).onLocationCameraTransitionCanceled(TRACKING);
     verify(mapboxMap)
       .animateCamera(any(CameraUpdate.class), any(Integer.class), any(MapboxMap.CancelableCallback.class));
@@ -615,12 +646,12 @@ public class LocationCameraControllerTest {
     ArgumentCaptor<MapboxMap.CancelableCallback> callbackCaptor
       = ArgumentCaptor.forClass(MapboxMap.CancelableCallback.class);
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     CameraPosition.Builder builder = new CameraPosition.Builder().target(new LatLng(location));
     verify(mapboxMap).animateCamera(
       eq(CameraUpdateFactory.newCameraPosition(builder.build())),
-      eq((int) LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS),
+      eq((int) TRANSITION_ANIMATION_DURATION_MS),
       callbackCaptor.capture());
 
     Assert.assertTrue(camera.isTransitioning());
@@ -651,7 +682,7 @@ public class LocationCameraControllerTest {
     ArgumentCaptor<MapboxMap.CancelableCallback> callbackCaptor
       = ArgumentCaptor.forClass(MapboxMap.CancelableCallback.class);
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     CameraPosition.Builder builder = new CameraPosition.Builder().target(new LatLng(location));
     verify(mapboxMap).moveCamera(
@@ -686,12 +717,12 @@ public class LocationCameraControllerTest {
     ArgumentCaptor<MapboxMap.CancelableCallback> callbackCaptor
       = ArgumentCaptor.forClass(MapboxMap.CancelableCallback.class);
 
-    camera.setCameraMode(TRACKING, location, listener);
+    camera.setCameraMode(TRACKING, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     CameraPosition.Builder builder = new CameraPosition.Builder().target(new LatLng(location));
     verify(mapboxMap).animateCamera(
       eq(CameraUpdateFactory.newCameraPosition(builder.build())),
-      eq((int) LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS),
+      eq((int) TRANSITION_ANIMATION_DURATION_MS),
       callbackCaptor.capture());
 
     Assert.assertTrue(camera.isTransitioning());
@@ -719,12 +750,12 @@ public class LocationCameraControllerTest {
     when(location.getBearing()).thenReturn(30f);
     when(location.getAltitude()).thenReturn(0.0);
 
-    camera.setCameraMode(TRACKING_GPS, location, listener);
+    camera.setCameraMode(TRACKING_GPS, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     CameraPosition.Builder builder = new CameraPosition.Builder().target(new LatLng(location)).bearing(30);
     verify(mapboxMap).animateCamera(
       eq(CameraUpdateFactory.newCameraPosition(builder.build())),
-      eq((int) LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS),
+      eq((int) TRANSITION_ANIMATION_DURATION_MS),
       any(MapboxMap.CancelableCallback.class));
   }
 
@@ -744,12 +775,12 @@ public class LocationCameraControllerTest {
     when(location.getBearing()).thenReturn(30f);
     when(location.getAltitude()).thenReturn(0.0);
 
-    camera.setCameraMode(TRACKING_GPS_NORTH, location, listener);
+    camera.setCameraMode(TRACKING_GPS_NORTH, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     CameraPosition.Builder builder = new CameraPosition.Builder().target(new LatLng(location)).bearing(0);
     verify(mapboxMap).animateCamera(
       eq(CameraUpdateFactory.newCameraPosition(builder.build())),
-      eq((int) LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS),
+      eq((int) TRANSITION_ANIMATION_DURATION_MS),
       any(MapboxMap.CancelableCallback.class));
   }
 
@@ -768,11 +799,11 @@ public class LocationCameraControllerTest {
     ArgumentCaptor<MapboxMap.CancelableCallback> callbackCaptor
       = ArgumentCaptor.forClass(MapboxMap.CancelableCallback.class);
 
-    camera.setCameraMode(TRACKING_GPS, location, listener);
+    camera.setCameraMode(TRACKING_GPS, location, TRANSITION_ANIMATION_DURATION_MS, null, null, null, listener);
 
     verify(mapboxMap).animateCamera(
       any(CameraUpdate.class),
-      eq((int) LocationComponentConstants.TRANSITION_ANIMATION_DURATION_MS),
+      eq((int) TRANSITION_ANIMATION_DURATION_MS),
       callbackCaptor.capture());
 
     LatLng latLng = new LatLng(10, 10);
@@ -791,6 +822,30 @@ public class LocationCameraControllerTest {
     getAnimationListener(ANIMATOR_ZOOM, camera.getAnimationListeners()).onNewAnimationValue(10f);
 
     verify(mapboxMap, times(4)).moveCamera(any(CameraUpdate.class));
+  }
+
+  @Test
+  public void transition_customAnimation() {
+    MapboxMap mapboxMap = mock(MapboxMap.class);
+    when(mapboxMap.getCameraPosition()).thenReturn(CameraPosition.DEFAULT);
+    Projection projection = mock(Projection.class);
+    when(mapboxMap.getProjection()).thenReturn(projection);
+    when(projection.getMetersPerPixelAtLatitude(any(Double.class))).thenReturn(Double.valueOf(1000));
+    LocationCameraController camera = buildCamera(mapboxMap);
+    camera.initializeOptions(mock(LocationComponentOptions.class));
+    Location location = mock(Location.class);
+    CameraUpdate cameraUpdate = CameraUpdateFactory.newCameraPosition(
+      new CameraPosition.Builder()
+        .target(new LatLng(location))
+        .zoom(14.0)
+        .bearing(13.0)
+        .tilt(45.0)
+        .build()
+    );
+
+    camera.setCameraMode(TRACKING, location, 1200, 14.0, 13.0, 45.0, null);
+    verify(mapboxMap)
+      .animateCamera(eq(cameraUpdate), eq(1200), any(MapboxMap.CancelableCallback.class));
   }
 
   private LocationCameraController buildCamera(OnCameraTrackingChangedListener onCameraTrackingChangedListener) {

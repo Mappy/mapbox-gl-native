@@ -18,6 +18,7 @@ struct CameraOptions;
 class FileSource;
 class Size;
 class LatLngBounds;
+class ResourceOptions;
 
 namespace style {
 class Style;
@@ -25,15 +26,14 @@ class Style;
 
 class MapSnapshotter {
 public:
-    MapSnapshotter(FileSource* fileSource,
-                   std::shared_ptr<Scheduler> scheduler,
-                   const std::pair<bool, std::string> style,
+    MapSnapshotter(const std::pair<bool, std::string> style,
                    const Size&,
                    const float pixelRatio,
                    const optional<CameraOptions> cameraOptions,
                    const optional<LatLngBounds> region,
-                   const optional<std::string> cacheDir = {},
-                   const optional<std::string> localFontFamily = {});
+                   const optional<std::string> cacheDir,
+                   const optional<std::string> localFontFamily,
+                   const ResourceOptions&);
 
     ~MapSnapshotter();
 

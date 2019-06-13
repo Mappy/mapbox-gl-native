@@ -3,6 +3,7 @@
 
 #include <mbgl/actor/actor.hpp>
 #include <mbgl/actor/scheduler.hpp>
+#include <mbgl/storage/resource_options.hpp>
 #include <mbgl/storage/resource_transform.hpp>
 #include <mbgl/util/logging.hpp>
 
@@ -11,6 +12,14 @@
 #include "asset_manager_file_source.hpp"
 
 namespace mbgl {
+
+std::shared_ptr<FileSource> FileSource::createPlatformFileSource(const ResourceOptions& options) {
+    auto* assetFileSource = reinterpret_cast<AssetManagerFileSource*>(options.platformContext());
+    auto fileSource = std::make_shared<DefaultFileSource>(options.cachePath(), std::unique_ptr<AssetManagerFileSource>(assetFileSource));
+    fileSource->setAccessToken(options.accessToken());
+    return fileSource;
+}
+
 namespace android {
 
 // FileSource //
@@ -19,17 +28,16 @@ FileSource::FileSource(jni::JNIEnv& _env,
                        const jni::String& accessToken,
                        const jni::String& _cachePath,
                        const jni::Object<AssetManager>& assetManager) {
-    mapbox::sqlite::setTempPath(jni::Make<std::string>(_env, _cachePath));
+    std::string path = jni::Make<std::string>(_env, _cachePath);
+    mapbox::sqlite::setTempPath(path);
+
+    resourceOptions
+        .withAccessToken(accessToken ? jni::Make<std::string>(_env, accessToken) : "")
+        .withCachePath(path + DATABASE_FILE)
+        .withPlatformContext(reinterpret_cast<void*>(new AssetManagerFileSource(_env, assetManager)));
 
     // Create a core default file source
-    fileSource = std::make_unique<mbgl::DefaultFileSource>(
-        jni::Make<std::string>(_env, _cachePath) + "/mbgl-offline.db",
-        std::make_unique<AssetManagerFileSource>(_env, assetManager));
-
-    // Set access token
-    if (accessToken) {
-        fileSource->setAccessToken(jni::Make<std::string>(_env, accessToken));
-    }
+    fileSource = std::static_pointer_cast<mbgl::DefaultFileSource>(mbgl::FileSource::getSharedFileSource(resourceOptions));
 }
 
 FileSource::~FileSource() {
@@ -69,6 +77,12 @@ void FileSource::setResourceTransform(jni::JNIEnv& env, const jni::Object<FileSo
     }
 }
 
+void FileSource::setResourceCachePath(jni::JNIEnv& env, const jni::String& path) {
+    std::string newPath = jni::Make<std::string>(env, path);
+    mapbox::sqlite::setTempPath(newPath);
+    fileSource->setResourceCachePath(newPath + DATABASE_FILE);
+}
+
 void FileSource::resume(jni::JNIEnv&) {
     if (!activationCounter) {
         activationCounter = optional<int>(1) ;
@@ -103,10 +117,10 @@ FileSource* FileSource::getNativePeer(jni::JNIEnv& env, const jni::Object<FileSo
     return reinterpret_cast<FileSource *>(jFileSource.Get(env, field));
 }
 
-mbgl::DefaultFileSource& FileSource::getDefaultFileSource(jni::JNIEnv& env, const jni::Object<FileSource>& jFileSource) {
+mbgl::ResourceOptions FileSource::getSharedResourceOptions(jni::JNIEnv& env, const jni::Object<FileSource>& jFileSource) {
     FileSource* fileSource = FileSource::getNativePeer(env, jFileSource);
     assert(fileSource != nullptr);
-    return *fileSource->fileSource;
+    return fileSource->resourceOptions.clone();
 }
 
 void FileSource::registerNative(jni::JNIEnv& env) {
@@ -129,6 +143,7 @@ void FileSource::registerNative(jni::JNIEnv& env) {
         METHOD(&FileSource::setAccessToken, "setAccessToken"),
         METHOD(&FileSource::setAPIBaseUrl, "setApiBaseUrl"),
         METHOD(&FileSource::setResourceTransform, "setResourceTransform"),
+        METHOD(&FileSource::setResourceCachePath, "setResourceCachePath"),
         METHOD(&FileSource::resume, "activate"),
         METHOD(&FileSource::pause, "deactivate"),
         METHOD(&FileSource::isResumed, "isActivated")

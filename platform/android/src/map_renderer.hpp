@@ -1,13 +1,15 @@
 #pragma once
 
+#include <mbgl/actor/actor_ref.hpp>
 #include <mbgl/actor/scheduler.hpp>
 #include <mbgl/util/image.hpp>
+#include <mbgl/util/optional.hpp>
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #include <jni/jni.hpp>
-#include <mbgl/storage/default_file_source.hpp>
 
 namespace mbgl {
 
@@ -23,7 +25,6 @@ class UpdateParameters;
 namespace android {
 
 class AndroidRendererBackend;
-class FileSource;
 
 /**
  * The MapRenderer is a peer class that encapsulates the actions
@@ -42,7 +43,6 @@ public:
 
     MapRenderer(jni::JNIEnv& _env,
                 const jni::Object<MapRenderer>&,
-                const jni::Object<FileSource>&,
                 jni::jfloat pixelRatio,
                 const jni::String& programCacheDir,
                 const jni::String& localIdeographFontFamily);
@@ -94,16 +94,16 @@ private:
 
     void onSurfaceChanged(JNIEnv&, jint width, jint height);
 
+    void onSurfaceDestroyed(JNIEnv&);
+
 private:
     // Called on either Main or GL thread //
-
-    void onSurfaceDestroyed(JNIEnv&);
+    void onRendererReset(JNIEnv&);
 
 private:
     jni::WeakReference<jni::Object<MapRenderer>, jni::EnvAttachingDeleter> javaPeer;
 
     float pixelRatio;
-    DefaultFileSource& fileSource;
     std::string programCacheDir;
     optional<std::string> localIdeographFontFamily;
 

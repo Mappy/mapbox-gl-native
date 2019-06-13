@@ -6,27 +6,22 @@
 
 namespace mbgl {
 
-class RenderBackgroundLayer: public RenderLayer {
+class RenderBackgroundLayer final : public RenderLayer {
 public:
-    RenderBackgroundLayer(Immutable<style::BackgroundLayer::Impl>);
-    ~RenderBackgroundLayer() final = default;
+    explicit RenderBackgroundLayer(Immutable<style::BackgroundLayer::Impl>);
+    ~RenderBackgroundLayer() override;
 
+private:
     void transition(const TransitionParameters&) override;
     void evaluate(const PropertyEvaluationParameters&) override;
     bool hasTransition() const override;
     bool hasCrossfade() const override;
-    optional<Color> getSolidBackground() const final;
+    optional<Color> getSolidBackground() const override;
+    void upload(gfx::UploadPass&, UploadParameters&) override;
     void render(PaintParameters&, RenderSource*) override;
-
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
 
     // Paint properties
     style::BackgroundPaintProperties::Unevaluated unevaluated;
-    style::BackgroundPaintProperties::PossiblyEvaluated evaluated;
-
-    const style::BackgroundLayer::Impl& impl() const;
-private:
-    CrossfadeParameters crossfade;
 };
 
 } // namespace mbgl

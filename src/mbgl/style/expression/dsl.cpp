@@ -41,7 +41,7 @@ std::unique_ptr<Expression> literal(Value value) {
 std::unique_ptr<Expression> literal(std::initializer_list<double> value) {
     std::vector<Value> values;
     for (auto i : value) {
-        values.push_back(i);
+        values.emplace_back(i);
     }
     return literal(values);
 }
@@ -49,7 +49,7 @@ std::unique_ptr<Expression> literal(std::initializer_list<double> value) {
 std::unique_ptr<Expression> literal(std::initializer_list<const char *> value) {
     std::vector<Value> values;
     for (auto i : value) {
-        values.push_back(std::string(i));
+        values.emplace_back(std::string(i));
     }
     return literal(values);
 }
@@ -189,13 +189,13 @@ std::unique_ptr<Expression> concat(std::vector<std::unique_ptr<Expression>> inpu
 std::unique_ptr<Expression> format(const char* value) {
     return std::make_unique<Literal>(Formatted(value));
 }
-    
+
 std::unique_ptr<Expression> format(std::unique_ptr<Expression> input) {
     std::vector<FormatExpressionSection> sections;
-    sections.emplace_back(std::move(input), nullopt, nullopt);
+    sections.emplace_back(std::move(input), nullopt, nullopt, nullopt);
     return std::make_unique<FormatExpression>(sections);
 }
-    
+
 } // namespace dsl
 } // namespace expression
 } // namespace style

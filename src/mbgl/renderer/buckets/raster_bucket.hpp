@@ -1,8 +1,8 @@
 #pragma once
 
-#include <mbgl/gl/index_buffer.hpp>
-#include <mbgl/gl/texture.hpp>
-#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gfx/index_buffer.hpp>
+#include <mbgl/gfx/texture.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
 #include <mbgl/programs/raster_program.hpp>
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/renderer/tile_mask.hpp>
@@ -18,7 +18,7 @@ public:
     RasterBucket(std::shared_ptr<PremultipliedImage>);
     ~RasterBucket() override;
 
-    void upload(gl::Context&) override;
+    void upload(gfx::UploadPass&) override;
     bool hasData() const override;
     bool supportsLayer(const style::Layer::Impl&) const override;
 
@@ -27,17 +27,18 @@ public:
     void setMask(TileMask&&);
 
     std::shared_ptr<PremultipliedImage> image;
-    optional<gl::Texture> texture;
+    optional<gfx::Texture> texture;
     TileMask mask{ { 0, 0, 0 } };
 
     // Bucket specific vertices are used for Image Sources only
     // Raster Tile Sources use the default buffers from Painter
-    gl::VertexVector<RasterLayoutVertex> vertices;
-    gl::IndexVector<gl::Triangles> indices;
+    gfx::VertexVector<RasterLayoutVertex> vertices;
+    gfx::IndexVector<gfx::Triangles> indices;
     SegmentVector<RasterAttributes> segments;
 
-    optional<gl::VertexBuffer<RasterLayoutVertex>> vertexBuffer;
-    optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+    optional<gfx::VertexBuffer<RasterLayoutVertex>> vertexBuffer;
+    optional<gfx::IndexBuffer> indexBuffer;
+    const std::string drawScopeID;
 };
 
 } // namespace mbgl

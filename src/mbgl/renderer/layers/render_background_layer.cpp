@@ -1,6 +1,7 @@
 #include <mbgl/renderer/layers/render_background_layer.hpp>
 #include <mbgl/style/layers/background_layer_impl.hpp>
 #include <mbgl/renderer/bucket.hpp>
+#include <mbgl/renderer/upload_parameters.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/image_manager.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
@@ -8,36 +9,39 @@
 #include <mbgl/programs/background_program.hpp>
 #include <mbgl/util/tile_cover.hpp>
 #include <mbgl/map/transform_state.hpp>
+#include <mbgl/gfx/cull_face_mode.hpp>
 
 namespace mbgl {
 
 using namespace style;
 
+inline const BackgroundLayer::Impl& impl(const Immutable<style::Layer::Impl>& impl) {
+    return static_cast<const style::BackgroundLayer::Impl&>(*impl);
+}
+
 RenderBackgroundLayer::RenderBackgroundLayer(Immutable<style::BackgroundLayer::Impl> _impl)
-    : RenderLayer(std::move(_impl)),
-      unevaluated(impl().paint.untransitioned()) {
+    : RenderLayer(makeMutable<BackgroundLayerProperties>(std::move(_impl))),
+      unevaluated(impl(baseImpl).paint.untransitioned()) {
 }
 
-const style::BackgroundLayer::Impl& RenderBackgroundLayer::impl() const {
-    return static_cast<const style::BackgroundLayer::Impl&>(*baseImpl);
-}
-
-std::unique_ptr<Bucket> RenderBackgroundLayer::createBucket(const BucketParameters &,
-                                                            const std::vector<const RenderLayer *> &) const {
-    assert(false);
-    return nullptr;
-}
+RenderBackgroundLayer::~RenderBackgroundLayer() = default;
 
 void RenderBackgroundLayer::transition(const TransitionParameters &parameters) {
-    unevaluated = impl().paint.transitioned(parameters, std::move(unevaluated));
+    unevaluated = impl(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
 }
 
 void RenderBackgroundLayer::evaluate(const PropertyEvaluationParameters &parameters) {
-    evaluated = unevaluated.evaluate(parameters);
-    crossfade = parameters.getCrossfadeParameters();
+    auto properties = makeMutable<BackgroundLayerProperties>(
+        staticImmutableCast<BackgroundLayer::Impl>(baseImpl),
+        parameters.getCrossfadeParameters(),
+        unevaluated.evaluate(parameters));
 
-    passes = evaluated.get<style::BackgroundOpacity>() > 0 ? RenderPass::Translucent
-                                                           : RenderPass::None;
+    passes = properties->evaluated.get<style::BackgroundOpacity>() > 0 ? RenderPass::Translucent
+                                                                       : RenderPass::None;
+    if (passes != RenderPass::None && !properties->evaluated.get<style::BackgroundPattern>().to.empty()) {
+        passes |= RenderPass::Upload;
+    }
+    evaluatedProperties = std::move(properties);
 }
 
 bool RenderBackgroundLayer::hasTransition() const {
@@ -45,7 +49,16 @@ bool RenderBackgroundLayer::hasTransition() const {
 }
 
 bool RenderBackgroundLayer::hasCrossfade() const {
-    return crossfade.t != 1;
+    return getCrossfade<BackgroundLayerProperties>(evaluatedProperties).t != 1;
+}
+
+void RenderBackgroundLayer::upload(gfx::UploadPass&, UploadParameters& parameters) {
+    const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
+    if (!evaluated.get<BackgroundPattern>().to.empty()) {
+        // Ensures that the texture gets added and uploaded to the atlas.
+        parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().from);
+        parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().to);
+    }
 }
 
 void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
@@ -53,9 +66,9 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
     // glClear rather than this method.
 
     const Properties<>::PossiblyEvaluated properties;
-    const BackgroundProgram::PaintPropertyBinders paintAttributeData(properties, 0);
+    const BackgroundProgram::Binders paintAttributeData(properties, 0);
 
-    auto draw = [&](auto& program, auto&& uniformValues) {
+    auto draw = [&](auto& program, auto&& uniformValues, const auto& textureBindings) {
         const auto allUniformValues = program.computeAllUniformValues(
             std::move(uniformValues),
             paintAttributeData,
@@ -63,7 +76,7 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
             parameters.state.getZoom()
         );
         const auto allAttributeBindings = program.computeAllAttributeBindings(
-            parameters.staticData.tileVertexBuffer,
+            *parameters.staticData.tileVertexBuffer,
             paintAttributeData,
             properties
         );
@@ -72,19 +85,22 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
 
         program.draw(
             parameters.context,
-            gl::Triangles(),
-            parameters.depthModeForSublayer(0, gl::DepthMode::ReadOnly),
-            gl::StencilMode::disabled(),
+            *parameters.renderPass,
+            gfx::Triangles(),
+            parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
+            gfx::StencilMode::disabled(),
             parameters.colorModeForRenderPass(),
-            gl::CullFaceMode::disabled(),
-            parameters.staticData.quadTriangleIndexBuffer,
+            gfx::CullFaceMode::disabled(),
+            *parameters.staticData.quadTriangleIndexBuffer,
             parameters.staticData.tileTriangleSegments,
             allUniformValues,
             allAttributeBindings,
+            textureBindings,
             getID()
         );
     };
-
+    const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
+    const auto& crossfade = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).crossfade;
     if (!evaluated.get<BackgroundPattern>().to.empty()) {
         optional<ImagePosition> imagePosA = parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().from);
         optional<ImagePosition> imagePosB = parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().to);
@@ -92,12 +108,10 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
         if (!imagePosA || !imagePosB)
             return;
 
-        parameters.imageManager.bind(parameters.context, 0);
-
         for (const auto& tileID : util::tileCover(parameters.state, parameters.state.getIntegerZoom())) {
             draw(
                 parameters.programs.getBackgroundLayerPrograms().backgroundPattern,
-                BackgroundPatternUniforms::values(
+                BackgroundPatternProgram::layoutUniformValues(
                     parameters.matrixForTile(tileID),
                     evaluated.get<BackgroundOpacity>(),
                     parameters.imageManager.getPixelSize(),
@@ -106,24 +120,29 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
                     crossfade,
                     tileID,
                     parameters.state
-                )
+                ),
+                BackgroundPatternProgram::TextureBindings{
+                    textures::image::Value{ parameters.imageManager.textureBinding() },
+                }
             );
         }
     } else {
         for (const auto& tileID : util::tileCover(parameters.state, parameters.state.getIntegerZoom())) {
             draw(
                 parameters.programs.getBackgroundLayerPrograms().background,
-                BackgroundProgram::UniformValues {
-                    uniforms::u_matrix::Value( parameters.matrixForTile(tileID) ),
-                    uniforms::u_color::Value( evaluated.get<BackgroundColor>() ),
-                    uniforms::u_opacity::Value( evaluated.get<BackgroundOpacity>() ),
-                }
+                BackgroundProgram::LayoutUniformValues {
+                    uniforms::matrix::Value( parameters.matrixForTile(tileID) ),
+                    uniforms::color::Value( evaluated.get<BackgroundColor>() ),
+                    uniforms::opacity::Value( evaluated.get<BackgroundOpacity>() ),
+                },
+                BackgroundProgram::TextureBindings{}
             );
         }
     }
 }
 
 optional<Color> RenderBackgroundLayer::getSolidBackground() const {
+    const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
     if (!evaluated.get<BackgroundPattern>().from.empty()) {
         return nullopt;
     }

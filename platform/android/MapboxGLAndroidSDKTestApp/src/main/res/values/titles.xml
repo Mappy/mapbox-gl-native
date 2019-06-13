@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="activity_map_fragment_suport">Support Map Fragment</string>
+    <string name="activity_map_fragment_support">Support Map Fragment</string>
     <string name="activity_map_fragment">Map Fragment</string>
+    <string name="activity_map_fragment_backstack">Backstack Map Fragment</string>
     <string name="activity_multimap">Multiple Maps on Screen</string>
     <string name="activity_add_bulk_markers">Add Markers In Bulk</string>
     <string name="activity_animated_symbollayer">Animated SymbolLayer</string>
@@ -26,6 +27,7 @@
     <string name="activity_offline">Offline Map</string>
     <string name="activity_update_metadata">Update metadata Map</string>
     <string name="activity_offline_region_delete">Delete region</string>
+    <string name="activity_change_resources_cache_path">Change resources cache path</string>
     <string name="activity_minmax_zoom">Min/Max Zoom</string>
     <string name="activity_viewpager">ViewPager</string>
     <string name="activity_runtime_style">Runtime Style</string>
@@ -75,6 +77,11 @@
     <string name="activity_location_modes">Location Modes Activity</string>
     <string name="activity_location_fragment">Location Fragment</string>
     <string name="activity_location_manual">Manual Location updates</string>
-    <string name="activity_recyclerview">RecyclerView</string>
+    <string name="activity_location_activation_builder">Build Location Activation</string>
+    <string name="activity_recyclerview_textureview">RecyclerView TextureView</string>
+    <string name="activity_recyclerview_glsurfaceview">RecyclerView GLSurfaceView</string>
     <string name="activity_nested_viewpager">Nested ViewPager</string>
+    <string name="activity_performance_measurement">Performance Measurement</string>
+    <string name="activity_physical_circle">Physical Unit Circle</string>
+    <string name="activity_region">Download region</string>
 </resources>

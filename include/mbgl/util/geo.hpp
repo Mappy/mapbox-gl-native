@@ -105,6 +105,15 @@ public:
         return bounds;
     }
 
+    /// Returns an infinite bound, a bound for which the constrain method returns its
+    /// input unmodified.
+    ///
+    /// Note: this is different than LatLngBounds::world() since arbitrary unwrapped
+    /// coordinates are also inside the bounds.
+    static LatLngBounds unbounded() {
+        return {};
+    }
+
     // Constructs a LatLngBounds object with the tile's exact boundaries.
     LatLngBounds(const CanonicalTileID&);
 
@@ -127,15 +136,7 @@ public:
                       (sw.longitude() + ne.longitude()) / 2);
     }
 
-    LatLng constrain(const LatLng& p) const {
-        if (contains(p)) {
-            return p;
-        }
-        return LatLng {
-            util::clamp(p.latitude(), sw.latitude(), ne.latitude()),
-            util::clamp(p.longitude(), sw.longitude(), ne.longitude())
-        };
-    }
+    LatLng constrain(const LatLng& p) const;
 
     void extend(const LatLng& point) {
         sw = LatLng(std::min(point.latitude(), sw.latitude()),
@@ -167,12 +168,19 @@ public:
 private:
     LatLng sw;
     LatLng ne;
+    bool bounded = true;
 
     LatLngBounds(LatLng sw_, LatLng ne_)
         : sw(std::move(sw_)), ne(std::move(ne_)) {}
 
+    LatLngBounds()
+        : sw({-90, -180}), ne({90, 180}), bounded(false) {}
+
+    bool containsLatitude(double latitude) const;
+    bool containsLongitude(double longitude, LatLng::WrapMode wrap) const;
+
     friend bool operator==(const LatLngBounds& a, const LatLngBounds& b) {
-        return a.sw == b.sw && a.ne == b.ne;
+        return (!a.bounded && !b.bounded) || (a.bounded && b.bounded && a.sw == b.sw && a.ne == b.ne);
     }
 
     friend bool operator!=(const LatLngBounds& a, const LatLngBounds& b) {

@@ -8,9 +8,8 @@ target_include_directories(mbgl-render
 
 target_link_libraries(mbgl-render
     PRIVATE mbgl-core
+    PRIVATE args
 )
-
-target_add_mason_package(mbgl-render PRIVATE args)
 
 mbgl_platform_render()
 

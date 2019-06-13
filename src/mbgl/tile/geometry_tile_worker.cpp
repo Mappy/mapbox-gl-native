@@ -2,6 +2,7 @@
 #include <mbgl/tile/geometry_tile_data.hpp>
 #include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/layermanager/layer_manager.hpp>
+#include <mbgl/layout/layout.hpp>
 #include <mbgl/layout/symbol_layout.hpp>
 #include <mbgl/layout/pattern_layout.hpp>
 #include <mbgl/renderer/bucket_parameters.hpp>
@@ -20,6 +21,7 @@
 #include <mbgl/util/stopwatch.hpp>
 
 #include <unordered_set>
+#include <utility>
 
 namespace mbgl {
 
@@ -28,7 +30,7 @@ using namespace style;
 GeometryTileWorker::GeometryTileWorker(ActorRef<GeometryTileWorker> self_,
                                        ActorRef<GeometryTile> parent_,
                                        OverscaledTileID id_,
-                                       const std::string& sourceID_,
+                                       std::string sourceID_,
                                        const std::atomic<bool>& obsolete_,
                                        const MapMode mode_,
                                        const float pixelRatio_,
@@ -36,7 +38,7 @@ GeometryTileWorker::GeometryTileWorker(ActorRef<GeometryTileWorker> self_,
     : self(std::move(self_)),
       parent(std::move(parent_)),
       id(std::move(id_)),
-      sourceID(sourceID_),
+      sourceID(std::move(sourceID_)),
       obsolete(obsolete_),
       mode(mode_),
       pixelRatio(pixelRatio_),
@@ -137,7 +139,7 @@ void GeometryTileWorker::setData(std::unique_ptr<const GeometryTileData> data_, 
     }
 }
 
-void GeometryTileWorker::setLayers(std::vector<Immutable<Layer::Impl>> layers_, uint64_t correlationID_) {
+void GeometryTileWorker::setLayers(std::vector<Immutable<LayerProperties>> layers_, uint64_t correlationID_) {
     try {
         layers = std::move(layers_);
         correlationID = correlationID_;
@@ -277,12 +279,13 @@ void GeometryTileWorker::onGlyphsAvailable(GlyphMap newGlyphMap) {
     symbolDependenciesChanged();
 }
 
-void GeometryTileWorker::onImagesAvailable(ImageMap newIconMap, ImageMap newPatternMap, uint64_t imageCorrelationID_) {
+void GeometryTileWorker::onImagesAvailable(ImageMap newIconMap, ImageMap newPatternMap, ImageVersionMap newVersionMap, uint64_t imageCorrelationID_) {
     if (imageCorrelationID != imageCorrelationID_) {
         return; // Ignore outdated image request replies.
     }
     imageMap = std::move(newIconMap);
     patternMap = std::move(newPatternMap);
+    versionMap = std::move(newVersionMap);
     pendingImageDependencies.clear();
     symbolDependenciesChanged();
 }
@@ -309,24 +312,6 @@ void GeometryTileWorker::requestNewImages(const ImageDependencies& imageDependen
     }
 }
 
-static std::vector<std::unique_ptr<RenderLayer>> toRenderLayers(const std::vector<Immutable<style::Layer::Impl>>& layers, float zoom) {
-    std::vector<std::unique_ptr<RenderLayer>> renderLayers;
-    renderLayers.reserve(layers.size());
-    for (auto& layer : layers) {
-        renderLayers.push_back(LayerManager::get()->createRenderLayer(layer));
-
-        renderLayers.back()->transition(TransitionParameters {
-            Clock::time_point::max(),
-            TransitionOptions()
-        });
-
-        renderLayers.back()->evaluate(PropertyEvaluationParameters {
-            zoom
-        });
-    }
-    return renderLayers;
-}
-
 void GeometryTileWorker::parse() {
     if (!data || !layers) {
         return;
@@ -336,20 +321,22 @@ void GeometryTileWorker::parse() {
 
     std::unordered_map<std::string, std::unique_ptr<SymbolLayout>> symbolLayoutMap;
 
-    buckets.clear();
+    renderData.clear();
     layouts.clear();
 
     featureIndex = std::make_unique<FeatureIndex>(*data ? (*data)->clone() : nullptr);
-    BucketParameters parameters { id, mode, pixelRatio };
 
     GlyphDependencies glyphDependencies;
     ImageDependencies imageDependencies;
 
     // Create render layers and group by layout
-    std::vector<std::unique_ptr<RenderLayer>> renderLayers = toRenderLayers(*layers, id.overscaledZ);
-    std::vector<std::vector<const RenderLayer*>> groups = groupByLayout(renderLayers);
+    std::unordered_map<std::string, std::vector<Immutable<style::LayerProperties>>> groupMap;
+    for (auto layer : *layers) {
+        groupMap[layoutKey(*layer->baseImpl)].push_back(std::move(layer));
+    }
 
-    for (auto& group : groups) {
+    for (auto& pair : groupMap) {
+        const auto& group = pair.second;
         if (obsolete) {
             return;
         }
@@ -358,35 +345,36 @@ void GeometryTileWorker::parse() {
             continue; // Tile has no data.
         }
 
-        const RenderLayer& leader = *group.at(0);
+        const style::Layer::Impl& leaderImpl = *(group.at(0)->baseImpl);
+        BucketParameters parameters { id, mode, pixelRatio, leaderImpl.getTypeInfo() };
 
-        auto geometryLayer = (*data)->getLayer(leader.baseImpl->sourceLayer);
+        auto geometryLayer = (*data)->getLayer(leaderImpl.sourceLayer);
         if (!geometryLayer) {
             continue;
         }
 
-        std::vector<std::string> layerIDs;
+        std::vector<std::string> layerIDs(group.size());
         for (const auto& layer : group) {
-            layerIDs.push_back(layer->getID());
+            layerIDs.push_back(layer->baseImpl->id);
         }
 
-        featureIndex->setBucketLayerIDs(leader.getID(), layerIDs);
+        featureIndex->setBucketLayerIDs(leaderImpl.id, layerIDs);
 
         // Symbol layers and layers that support pattern properties have an extra step at layout time to figure out what images/glyphs
         // are needed to render the layer. They use the intermediate Layout data structure to accomplish this,
         // and either immediately create a bucket if no images/glyphs are used, or the Layout is stored until
         // the images/glyphs are available to add the features to the buckets.
-        if (leader.baseImpl->getTypeInfo()->layout == LayerTypeInfo::Layout::Required) {
-            auto layout = leader.createLayout(parameters, group, std::move(geometryLayer), glyphDependencies, imageDependencies);
+        if (leaderImpl.getTypeInfo()->layout == LayerTypeInfo::Layout::Required) {
+            std::unique_ptr<Layout> layout = LayerManager::get()->createLayout({parameters, glyphDependencies, imageDependencies}, std::move(geometryLayer), group);
             if (layout->hasDependencies()) {
                 layouts.push_back(std::move(layout));
             } else {
-                layout->createBucket({}, featureIndex, buckets, firstLoad, showCollisionBoxes);
+                layout->createBucket({}, featureIndex, renderData, firstLoad, showCollisionBoxes);
             }
         } else {
-            const Filter& filter = leader.baseImpl->filter;
-            const std::string& sourceLayerID = leader.baseImpl->sourceLayer;
-            std::shared_ptr<Bucket> bucket = leader.createBucket(parameters, group);
+            const Filter& filter = leaderImpl.filter;
+            const std::string& sourceLayerID = leaderImpl.sourceLayer;
+            std::shared_ptr<Bucket> bucket = LayerManager::get()->createBucket(parameters, group);
 
             for (std::size_t i = 0; !obsolete && i < geometryLayer->featureCount(); i++) {
                 std::unique_ptr<GeometryTileFeature> feature = geometryLayer->getFeature(i);
@@ -396,7 +384,7 @@ void GeometryTileWorker::parse() {
 
                 GeometryCollection geometries = feature->getGeometries();
                 bucket->addFeature(*feature, geometries, {}, PatternLayerMap ());
-                featureIndex->insert(geometries, i, sourceLayerID, leader.getID());
+                featureIndex->insert(geometries, i, sourceLayerID, leaderImpl.id);
             }
 
             if (!bucket->hasData()) {
@@ -404,7 +392,7 @@ void GeometryTileWorker::parse() {
             }
 
             for (const auto& layer : group) {
-                buckets.emplace(layer->getID(), bucket);
+                renderData.emplace(layer->baseImpl->id, LayerRenderData{bucket, layer});
             }
         }
     }
@@ -440,7 +428,7 @@ void GeometryTileWorker::finalizeLayout() {
     
     MBGL_TIMING_START(watch)
     optional<AlphaImage> glyphAtlasImage;
-    ImageAtlas iconAtlas = makeImageAtlas(imageMap, patternMap);
+    ImageAtlas iconAtlas = makeImageAtlas(imageMap, patternMap, versionMap);
     if (!layouts.empty()) {
         GlyphAtlas glyphAtlas = makeGlyphAtlas(glyphMap);
         glyphAtlasImage = std::move(glyphAtlas.image);
@@ -458,7 +446,7 @@ void GeometryTileWorker::finalizeLayout() {
             }
 
             // layout adds the bucket to buckets
-            layout->createBucket(iconAtlas.patternPositions, featureIndex, buckets, firstLoad, showCollisionBoxes);
+            layout->createBucket(iconAtlas.patternPositions, featureIndex, renderData, firstLoad, showCollisionBoxes);
         }
     }
 
@@ -473,7 +461,7 @@ void GeometryTileWorker::finalizeLayout() {
                        " Time");
 
     parent.invoke(&GeometryTile::onLayout, GeometryTile::LayoutResult {
-        std::move(buckets),
+        std::move(renderData),
         std::move(featureIndex),
         std::move(glyphAtlasImage),
         std::move(iconAtlas)

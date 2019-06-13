@@ -1,7 +1,6 @@
 #pragma once
 
 #include <mbgl/map/camera.hpp>
-#include <mbgl/renderer/mode.hpp>
 #include <mbgl/renderer/renderer_frontend.hpp>
 #include <mbgl/gl/headless_backend.hpp>
 #include <mbgl/util/async_task.hpp>
@@ -11,17 +10,25 @@
 
 namespace mbgl {
 
-class FileSource;
-class Scheduler;
 class Renderer;
-class RendererBackend;
 class Map;
 class TransformState;
 
+namespace gfx {
+class RendererBackend;
+} // namespace gfx
+
 class HeadlessFrontend : public RendererFrontend {
 public:
-    HeadlessFrontend(float pixelRatio_, FileSource&, Scheduler&, const optional<std::string> programCacheDir = {}, GLContextMode mode = GLContextMode::Unique, const optional<std::string> localFontFamily = {});
-    HeadlessFrontend(Size, float pixelRatio_, FileSource&, Scheduler&, const optional<std::string> programCacheDir = {}, GLContextMode mode = GLContextMode::Unique, const optional<std::string> localFontFamily = {});
+    HeadlessFrontend(float pixelRatio_,
+                     const optional<std::string> programCacheDir = {},
+                     gfx::ContextMode mode = gfx::ContextMode::Unique,
+                     const optional<std::string> localFontFamily = {});
+    HeadlessFrontend(Size,
+                     float pixelRatio_,
+                     const optional<std::string> programCacheDir = {},
+                     gfx::ContextMode mode = gfx::ContextMode::Unique,
+                     const optional<std::string> localFontFamily = {});
     ~HeadlessFrontend() override;
 
     void reset() override;
@@ -32,7 +39,7 @@ public:
     void setSize(Size);
 
     Renderer* getRenderer();
-    RendererBackend* getBackend();
+    gfx::RendererBackend* getBackend();
     CameraOptions getCameraOptions();
 
     bool hasImage(const std::string&);
@@ -51,7 +58,7 @@ private:
     Size size;
     float pixelRatio;
 
-    HeadlessBackend backend;
+    gl::HeadlessBackend backend;
     util::AsyncTask asyncInvalidate;
 
     std::unique_ptr<Renderer> renderer;

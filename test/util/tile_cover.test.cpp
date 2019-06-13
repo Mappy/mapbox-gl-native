@@ -3,8 +3,8 @@
 #include <mbgl/map/transform.hpp>
 
 #include <algorithm>
-#include <stdlib.h>     /* srand, rand */
-#include <time.h>       /* time */
+#include <cstdlib>     /* srand, rand */
+#include <ctime>       /* time */
 #include <gtest/gtest.h>
 
 using namespace mbgl;
@@ -35,7 +35,7 @@ TEST(TileCover, Pitch) {
     transform.resize({ 512, 512 });
     // slightly offset center so that tile order is better defined
 
-    transform.jumpTo(CameraOptions().withCenter(LatLng { 0.1, -0.1, }).withZoom(2.0).withAngle(5.0).withPitch(40.0));
+    transform.jumpTo(CameraOptions().withCenter(LatLng { 0.1, -0.1, }).withZoom(2.0).withBearing(5.0).withPitch(40.0));
 
     EXPECT_EQ((std::vector<UnwrappedTileID>{
         { 2, 1, 1 }, { 2, 2, 1 }, { 2, 1, 2 }, { 2, 2, 2 }
@@ -314,9 +314,9 @@ TEST(TileCount, BoundsCrossingAntimeridian) {
 }
 
 TEST(TileCover, DISABLED_FuzzPoly) {
-    while(1)
+    while(true)
     {
-        std::srand (time(NULL));
+        std::srand (time(nullptr));
         std::size_t len = std::rand() % 10000 + 3;
         Polygon<double> polygon;
 
@@ -342,9 +342,9 @@ TEST(TileCover, DISABLED_FuzzPoly) {
 }
 
 TEST(TileCover, DISABLED_FuzzLine) {
-    while(1)
+    while(true)
     {
-        std::srand (time(NULL));
+        std::srand (time(nullptr));
         std::size_t len = std::rand() % 10000 + 3;
         MultiLineString<double> mls;
 

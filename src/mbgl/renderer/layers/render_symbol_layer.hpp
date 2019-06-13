@@ -53,58 +53,37 @@ public:
 
 } // namespace style
 
-class BucketParameters;
-class SymbolLayout;
-class GeometryTileLayer;
-
-class RenderSymbolLayer: public RenderLayer, public RenderLayerSymbolInterface {
+class RenderSymbolLayer final: public RenderLayer, public RenderLayerSymbolInterface {
 public:
-    RenderSymbolLayer(Immutable<style::SymbolLayer::Impl>);
-    ~RenderSymbolLayer() final = default;
-
-    void transition(const TransitionParameters&) override;
-    void evaluate(const PropertyEvaluationParameters&) override;
-    bool hasTransition() const override;
-    bool hasCrossfade() const override;
-    void render(PaintParameters&, RenderSource*) override;
+    explicit RenderSymbolLayer(Immutable<style::SymbolLayer::Impl>);
+    ~RenderSymbolLayer() override;
 
     static style::IconPaintProperties::PossiblyEvaluated iconPaintProperties(const style::SymbolPaintProperties::PossiblyEvaluated&);
     static style::TextPaintProperties::PossiblyEvaluated textPaintProperties(const style::SymbolPaintProperties::PossiblyEvaluated&);
 
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-    std::unique_ptr<Layout> createLayout(const BucketParameters&,
-                                               const std::vector<const RenderLayer*>&,
-                                               std::unique_ptr<GeometryTileLayer>,
-                                               GlyphDependencies&,
-                                               ImageDependencies&) const override;
+private:
+    void transition(const TransitionParameters&) override;
+    void evaluate(const PropertyEvaluationParameters&) override;
+    bool hasTransition() const override;
+    bool hasCrossfade() const override;
+    void upload(gfx::UploadPass&, UploadParameters&) override;
+    void render(PaintParameters&, RenderSource*) override;
+    void setRenderTiles(RenderTiles, const TransformState&) override;
 
     // RenderLayerSymbolInterface overrides
-    const RenderLayerSymbolInterface* getSymbolInterface() const final;
-    const std::string& layerID() const final;
-    const std::vector<std::reference_wrapper<RenderTile>>& getRenderTiles() const final;
-    SymbolBucket* getSymbolBucket(const RenderTile&) const final;
+    const RenderLayerSymbolInterface* getSymbolInterface() const override;
+    const std::string& layerID() const override;
+    const std::vector<std::reference_wrapper<RenderTile>>& getRenderTiles() const override;
+    SymbolBucket* getSymbolBucket(const RenderTile&) const override;
 
     // Paint properties
     style::SymbolPaintProperties::Unevaluated unevaluated;
-    style::SymbolPaintProperties::PossiblyEvaluated evaluated;
 
     float iconSize = 1.0f;
     float textSize = 16.0f;
 
-    const style::SymbolLayer::Impl& impl() const;
-
-protected:
-    static style::SymbolPropertyValues iconPropertyValues(const style::SymbolPaintProperties::PossiblyEvaluated&,
-                                                          const style::SymbolLayoutProperties::PossiblyEvaluated&);
-    static style::SymbolPropertyValues textPropertyValues(const style::SymbolPaintProperties::PossiblyEvaluated&,
-                                                          const style::SymbolLayoutProperties::PossiblyEvaluated&);
-    RenderTiles filterRenderTiles(RenderTiles) const final;
-    void sortRenderTiles(const TransformState&) final;
-    void updateBucketPaintProperties(Bucket*) const final;
+    bool hasFormatSectionOverrides = false;
+    bool hasVariablePlacement = false;
 };
-
-inline const RenderSymbolLayer* toRenderSymbolLayer(const RenderLayer* layer) {
-    return static_cast<const RenderSymbolLayer*>(layer);
-}
 
 } // namespace mbgl

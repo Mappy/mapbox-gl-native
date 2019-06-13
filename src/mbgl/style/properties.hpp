@@ -3,7 +3,7 @@
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/conversion/stringify.hpp>
 #include <mbgl/renderer/transition_parameters.hpp>
-#include <mbgl/renderer/paint_property_binder.hpp>
+#include <mbgl/renderer/possibly_evaluated_property_value.hpp>
 #include <mbgl/renderer/property_evaluation_parameters.hpp>
 #include <mbgl/renderer/transition_parameters.hpp>
 #include <mbgl/util/indexed_tuple.hpp>
@@ -99,6 +99,9 @@ public:
 template <class P>
 struct IsDataDriven : std::integral_constant<bool, P::IsDataDriven> {};
 
+template <class P>
+struct IsOverridable : std::integral_constant<bool, P::IsOverridable> {};
+
 template <class... Ps>
 class Properties {
 public:
@@ -122,7 +125,7 @@ public:
     using         EvaluatedTypes = TypeList<typename Ps::Type...>;
 
     using DataDrivenProperties = FilteredTypeList<PropertyTypes, IsDataDriven>;
-    using Binders = PaintPropertyBinders<DataDrivenProperties>;
+    using OverridableProperties = FilteredTypeList<PropertyTypes, IsOverridable>;
 
     template <class TypeList>
     using Tuple = IndexedTuple<PropertyTypes, TypeList>;

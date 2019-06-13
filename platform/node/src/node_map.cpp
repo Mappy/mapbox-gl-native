@@ -3,7 +3,6 @@
 #include "node_feature.hpp"
 #include "node_conversion.hpp"
 
-#include <mbgl/util/exception.hpp>
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/gl/headless_frontend.hpp>
 #include <mbgl/style/conversion/source.hpp>
@@ -21,13 +20,24 @@
 #include <mbgl/style/layers/raster_layer.hpp>
 #include <mbgl/style/layers/symbol_layer.hpp>
 
+#include <mbgl/storage/resource_options.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/style/image.hpp>
 #include <mbgl/style/light.hpp>
+#include <mbgl/map/map.hpp>
 #include <mbgl/map/map_observer.hpp>
+#include <mbgl/util/exception.hpp>
 #include <mbgl/util/premultiply.hpp>
 
 #include <unistd.h>
+
+namespace mbgl {
+
+std::shared_ptr<FileSource> FileSource::createPlatformFileSource(const ResourceOptions& options) {
+    return std::make_shared<node_mbgl::NodeFileSource>(reinterpret_cast<node_mbgl::NodeMap*>(options.platformContext()));
+}
+
+} // namespace mbgl
 
 namespace node_mbgl {
 
@@ -53,8 +63,14 @@ static const char* releasedMessage() {
     return "Map resources have already been released";
 }
 
-void NodeMapObserver::onDidFailLoadingMap(std::exception_ptr error) {
-    std::rethrow_exception(error);
+void NodeMapObserver::onDidFailLoadingMap(mbgl::MapLoadError error, const std::string& description) {
+    switch (error) {
+        case mbgl::MapLoadError::StyleParseError:
+            Nan::ThrowError(NodeMap::ParseError(description.c_str()));
+            break;
+        default:
+            Nan::ThrowError(description.c_str());
+    }
 }
 
 void NodeMap::Init(v8::Local<v8::Object> target) {
@@ -443,20 +459,15 @@ void NodeMap::startRender(NodeMap::RenderOptions options) {
     mbgl::CameraOptions camera;
     camera.center = mbgl::LatLng { options.latitude, options.longitude };
     camera.zoom = options.zoom;
-    camera.angle = options.bearing;
+    camera.bearing = options.bearing;
     camera.pitch = options.pitch;
 
-    if (map->getAxonometric() != options.axonometric) {
-        map->setAxonometric(options.axonometric);
-    }
+    auto projectionOptions = mbgl::ProjectionMode()
+        .withAxonometric(options.axonometric)
+        .withXSkew(options.xSkew)
+        .withYSkew(options.ySkew);
 
-    if (map->getXSkew() != options.xSkew) {
-        map->setXSkew(options.xSkew);
-    }
-
-    if (map->getYSkew() != options.ySkew) {
-        map->setYSkew(options.ySkew);
-    }
+    map->setProjectionMode(projectionOptions);
 
     map->renderStill(camera, options.debugOptions, [this](const std::exception_ptr eptr) {
         if (eptr) {
@@ -619,12 +630,13 @@ void NodeMap::cancel() {
         reinterpret_cast<NodeMap *>(h->data)->renderFinished();
     });
 
-    frontend = std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size{ 256, 256 }, pixelRatio, *this, threadpool);
-    map = std::make_unique<mbgl::Map>(*frontend, mapObserver, frontend->getSize(), pixelRatio,
-                                      *this, threadpool, mode,
-                                      mbgl::ConstrainMode::HeightOnly,
-                                      mbgl::ViewportMode::Default,
-                                      crossSourceCollisions);
+    frontend = std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size{ 256, 256 }, pixelRatio);
+    map = std::make_unique<mbgl::Map>(*frontend, mapObserver,
+                                      mbgl::MapOptions().withSize(frontend->getSize())
+                                      .withPixelRatio(pixelRatio)
+                                      .withMapMode(mode)
+                                      .withCrossSourceCollisions(crossSourceCollisions),
+                                      mbgl::ResourceOptions().withPlatformContext(reinterpret_cast<void*>(this)));
 
     // FIXME: Reload the style after recreating the map. We need to find
     // a better way of canceling an ongoing rendering on the core level
@@ -942,7 +954,7 @@ void NodeMap::SetCenter(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     if (center->Length() > 1) { latitude = Nan::Get(center, 1).ToLocalChecked()->NumberValue(); }
 
     try {
-        nodeMap->map->setLatLng(mbgl::LatLng { latitude, longitude });
+        nodeMap->map->jumpTo(mbgl::CameraOptions().withCenter(mbgl::LatLng { latitude, longitude }));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -959,7 +971,7 @@ void NodeMap::SetZoom(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setZoom(info[0]->NumberValue());
+        nodeMap->map->jumpTo(mbgl::CameraOptions().withZoom(info[0]->NumberValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -976,7 +988,7 @@ void NodeMap::SetBearing(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setBearing(info[0]->NumberValue());
+        nodeMap->map->jumpTo(mbgl::CameraOptions().withBearing(info[0]->NumberValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -993,7 +1005,7 @@ void NodeMap::SetPitch(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setPitch(info[0]->NumberValue());
+        nodeMap->map->jumpTo(mbgl::CameraOptions().withPitch(info[0]->NumberValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -1035,7 +1047,8 @@ void NodeMap::SetAxonometric(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setAxonometric(info[0]->BooleanValue());
+        nodeMap->map->setProjectionMode(mbgl::ProjectionMode()
+                                        .withAxonometric(info[0]->BooleanValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -1052,7 +1065,8 @@ void NodeMap::SetXSkew(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setXSkew(info[0]->NumberValue());
+        nodeMap->map->setProjectionMode(mbgl::ProjectionMode()
+                                        .withXSkew(info[0]->NumberValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -1069,7 +1083,8 @@ void NodeMap::SetYSkew(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     }
 
     try {
-        nodeMap->map->setYSkew(info[0]->NumberValue());
+        nodeMap->map->setProjectionMode(mbgl::ProjectionMode()
+                                        .withYSkew(info[0]->NumberValue()));
     } catch (const std::exception &ex) {
         return Nan::ThrowError(ex.what());
     }
@@ -1199,19 +1214,14 @@ NodeMap::NodeMap(v8::Local<v8::Object> options)
             : true;
     }())
     , mapObserver(NodeMapObserver())
-    , frontend(std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size { 256, 256 }, pixelRatio, *this, threadpool))
-    , map(std::make_unique<mbgl::Map>(*frontend,
-                                      mapObserver,
-                                      frontend->getSize(),
-                                      pixelRatio,
-                                      *this,
-                                      threadpool,
-                                      mode,
-                                      mbgl::ConstrainMode::HeightOnly,
-                                      mbgl::ViewportMode::Default,
-                                      crossSourceCollisions)),
-      async(new uv_async_t) {
-
+    , frontend(std::make_unique<mbgl::HeadlessFrontend>(mbgl::Size { 256, 256 }, pixelRatio))
+    , map(std::make_unique<mbgl::Map>(*frontend, mapObserver,
+                                      mbgl::MapOptions().withSize(frontend->getSize())
+                                      .withPixelRatio(pixelRatio)
+                                      .withMapMode(mode)
+                                      .withCrossSourceCollisions(crossSourceCollisions),
+                                      mbgl::ResourceOptions().withPlatformContext(reinterpret_cast<void*>(this))))
+    , async(new uv_async_t) {
     async->data = this;
     uv_async_init(uv_default_loop(), async, [](uv_async_t* h) {
         reinterpret_cast<NodeMap *>(h->data)->renderFinished();
@@ -1225,27 +1235,29 @@ NodeMap::~NodeMap() {
     if (map) release();
 }
 
-std::unique_ptr<mbgl::AsyncRequest> NodeMap::request(const mbgl::Resource& resource, mbgl::FileSource::Callback callback_) {
+std::unique_ptr<mbgl::AsyncRequest> NodeFileSource::request(const mbgl::Resource& resource, mbgl::FileSource::Callback callback_) {
+    assert(nodeMap);
+
     Nan::HandleScope scope;
     // Because this method may be called while this NodeMap is already eligible for garbage collection,
     // we need to explicitly hold onto our own handle here so that GC during a v8 call doesn't destroy
     // *this while we're still executing code.
-    handle();
+    nodeMap->handle();
 
     v8::Local<v8::Value> argv[] = {
-        Nan::New<v8::External>(this),
+        Nan::New<v8::External>(nodeMap),
         Nan::New<v8::External>(&callback_)
     };
 
-    auto instance = Nan::NewInstance(Nan::New(NodeRequest::constructor), 2, argv).ToLocalChecked();
+    auto instance = Nan::NewInstance(Nan::New(node_mbgl::NodeRequest::constructor), 2, argv).ToLocalChecked();
 
     Nan::Set(instance, Nan::New("url").ToLocalChecked(), Nan::New(resource.url).ToLocalChecked());
     Nan::Set(instance, Nan::New("kind").ToLocalChecked(), Nan::New<v8::Integer>(resource.kind));
 
-    auto request = Nan::ObjectWrap::Unwrap<NodeRequest>(instance);
-    request->Execute();
+    auto req = Nan::ObjectWrap::Unwrap<node_mbgl::NodeRequest>(instance);
+    req->Execute();
 
-    return std::make_unique<NodeRequest::NodeAsyncRequest>(request);
+    return std::make_unique<node_mbgl::NodeRequest::NodeAsyncRequest>(req);
 }
 
 } // namespace node_mbgl

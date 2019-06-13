@@ -3,9 +3,6 @@
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
 
-#include <mbgl/algorithm/generate_clip_ids.hpp>
-#include <mbgl/algorithm/generate_clip_ids_impl.hpp>
-
 #include <mbgl/layermanager/layer_manager.hpp>
 
 namespace mbgl {
@@ -27,7 +24,7 @@ bool RenderAnnotationSource::isLoaded() const {
 }
 
 void RenderAnnotationSource::update(Immutable<style::Source::Impl> baseImpl_,
-                                    const std::vector<Immutable<Layer::Impl>>& layers,
+                                    const std::vector<Immutable<style::LayerProperties>>& layers,
                                     const bool needsRendering,
                                     const bool needsRelayout,
                                     const TileParameters& parameters) {
@@ -50,9 +47,12 @@ void RenderAnnotationSource::update(Immutable<style::Source::Impl> baseImpl_,
                        });
 }
 
-void RenderAnnotationSource::startRender(PaintParameters& parameters) {
-    parameters.clipIDGenerator.update(tilePyramid.getRenderTiles());
-    tilePyramid.startRender(parameters);
+void RenderAnnotationSource::upload(gfx::UploadPass& uploadPass) {
+    tilePyramid.upload(uploadPass);
+}
+
+void RenderAnnotationSource::prepare(PaintParameters& parameters) {
+    tilePyramid.prepare(parameters);
 }
 
 void RenderAnnotationSource::finishRender(PaintParameters& parameters) {

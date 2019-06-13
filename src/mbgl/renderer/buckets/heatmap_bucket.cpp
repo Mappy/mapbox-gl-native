@@ -10,26 +10,26 @@ namespace mbgl {
 
 using namespace style;
 
-HeatmapBucket::HeatmapBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers)
+HeatmapBucket::HeatmapBucket(const BucketParameters& parameters, const std::vector<Immutable<style::LayerProperties>>& layers)
     : mode(parameters.mode) {
     for (const auto& layer : layers) {
         paintPropertyBinders.emplace(
             std::piecewise_construct,
-            std::forward_as_tuple(layer->getID()),
+            std::forward_as_tuple(layer->baseImpl->id),
             std::forward_as_tuple(
-                toRenderHeatmapLayer(layer)->evaluated,
+                getEvaluated<HeatmapLayerProperties>(layer),
                 parameters.tileID.overscaledZ));
     }
 }
 
 HeatmapBucket::~HeatmapBucket() = default;
 
-void HeatmapBucket::upload(gl::Context& context) {
-    vertexBuffer = context.createVertexBuffer(std::move(vertices));
-    indexBuffer = context.createIndexBuffer(std::move(triangles));
+void HeatmapBucket::upload(gfx::UploadPass& uploadPass) {
+    vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
+    indexBuffer = uploadPass.createIndexBuffer(std::move(triangles));
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.upload(context);
+        pair.second.upload(uploadPass);
     }
 
     uploaded = true;
@@ -61,7 +61,7 @@ void HeatmapBucket::addFeature(const GeometryTileFeature& feature,
 
             if (segments.empty() || segments.back().vertexLength + vertexLength > std::numeric_limits<uint16_t>::max()) {
                 // Move to a new segments because the old one can't hold the geometry.
-                segments.emplace_back(vertices.vertexSize(), triangles.indexSize());
+                segments.emplace_back(vertices.elements(), triangles.elements());
             }
 
             // this geometry will be of the Point type, and we'll derive
@@ -93,7 +93,7 @@ void HeatmapBucket::addFeature(const GeometryTileFeature& feature,
     }
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.populateVertexVectors(feature, vertices.vertexSize(), {}, {});
+        pair.second.populateVertexVectors(feature, vertices.elements(), {}, {});
     }
 }
 

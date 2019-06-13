@@ -3,12 +3,12 @@
 #import <mbgl/actor/actor.hpp>
 #import <mbgl/actor/scheduler.hpp>
 #import <mbgl/util/geo.hpp>
+#import <mbgl/map/map_options.hpp>
 #import <mbgl/map/map_snapshotter.hpp>
 #import <mbgl/map/camera.hpp>
+#import <mbgl/storage/resource_options.hpp>
 #import <mbgl/storage/default_file_source.hpp>
-#import <mbgl/util/default_thread_pool.hpp>
 #import <mbgl/util/string.hpp>
-#import <mbgl/util/shared_thread_pool.hpp>
 
 #import "MGLOfflineStorage_Private.h"
 #import "MGLGeometry_Private.h"
@@ -123,7 +123,6 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 @end
 
 @implementation MGLMapSnapshotter {
-    std::shared_ptr<mbgl::ThreadPool> _mbglThreadPool;
     std::unique_ptr<mbgl::MapSnapshotter> _mbglMapSnapshotter;
     std::unique_ptr<mbgl::Actor<mbgl::MapSnapshotter::Callback>> _snapshotCallback;
 }
@@ -174,7 +173,6 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
 
     _mbglMapSnapshotter.reset();
     _snapshotCallback.reset();
-    _mbglThreadPool.reset();
     
     self.terminated = YES;
 }
@@ -586,8 +584,8 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     
     _cancelled = NO;
     _options = options;
-    mbgl::DefaultFileSource *mbglFileSource = [MGLOfflineStorage sharedOfflineStorage].mbglFileSource;
-    _mbglThreadPool = mbgl::sharedThreadPool();
+
+    auto mbglFileSource = [[MGLOfflineStorage sharedOfflineStorage] mbglFileSource];
     
     std::string styleURL = std::string([options.styleURL.absoluteString UTF8String]);
     std::pair<bool, std::string> style = std::make_pair(false, styleURL);
@@ -606,7 +604,7 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     if (CLLocationCoordinate2DIsValid(options.camera.centerCoordinate)) {
         cameraOptions.center = MGLLatLngFromLocationCoordinate2D(options.camera.centerCoordinate);
     }
-    cameraOptions.angle = MAX(0, options.camera.heading);
+    cameraOptions.bearing = MAX(0, options.camera.heading);
     cameraOptions.zoom = MAX(0, options.zoomLevel);
     cameraOptions.pitch = MAX(0, options.camera.pitch);
     
@@ -622,9 +620,14 @@ const CGFloat MGLSnapshotterMinimumPixelSize = 64;
     
     // App-global configuration
     MGLRendererConfiguration* config = [MGLRendererConfiguration currentConfiguration];
-    
+
+    mbgl::ResourceOptions resourceOptions;
+    resourceOptions.withCachePath([[MGLOfflineStorage sharedOfflineStorage] mbglCachePath])
+                   .withAssetPath([NSBundle mainBundle].resourceURL.path.UTF8String);
+
     // Create the snapshotter
-    _mbglMapSnapshotter = std::make_unique<mbgl::MapSnapshotter>(mbglFileSource, _mbglThreadPool, style, size, pixelRatio, cameraOptions, coordinateBounds, config.cacheDir, config.localFontFamilyName);
+    _mbglMapSnapshotter = std::make_unique<mbgl::MapSnapshotter>(
+        style, size, pixelRatio, cameraOptions, coordinateBounds, config.cacheDir, config.localFontFamilyName, resourceOptions);
 }
 
 @end

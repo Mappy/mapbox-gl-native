@@ -5,6 +5,7 @@ import android.graphics.PointF;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.VisibleForTesting;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -18,7 +19,6 @@ import com.mapbox.mapboxsdk.style.layers.Layer;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -70,14 +70,14 @@ final class LocationLayerController {
   private LocationComponentOptions options;
   private final OnRenderModeChangedListener internalRenderModeChangedListener;
 
-  private final List<String> layerMap = new ArrayList<>();
+  @VisibleForTesting
+  final Set<String> layerSet = new HashSet<>();
   private Feature locationFeature;
   private GeoJsonSource locationSource;
 
   private boolean isHidden = true;
 
-  @Nullable
-  private String layerBelow;
+  private LocationComponentPositionManager positionManager;
 
   LocationLayerController(MapboxMap mapboxMap, Style style, LayerSourceProvider layerSourceProvider,
                           LayerFeatureProvider featureProvider, LayerBitmapProvider bitmapProvider,
@@ -94,8 +94,9 @@ final class LocationLayerController {
 
   void initializeComponents(Style style, LocationComponentOptions options) {
     this.style = style;
+    this.positionManager = new LocationComponentPositionManager(style, options.layerAbove(), options.layerBelow());
     addLocationSource();
-    addLayers(options.layerBelow());
+    addLayers();
     applyStyle(options);
 
     if (isHidden) {
@@ -106,18 +107,15 @@ final class LocationLayerController {
   }
 
   void applyStyle(@NonNull LocationComponentOptions options) {
-    String newLayerBelowOption = options.layerBelow();
-    if ((layerBelow != null || newLayerBelowOption != null)) {
-      if (layerBelow == null || !layerBelow.equals(newLayerBelowOption)) {
-        removeLayers();
-        addLayers(newLayerBelowOption);
-        if (isHidden) {
-          for (String layerId : layerMap) {
-            setLayerVisibility(layerId, false);
-          }
+    if (positionManager.update(options.layerAbove(), options.layerBelow())) {
+      removeLayers();
+      addLayers();
+      if (isHidden) {
+        for (String layerId : layerSet) {
+          setLayerVisibility(layerId, false);
         }
-        setRenderMode(renderMode);
       }
+      setRenderMode(renderMode);
     }
 
     this.options = options;
@@ -193,7 +191,7 @@ final class LocationLayerController {
 
   void hide() {
     isHidden = true;
-    for (String layerId : layerMap) {
+    for (String layerId : layerSet) {
       setLayerVisibility(layerId, false);
     }
   }
@@ -236,9 +234,13 @@ final class LocationLayerController {
     }
   }
 
-  private void addLayers(@NonNull String idBelowLayer) {
-    layerBelow = idBelowLayer;
-    addSymbolLayer(BEARING_LAYER, idBelowLayer);
+  private void addLayers() {
+    // positions the top-most reference layer
+    Layer layer = layerSourceProvider.generateLayer(BEARING_LAYER);
+    positionManager.addLayerToMap(layer);
+    layerSet.add(layer.getId());
+
+    // adds remaining layers while keeping the order
     addSymbolLayer(FOREGROUND_LAYER, BEARING_LAYER);
     addSymbolLayer(BACKGROUND_LAYER, FOREGROUND_LAYER);
     addSymbolLayer(SHADOW_LAYER, BACKGROUND_LAYER);
@@ -257,14 +259,14 @@ final class LocationLayerController {
 
   private void addLayerToMap(Layer layer, @NonNull String idBelowLayer) {
     style.addLayerBelow(layer, idBelowLayer);
-    layerMap.add(layer.getId());
+    layerSet.add(layer.getId());
   }
 
   private void removeLayers() {
-    for (String layerId : layerMap) {
+    for (String layerId : layerSet) {
       style.removeLayer(layerId);
     }
-    layerMap.clear();
+    layerSet.clear();
   }
 
   private void setBearingProperty(@NonNull String propertyId, float bearing) {
@@ -351,7 +353,7 @@ final class LocationLayerController {
   }
 
   private void styleScaling(@NonNull LocationComponentOptions options) {
-    for (String layerId : layerMap) {
+    for (String layerId : layerSet) {
       Layer layer = style.getLayer(layerId);
       if (layer instanceof SymbolLayer) {
         layer.setProperties(

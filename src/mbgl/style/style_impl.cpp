@@ -27,9 +27,8 @@ namespace style {
 
 static Observer nullObserver;
 
-Style::Impl::Impl(Scheduler& scheduler_, FileSource& fileSource_, float pixelRatio)
-    : scheduler(scheduler_),
-      fileSource(fileSource_),
+Style::Impl::Impl(FileSource& fileSource_, float pixelRatio)
+    : fileSource(fileSource_),
       spriteLoader(std::make_unique<SpriteLoader>(pixelRatio)),
       light(std::make_unique<Light>()),
       observer(&nullObserver) {
@@ -100,13 +99,13 @@ void Style::Impl::parse(const std::string& json_) {
     name = parser.name;
     defaultCamera.center = parser.latLng;
     defaultCamera.zoom = parser.zoom;
-    defaultCamera.angle = parser.bearing;
+    defaultCamera.bearing = parser.bearing;
     defaultCamera.pitch = parser.pitch;
 
     setLight(std::make_unique<Light>(parser.light));
 
     spriteLoaded = false;
-    spriteLoader->load(parser.spriteURL, scheduler, fileSource);
+    spriteLoader->load(parser.spriteURL, fileSource);
     glyphURL = parser.glyphURL;
 
     loaded = true;
@@ -249,6 +248,7 @@ bool Style::Impl::isLoaded() const {
 void Style::Impl::addImage(std::unique_ptr<style::Image> image) {
     images.remove(image->getID()); // We permit using addImage to update.
     images.add(std::move(image));
+    observer->onUpdate();
 }
 
 void Style::Impl::removeImage(const std::string& id) {
@@ -303,6 +303,9 @@ void Style::Impl::onSpriteError(std::exception_ptr error) {
     lastError = error;
     Log::Error(Event::Style, "Failed to load sprite: %s", util::toString(error).c_str());
     observer->onResourceError(error);
+    // Unblock rendering tiles (even though sprite request has failed).
+    spriteLoaded = true;
+    observer->onUpdate();
 }
 
 void Style::Impl::onLayerChanged(Layer& layer) {

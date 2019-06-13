@@ -38,6 +38,7 @@ include(cmake/mbgl.cmake)
 include(cmake/vendor.cmake)
 include(cmake/mason.cmake)
 include(cmake/xcode.cmake)
+include(cmake/doxygen.cmake)
 
 if(WITH_CXX11ABI)
     set(MASON_CXXABI_SUFFIX -cxx11abi)
@@ -86,6 +87,8 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-depth=1024 -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wno-variadic-macros -Wno-unknown-pragmas")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wshadow -Wno-variadic-macros -Wno-unknown-pragmas")
 endif()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
     # -Wno-error=unused-command-line-argument is required due to https://llvm.org/bugs/show_bug.cgi?id=7798

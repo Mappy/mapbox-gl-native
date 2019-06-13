@@ -22,7 +22,7 @@ class TileParameters;
 class GlyphAtlas;
 class ImageAtlas;
 
-class GeometryTile : public Tile, public GlyphRequestor, ImageRequestor {
+class GeometryTile : public Tile, public GlyphRequestor, public ImageRequestor {
 public:
     GeometryTile(const OverscaledTileID&,
                  std::string sourceID,
@@ -33,20 +33,19 @@ public:
     void setError(std::exception_ptr);
     void setData(std::unique_ptr<const GeometryTileData>);
 
-    void setLayers(const std::vector<Immutable<style::Layer::Impl>>&) override;
+    void setLayers(const std::vector<Immutable<style::LayerProperties>>&) override;
     void setShowCollisionBoxes(const bool showCollisionBoxes) override;
 
     void onGlyphsAvailable(GlyphMap) override;
-    void onImagesAvailable(ImageMap, ImageMap, uint64_t imageCorrelationID) override;
+    void onImagesAvailable(ImageMap, ImageMap, ImageVersionMap versionMap, uint64_t imageCorrelationID) override;
     
     void getGlyphs(GlyphDependencies);
     void getImages(ImageRequestPair);
 
-    void upload(gl::Context&) override;
+    void upload(gfx::UploadPass&) override;
     Bucket* getBucket(const style::Layer::Impl&) const override;
-
-    Size bindGlyphAtlas(gl::Context&);
-    Size bindIconAtlas(gl::Context&);
+    const LayerRenderData* getLayerRenderData(const style::Layer::Impl&) const override;
+    bool updateLayerProperties(const Immutable<style::LayerProperties>&) override;
 
     void queryRenderedFeatures(
             std::unordered_map<std::string, std::vector<Feature>>& result,
@@ -66,16 +65,16 @@ public:
 
     class LayoutResult {
     public:
-        std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets;
+        std::unordered_map<std::string, LayerRenderData> renderData;
         std::unique_ptr<FeatureIndex> featureIndex;
         optional<AlphaImage> glyphAtlasImage;
         ImageAtlas iconAtlas;
 
-        LayoutResult(std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets_,
+        LayoutResult(std::unordered_map<std::string, LayerRenderData> renderData_,
                      std::unique_ptr<FeatureIndex> featureIndex_,
                      optional<AlphaImage> glyphAtlasImage_,
                      ImageAtlas iconAtlas_)
-            : buckets(std::move(buckets_)),
+            : renderData(std::move(renderData_)),
               featureIndex(std::move(featureIndex_)),
               glyphAtlasImage(std::move(glyphAtlasImage_)),
               iconAtlas(std::move(iconAtlas_)) {}
@@ -98,6 +97,8 @@ protected:
         return latestFeatureIndex ? latestFeatureIndex->getData() : nullptr;
     }
 
+    LayerRenderData* getMutableLayerRenderData(const style::Layer::Impl&);
+
 private:
     void markObsolete();
 
@@ -107,12 +108,13 @@ private:
     std::shared_ptr<Mailbox> mailbox;
     Actor<GeometryTileWorker> worker;
 
+    std::shared_ptr<FileSource> fileSource;
     GlyphManager& glyphManager;
     ImageManager& imageManager;
 
     uint64_t correlationID = 0;
 
-    std::unordered_map<std::string, std::shared_ptr<Bucket>> buckets;
+    std::unordered_map<std::string, LayerRenderData> layerIdToLayerRenderData;
     
     std::shared_ptr<FeatureIndex> latestFeatureIndex;
 
@@ -132,8 +134,8 @@ private:
 
     FadeState fadeState = FadeState::Loaded;
 public:
-    optional<gl::Texture> glyphAtlasTexture;
-    optional<gl::Texture> iconAtlasTexture;
+    optional<gfx::Texture> glyphAtlasTexture;
+    optional<gfx::Texture> iconAtlasTexture;
 };
 
 } // namespace mbgl

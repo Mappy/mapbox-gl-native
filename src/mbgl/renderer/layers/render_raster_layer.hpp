@@ -6,11 +6,12 @@
 
 namespace mbgl {
 
-class RenderRasterLayer: public RenderLayer {
+class RenderRasterLayer final : public RenderLayer {
 public:
-    RenderRasterLayer(Immutable<style::RasterLayer::Impl>);
-    ~RenderRasterLayer() final = default;
+    explicit RenderRasterLayer(Immutable<style::RasterLayer::Impl>);
+    ~RenderRasterLayer() override;
 
+private:
     void transition(const TransitionParameters&) override;
     void evaluate(const PropertyEvaluationParameters&) override;
     bool hasTransition() const override;
@@ -18,13 +19,8 @@ public:
 
     void render(PaintParameters&, RenderSource*) override;
 
-    std::unique_ptr<Bucket> createBucket(const BucketParameters&, const std::vector<const RenderLayer*>&) const override;
-
     // Paint properties
     style::RasterPaintProperties::Unevaluated unevaluated;
-    style::RasterPaintProperties::PossiblyEvaluated evaluated;
-
-    const style::RasterLayer::Impl& impl() const;
 };
 
 } // namespace mbgl

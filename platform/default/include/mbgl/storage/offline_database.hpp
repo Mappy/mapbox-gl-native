@@ -43,6 +43,9 @@ public:
     OfflineDatabase(std::string path, uint64_t maximumCacheSize = util::DEFAULT_MAX_CACHE_SIZE);
     ~OfflineDatabase();
 
+    void changePath(const std::string&);
+    std::exception_ptr resetCache();
+
     optional<Response> get(const Resource&);
 
     // Return value is (inserted, stored size)
@@ -88,6 +91,7 @@ private:
     void migrateToVersion5();
     void migrateToVersion3();
     void migrateToVersion6();
+    void cleanup();
 
     mapbox::sqlite::Statement& getStatement(const char *);
 
@@ -113,7 +117,7 @@ private:
     std::pair<int64_t, int64_t> getCompletedResourceCountAndSize(int64_t regionID);
     std::pair<int64_t, int64_t> getCompletedTileCountAndSize(int64_t regionID);
 
-    const std::string path;
+    std::string path;
     std::unique_ptr<mapbox::sqlite::Database> db;
     std::unordered_map<const char *, const std::unique_ptr<mapbox::sqlite::Statement>> statements;
 

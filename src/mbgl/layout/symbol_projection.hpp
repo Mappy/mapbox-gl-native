@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mbgl/util/mat4.hpp>
-#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
 #include <mbgl/programs/symbol_program.hpp>
 
 namespace mbgl {
@@ -46,7 +46,7 @@ namespace mbgl {
     using PointAndCameraDistance = std::pair<Point<float>,float>;
     PointAndCameraDistance project(const Point<float>& point, const mat4& matrix);
 
-    void reprojectLineLabels(gl::VertexVector<SymbolDynamicLayoutAttributes::Vertex>&, const std::vector<PlacedSymbol>&,
+    void reprojectLineLabels(gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>&, const std::vector<PlacedSymbol>&,
             const mat4& posMatrix, const style::SymbolPropertyValues&,
             const RenderTile&, const SymbolSizeBinder& sizeBinder, const TransformState&);
     
@@ -59,5 +59,10 @@ namespace mbgl {
                                                             const PlacedSymbol& symbol,
                                                             const mat4& labelPlaneMatrix,
                                                             const bool returnTileDistance);
+
+    void hideGlyphs(std::size_t numGlyphs, gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertices);
+    void addDynamicAttributes(const Point<float>& anchorPoint,
+                              const float angle,
+                              gfx::VertexVector<gfx::Vertex<SymbolDynamicLayoutAttributes>>& dynamicVertices);
 
 } // end namespace mbgl

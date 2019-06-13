@@ -7,6 +7,7 @@
 #import "MBXUserLocationAnnotationView.h"
 #import "LimeGreenStyleLayer.h"
 #import "MBXEmbeddedMapViewController.h"
+#import "MBXOrnamentsViewController.h"
 
 #import "MBXFrameTimeGraphView.h"
 
@@ -102,8 +103,10 @@ typedef NS_ENUM(NSInteger, MBXSettingsMiscellaneousRows) {
     MBXSettingsMiscellaneousToggleTwoMaps,
     MBXSettingsMiscellaneousLocalizeLabels,
     MBXSettingsMiscellaneousShowSnapshots,
+    MBXSettingsMiscellaneousMissingIcon,
     MBXSettingsMiscellaneousShouldLimitCameraChanges,
     MBXSettingsMiscellaneousShowCustomLocationManager,
+    MBXSettingsMiscellaneousOrnamentsPlacement,
     MBXSettingsMiscellaneousPrintLogFile,
     MBXSettingsMiscellaneousDeleteLogFile,
 	MBXSettingsMiscellaneousShowMappyLogFile,
@@ -154,13 +157,13 @@ CLLocationCoordinate2D randomWorldCoordinate() {
         {{ 12.966246,   77.586505 },    19000 }     // Bengaluru
     };
 
-    NSInteger index                   = drand48() * (sizeof(landmasses)/sizeof(landmasses[0]));
+    NSInteger index                   = arc4random_uniform(sizeof(landmasses)/sizeof(landmasses[0]));
     CLLocationCoordinate2D coordinate = landmasses[index].coordinate;
     CLLocationDistance radius         = landmasses[index].radius;
 
     // Now create a world coord
-    CLLocationDegrees heading          = drand48()*360.0;
-    CLLocationDistance distance        = drand48()*radius;
+    CLLocationDegrees heading          = (CLLocationDegrees)arc4random_uniform(360);
+    CLLocationDistance distance        = (CLLocationDistance)arc4random_uniform(radius);
     CLLocationCoordinate2D newLocation = coordinateCentered(coordinate, heading, distance);
     return newLocation;
 }
@@ -244,44 +247,17 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
     [self restoreState:nil];
 
-    self.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
-    self.mapView.showsScale = YES;
-    self.mapView.showsUserHeadingIndicator = YES;
-    self.mapView.experimental_enableFrameRateMeasurement = YES;
-    self.hudLabel.titleLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightRegular];
-
     if ([MGLAccountManager accessToken].length)
     {
         self.styleIndex = -1;
         [self cycleStyles:self];
     }
-    else
-    {
-        UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Access Token" message:@"Enter your Mapbox access token to load Mapbox-hosted tiles and styles:" preferredStyle:UIAlertControllerStyleAlert];
-        [alertController addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField)
-         {
-             textField.keyboardType = UIKeyboardTypeURL;
-             textField.autocorrectionType = UITextAutocorrectionTypeNo;
-             textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
-         }];
 
-        [alertController addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-        UIAlertAction *OKAction = [UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action)
-        {
-            UITextField *textField = alertController.textFields.firstObject;
-            NSString *accessToken = textField.text;
-            [[NSUserDefaults standardUserDefaults] setObject:accessToken forKey:MBXMapboxAccessTokenDefaultsKey];
-            [MGLAccountManager setAccessToken:accessToken];
-
-            self.styleIndex = -1;
-            [self cycleStyles:self];
-            [self.mapView reloadStyle:self];
-        }];
-        [alertController addAction:OKAction];
-        alertController.preferredAction = OKAction;
-
-        [self presentViewController:alertController animated:YES completion:nil];
-    }
+    self.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:@"MGLMapboxMetricsDebugLoggingEnabled"];
+    self.mapView.showsScale = YES;
+    self.mapView.showsUserHeadingIndicator = YES;
+    self.mapView.experimental_enableFrameRateMeasurement = YES;
+    self.hudLabel.titleLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightRegular];
 
     // Add fall-through single tap gesture recognizer. This will be called when
     // the map view's tap recognizers fail.
@@ -499,8 +475,10 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                 [NSString stringWithFormat:@"%@ Second Map", ([self.view viewWithTag:2] == nil ? @"Show" : @"Hide")],
                 [NSString stringWithFormat:@"Show Labels in %@", (_localizingLabels ? @"Default Language" : [[NSLocale currentLocale] displayNameForKey:NSLocaleIdentifier value:[self bestLanguageForUser]])],
                 @"Show Snapshots",
+                @"Missing Icon",
                 [NSString stringWithFormat:@"%@ Camera Changes", (_shouldLimitCameraChanges ? @"Unlimit" : @"Limit")],
                 @"View Route Simulation",
+                @"Ornaments Placement",
             ]];
 
             if (self.debugLoggingEnabled)
@@ -753,6 +731,11 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                     [self performSegueWithIdentifier:@"ShowSnapshots" sender:nil];
                     break;
                 }
+                case MBXSettingsMiscellaneousMissingIcon:
+                {
+                    [self loadMissingIcon];
+                    break;
+                }
                 case MBXSettingsMiscellaneousShowCustomLocationManager:
                 {
                     [self performSegueWithIdentifier:@"ShowCustomLocationManger" sender:nil];
@@ -764,6 +747,12 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                     if (self.shouldLimitCameraChanges) {
                         [self.mapView setCenterCoordinate:CLLocationCoordinate2DMake(39.748947, -104.995882) zoomLevel:10 direction:0 animated:NO];
                     }
+                    break;
+                }
+                case MBXSettingsMiscellaneousOrnamentsPlacement:
+                {
+                    MBXOrnamentsViewController *ornamentsViewController = [[MBXOrnamentsViewController alloc] init];
+                    [self.navigationController pushViewController:ornamentsViewController animated:YES];
                     break;
                 }
                 default:
@@ -1719,6 +1708,19 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [self.mapView addAnnotation:line];
 }
 
+- (void)loadMissingIcon
+{
+    self.mapView.centerCoordinate = CLLocationCoordinate2DMake(0, 0);
+    self.mapView.zoomLevel = 1;
+    NSURL *customStyleJSON = [[NSBundle mainBundle] URLForResource:@"missing_icon" withExtension:@"json"];
+    [self.mapView setStyleURL:customStyleJSON];
+}
+
+- (UIImage *)mapView:(MGLMapView *)mapView didFailToLoadImage:(NSString *)imageName {
+    UIImage *backupImage = [UIImage imageNamed:@"AppIcon"];
+    return backupImage;
+}
+
 - (void)printTelemetryLogFile
 {
     NSString *fileContents = [NSString stringWithContentsOfFile:[self telemetryDebugLogFilePath] encoding:NSUTF8StringEncoding error:nil];
@@ -1797,8 +1799,8 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     NSMutableArray *annotations = [[NSMutableArray alloc] initWithCapacity:numAnnotations];
     for (NSInteger i = 0; i<numAnnotations; i++) {
 
-        CLLocationDegrees heading          = drand48()*360.0;
-        CLLocationDistance distance        = drand48()*radius;
+        CLLocationDegrees heading          = (CLLocationDegrees)arc4random_uniform(360);
+        CLLocationDistance distance        = (CLLocationDistance)arc4random_uniform(radius);
         CLLocationCoordinate2D newLocation = coordinateCentered(coordinate, heading, distance);
 
         MBXDroppedPinAnnotation *annotation = [[MBXDroppedPinAnnotation alloc] init];
@@ -1836,12 +1838,12 @@ CLLocationCoordinate2D randomWorldCoordinate() {
     [self.mapView addAnnotation:annotation];
 
     // Add annotations around that coord
-    [self addAnnotations:50 aroundCoordinate:annotation.coordinate radius:100000.0]; // 100km
+    [self addAnnotations:50 aroundCoordinate:annotation.coordinate radius:100000]; // 100km
 
     MGLMapCamera *camera = [MGLMapCamera cameraLookingAtCenterCoordinate:annotation.coordinate
                                                                 altitude:10000.0
-                                                                   pitch:drand48()*60.0
-                                                                 heading:drand48()*360];
+                                                                   pitch:(CLLocationDegrees)arc4random_uniform(60)
+                                                                 heading:(CLLocationDegrees)arc4random_uniform(360)];
     [self.mapView flyToCamera:camera
                  withDuration:duration
                  peakAltitude:2000000.0

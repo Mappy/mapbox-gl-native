@@ -5,12 +5,12 @@
 #include <mbgl/util/default_styles.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/platform.hpp>
-#include <mbgl/util/default_thread_pool.hpp>
+#include <mbgl/util/string.hpp>
 #include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/style/style.hpp>
 #include <mbgl/renderer/renderer.hpp>
 
-#include <args/args.hxx>
+#include <args.hxx>
 
 #include <csignal>
 #include <fstream>
@@ -93,23 +93,25 @@ int main(int argc, char *argv[]) {
     GLFWView backend(fullscreen, benchmark);
     view = &backend;
 
-    mbgl::DefaultFileSource fileSource(cacheDB, ".");
+    // Set access token if present
+    std::string token(getenv("MAPBOX_ACCESS_TOKEN") ?: "");
+    if (token.empty()) {
+        mbgl::Log::Warning(mbgl::Event::Setup, "no access token set. mapbox.com tiles won't work.");
+    }
+
+    mbgl::ResourceOptions resourceOptions;
+    resourceOptions.withCachePath(cacheDB).withAccessToken(token);
+
+    auto fileSource = std::static_pointer_cast<mbgl::DefaultFileSource>(mbgl::FileSource::getSharedFileSource(resourceOptions));
     if (!settings.online) {
-        fileSource.setOnlineStatus(false);
+        fileSource->setOnlineStatus(false);
         mbgl::Log::Warning(mbgl::Event::Setup, "Application is offline. Press `O` to toggle online status.");
     }
 
-    // Set access token if present
-    const char *token = getenv("MAPBOX_ACCESS_TOKEN");
-    if (token == nullptr) {
-        mbgl::Log::Warning(mbgl::Event::Setup, "no access token set. mapbox.com tiles won't work.");
-    } else {
-        fileSource.setAccessToken(std::string(token));
-    }
+    GLFWRendererFrontend rendererFrontend { std::make_unique<mbgl::Renderer>(view->getRendererBackend(), view->getPixelRatio()), *view };
 
-    mbgl::ThreadPool threadPool(4);
-    GLFWRendererFrontend rendererFrontend { std::make_unique<mbgl::Renderer>(backend, view->getPixelRatio(), fileSource, threadPool), backend };
-    mbgl::Map map(rendererFrontend, backend, view->getSize(), view->getPixelRatio(), fileSource, threadPool);
+    mbgl::Map map(rendererFrontend, *view,
+                  mbgl::MapOptions().withSize(view->getSize()).withPixelRatio(view->getPixelRatio()), resourceOptions);
 
     backend.setMap(&map);
 
@@ -117,14 +119,16 @@ int main(int argc, char *argv[]) {
         style = std::string("file://") + style;
     }
 
-    map.setLatLngZoom(mbgl::LatLng(settings.latitude, settings.longitude), settings.zoom);
-    map.setBearing(settings.bearing);
-    map.setPitch(settings.pitch);
+    map.jumpTo(mbgl::CameraOptions()
+                   .withCenter(mbgl::LatLng {settings.latitude, settings.longitude})
+                   .withZoom(settings.zoom)
+                   .withBearing(settings.bearing)
+                   .withPitch(settings.pitch));
     map.setDebug(mbgl::MapDebugOptions(settings.debug));
 
-    view->setOnlineStatusCallback([&settings, &fileSource]() {
+    view->setOnlineStatusCallback([&settings, fileSource]() {
         settings.online = !settings.online;
-        fileSource.setOnlineStatus(settings.online);
+        fileSource->setOnlineStatus(settings.online);
         mbgl::Log::Info(mbgl::Event::Setup, "Application is %s. Press `O` to toggle online status.", settings.online ? "online" : "offline");
     });
 
@@ -142,16 +146,24 @@ int main(int argc, char *argv[]) {
         mbgl::Log::Info(mbgl::Event::Setup, "Changed style to: %s", newStyle.name);
     });
 
-    view->setPauseResumeCallback([&fileSource] () {
+    view->setPauseResumeCallback([fileSource] () {
         static bool isPaused = false;
 
         if (isPaused) {
-            fileSource.resume();
+            fileSource->resume();
         } else {
-            fileSource.pause();
+            fileSource->pause();
         }
 
         isPaused = !isPaused;
+    });
+
+    view->setResetCacheCallback([fileSource] () {
+        fileSource->resetCache([](std::exception_ptr ex) {
+            if (ex) {
+                mbgl::Log::Error(mbgl::Event::Database, "Failed to reset cache:: %s", mbgl::util::toString(ex).c_str());
+            }
+        });
     });
 
     // Load style
@@ -172,12 +184,12 @@ int main(int argc, char *argv[]) {
     view->run();
 
     // Save settings
-    mbgl::LatLng latLng = map.getLatLng();
-    settings.latitude = latLng.latitude();
-    settings.longitude = latLng.longitude();
-    settings.zoom = map.getZoom();
-    settings.bearing = map.getBearing();
-    settings.pitch = map.getPitch();
+    mbgl::CameraOptions camera = map.getCameraOptions();
+    settings.latitude = camera.center->latitude();
+    settings.longitude = camera.center->longitude();
+    settings.zoom = *camera.zoom;
+    settings.bearing = *camera.bearing;
+    settings.pitch = *camera.pitch;
     settings.debug = mbgl::EnumType(map.getDebug());
     settings.save();
     mbgl::Log::Info(mbgl::Event::General,
@@ -185,5 +197,6 @@ int main(int argc, char *argv[]) {
                     settings.latitude, settings.longitude, settings.zoom, settings.bearing);
 
     view = nullptr;
+
     return 0;
 }

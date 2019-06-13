@@ -1,6 +1,7 @@
 package com.mapbox.mapboxsdk.storage;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
@@ -14,12 +15,13 @@ import android.support.annotation.UiThread;
 import com.mapbox.mapboxsdk.MapStrictMode;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.constants.MapboxConstants;
+import com.mapbox.mapboxsdk.log.Logger;
+import com.mapbox.mapboxsdk.utils.FileUtils;
 import com.mapbox.mapboxsdk.utils.ThreadUtils;
 
+import java.io.File;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import com.mapbox.mapboxsdk.log.Logger;
 
 /**
  * Holds a central reference to the core's DefaultFileSource for as long as
@@ -28,6 +30,7 @@ import com.mapbox.mapboxsdk.log.Logger;
 public class FileSource {
 
   private static final String TAG = "Mbgl-FileSource";
+  private static final String MAPBOX_SHARED_PREFERENCE_RESOURCES_CACHE_PATH = "fileSourceResourcesCachePath";
   private static final Lock resourcesCachePathLoaderLock = new ReentrantLock();
   private static final Lock internalCachePathLoaderLock = new ReentrantLock();
   @Nullable
@@ -50,6 +53,29 @@ public class FileSource {
      * @return a URL that will now be downloaded.
      */
     String onURL(@Resource.Kind int kind, String url);
+
+  }
+
+  /**
+   * This callback receives an asynchronous response containing the new path of the
+   * resources cache database.
+   */
+  @Keep
+  public interface ResourcesCachePathChangeCallback {
+
+    /**
+     * Receives the new database path
+     *
+     * @param path the path of the current resources cache database
+     */
+    void onSuccess(@NonNull String path);
+
+    /**
+     * Receives an error message if setting the path was not successful
+     *
+     * @param message the error message
+     */
+    void onError(@NonNull String message);
 
   }
 
@@ -79,6 +105,41 @@ public class FileSource {
    */
   @NonNull
   private static String getCachePath(@NonNull Context context) {
+    SharedPreferences preferences = context.getSharedPreferences(
+      MapboxConstants.MAPBOX_SHARED_PREFERENCES, Context.MODE_PRIVATE);
+    String cachePath = preferences.getString(MAPBOX_SHARED_PREFERENCE_RESOURCES_CACHE_PATH, null);
+
+    if (!isPathWritable(cachePath)) {
+      // Use default path
+      cachePath = getDefaultCachePath(context);
+
+      // Reset stored cache path
+      SharedPreferences.Editor editor =
+        context.getSharedPreferences(MapboxConstants.MAPBOX_SHARED_PREFERENCES, Context.MODE_PRIVATE).edit();
+      editor.remove(MAPBOX_SHARED_PREFERENCE_RESOURCES_CACHE_PATH).apply();
+    }
+
+    return cachePath;
+  }
+
+  /**
+   * Get the default resources cache path depending on the external storage configuration
+   *
+   * @param context the context to derive the files directory path from
+   * @return the default directory path
+   */
+  @NonNull
+  private static String getDefaultCachePath(@NonNull Context context) {
+    if (isExternalStorageConfiguration(context) && isExternalStorageReadable()) {
+      File externalFilesDir = context.getExternalFilesDir(null);
+      if (externalFilesDir != null) {
+        return externalFilesDir.getAbsolutePath();
+      }
+    }
+    return context.getFilesDir().getAbsolutePath();
+  }
+
+  private static boolean isExternalStorageConfiguration(@NonNull Context context) {
     // Default value
     boolean isExternalStorageConfiguration = MapboxConstants.DEFAULT_SET_STORAGE_EXTERNAL;
 
@@ -99,24 +160,7 @@ public class FileSource {
       Logger.e(TAG, "Failed to read the storage key: ", exception);
       MapStrictMode.strictModeViolation(exception);
     }
-
-    String cachePath = null;
-    if (isExternalStorageConfiguration && isExternalStorageReadable()) {
-      try {
-        // Try getting the external storage path
-        cachePath = context.getExternalFilesDir(null).getAbsolutePath();
-      } catch (NullPointerException exception) {
-        Logger.e(TAG, "Failed to obtain the external storage path: ", exception);
-        MapStrictMode.strictModeViolation(exception);
-      }
-    }
-
-    if (cachePath == null) {
-      // Default to internal storage
-      cachePath = context.getFilesDir().getAbsolutePath();
-    }
-
-    return cachePath;
+    return isExternalStorageConfiguration;
   }
 
   /**
@@ -149,7 +193,7 @@ public class FileSource {
    */
   @UiThread
   public static void initializeFileDirsPaths(Context context) {
-    ThreadUtils.checkThread("FileSource");
+    ThreadUtils.checkThread(TAG);
     lockPathLoaders();
     if (resourcesCachePath == null || internalCachePath == null) {
       new FileDirsPathsTask().execute(context);
@@ -186,7 +230,7 @@ public class FileSource {
    * @param context the context to derive the files directory path from
    * @return the files directory path
    */
-  @Nullable
+  @NonNull
   public static String getResourcesCachePath(@NonNull Context context) {
     resourcesCachePathLoaderLock.lock();
     try {
@@ -215,6 +259,85 @@ public class FileSource {
     } finally {
       internalCachePathLoaderLock.unlock();
     }
+  }
+
+  /**
+   * Changes the path of the resources cache database.
+   * Note that the external storage setting needs to be activated in the manifest.
+   * <p>
+   * The callback reference is <b>strongly kept</b> throughout the process,
+   * so it needs to be wrapped in a weak reference or released on the client side if necessary.
+   *
+   * @param context  the context of the path
+   * @param path     the new database path
+   * @param callback the callback to obtain the result
+   * @deprecated Use {@link #setResourcesCachePath(String, ResourcesCachePathChangeCallback)}
+   */
+  @Deprecated
+  public static void setResourcesCachePath(@NonNull final Context context,
+                                           @NonNull final String path,
+                                           @NonNull final ResourcesCachePathChangeCallback callback) {
+    setResourcesCachePath(path, callback);
+  }
+
+  /**
+   * Changes the path of the resources cache database.
+   * Note that the external storage setting needs to be activated in the manifest.
+   * <p>
+   * The callback reference is <b>strongly kept</b> throughout the process,
+   * so it needs to be wrapped in a weak reference or released on the client side if necessary.
+   *
+   * @param path     the new database path
+   * @param callback the callback to obtain the result
+   */
+  public static void setResourcesCachePath(@NonNull final String path,
+                                           @NonNull final ResourcesCachePathChangeCallback callback) {
+    final Context applicationContext = Mapbox.getApplicationContext();
+    final FileSource fileSource = FileSource.getInstance(applicationContext);
+
+    if (fileSource.isActivated()) {
+      String fileSourceActivatedMessage = "Cannot set path, file source is activated."
+        + " Make sure that the map or a resources download is not running.";
+      Logger.w(TAG, fileSourceActivatedMessage);
+      callback.onError(fileSourceActivatedMessage);
+    } else if (path.equals(getResourcesCachePath(applicationContext))) {
+      // no need to change the path
+      callback.onSuccess(path);
+    } else {
+      new FileUtils.CheckFileWritePermissionTask(new FileUtils.OnCheckFileWritePermissionListener() {
+        @Override
+        public void onWritePermissionGranted() {
+          final SharedPreferences.Editor editor =
+            applicationContext.getSharedPreferences(MapboxConstants.MAPBOX_SHARED_PREFERENCES,
+              Context.MODE_PRIVATE).edit();
+          editor.putString(MAPBOX_SHARED_PREFERENCE_RESOURCES_CACHE_PATH, path);
+          editor.apply();
+          setResourcesCachePath(applicationContext, path);
+          callback.onSuccess(path);
+        }
+
+        @Override
+        public void onError() {
+          String message = "Path is not writable: " + path;
+          Logger.e(TAG, message);
+          callback.onError(message);
+        }
+      }).execute(new File(path));
+    }
+  }
+
+  private static void setResourcesCachePath(@NonNull Context context, @NonNull String path) {
+    resourcesCachePathLoaderLock.lock();
+    resourcesCachePath = path;
+    resourcesCachePathLoaderLock.unlock();
+    getInstance(context).setResourceCachePath(path);
+  }
+
+  private static boolean isPathWritable(String path) {
+    if (path == null || path.isEmpty()) {
+      return false;
+    }
+    return new File(path).canWrite();
   }
 
   private static void lockPathLoaders() {
@@ -263,6 +386,9 @@ public class FileSource {
    */
   @Keep
   public native void setResourceTransform(final ResourceTransformCallback callback);
+
+  @Keep
+  private native void setResourceCachePath(String path);
 
   @Keep
   private native void initialize(String accessToken, String cachePath, AssetManager assetManager);

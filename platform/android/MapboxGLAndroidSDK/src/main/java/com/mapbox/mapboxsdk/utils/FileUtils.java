@@ -3,20 +3,26 @@ package com.mapbox.mapboxsdk.utils;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 
+import com.mapbox.mapboxsdk.log.Logger;
+
 import java.io.File;
-import java.lang.ref.WeakReference;
 
 public class FileUtils {
 
+  private static final String TAG = "Mbgl-FileUtils";
+
   /**
    * Task checking whether app's process can read a file.
+   * <p>
+   * The callback reference is <b>strongly kept</b> throughout the process,
+   * so it needs to be wrapped in a weak reference or released on the client side if necessary.
    */
   public static class CheckFileReadPermissionTask extends AsyncTask<File, Void, Boolean> {
     @NonNull
-    private final WeakReference<OnCheckFileReadPermissionListener> listenerWeakReference;
+    private final OnCheckFileReadPermissionListener listener;
 
-    public CheckFileReadPermissionTask(OnCheckFileReadPermissionListener listener) {
-      this.listenerWeakReference = new WeakReference<>(listener);
+    public CheckFileReadPermissionTask(@NonNull OnCheckFileReadPermissionListener listener) {
+      this.listener = listener;
     }
 
     @Override
@@ -30,21 +36,15 @@ public class FileUtils {
 
     @Override
     protected void onCancelled() {
-      OnCheckFileReadPermissionListener listener = listenerWeakReference.get();
-      if (listener != null) {
-        listener.onError();
-      }
+      listener.onError();
     }
 
     @Override
     protected void onPostExecute(Boolean result) {
-      OnCheckFileReadPermissionListener listener = listenerWeakReference.get();
-      if (listener != null) {
-        if (result) {
-          listener.onReadPermissionGranted();
-        } else {
-          listener.onError();
-        }
+      if (result) {
+        listener.onReadPermissionGranted();
+      } else {
+        listener.onError();
       }
     }
   }
@@ -67,13 +67,16 @@ public class FileUtils {
 
   /**
    * Task checking whether app's process can write to a file.
+   * <p>
+   * The callback reference is <b>strongly kept</b> throughout the process,
+   * so it needs to be wrapped in a weak reference or released on the client side if necessary.
    */
   public static class CheckFileWritePermissionTask extends AsyncTask<File, Void, Boolean> {
     @NonNull
-    private final WeakReference<OnCheckFileWritePermissionListener> listenerWeakReference;
+    private final OnCheckFileWritePermissionListener listener;
 
-    public CheckFileWritePermissionTask(OnCheckFileWritePermissionListener listener) {
-      this.listenerWeakReference = new WeakReference<>(listener);
+    public CheckFileWritePermissionTask(@NonNull OnCheckFileWritePermissionListener listener) {
+      this.listener = listener;
     }
 
     @Override
@@ -87,21 +90,15 @@ public class FileUtils {
 
     @Override
     protected void onCancelled() {
-      OnCheckFileWritePermissionListener listener = listenerWeakReference.get();
-      if (listener != null) {
-        listener.onError();
-      }
+      listener.onError();
     }
 
     @Override
     protected void onPostExecute(Boolean result) {
-      OnCheckFileWritePermissionListener listener = listenerWeakReference.get();
-      if (listener != null) {
-        if (result) {
-          listener.onWritePermissionGranted();
-        } else {
-          listener.onError();
-        }
+      if (result) {
+        listener.onWritePermissionGranted();
+      } else {
+        listener.onError();
       }
     }
   }
@@ -120,5 +117,31 @@ public class FileUtils {
      * Invoked when app's process doesn't have a permission to write to a file or an error occurs.
      */
     void onError();
+  }
+
+  /**
+   * Deletes a file asynchronously in a separate thread.
+   *
+   * @param path the path of the file that should be deleted
+   */
+  public static void deleteFile(@NonNull final String path) {
+    // Delete the file in a separate thread to avoid affecting the UI
+    new Thread(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          File file = new File(path);
+          if (file.exists()) {
+            if (file.delete()) {
+              Logger.d(TAG, "File deleted to save space: " + path);
+            } else {
+              Logger.e(TAG, "Failed to delete file: " + path);
+            }
+          }
+        } catch (Exception exception) {
+          Logger.e(TAG, "Failed to delete file: ", exception);
+        }
+      }
+    }).start();
   }
 }

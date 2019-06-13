@@ -161,7 +161,7 @@ public class SupportMapFragment extends Fragment implements OnMapReadyCallback {
   @Override
   public void onSaveInstanceState(@NonNull Bundle outState) {
     super.onSaveInstanceState(outState);
-    if (map != null && !map.isDestroyed()) {
+    if (map != null) {
       map.onSaveInstanceState(outState);
     }
   }
@@ -181,18 +181,26 @@ public class SupportMapFragment extends Fragment implements OnMapReadyCallback {
   @Override
   public void onLowMemory() {
     super.onLowMemory();
-    if (map != null && !map.isDestroyed()) {
+    if (map != null) {
       map.onLowMemory();
     }
   }
 
   /**
-   * Called when the fragment is view hiearchy is being destroyed.
+   * Called when the fragment is view hierarchy is being destroyed.
    */
   @Override
   public void onDestroyView() {
     super.onDestroyView();
     map.onDestroy();
+  }
+
+  /**
+   * Called when the fragment is destroyed.
+   */
+  @Override
+  public void onDestroy() {
+    super.onDestroy();
     mapReadyCallbackList.clear();
   }
 

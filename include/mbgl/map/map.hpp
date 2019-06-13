@@ -2,13 +2,17 @@
 
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/chrono.hpp>
+#include <mbgl/map/bound_options.hpp>
 #include <mbgl/map/map_observer.hpp>
+#include <mbgl/map/map_options.hpp>
 #include <mbgl/map/mode.hpp>
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/size.hpp>
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/map/camera.hpp>
 #include <mbgl/util/geometry.hpp>
+#include <mbgl/map/projection_mode.hpp>
+#include <mbgl/storage/resource_options.hpp>
 
 #include <cstdint>
 #include <string>
@@ -18,8 +22,6 @@
 
 namespace mbgl {
 
-class FileSource;
-class Scheduler;
 class RendererFrontend;
 
 namespace style {
@@ -31,14 +33,8 @@ class Map : private util::noncopyable {
 public:
     explicit Map(RendererFrontend&,
                  MapObserver&,
-                 Size size,
-                 float pixelRatio,
-                 FileSource&,
-                 Scheduler&,
-                 MapMode mapMode = MapMode::Continuous,
-                 ConstrainMode constrainMode = ConstrainMode::HeightOnly,
-                 ViewportMode viewportMode = ViewportMode::Default,
-                 bool crossSourceCollisions = true);
+                 const MapOptions&,
+                 const ResourceOptions&);
     ~Map();
 
     // Register a callback that will get called (on the render thread) when all resources have
@@ -65,80 +61,39 @@ public:
 	bool isInTransition() const;
 
     // Camera
-    CameraOptions getCameraOptions(const EdgeInsets&) const;
+    CameraOptions getCameraOptions(const EdgeInsets& = {}) const;
     void jumpTo(const CameraOptions&);
     void easeTo(const CameraOptions&, const AnimationOptions&);
     void flyTo(const CameraOptions&, const AnimationOptions&);
+    void moveBy(const ScreenCoordinate&, const AnimationOptions& = {});
+    void scaleBy(double scale, optional<ScreenCoordinate> anchor, const AnimationOptions& animation = {});
+    void pitchBy(double pitch, const AnimationOptions& animation = {});
+    void rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& = {});
     CameraOptions cameraForLatLngBounds(const LatLngBounds&, const EdgeInsets&, optional<double> bearing = {}, optional<double> pitch = {}) const;
     CameraOptions cameraForLatLngs(const std::vector<LatLng>&, const EdgeInsets&, optional<double> bearing = {}, optional<double> pitch = {}) const;
     CameraOptions cameraForGeometry(const Geometry<double>&, const EdgeInsets&, optional<double> bearing = {}, optional<double> pitch = {}) const;
     LatLngBounds latLngBoundsForCamera(const CameraOptions&) const;
 
-    // Position
-    void moveBy(const ScreenCoordinate&, const AnimationOptions& = {});
-    void setLatLng(const LatLng&, const EdgeInsets&, const AnimationOptions& = {});
-    void setLatLng(const LatLng&, const AnimationOptions& = {});
-    LatLng getLatLng(const EdgeInsets& = {}) const;
-    void resetPosition(const EdgeInsets& = {});
+    /// @name Bounds
+    /// @{
 
-    // Zoom
-    void setZoom(double zoom, const AnimationOptions& = {});
-    void setZoom(double zoom, optional<ScreenCoordinate>, const AnimationOptions& = {});
-    void setZoom(double zoom, const EdgeInsets&, const AnimationOptions& = {});
-    double getZoom() const;
-    void setLatLngZoom(const LatLng&, double zoom, const AnimationOptions& = {});
-    void setLatLngZoom(const LatLng&, double zoom, const EdgeInsets&, const AnimationOptions& = {});
-    void resetZoom();
+    void setBounds(const BoundOptions& options);
 
-    // Bounds
-    void setLatLngBounds(optional<LatLngBounds>);
-    optional<LatLngBounds> getLatLngBounds() const;
-    void setMinZoom(double);
-    double getMinZoom() const;
-    void setMaxZoom(double);
-    double getMaxZoom() const;
-    void setMinPitch(double);
-    double getMinPitch() const;
-    void setMaxPitch(double);
-    double getMaxPitch() const;
+    /// Returns the current map bound options. All optional fields in BoundOptions are set.
+    BoundOptions getBounds() const;
 
-    // Rotation
-    void rotateBy(const ScreenCoordinate& first, const ScreenCoordinate& second, const AnimationOptions& = {});
-    void setBearing(double degrees, const AnimationOptions& = {});
-    void setBearing(double degrees, optional<ScreenCoordinate>, const AnimationOptions& = {});
-    void setBearing(double degrees, const EdgeInsets&, const AnimationOptions& = {});
-    double getBearing() const;
-    void resetNorth(const AnimationOptions& = {{mbgl::Milliseconds(500)}});
-    void resetNorth(const EdgeInsets&, const AnimationOptions& = {{mbgl::Milliseconds(500)}});
+    /// @}
 
-    // Pitch
-    void setPitch(double pitch, const AnimationOptions& = {});
-    void setPitch(double pitch, optional<ScreenCoordinate>, const AnimationOptions& = {});
-    double getPitch() const;
-
-    // North Orientation
+    // Map Options
     void setNorthOrientation(NorthOrientation);
-    NorthOrientation getNorthOrientation() const;
-
-    // Constrain mode
     void setConstrainMode(ConstrainMode);
-    ConstrainMode getConstrainMode() const;
-
-    // Viewport mode
     void setViewportMode(ViewportMode);
-    ViewportMode getViewportMode() const;
-
-    // Projection mode
-    void setAxonometric(bool);
-    bool getAxonometric() const;
-    void setXSkew(double ySkew);
-    double getXSkew() const;
-    void setYSkew(double ySkew);
-    double getYSkew() const;
-
-    // Size
     void setSize(Size);
-    Size getSize() const;
+    MapOptions getMapOptions() const;
+
+    //Projection Mode
+    void setProjectionMode(const ProjectionMode&);
+    ProjectionMode getProjectionMode() const;
 
     // Projection
     ScreenCoordinate pixelForLatLng(const LatLng&) const;
@@ -156,9 +111,9 @@ public:
     // Tile prefetching
     //
     // When loading a map, if `PrefetchZoomDelta` is set to any number greater than 0, the map will
-    // first request a tile for `zoom = getZoom() - delta` in a attempt to display a full map at
-    // lower resolution as quick as possible. It will get clamped at the tile source minimum zoom.
-    // The default `delta` is 4.
+    // first request a tile for `zoom - delta` in a attempt to display a full map at lower
+    // resolution as quick as possible. It will get clamped at the tile source minimum zoom. The
+    // default `delta` is 4.
     void setPrefetchZoomDelta(uint8_t delta);
     uint8_t getPrefetchZoomDelta() const;
 
@@ -170,9 +125,12 @@ public:
     bool isFullyLoaded() const;
     void dumpDebugLogs() const;
 
-private:
+protected:
     class Impl;
     const std::unique_ptr<Impl> impl;
+
+    // For testing only.
+    Map(std::unique_ptr<Impl>);
 };
 
 } // namespace mbgl

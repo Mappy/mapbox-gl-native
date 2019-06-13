@@ -9,7 +9,7 @@ namespace mbgl {
 using namespace style;
 
 SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layout_,
-                           const std::map<std::string, style::SymbolPaintProperties::PossiblyEvaluated>& paintProperties_,
+                           const std::map<std::string, Immutable<style::LayerProperties>>& paintProperties_,
                            const style::PropertyValue<float>& textSize,
                            const style::PropertyValue<float>& iconSize,
                            float zoom,
@@ -17,7 +17,8 @@ SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layo
                            bool iconsNeedLinear_,
                            bool sortFeaturesByY_,
                            const std::string bucketName_,
-                           const std::vector<SymbolInstance>&& symbolInstances_)
+                           const std::vector<SymbolInstance>&& symbolInstances_,
+                           float tilePixelRatio_)
     : layout(std::move(layout_)),
       sdfIcons(sdfIcons_),
       iconsNeedLinear(iconsNeedLinear_ || iconSize.isDataDriven() || !iconSize.isZoomConstant()),
@@ -25,94 +26,94 @@ SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layo
       bucketLeaderID(std::move(bucketName_)),
       symbolInstances(std::move(symbolInstances_)),
       textSizeBinder(SymbolSizeBinder::create(zoom, textSize, TextSize::defaultValue())),
-      iconSizeBinder(SymbolSizeBinder::create(zoom, iconSize, IconSize::defaultValue())) {
+      iconSizeBinder(SymbolSizeBinder::create(zoom, iconSize, IconSize::defaultValue())),
+      tilePixelRatio(tilePixelRatio_) {
 
     for (const auto& pair : paintProperties_) {
+        const auto& evaluated = getEvaluated<SymbolLayerProperties>(pair.second);
         paintProperties.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(pair.first),
             std::forward_as_tuple(PaintProperties {
-                pair.second,
-                { RenderSymbolLayer::iconPaintProperties(pair.second), zoom },
-                { RenderSymbolLayer::textPaintProperties(pair.second), zoom }
+                { RenderSymbolLayer::iconPaintProperties(evaluated), zoom },
+                { RenderSymbolLayer::textPaintProperties(evaluated), zoom }
             }));
     }
 }
 
 SymbolBucket::~SymbolBucket() = default;
 
-void SymbolBucket::upload(gl::Context& context) {
+void SymbolBucket::upload(gfx::UploadPass& uploadPass) {
     if (hasTextData()) {
         if (!staticUploaded) {
-            text.indexBuffer = context.createIndexBuffer(std::move(text.triangles), sortFeaturesByY ? gl::BufferUsage::StreamDraw : gl::BufferUsage::StaticDraw);
-            text.vertexBuffer = context.createVertexBuffer(std::move(text.vertices));
+            text.indexBuffer = uploadPass.createIndexBuffer(std::move(text.triangles), sortFeaturesByY ? gfx::BufferUsageType::StreamDraw : gfx::BufferUsageType::StaticDraw);
+            text.vertexBuffer = uploadPass.createVertexBuffer(std::move(text.vertices));
+            for (auto& pair : paintProperties) {
+                pair.second.textBinders.upload(uploadPass);
+            }
         } else if (!sortUploaded) {
-            context.updateIndexBuffer(*text.indexBuffer, std::move(text.triangles));
+            uploadPass.updateIndexBuffer(*text.indexBuffer, std::move(text.triangles));
         }
 
         if (!dynamicUploaded) {
-            text.dynamicVertexBuffer = context.createVertexBuffer(std::move(text.dynamicVertices), gl::BufferUsage::StreamDraw);
+            text.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(text.dynamicVertices), gfx::BufferUsageType::StreamDraw);
         }
         if (!placementChangesUploaded) {
             if (!text.opacityVertexBuffer) {
-                text.opacityVertexBuffer = context.createVertexBuffer(std::move(text.opacityVertices), gl::BufferUsage::StreamDraw);
+                text.opacityVertexBuffer = uploadPass.createVertexBuffer(std::move(text.opacityVertices), gfx::BufferUsageType::StreamDraw);
             } else {
-                context.updateVertexBuffer(*text.opacityVertexBuffer, std::move(text.opacityVertices));
+                uploadPass.updateVertexBuffer(*text.opacityVertexBuffer, std::move(text.opacityVertices));
             }
         }
     }
 
     if (hasIconData()) {
         if (!staticUploaded) {
-            icon.indexBuffer = context.createIndexBuffer(std::move(icon.triangles), sortFeaturesByY ? gl::BufferUsage::StreamDraw : gl::BufferUsage::StaticDraw);
-            icon.vertexBuffer = context.createVertexBuffer(std::move(icon.vertices));
+            icon.indexBuffer = uploadPass.createIndexBuffer(std::move(icon.triangles), sortFeaturesByY ? gfx::BufferUsageType::StreamDraw : gfx::BufferUsageType::StaticDraw);
+            icon.vertexBuffer = uploadPass.createVertexBuffer(std::move(icon.vertices));
+            for (auto& pair : paintProperties) {
+                pair.second.iconBinders.upload(uploadPass);
+            }
         } else if (!sortUploaded) {
-            context.updateIndexBuffer(*icon.indexBuffer, std::move(icon.triangles));
+            uploadPass.updateIndexBuffer(*icon.indexBuffer, std::move(icon.triangles));
         }
         if (!dynamicUploaded) {
-            icon.dynamicVertexBuffer = context.createVertexBuffer(std::move(icon.dynamicVertices), gl::BufferUsage::StreamDraw);
+            icon.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(icon.dynamicVertices), gfx::BufferUsageType::StreamDraw);
         }
         if (!placementChangesUploaded) {
             if (!icon.opacityVertexBuffer) {
-                icon.opacityVertexBuffer = context.createVertexBuffer(std::move(icon.opacityVertices), gl::BufferUsage::StreamDraw);
+                icon.opacityVertexBuffer = uploadPass.createVertexBuffer(std::move(icon.opacityVertices), gfx::BufferUsageType::StreamDraw);
             } else {
-                context.updateVertexBuffer(*icon.opacityVertexBuffer, std::move(icon.opacityVertices));
+                uploadPass.updateVertexBuffer(*icon.opacityVertexBuffer, std::move(icon.opacityVertices));
             }
         }
     }
 
     if (hasCollisionBoxData()) {
         if (!staticUploaded) {
-            collisionBox.indexBuffer = context.createIndexBuffer(std::move(collisionBox.lines));
-            collisionBox.vertexBuffer = context.createVertexBuffer(std::move(collisionBox.vertices));
+            collisionBox.indexBuffer = uploadPass.createIndexBuffer(std::move(collisionBox.lines));
+            collisionBox.vertexBuffer = uploadPass.createVertexBuffer(std::move(collisionBox.vertices));
         }
         if (!placementChangesUploaded) {
             if (!collisionBox.dynamicVertexBuffer) {
-                collisionBox.dynamicVertexBuffer = context.createVertexBuffer(std::move(collisionBox.dynamicVertices), gl::BufferUsage::StreamDraw);
+                collisionBox.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(collisionBox.dynamicVertices), gfx::BufferUsageType::StreamDraw);
             } else {
-                context.updateVertexBuffer(*collisionBox.dynamicVertexBuffer, std::move(collisionBox.dynamicVertices));
+                uploadPass.updateVertexBuffer(*collisionBox.dynamicVertexBuffer, std::move(collisionBox.dynamicVertices));
             }
         }
     }
 
     if (hasCollisionCircleData()) {
         if (!staticUploaded) {
-            collisionCircle.indexBuffer = context.createIndexBuffer(std::move(collisionCircle.triangles));
-            collisionCircle.vertexBuffer = context.createVertexBuffer(std::move(collisionCircle.vertices));
+            collisionCircle.indexBuffer = uploadPass.createIndexBuffer(std::move(collisionCircle.triangles));
+            collisionCircle.vertexBuffer = uploadPass.createVertexBuffer(std::move(collisionCircle.vertices));
         }
         if (!placementChangesUploaded) {
             if (!collisionCircle.dynamicVertexBuffer) {
-                collisionCircle.dynamicVertexBuffer = context.createVertexBuffer(std::move(collisionCircle.dynamicVertices), gl::BufferUsage::StreamDraw);
+                collisionCircle.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(collisionCircle.dynamicVertices), gfx::BufferUsageType::StreamDraw);
             } else {
-                context.updateVertexBuffer(*collisionCircle.dynamicVertexBuffer, std::move(collisionCircle.dynamicVertices));
+                uploadPass.updateVertexBuffer(*collisionCircle.dynamicVertexBuffer, std::move(collisionCircle.dynamicVertices));
             }
-        }
-    }
-
-    if (!staticUploaded) {
-        for (auto& pair : paintProperties) {
-            pair.second.iconBinders.upload(context);
-            pair.second.textBinders.upload(context);
         }
     }
 
@@ -152,7 +153,7 @@ void SymbolBucket::updateOpacity() {
     uploaded = false;
 }
 
-void addPlacedSymbol(gl::IndexVector<gl::Triangles>& triangles, const PlacedSymbol& placedSymbol) {
+void addPlacedSymbol(gfx::IndexVector<gfx::Triangles>& triangles, const PlacedSymbol& placedSymbol) {
     auto endIndex = placedSymbol.vertexStartIndex + placedSymbol.glyphOffsets.size() * 4;
     for (auto vertexIndex = placedSymbol.vertexStartIndex; vertexIndex < endIndex; vertexIndex += 4) {
         triangles.emplace_back(vertexIndex + 0, vertexIndex + 1, vertexIndex + 2);
@@ -180,50 +181,62 @@ void SymbolBucket::sortFeatures(const float angle) {
     sortUploaded = false;
     uploaded = false;
 
-    // If the symbols are allowed to overlap sort them by their vertical screen position.
-    // The index array buffer is rewritten to reference the (unchanged) vertices in the
-    // sorted order.
-
-    // To avoid sorting the actual symbolInstance array we sort an array of indexes.
-    std::vector<size_t> symbolInstanceIndexes;
-    symbolInstanceIndexes.reserve(symbolInstances.size());
-    for (size_t i = 0; i < symbolInstances.size(); i++) {
-        symbolInstanceIndexes.push_back(i);
-    }
-
-    const float sin = std::sin(angle);
-    const float cos = std::cos(angle);
-
-    std::sort(symbolInstanceIndexes.begin(), symbolInstanceIndexes.end(), [sin, cos, this](size_t &aIndex, size_t &bIndex) {
-        const SymbolInstance& a = symbolInstances[aIndex];
-        const SymbolInstance& b = symbolInstances[bIndex];
-        const int32_t aRotated = static_cast<int32_t>(::lround(sin * a.anchor.point.x + cos * a.anchor.point.y));
-        const int32_t bRotated = static_cast<int32_t>(::lround(sin * b.anchor.point.x + cos * b.anchor.point.y));
-        return aRotated != bRotated ?
-            aRotated < bRotated :
-            a.dataFeatureIndex > b.dataFeatureIndex;
-    });
-
     text.triangles.clear();
     icon.triangles.clear();
 
     featureSortOrder = std::make_unique<std::vector<size_t>>();
-    featureSortOrder->reserve(symbolInstanceIndexes.size());
+    featureSortOrder->reserve(symbolInstances.size());
 
-    for (auto i : symbolInstanceIndexes) {
-        const SymbolInstance& symbolInstance = symbolInstances[i];
+    // If the symbols are allowed to overlap sort them by their vertical screen position.
+    // The index array buffer is rewritten to reference the (unchanged) vertices in the
+    // sorted order.
+    for (const SymbolInstance& symbolInstance : getSortedSymbols(angle)) {
         featureSortOrder->push_back(symbolInstance.dataFeatureIndex);
 
-        if (symbolInstance.placedTextIndex) {
-            addPlacedSymbol(text.triangles, text.placedSymbols[*symbolInstance.placedTextIndex]);
+        if (symbolInstance.placedRightTextIndex) {
+            addPlacedSymbol(text.triangles, text.placedSymbols[*symbolInstance.placedRightTextIndex]);
         }
+
+        if (symbolInstance.placedCenterTextIndex && !symbolInstance.singleLine) {
+            addPlacedSymbol(text.triangles, text.placedSymbols[*symbolInstance.placedCenterTextIndex]);
+        }
+
+        if (symbolInstance.placedLeftTextIndex && !symbolInstance.singleLine) {
+            addPlacedSymbol(text.triangles, text.placedSymbols[*symbolInstance.placedLeftTextIndex]);
+        }
+
         if (symbolInstance.placedVerticalTextIndex) {
             addPlacedSymbol(text.triangles, text.placedSymbols[*symbolInstance.placedVerticalTextIndex]);
         }
+
         if (symbolInstance.placedIconIndex) {
             addPlacedSymbol(icon.triangles, icon.placedSymbols[*symbolInstance.placedIconIndex]);
         }
     }
+}
+
+std::vector<std::reference_wrapper<SymbolInstance>> SymbolBucket::getSortedSymbols(const float angle) {
+    std::vector<std::reference_wrapper<SymbolInstance>> result(symbolInstances.begin(), symbolInstances.end());
+    const float sin = std::sin(angle);
+    const float cos = std::cos(angle);
+
+    std::sort(result.begin(), result.end(), [sin, cos](const SymbolInstance& a, const SymbolInstance& b) {
+        const auto aRotated = ::lround(sin * a.anchor.point.x + cos * a.anchor.point.y);
+        const auto bRotated = ::lround(sin * b.anchor.point.x + cos * b.anchor.point.y);
+        if (aRotated != bRotated) {
+            return aRotated < bRotated;
+        }
+        return a.dataFeatureIndex > b.dataFeatureIndex;  // aRotated == bRotated
+    });
+
+    return result;
+}
+
+bool SymbolBucket::hasFormatSectionOverrides() const {
+    if (!hasFormatSectionOverrides_) {
+        hasFormatSectionOverrides_= SymbolLayerPaintPropertyOverrides::hasOverrides(layout.get<TextField>());
+    }
+    return *hasFormatSectionOverrides_;
 }
 
 } // namespace mbgl

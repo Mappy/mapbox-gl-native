@@ -19,7 +19,7 @@ namespace mbgl {
 
 using GlyphID = char16_t;
 using GlyphIDs = std::set<GlyphID>;
-    
+
 // Note: this only works for the BMP
 GlyphRange getGlyphRange(GlyphID glyph);
 
@@ -59,8 +59,8 @@ using GlyphMap = std::map<FontStackHash, Glyphs>;
 
 class PositionedGlyph {
 public:
-    explicit PositionedGlyph(GlyphID glyph_, float x_, float y_, bool vertical_, FontStackHash font_, float scale_)
-        : glyph(glyph_), x(x_), y(y_), vertical(vertical_), font(font_), scale(scale_)
+    explicit PositionedGlyph(GlyphID glyph_, float x_, float y_, bool vertical_, FontStackHash font_, float scale_, std::size_t sectionIndex_ = 0)
+        : glyph(glyph_), x(x_), y(y_), vertical(vertical_), font(font_), scale(scale_), sectionIndex(sectionIndex_)
     {}
 
     GlyphID glyph = 0;
@@ -70,21 +70,25 @@ public:
     
     FontStackHash font = 0;
     float scale = 0.0;
+    // Maps positioned glyph to TaggedString section
+    std::size_t sectionIndex;
 };
 
 enum class WritingModeType : uint8_t;
 
 class Shaping {
     public:
-    explicit Shaping() = default;
-    explicit Shaping(float x, float y, WritingModeType writingMode_)
-        : top(y), bottom(y), left(x), right(x), writingMode(writingMode_) {}
+    Shaping() = default;
+    explicit Shaping(float x, float y, WritingModeType writingMode_, std::size_t lineCount_)
+        : top(y), bottom(y), left(x), right(x), writingMode(writingMode_), lineCount(lineCount_) {}
     std::vector<PositionedGlyph> positionedGlyphs;
     float top = 0;
     float bottom = 0;
     float left = 0;
     float right = 0;
     WritingModeType writingMode;
+    std::size_t lineCount = 0u;
+    std::string text = {};
 
     explicit operator bool() const { return !positionedGlyphs.empty(); }
 };

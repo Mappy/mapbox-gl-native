@@ -92,15 +92,11 @@ SymbolQuad getIconQuad(const PositionedIcon& shapedIcon,
 }
 
 SymbolQuads getGlyphQuads(const Shaping& shapedText,
+                          const std::array<float, 2> textOffset,
                           const SymbolLayoutProperties::Evaluated& layout,
                           const style::SymbolPlacementType placement,
                           const GlyphPositions& positions) {
     const float textRotate = layout.get<TextRotate>() * util::DEG2RAD;
-
-    const float oneEm = 24.0;
-    std::array<float, 2> textOffset = layout.get<TextOffset>();
-    textOffset[0] *= oneEm;
-    textOffset[1] *= oneEm;
 
     SymbolQuads quads;
 
@@ -172,7 +168,7 @@ SymbolQuads getGlyphQuads(const Shaping& shapedText,
             br = util::matrixMultiply(matrix, br);
         }
 
-        quads.emplace_back(tl, tr, bl, br, rect, shapedText.writingMode, glyphOffset);
+        quads.emplace_back(tl, tr, bl, br, rect, shapedText.writingMode, glyphOffset, positionedGlyph.sectionIndex);
     }
 
     return quads;

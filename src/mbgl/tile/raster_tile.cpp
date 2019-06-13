@@ -1,11 +1,11 @@
 #include <mbgl/tile/raster_tile.hpp>
+
 #include <mbgl/tile/raster_tile_worker.hpp>
 #include <mbgl/tile/tile_observer.hpp>
 #include <mbgl/tile/tile_loader_impl.hpp>
 #include <mbgl/style/source.hpp>
 #include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
-#include <mbgl/storage/file_source.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
 #include <mbgl/renderer/buckets/raster_bucket.hpp>
 #include <mbgl/actor/scheduler.hpp>
@@ -18,7 +18,7 @@ RasterTile::RasterTile(const OverscaledTileID& id_,
     : Tile(Kind::Raster, id_),
       loader(*this, id_, parameters, tileset),
       mailbox(std::make_shared<Mailbox>(*Scheduler::GetCurrent())),
-      worker(parameters.workerScheduler,
+      worker(Scheduler::GetBackground(),
              ActorRef<RasterTile>(*this, mailbox)) {
 }
 
@@ -58,9 +58,9 @@ void RasterTile::onError(std::exception_ptr err, const uint64_t resultCorrelatio
     observer->onTileError(*this, err);
 }
 
-void RasterTile::upload(gl::Context& context) {
+void RasterTile::upload(gfx::UploadPass& uploadPass) {
     if (bucket) {
-        bucket->upload(context);
+        bucket->upload(uploadPass);
     }
 }
 

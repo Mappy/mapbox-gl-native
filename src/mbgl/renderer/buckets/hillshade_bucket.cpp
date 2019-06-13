@@ -2,7 +2,7 @@
 #include <mbgl/renderer/layers/render_hillshade_layer.hpp>
 #include <mbgl/programs/hillshade_program.hpp>
 #include <mbgl/programs/hillshade_prepare_program.hpp>
-#include <mbgl/gl/context.hpp>
+#include <mbgl/gfx/context.hpp>
 
 namespace mbgl {
 
@@ -26,18 +26,18 @@ DEMData& HillshadeBucket::getDEMData() {
     return demdata;
 }
 
-void HillshadeBucket::upload(gl::Context& context) {
+void HillshadeBucket::upload(gfx::UploadPass& uploadPass) {
     if (!hasData()) {
         return;
     }
 
 
     const PremultipliedImage* image = demdata.getImage();
-    dem = context.createTexture(*image);
+    dem = uploadPass.createTexture(*image);
 
     if (!segments.empty()) {
-        vertexBuffer = context.createVertexBuffer(std::move(vertices));
-        indexBuffer = context.createIndexBuffer(std::move(indices));
+        vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
+        indexBuffer = uploadPass.createIndexBuffer(std::move(indices));
     }
     uploaded = true;
 }
@@ -84,7 +84,7 @@ void HillshadeBucket::setMask(TileMask&& mask_) {
 
         if (segments.back().vertexLength + vertexLength > std::numeric_limits<uint16_t>::max()) {
             // Move to a new segments because the old one can't hold the geometry.
-            segments.emplace_back(vertices.vertexSize(), indices.indexSize());
+            segments.emplace_back(vertices.elements(), indices.elements());
         }
 
         vertices.emplace_back(

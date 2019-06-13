@@ -21,7 +21,7 @@ bool RenderRasterSource::isLoaded() const {
 }
 
 void RenderRasterSource::update(Immutable<style::Source::Impl> baseImpl_,
-                                const std::vector<Immutable<Layer::Impl>>& layers,
+                                const std::vector<Immutable<LayerProperties>>& layers,
                                 const bool needsRendering,
                                 const bool needsRelayout,
                                 const TileParameters& parameters) {
@@ -57,9 +57,13 @@ void RenderRasterSource::update(Immutable<style::Source::Impl> baseImpl_,
                        });
 }
 
-void RenderRasterSource::startRender(PaintParameters& parameters) {
+void RenderRasterSource::upload(gfx::UploadPass& parameters) {
+    tilePyramid.upload(parameters);
+}
+
+void RenderRasterSource::prepare(PaintParameters& parameters) {
     algorithm::updateTileMasks(tilePyramid.getRenderTiles());
-    tilePyramid.startRender(parameters);
+    tilePyramid.prepare(parameters);
 }
 
 void RenderRasterSource::finishRender(PaintParameters& parameters) {

@@ -2,18 +2,17 @@ package com.mapbox.mapboxsdk.offline;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.annotation.AnyThread;
 import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
+import android.support.annotation.UiThread;
 
 import com.mapbox.mapboxsdk.LibraryLoader;
-import com.mapbox.mapboxsdk.MapStrictMode;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.geometry.LatLngBounds;
-import com.mapbox.mapboxsdk.log.Logger;
 import com.mapbox.mapboxsdk.maps.TelemetryDefinition;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
 import com.mapbox.mapboxsdk.storage.FileSource;
@@ -23,13 +22,17 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.nio.channels.FileChannel;
 
 /**
  * The offline manager is the main entry point for offline-related functionality.
+ * <p>
  * It'll help you list and create offline regions.
+ * </p>
+ *
+ * @see <a href="https://docs.mapbox.com/help/troubleshooting/mobile-offline/">Offline Maps Information/</a>
  */
+@UiThread
 public class OfflineManager {
 
   private static final String TAG = "Mbgl - OfflineManager";
@@ -136,23 +139,8 @@ public class OfflineManager {
   }
 
   private void deleteAmbientDatabase(final Context context) {
-    // Delete the file in a separate thread to avoid affecting the UI
-    new Thread(new Runnable() {
-      @Override
-      public void run() {
-        try {
-          String path = FileSource.getInternalCachePath(context) + File.separator + "mbgl-cache.db";
-          File file = new File(path);
-          if (file.exists()) {
-            file.delete();
-            Logger.d(TAG, String.format("Old ambient cache database deleted to save space: %s", path));
-          }
-        } catch (Exception exception) {
-          Logger.e(TAG, "Failed to delete old ambient cache database: ", exception);
-          MapStrictMode.strictModeViolation(exception);
-        }
-      }
-    }).start();
+    final String path = FileSource.getInternalCachePath(context) + File.separator + "mbgl-cache.db";
+    FileUtils.deleteFile(path);
   }
 
   /**
@@ -169,6 +157,7 @@ public class OfflineManager {
     return instance;
   }
 
+  @AnyThread
   private Handler getHandler() {
     if (handler == null) {
       handler = new Handler(Looper.getMainLooper());
@@ -218,6 +207,8 @@ public class OfflineManager {
    * Merge offline regions from a secondary database into the main offline database.
    * <p>
    * When the merge is completed, or fails, the {@link MergeOfflineRegionsCallback} will be invoked on the main thread.
+   * The callback reference is <b>strongly kept</b> throughout the process,
+   * so it needs to be wrapped in a weak reference or released on the client side if necessary.
    * <p>
    * The secondary database may need to be upgraded to the latest schema.
    * This is done in-place and requires write-access to the provided path.
@@ -238,73 +229,50 @@ public class OfflineManager {
    */
   public void mergeOfflineRegions(@NonNull String path, @NonNull final MergeOfflineRegionsCallback callback) {
     final File src = new File(path);
-    new FileUtils.CheckFileReadPermissionTask(new FileUtils.OnCheckFileReadPermissionListener() {
+    new Thread(new Runnable() {
       @Override
-      public void onReadPermissionGranted() {
-        new FileUtils.CheckFileWritePermissionTask(new FileUtils.OnCheckFileWritePermissionListener() {
-          @Override
-          public void onWritePermissionGranted() {
-            // path writable, merge and update schema in place if necessary
-            mergeOfflineDatabaseFiles(src, callback, false);
+      public void run() {
+        String errorMessage = null;
+        if (src.canWrite()) {
+          getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+              // path writable, merge and update schema in place if necessary
+              mergeOfflineDatabaseFiles(src, callback, false);
+            }
+          });
+        } else if (src.canRead()) {
+          // path not writable, copy the the file to temp directory
+          final File dst = new File(FileSource.getInternalCachePath(context), src.getName());
+          try {
+            copyTempDatabaseFile(src, dst);
+            getHandler().post(new Runnable() {
+              @Override
+              public void run() {
+                // merge and update schema using the copy
+                OfflineManager.this.mergeOfflineDatabaseFiles(dst, callback, true);
+              }
+            });
+          } catch (IOException ex) {
+            ex.printStackTrace();
+            errorMessage = ex.getMessage();
           }
+        } else {
+          // path not readable, abort
+          errorMessage = "Secondary database needs to be located in a readable path.";
+        }
 
-          @Override
-          public void onError() {
-            // path not writable, copy the the file to temp directory, then merge and update schema on a copy if
-            // necessary
-            File dst = new File(FileSource.getInternalCachePath(context), src.getName());
-            new CopyTempDatabaseFileTask(OfflineManager.this, callback).execute(src, dst);
-          }
-        }).execute(src);
-      }
-
-      @Override
-      public void onError() {
-        // path not readable, abort
-        callback.onError("Secondary database needs to be located in a readable path.");
-      }
-    }).execute(src);
-  }
-
-  private static final class CopyTempDatabaseFileTask extends AsyncTask<Object, Void, Object> {
-    @NonNull
-    private final WeakReference<OfflineManager> offlineManagerWeakReference;
-    @NonNull
-    private final WeakReference<MergeOfflineRegionsCallback> callbackWeakReference;
-
-    CopyTempDatabaseFileTask(OfflineManager offlineManager, MergeOfflineRegionsCallback callback) {
-      this.offlineManagerWeakReference = new WeakReference<>(offlineManager);
-      this.callbackWeakReference = new WeakReference<>(callback);
-    }
-
-    @Override
-    protected Object doInBackground(Object... objects) {
-      File src = (File) objects[0];
-      File dst = (File) objects[1];
-
-      try {
-        copyTempDatabaseFile(src, dst);
-        return dst;
-      } catch (IOException ex) {
-        return ex.getMessage();
-      }
-    }
-
-    @Override
-    protected void onPostExecute(Object object) {
-      MergeOfflineRegionsCallback callback = callbackWeakReference.get();
-      if (callback != null) {
-        OfflineManager offlineManager = offlineManagerWeakReference.get();
-        if (object instanceof File && offlineManager != null) {
-          // successfully copied the file, perform merge
-          File dst = (File) object;
-          offlineManager.mergeOfflineDatabaseFiles(dst, callback, true);
-        } else if (object instanceof String) {
-          // error occurred
-          callback.onError((String) object);
+        if (errorMessage != null) {
+          final String finalErrorMessage = errorMessage;
+          getHandler().post(new Runnable() {
+            @Override
+            public void run() {
+              callback.onError(finalErrorMessage);
+            }
+          });
         }
       }
-    }
+    }).start();
   }
 
   private static void copyTempDatabaseFile(@NonNull File sourceFile, File destFile) throws IOException {
@@ -337,13 +305,13 @@ public class OfflineManager {
     mergeOfflineRegions(fileSource, file.getAbsolutePath(), new MergeOfflineRegionsCallback() {
       @Override
       public void onMerge(final OfflineRegion[] offlineRegions) {
+        if (isTemporaryFile) {
+          file.delete();
+        }
         getHandler().post(new Runnable() {
           @Override
           public void run() {
             fileSource.deactivate();
-            if (isTemporaryFile) {
-              file.delete();
-            }
             callback.onMerge(offlineRegions);
           }
         });
@@ -351,13 +319,13 @@ public class OfflineManager {
 
       @Override
       public void onError(final String error) {
+        if (isTemporaryFile) {
+          file.delete();
+        }
         getHandler().post(new Runnable() {
           @Override
           public void run() {
             fileSource.deactivate();
-            if (isTemporaryFile) {
-              file.delete();
-            }
             callback.onError(error);
           }
         });
@@ -469,17 +437,17 @@ public class OfflineManager {
    * resource were requested in the process of map rendering.
    * Use this method to pre-warm the cache with resources you know
    * will be requested.
-   *
+   * <p>
    * This call is asynchronous: the data may not be immediately available
    * for in-progress requests, although subsequent requests should have
    * access to the cached data.
    *
-   * @param url The URL of the resource to insert
-   * @param data Response data to store for this resource. Data is expected to be uncompressed;
-   *             internally, the cache will compress data as necessary.
-   * @param modified Optional "modified" response header, in seconds since 1970, or 0 if not set
-   * @param expires Optional "expires" response header, in seconds since 1970, or 0 if not set
-   * @param etag Optional "entity tag" response header
+   * @param url            The URL of the resource to insert
+   * @param data           Response data to store for this resource. Data is expected to be uncompressed;
+   *                       internally, the cache will compress data as necessary.
+   * @param modified       Optional "modified" response header, in seconds since 1970, or 0 if not set
+   * @param expires        Optional "expires" response header, in seconds since 1970, or 0 if not set
+   * @param etag           Optional "entity tag" response header
    * @param mustRevalidate Indicates whether response can be used after it's stale
    */
   @Keep

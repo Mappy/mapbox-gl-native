@@ -7,7 +7,7 @@
 #include <mbgl/util/geojson.hpp>
 #include <mbgl/util/feature.hpp>
 #include <mbgl/style/source_impl.hpp>
-#include <mbgl/style/layer_impl.hpp>
+#include <mbgl/style/layer_properties.hpp>
 
 #include <unordered_map>
 #include <vector>
@@ -26,6 +26,10 @@ class Tile;
 class RenderSourceObserver;
 class TileParameters;
 class CollisionIndex;
+
+namespace gfx {
+class UploadPass;
+} // namespace gfx
 
 class RenderSource : protected TileObserver {
 public:
@@ -50,12 +54,13 @@ public:
     virtual bool isLoaded() const = 0;
 
     virtual void update(Immutable<style::Source::Impl>,
-                        const std::vector<Immutable<style::Layer::Impl>>&,
+                        const std::vector<Immutable<style::LayerProperties>>&,
                         bool needsRendering,
                         bool needsRelayout,
                         const TileParameters&) = 0;
 
-    virtual void startRender(PaintParameters&) = 0;
+    virtual void upload(gfx::UploadPass&) = 0;
+    virtual void prepare(PaintParameters&) = 0;
     virtual void finishRender(PaintParameters&) = 0;
 
     // Returns a list of RenderTiles, sorted by tile id.

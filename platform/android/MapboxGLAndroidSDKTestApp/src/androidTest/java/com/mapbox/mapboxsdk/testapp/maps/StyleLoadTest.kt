@@ -10,20 +10,13 @@ import com.mapbox.mapboxsdk.style.sources.GeoJsonSource
 import com.mapbox.mapboxsdk.testapp.action.MapboxMapAction
 import com.mapbox.mapboxsdk.testapp.activity.EspressoTest
 import com.mapbox.mapboxsdk.testapp.activity.espresso.EspressoTestActivity
+import com.mapbox.mapboxsdk.testapp.utils.TestingAsyncUtils
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class StyleLoadTest : EspressoTest() {
-
-    private lateinit var mapView: MapView
-
-    @Before
-    override fun beforeTest() {
-        super.beforeTest()
-        mapView = (rule.activity as EspressoTestActivity).mapView
-    }
 
     @Test
     fun updateSourceAfterStyleLoad() {
@@ -32,9 +25,9 @@ class StyleLoadTest : EspressoTest() {
             val source = GeoJsonSource("id")
             val layer = SymbolLayer("id", "id")
             mapboxMap.setStyle(Style.Builder().withSource(source).withLayer(layer))
-            uiController.loopMainThreadForAtLeast(100)
+            TestingAsyncUtils.waitForLayer(uiController, mapView)
             mapboxMap.setStyle(Style.Builder().fromUrl(Style.MAPBOX_STREETS))
-            uiController.loopMainThreadForAtLeast(100)
+            TestingAsyncUtils.waitForLayer(uiController, mapView)
             source.setGeoJson("{}")
         }
     }

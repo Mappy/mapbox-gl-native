@@ -520,39 +520,49 @@ NSTimeInterval const kMGLSMCalloutViewRepositionDelayForUIScrollView = 1.0/3.0;
 - (CAAnimation *)animationWithType:(MGLSMCalloutAnimation)type presenting:(BOOL)presenting {
     CAAnimation *animation = nil;
     
-    if (type == MGLSMCalloutAnimationBounce) {
-        
-        CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
-        fade.duration = 0.23;
-        fade.fromValue = presenting ? @0.0 : @1.0;
-        fade.toValue = presenting ? @1.0 : @0.0;
-        fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-        
-        CABasicAnimation *bounce = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-        bounce.duration = 0.23;
-        bounce.fromValue = presenting ? @0.7 : @1.0;
-        bounce.toValue = presenting ? @1.0 : @0.7;
-        bounce.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.59367:0.12066:0.18878:1.5814];
-
-        CAAnimationGroup *group = [CAAnimationGroup animation];
-        group.animations = @[fade, bounce];
-        group.duration = 0.23;
-
-        animation = group;
-    }
-    else if (type == MGLSMCalloutAnimationFade) {
-        CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
-        fade.duration = 1.0/3.0;
-        fade.fromValue = presenting ? @0.0 : @1.0;
-        fade.toValue = presenting ? @1.0 : @0.0;
-        animation = fade;
-    }
-    else if (type == MGLSMCalloutAnimationStretch) {
-        CABasicAnimation *stretch = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-        stretch.duration = 0.1;
-        stretch.fromValue = presenting ? @0.0 : @1.0;
-        stretch.toValue = presenting ? @1.0 : @0.0;
-        animation = stretch;
+    switch (type)
+    {
+        case MGLSMCalloutAnimationBounce:
+        {
+            CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+            fade.duration = 0.23;
+            fade.fromValue = presenting ? @0.0 : @1.0;
+            fade.toValue = presenting ? @1.0 : @0.0;
+            fade.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+            
+            CABasicAnimation *bounce = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
+            bounce.duration = 0.23;
+            bounce.fromValue = presenting ? @0.7 : @1.0;
+            bounce.toValue = presenting ? @1.0 : @0.7;
+            bounce.timingFunction = [CAMediaTimingFunction functionWithControlPoints:0.59367:0.12066:0.18878:1.5814];
+            
+            CAAnimationGroup *group = [CAAnimationGroup animation];
+            group.animations = @[fade, bounce];
+            group.duration = 0.23;
+            
+            animation = group;
+            break;
+        }
+            
+        case MGLSMCalloutAnimationFade:
+        {
+            CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+            fade.duration = 1.0/3.0;
+            fade.fromValue = presenting ? @0.0 : @1.0;
+            fade.toValue = presenting ? @1.0 : @0.0;
+            animation = fade;
+            break;
+        }
+            
+        case MGLSMCalloutAnimationStretch:
+        {
+            CABasicAnimation *stretch = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
+            stretch.duration = 0.1;
+            stretch.fromValue = presenting ? @0.0 : @1.0;
+            stretch.toValue = presenting ? @1.0 : @0.0;
+            animation = stretch;
+            break;
+        }
     }
     
     // CAAnimation is KVC compliant, so we can store whether we're presenting for lookup in our delegate methods
@@ -560,6 +570,7 @@ NSTimeInterval const kMGLSMCalloutViewRepositionDelayForUIScrollView = 1.0/3.0;
     
     animation.fillMode = kCAFillModeForwards;
     animation.removedOnCompletion = NO;
+    
     return animation;
 }
 

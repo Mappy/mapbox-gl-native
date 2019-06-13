@@ -94,7 +94,7 @@ struct Q_MAPBOXGL_EXPORT QMapboxGLCameraOptions {
     QVariant center;  // Coordinate
     QVariant anchor;  // QPointF
     QVariant zoom;    // double
-    QVariant angle;   // double
+    QVariant bearing; // double
     QVariant pitch;   // double
 };
 
@@ -182,6 +182,7 @@ public:
 
     double pitch() const;
     void setPitch(double pitch);
+    void pitchBy(double pitch);
 
     NorthOrientation northOrientation() const;
     void setNorthOrientation(NorthOrientation);

@@ -7,24 +7,22 @@ dependencies {
     api dependenciesList.mapboxAndroidTelemetry
     api dependenciesList.mapboxJavaGeoJSON
     api dependenciesList.mapboxAndroidGestures
+    api dependenciesList.mapboxAndroidAccounts
     implementation dependenciesList.mapboxJavaTurf
-    implementation dependenciesList.supportAppcompatV7
     implementation dependenciesList.supportAnnotations
     implementation dependenciesList.supportFragmentV4
     implementation dependenciesList.okhttp3
+    implementation dependenciesList.reLinker
     testImplementation dependenciesList.junit
     testImplementation dependenciesList.mockito
     testImplementation dependenciesList.mockk
     testImplementation dependenciesList.robolectric
     testImplementation dependenciesList.kotlinLib
+    testImplementation dependenciesList.commonsIO
 }
 
 android {
     compileSdkVersion androidVersions.compileSdkVersion
-
-    // Roboelectric 4.0 required config
-    // http://robolectric.org/migrating/#migrating-to-40
-    testOptions.unitTests.includeAndroidResources = true
 
     defaultConfig {
         minSdkVersion androidVersions.minSdkVersion
@@ -75,7 +73,7 @@ android {
                 cmake {
                     arguments "-DANDROID_TOOLCHAIN=clang"
                     arguments "-DANDROID_STL=" + stl
-                    arguments "-DANDROID_CPP_FEATURES=rtti;exceptions"
+                    arguments "-DANDROID_CPP_FEATURES=exceptions"
                     arguments "-DMBGL_PLATFORM=android"
                     arguments "-DMASON_PLATFORM=android"
                     arguments "-DNodeJS_EXECUTABLE=" + node
@@ -133,12 +131,16 @@ android {
     testOptions {
         unitTests {
             returnDefaultValues true
+
+            // Roboelectric 4.0 required config
+            // http://robolectric.org/migrating/#migrating-to-40
             includeAndroidResources = true
         }
     }
 
     buildTypes {
         debug {
+            testCoverageEnabled true
             jniDebuggable true
         }
     }
@@ -164,8 +166,9 @@ configurations {
 }
 
 apply from: "${rootDir}/gradle/gradle-javadoc.gradle"
-apply from: "${rootDir}/gradle/gradle-publish.gradle"
 apply from: "${rootDir}/gradle/gradle-checkstyle.gradle"
 apply from: "${rootDir}/gradle/gradle-dependencies-graph.gradle"
 apply from: "${rootDir}/gradle/gradle-update-vendor-modules.gradle"
 apply from: "${rootDir}/gradle/android-nitpick.gradle"
+apply from: "${rootDir}/gradle/gradle-bintray.gradle"
+apply from: "${rootDir}/gradle/jacoco-report.gradle"

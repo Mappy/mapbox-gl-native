@@ -10,26 +10,26 @@ namespace mbgl {
 
 using namespace style;
 
-CircleBucket::CircleBucket(const BucketParameters& parameters, const std::vector<const RenderLayer*>& layers)
+CircleBucket::CircleBucket(const BucketParameters& parameters, const std::vector<Immutable<style::LayerProperties>>& layers)
     : mode(parameters.mode) {
     for (const auto& layer : layers) {
         paintPropertyBinders.emplace(
             std::piecewise_construct,
-            std::forward_as_tuple(layer->getID()),
+            std::forward_as_tuple(layer->baseImpl->id),
             std::forward_as_tuple(
-                toRenderCircleLayer(layer)->evaluated,
+                getEvaluated<CircleLayerProperties>(layer),
                 parameters.tileID.overscaledZ));
     }
 }
 
 CircleBucket::~CircleBucket() = default;
 
-void CircleBucket::upload(gl::Context& context) {
-    vertexBuffer = context.createVertexBuffer(std::move(vertices));
-    indexBuffer = context.createIndexBuffer(std::move(triangles));
+void CircleBucket::upload(gfx::UploadPass& uploadPass) {
+    vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
+    indexBuffer = uploadPass.createIndexBuffer(std::move(triangles));
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.upload(context);
+        pair.second.upload(uploadPass);
     }
 
     uploaded = true;
@@ -62,7 +62,7 @@ void CircleBucket::addFeature(const GeometryTileFeature& feature,
 
             if (segments.empty() || segments.back().vertexLength + vertexLength > std::numeric_limits<uint16_t>::max()) {
                 // Move to a new segments because the old one can't hold the geometry.
-                segments.emplace_back(vertices.vertexSize(), triangles.indexSize());
+                segments.emplace_back(vertices.elements(), triangles.elements());
             }
 
             // this geometry will be of the Point type, and we'll derive
@@ -94,25 +94,25 @@ void CircleBucket::addFeature(const GeometryTileFeature& feature,
     }
 
     for (auto& pair : paintPropertyBinders) {
-        pair.second.populateVertexVectors(feature, vertices.vertexSize(), {}, {});
+        pair.second.populateVertexVectors(feature, vertices.elements(), {}, {});
     }
 }
 
 template <class Property>
-static float get(const RenderCircleLayer& layer, const std::map<std::string, CircleProgram::PaintPropertyBinders>& paintPropertyBinders) {
-    auto it = paintPropertyBinders.find(layer.getID());
+static float get(const CirclePaintProperties::PossiblyEvaluated& evaluated, const std::string& id, const std::map<std::string, CircleProgram::Binders>& paintPropertyBinders) {
+    auto it = paintPropertyBinders.find(id);
     if (it == paintPropertyBinders.end() || !it->second.statistics<Property>().max()) {
-        return layer.evaluated.get<Property>().constantOr(Property::defaultValue());
+        return evaluated.get<Property>().constantOr(Property::defaultValue());
     } else {
         return *it->second.statistics<Property>().max();
     }
 }
 
 float CircleBucket::getQueryRadius(const RenderLayer& layer) const {
-    const RenderCircleLayer* circleLayer = toRenderCircleLayer(&layer);
-    float radius = get<CircleRadius>(*circleLayer, paintPropertyBinders);
-    float stroke = get<CircleStrokeWidth>(*circleLayer, paintPropertyBinders);
-    auto translate = circleLayer->evaluated.get<CircleTranslate>();
+    const auto& evaluated = getEvaluated<CircleLayerProperties>(layer.evaluatedProperties);
+    float radius = get<CircleRadius>(evaluated, layer.getID(), paintPropertyBinders);
+    float stroke = get<CircleStrokeWidth>(evaluated, layer.getID(), paintPropertyBinders);
+    auto translate = evaluated.get<CircleTranslate>();
     return radius + stroke + util::length(translate[0], translate[1]);
 }
 

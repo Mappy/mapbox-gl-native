@@ -14,6 +14,7 @@
         android:roundIcon="@drawable/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
         <activity
             android:name=".activity.FeatureOverviewActivity"
             android:label="@string/app_name"
@@ -162,13 +163,25 @@
         <activity
             android:name=".activity.fragment.SupportMapFragmentActivity"
             android:description="@string/description_map_fragment_support"
-            android:label="@string/activity_map_fragment_suport">
+            android:label="@string/activity_map_fragment_support">
             <meta-data
                 android:name="@string/category"
                 android:value="@string/category_fragment" />
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+                android:name=".activity.fragment.FragmentBackStackActivity"
+                android:description="@string/description_map_fragment_backstack"
+                android:label="@string/activity_map_fragment_backstack"
+                android:launchMode="singleInstance">
+            <meta-data
+                    android:name="@string/category"
+                    android:value="@string/category_integration" />
+            <meta-data
+                    android:name="android.support.PARENT_ACTIVITY"
+                    android:value=".activity.FeatureOverviewActivity" />
         </activity>
         <activity
             android:name=".activity.fragment.MultiMapActivity"
@@ -306,6 +319,17 @@
                 android:value=".activity.FeatureOverviewActivity" />
         </activity>
         <activity
+            android:name=".activity.offline.ChangeResourcesCachePathActivity"
+            android:description="@string/description_change_resources_cache_path"
+            android:label="@string/activity_change_resources_cache_path">
+            <meta-data
+                android:name="@string/category"
+                android:value="@string/category_offline" />
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
             android:name=".activity.imagegenerator.SnapshotActivity"
             android:description="@string/description_snapshot"
             android:label="@string/activity_snapshot">
@@ -377,7 +401,7 @@
             android:label="@string/activity_viewpager">
             <meta-data
                 android:name="@string/category"
-                android:value="@string/category_fragment" />
+                android:value="@string/category_integration" />
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".activity.FeatureOverviewActivity" />
@@ -385,7 +409,8 @@
         <activity
             android:name=".activity.maplayout.SimpleMapActivity"
             android:description="@string/description_simple_map"
-            android:label="@string/activity_simple_map">
+            android:label="@string/activity_simple_map"
+            android:launchMode="singleInstance">
             <meta-data
                 android:name="@string/category"
                 android:value="@string/category_basic" />
@@ -584,7 +609,8 @@
         <activity
             android:name=".activity.feature.QueryRenderedFeaturesBoxCountActivity"
             android:description="@string/description_query_rendered_features_box_count"
-            android:label="@string/activity_query_rendered_features_box_count">
+            android:label="@string/activity_query_rendered_features_box_count"
+            android:launchMode="singleInstance">
             <meta-data
                 android:name="@string/category"
                 android:value="@string/category_features" />
@@ -698,10 +724,11 @@
         <activity
             android:name=".activity.textureview.TextureViewDebugModeActivity"
             android:description="@string/description_textureview_debug"
-            android:label="@string/activity_textureview_debug">
+            android:label="@string/activity_textureview_debug"
+            android:launchMode="singleInstance">
             <meta-data
                 android:name="@string/category"
-                android:value="@string/category_textureview" />
+                android:value="@string/category_basic" />
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".activity.FeatureOverviewActivity" />
@@ -862,37 +889,92 @@
                 android:value=".activity.FeatureOverviewActivity" />
         </activity>
         <activity
-                android:name=".activity.maplayout.RecyclerViewActivity"
-                android:description="@string/description_recyclerview"
-                android:label="@string/activity_recyclerview">
+            android:name=".activity.location.LocationComponentActivationActivity"
+            android:description="@string/description_location_activation_builder"
+            android:label="@string/activity_location_activation_builder">
+            <meta-data
+                android:name="@string/category"
+                android:value="@string/category_location" />
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+                android:name=".activity.maplayout.TextureRecyclerViewActivity"
+                android:description="@string/description_recyclerview_textureview"
+                android:label="@string/activity_recyclerview_textureview">
             <meta-data
                     android:name="@string/category"
-                    android:value="@string/category_maplayout" />
+                    android:value="@string/category_integration" />
+            <meta-data
+                    android:name="android.support.PARENT_ACTIVITY"
+                    android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+                android:name=".activity.maplayout.GLSurfaceRecyclerViewActivity"
+                android:description="@string/description_recyclerview_glsurfaceview"
+                android:label="@string/activity_recyclerview_glsurfaceview">
+            <meta-data
+                    android:name="@string/category"
+                    android:value="@string/category_integration" />
             <meta-data
                     android:name="android.support.PARENT_ACTIVITY"
                     android:value=".activity.FeatureOverviewActivity" />
         </activity>
         <activity
                 android:name=".activity.fragment.NestedViewPagerActivity"
-                android:description="@string/description_recyclerview"
+                android:description="@string/description_nested_viewpager"
                 android:label="@string/activity_nested_viewpager">
             <meta-data
                     android:name="@string/category"
-                    android:value="@string/category_fragment" />
+                    android:value="@string/category_integration" />
+            <meta-data
+                    android:name="android.support.PARENT_ACTIVITY"
+                    android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+            android:name=".activity.telemetry.PerformanceMeasurementActivity"
+            android:description="@string/description_performance_measurement"
+            android:label="@string/activity_performance_measurement">
+            <meta-data
+                android:name="@string/category"
+                android:value="@string/category_telemetry" />
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+            android:name=".activity.turf.PhysicalUnitCircleActivity"
+            android:description="@string/description_physical_circle"
+            android:label="@string/activity_physical_circle">
+            <meta-data
+                android:name="@string/category"
+                android:value="@string/category_turf" />
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".activity.FeatureOverviewActivity" />
+        </activity>
+        <activity
+                android:name=".activity.offline.DownloadRegionActivity"
+                android:description="@string/description_region"
+                android:label="@string/activity_region">
+            <meta-data
+                    android:name="@string/category"
+                    android:value="@string/category_offline" />
             <meta-data
                     android:name="android.support.PARENT_ACTIVITY"
                     android:value=".activity.FeatureOverviewActivity" />
         </activity>
         <!-- For Instrumentation tests -->
         <activity
-            android:name=".activity.style.RuntimeStyleTestActivity"
-            android:screenOrientation="portrait" />
-        <activity
             android:name=".activity.style.RuntimeStyleTimingTestActivity"
             android:screenOrientation="portrait" />
         <activity
             android:name=".activity.espresso.EspressoTestActivity"
             android:screenOrientation="portrait" />
+        <activity
+                android:name=".activity.espresso.PixelTestActivity"
+                android:screenOrientation="portrait" />
         <activity
             android:name=".activity.espresso.DeviceIndependentTestActivity"
             android:screenOrientation="portrait" />
@@ -914,6 +996,12 @@
         <!-- <meta-data -->
         <!-- android:name="com.mapbox.SetStorageExternal" -->
         <!-- android:value="true" /> -->
+
+         <!-- Set value to true to have tile loading measurements on -->
+         <meta-data
+         android:name="com.mapbox.MeasureTileDownloadOn"
+         android:value="false" />
+
     </application>
 
 </manifest>

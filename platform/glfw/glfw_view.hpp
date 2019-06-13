@@ -1,15 +1,21 @@
 #pragma once
 
 #include <mbgl/map/map.hpp>
-#include <mbgl/renderer/renderer_backend.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/timer.hpp>
 #include <mbgl/util/geometry.hpp>
 
 struct GLFWwindow;
+class GLFWBackend;
 class GLFWRendererFrontend;
 
-class GLFWView : public mbgl::RendererBackend, public mbgl::MapObserver {
+namespace mbgl {
+namespace gfx {
+class RendererBackend;
+} // namespace gfx
+} // namespace mbgl
+
+class GLFWView : public mbgl::MapObserver {
 public:
     GLFWView(bool fullscreen = false, bool benchmark = false);
     ~GLFWView() override;
@@ -19,6 +25,8 @@ public:
     void setMap(mbgl::Map*);
     
     void setRenderFrontend(GLFWRendererFrontend*);
+
+    mbgl::gfx::RendererBackend& getRendererBackend();
 
     // Callback called when the user presses the key mapped to style change.
     // The expected action is to set a new style, different to the current one.
@@ -32,6 +40,10 @@ public:
         onlineStatusCallback = callback;
     }
 
+    void setResetCacheCallback(std::function<void()> callback) {
+        resetCacheCallback = callback;
+    };
+
     void setShouldClose();
 
     void setWindowTitle(const std::string&);
@@ -41,20 +53,12 @@ public:
     void invalidate();
 
     mbgl::Size getSize() const;
-    mbgl::Size getFramebufferSize() const override;
-
-    // mbgl::RendererBackend implementation
-    void bind() override;
-    void updateAssumedState() override;
 
     // mbgl::MapObserver implementation
     void onDidFinishLoadingStyle() override;
 
 protected:
     // mbgl::Backend implementation
-    mbgl::gl::ProcAddress getExtensionFunctionPointer(const char*) override;
-    void activate() override;
-    void deactivate() override;
 
 private:
     // Window callbacks
@@ -80,6 +84,7 @@ private:
     void addRandomCustomPointAnnotations(int count);
     void addAnimatedAnnotation();
     void updateAnimatedAnnotations();
+    void toggleCustomSource();
 
     void clearAnnotations();
     void popAnnotation();
@@ -95,6 +100,7 @@ private:
 
     mbgl::Map* map = nullptr;
     GLFWRendererFrontend* rendererFrontend = nullptr;
+    std::unique_ptr<GLFWBackend> backend;
 
     bool fullscreen = false;
     const bool benchmark = false;
@@ -110,8 +116,6 @@ private:
 
     int width = 1024;
     int height = 768;
-    int fbWidth;
-    int fbHeight;
     float pixelRatio;
 
     double lastX = 0, lastY = 0;
@@ -121,6 +125,7 @@ private:
     std::function<void()> changeStyleCallback;
     std::function<void()> pauseResumeCallback;
     std::function<void()> onlineStatusCallback;
+    std::function<void()> resetCacheCallback;
     std::function<void(mbgl::Map*)> animateRouteCallback;
 
     mbgl::util::RunLoop runLoop;

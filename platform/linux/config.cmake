@@ -72,11 +72,6 @@ macro(mbgl_platform_core)
         # Snapshotting
         PRIVATE platform/default/src/mbgl/map/map_snapshotter.cpp
         PRIVATE platform/default/include/mbgl/map/map_snapshotter.hpp
-
-        # Thread pool
-        PRIVATE platform/default/src/mbgl/util/default_thread_pool.cpp
-        PRIVATE platform/default/src/mbgl/util/default_thread_pool.cpp
-        PRIVATE platform/default/src/mbgl/util/shared_thread_pool.cpp
     )
 
     target_include_directories(mbgl-core
@@ -104,13 +99,8 @@ endmacro()
 
 
 macro(mbgl_filesource)
-    target_sources(mbgl-filesource
-        # File source
-        PRIVATE platform/default/src/mbgl/storage/http_file_source.cpp
-
-        # Database
-        PRIVATE platform/default/src/mbgl/storage/sqlite3.cpp
-    )
+    # Modify platform/linux/filesource-files.json to change the source files for this target.
+    target_sources_from_file(mbgl-filesource PRIVATE platform/linux/filesource-files.json)
 
     # We're not referencing any cURL symbols since we're dynamically loading it. However, we want to
     # link the library anyway since we're definitely going to load it on startup anyway.

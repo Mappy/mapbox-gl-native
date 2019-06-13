@@ -88,3 +88,6 @@
 [submodule "platform/android/vendor/mapbox-events-android"]
 	path = platform/android/vendor/mapbox-events-android
 	url = https://github.com/mapbox/mapbox-events-android.git
+[submodule "vendor/args"]
+	path = vendor/args
+	url = https://github.com/Taywee/args

@@ -55,19 +55,15 @@ public:
     double getZoomFraction() const;
 
     // Bounds
-    void setLatLngBounds(optional<LatLngBounds>);
-    optional<LatLngBounds> getLatLngBounds() const;
+    void setLatLngBounds(LatLngBounds);
+    LatLngBounds getLatLngBounds() const;
     void setMinZoom(double);
     double getMinZoom() const;
     void setMaxZoom(double);
     double getMaxZoom() const;
-    void setMinPitch(double);
-    double getMinPitch() const;
-    void setMaxPitch(double);
-    double getMaxPitch() const;
 
     // Rotation
-    float getAngle() const;
+    float getBearing() const;
     float getFieldOfView() const;
     float getCameraToCenterDistance() const;
     float getPitch() const;
@@ -97,20 +93,18 @@ private:
     bool rotatedNorth() const;
     void constrain(double& scale, double& x, double& y) const;
 
-    optional<LatLngBounds> bounds;
+    LatLngBounds bounds;
 
     // Limit the amount of zooming possible on the map.
     double min_scale = std::pow(2, 0);
     double max_scale = std::pow(2, util::DEFAULT_MAX_ZOOM);
-    double min_pitch = 0.0;
-    double max_pitch = util::PITCH_MAX;
 
     NorthOrientation orientation = NorthOrientation::Upwards;
 
     // logical dimensions
     Size size;
 
-    mat4 coordinatePointMatrix(double z) const;
+    mat4 coordinatePointMatrix() const;
     mat4 getPixelMatrix() const;
 
     /** Recenter the map so that the given coordinate is located at the given
@@ -131,7 +125,7 @@ private:
 
     // map position
     double x = 0, y = 0;
-    double angle = 0;
+    double bearing = 0;
     double scale = 1;
     // This fov value is somewhat arbitrary. The altitude of the camera used
     // to be defined as 1.5 screen heights above the ground, which was an

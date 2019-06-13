@@ -2,18 +2,17 @@ package com.mapbox.mapboxsdk.module.telemetry;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.support.annotation.FloatRange;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import com.mapbox.android.telemetry.AppUserTurnstile;
-import com.mapbox.android.telemetry.Event;
-import com.mapbox.android.telemetry.MapEventFactory;
-import com.mapbox.android.telemetry.MapState;
-import com.mapbox.android.telemetry.MapboxTelemetry;
-import com.mapbox.android.telemetry.TelemetryEnabler;
-import com.mapbox.android.telemetry.SessionInterval;
 
+import com.mapbox.android.accounts.v1.MapboxAccounts;
+import com.mapbox.android.telemetry.AppUserTurnstile;
+import com.mapbox.android.telemetry.MapboxTelemetry;
+import com.mapbox.android.telemetry.SessionInterval;
+import com.mapbox.android.telemetry.TelemetryEnabler;
 import com.mapbox.mapboxsdk.BuildConfig;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.constants.MapboxConstants;
 import com.mapbox.mapboxsdk.maps.TelemetryDefinition;
 import com.mapbox.mapboxsdk.offline.OfflineRegionDefinition;
 import com.mapbox.mapboxsdk.offline.OfflineTilePyramidRegionDefinition;
@@ -22,11 +21,11 @@ import java.util.UUID;
 
 public class TelemetryImpl implements TelemetryDefinition {
 
-  @Nullable
-  private MapboxTelemetry telemetry;
+  private final MapboxTelemetry telemetry;
+  private final Context appContext;
 
   public TelemetryImpl() {
-    Context appContext = Mapbox.getApplicationContext();
+    appContext = Mapbox.getApplicationContext();
     String accessToken = Mapbox.getAccessToken();
     telemetry = new MapboxTelemetry(appContext, accessToken, BuildConfig.MAPBOX_EVENTS_USER_AGENT);
     TelemetryEnabler.State telemetryState = TelemetryEnabler.retrieveTelemetryStateFromPreferences();
@@ -42,9 +41,9 @@ public class TelemetryImpl implements TelemetryDefinition {
   public void onAppUserTurnstileEvent() {
     AppUserTurnstile turnstileEvent = new AppUserTurnstile(BuildConfig.MAPBOX_SDK_IDENTIFIER,
       BuildConfig.MAPBOX_SDK_VERSION);
+    turnstileEvent.setSkuId(MapboxAccounts.SKU_ID_MAPS_MAUS);
     telemetry.push(turnstileEvent);
-    MapEventFactory mapEventFactory = new MapEventFactory();
-    telemetry.push(mapEventFactory.createMapLoadEvent(Event.Type.MAP_LOAD));
+    telemetry.push(MapEventFactory.buildMapLoadEvent(new PhoneState(appContext)));
   }
 
   /**
@@ -54,17 +53,20 @@ public class TelemetryImpl implements TelemetryDefinition {
    * @param latitude  the latitude value of the gesture focal point
    * @param longitude the longitude value of the gesture focal point
    * @param zoom      current zoom of the map
+   * @deprecated since 7.5.0, this event is no longer supported
    */
+  @Deprecated
   @Override
-  public void onGestureInteraction(String eventType, double latitude, double longitude, double zoom) {
-    MapEventFactory mapEventFactory = new MapEventFactory();
-    MapState state = new MapState(latitude, longitude, zoom);
-    state.setGesture(eventType);
-    telemetry.push(mapEventFactory.createMapGestureEvent(Event.Type.MAP_CLICK, state));
+  public void onGestureInteraction(String eventType, double latitude, double longitude,
+                                   @FloatRange(from = MapboxConstants.MINIMUM_ZOOM,
+                                     to = MapboxConstants.MAXIMUM_ZOOM) double zoom) {
+    //no-op
   }
 
   /**
    * Set the end-user selected state to participate or opt-out in telemetry collection.
+   *
+   * @param enabledTelemetry true if enabled, false otherwise
    */
   @Override
   public void setUserTelemetryRequestState(boolean enabledTelemetry) {
@@ -98,10 +100,14 @@ public class TelemetryImpl implements TelemetryDefinition {
     return telemetry.updateSessionIdRotationInterval(new SessionInterval(interval));
   }
 
+  /**
+   * Register an offline region creation event.
+   *
+   * @param offlineDefinition the offline region definition
+   */
   @Override
   public void onCreateOfflineRegion(@NonNull OfflineRegionDefinition offlineDefinition) {
-    MapEventFactory mapEventFactory = new MapEventFactory();
-    telemetry.push(mapEventFactory.createOfflineDownloadStartEvent(
+    telemetry.push(MapEventFactory.buildOfflineDownloadStartEvent(new PhoneState(appContext),
       offlineDefinition instanceof OfflineTilePyramidRegionDefinition ? "tileregion" : "shaperegion",
       offlineDefinition.getMinZoom(),
       offlineDefinition.getMaxZoom(),
@@ -109,10 +115,17 @@ public class TelemetryImpl implements TelemetryDefinition {
     );
   }
 
+  /**
+   * Register a performance event
+   *
+   * @param data performance event data
+   */
   @Override
   public void onPerformanceEvent(Bundle data) {
-    if (data != null && !data.isEmpty()) {
-      telemetry.push(new PerformanceEvent(UUID.randomUUID().toString(), data));
+    if (data == null) {
+      data = new Bundle();
     }
+    telemetry.push(MapEventFactory.buildPerformanceEvent(new PhoneState(appContext),
+      UUID.randomUUID().toString(), data));
   }
 }

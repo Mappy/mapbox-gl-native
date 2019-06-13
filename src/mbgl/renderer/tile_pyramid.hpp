@@ -5,7 +5,7 @@
 #include <mbgl/tile/tile.hpp>
 #include <mbgl/tile/tile_cache.hpp>
 #include <mbgl/style/types.hpp>
-#include <mbgl/style/layer_impl.hpp>
+#include <mbgl/style/layer_properties.hpp>
 
 #include <mbgl/util/mat4.hpp>
 #include <mbgl/util/feature.hpp>
@@ -33,7 +33,7 @@ public:
 
     bool isLoaded() const;
 
-    void update(const std::vector<Immutable<style::Layer::Impl>>&,
+    void update(const std::vector<Immutable<style::LayerProperties>>& visibleLayers,
                 bool needsRendering,
                 bool needsRelayout,
                 const TileParameters&,
@@ -43,7 +43,8 @@ public:
                 optional<LatLngBounds> bounds,
                 std::function<std::unique_ptr<Tile> (const OverscaledTileID&)> createTile);
 
-    void startRender(PaintParameters&);
+    void upload(gfx::UploadPass&);
+    void prepare(PaintParameters&);
     void finishRender(PaintParameters&);
 
     std::vector<std::reference_wrapper<RenderTile>> getRenderTiles();

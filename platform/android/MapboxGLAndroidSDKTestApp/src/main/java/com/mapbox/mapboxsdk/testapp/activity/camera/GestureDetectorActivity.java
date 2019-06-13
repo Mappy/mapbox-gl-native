@@ -238,7 +238,7 @@ public class GestureDetectorActivity extends AppCompatActivity {
         return true;
       case R.id.menu_gesture_animation:
         uiSettings.setScaleVelocityAnimationEnabled(!uiSettings.isScaleVelocityAnimationEnabled());
-        uiSettings.setRotateVelocityAnimationEnabled(!uiSettings.isRotateGesturesEnabled());
+        uiSettings.setRotateVelocityAnimationEnabled(!uiSettings.isRotateVelocityAnimationEnabled());
         uiSettings.setFlingVelocityAnimationEnabled(!uiSettings.isFlingVelocityAnimationEnabled());
         return true;
       case R.id.menu_gesture_rotate:
@@ -267,7 +267,18 @@ public class GestureDetectorActivity extends AppCompatActivity {
     if (enabled) {
       focalPointLatLng = new LatLng(51.50325, -0.12968);
       marker = mapboxMap.addMarker(new MarkerOptions().position(focalPointLatLng));
-      mapboxMap.easeCamera(CameraUpdateFactory.newLatLngZoom(focalPointLatLng, 16));
+      mapboxMap.easeCamera(CameraUpdateFactory.newLatLngZoom(focalPointLatLng, 16),
+        new MapboxMap.CancelableCallback() {
+          @Override
+          public void onCancel() {
+            recalculateFocalPoint();
+          }
+
+          @Override
+          public void onFinish() {
+            recalculateFocalPoint();
+          }
+        });
     } else {
       if (marker != null) {
         mapboxMap.removeMarker(marker);

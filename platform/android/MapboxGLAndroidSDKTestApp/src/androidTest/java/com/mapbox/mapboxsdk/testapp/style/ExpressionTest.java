@@ -17,8 +17,8 @@ import com.mapbox.mapboxsdk.style.types.Formatted;
 import com.mapbox.mapboxsdk.style.types.FormattedSection;
 import com.mapbox.mapboxsdk.testapp.R;
 import com.mapbox.mapboxsdk.testapp.activity.EspressoTest;
-import com.mapbox.mapboxsdk.testapp.utils.TestingAsyncUtils;
 import com.mapbox.mapboxsdk.testapp.utils.ResourceUtils;
+import com.mapbox.mapboxsdk.testapp.utils.TestingAsyncUtils;
 import com.mapbox.mapboxsdk.utils.ColorUtils;
 
 import org.junit.Test;
@@ -29,6 +29,7 @@ import java.io.IOException;
 import timber.log.Timber;
 
 import static com.mapbox.mapboxsdk.style.expressions.Expression.FormatOption.formatFontScale;
+import static com.mapbox.mapboxsdk.style.expressions.Expression.FormatOption.formatTextColor;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.FormatOption.formatTextFont;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.collator;
 import static com.mapbox.mapboxsdk.style.expressions.Expression.eq;
@@ -52,6 +53,7 @@ import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.circleColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillAntialias;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillOutlineColor;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.textColor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.textField;
 import static com.mapbox.mapboxsdk.testapp.action.MapboxMapAction.invoke;
 import static org.junit.Assert.assertEquals;
@@ -250,7 +252,7 @@ public class ExpressionTest extends EspressoTest {
           )
         ));
       mapboxMap.getStyle().addLayer(layer);
-      uiController.loopMainThreadForAtLeast(1000);
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
 
@@ -260,7 +262,7 @@ public class ExpressionTest extends EspressoTest {
           literal(ColorUtils.colorToRgbaString(Color.RED))
         )
       ));
-      uiController.loopMainThreadForAtLeast(1000);
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
 
@@ -270,7 +272,7 @@ public class ExpressionTest extends EspressoTest {
           literal(ColorUtils.colorToRgbaString(Color.RED))
         )
       ));
-      uiController.loopMainThreadForAtLeast(1000);
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
     });
@@ -290,7 +292,7 @@ public class ExpressionTest extends EspressoTest {
         formatEntry("test")
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
@@ -313,7 +315,7 @@ public class ExpressionTest extends EspressoTest {
         formatEntry("test", formatFontScale(1.75))
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
@@ -339,7 +341,7 @@ public class ExpressionTest extends EspressoTest {
         )
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(
         mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer").isEmpty()
@@ -348,6 +350,35 @@ public class ExpressionTest extends EspressoTest {
       assertEquals(new Formatted(
         new FormattedSection("test",
           new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"})
+      ), layer.getTextField().getValue());
+    });
+  }
+
+  @Test
+  public void testConstFormatExpressionTextColorParam() {
+    validateTestSetup();
+    invoke(mapboxMap, (uiController, mapboxMap) -> {
+      LatLng latLng = new LatLng(51, 17);
+      mapboxMap.getStyle()
+        .addSource(new GeoJsonSource("source", Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude())));
+      SymbolLayer layer = new SymbolLayer("layer", "source");
+      mapboxMap.getStyle().addLayer(layer);
+
+      Expression expression = format(
+        formatEntry(
+          literal("test"),
+          formatTextColor(literal("yellow"))
+        )
+      );
+      layer.setProperties(textField(expression));
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
+
+      assertFalse(
+        mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer").isEmpty()
+      );
+      assertNull(layer.getTextField().getExpression());
+      assertEquals(new Formatted(
+        new FormattedSection("test", null, null, "rgba(255, 255, 0, 1)")
       ), layer.getTextField().getValue());
     });
   }
@@ -366,11 +397,12 @@ public class ExpressionTest extends EspressoTest {
         formatEntry(
           "test",
           formatFontScale(0.5),
-          formatTextFont(new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"})
+          formatTextFont(new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"}),
+          formatTextColor(rgb(126.7, 0, 0))
         )
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(
         mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer").isEmpty()
@@ -379,7 +411,8 @@ public class ExpressionTest extends EspressoTest {
       assertEquals(new Formatted(
         new FormattedSection("test",
           0.5,
-          new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"})
+          new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"},
+          "rgba(126, 0, 0, 1)")
       ), layer.getTextField().getValue());
     });
   }
@@ -400,10 +433,10 @@ public class ExpressionTest extends EspressoTest {
           formatFontScale(1.5),
           formatTextFont(new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"})
         ),
-        formatEntry("\ntest2", formatFontScale(2))
+        formatEntry("\ntest2", formatFontScale(2), formatTextColor(Color.BLUE))
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(
         mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer").isEmpty()
@@ -412,7 +445,7 @@ public class ExpressionTest extends EspressoTest {
       assertEquals(new Formatted(
         new FormattedSection("test", 1.5,
           new String[] {"DIN Offc Pro Regular", "Arial Unicode MS Regular"}),
-        new FormattedSection("\ntest2", 2.0)
+        new FormattedSection("\ntest2", 2.0, null, "rgba(0, 0, 255, 1)")
       ), layer.getTextField().getValue());
     });
   }
@@ -425,6 +458,7 @@ public class ExpressionTest extends EspressoTest {
       Feature feature = Feature.fromGeometry(Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude()));
       feature.addStringProperty("test_property", "test");
       feature.addNumberProperty("test_property_number", 1.5);
+      feature.addStringProperty("test_property_color", "green");
       mapboxMap.getStyle().addSource(new GeoJsonSource("source", feature));
       SymbolLayer layer = new SymbolLayer("layer", "source");
       mapboxMap.getStyle().addLayer(layer);
@@ -433,11 +467,12 @@ public class ExpressionTest extends EspressoTest {
         formatEntry(
           get("test_property"),
           Expression.FormatOption.formatFontScale(number(get("test_property_number"))),
-          formatTextFont(new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"})
+          formatTextFont(new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"}),
+          formatTextColor(toColor(get("test_property_color")))
         )
       );
       layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
@@ -454,6 +489,7 @@ public class ExpressionTest extends EspressoTest {
       Feature feature = Feature.fromGeometry(Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude()));
       feature.addStringProperty("test_property", "test");
       feature.addNumberProperty("test_property_number", 1.5);
+      feature.addStringProperty("test_property_color", "rgba(0, 255, 0, 1)");
       mapboxMap.getStyle().addSource(new GeoJsonSource("source", feature));
       SymbolLayer layer = new SymbolLayer("layer", "source");
       mapboxMap.getStyle().addLayer(layer);
@@ -462,12 +498,13 @@ public class ExpressionTest extends EspressoTest {
         formatEntry(
           get("test_property"),
           formatFontScale(1.25),
-          formatTextFont(new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"})
+          formatTextFont(new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"}),
+          formatTextColor(toColor(get("test_property_color")))
         ),
         formatEntry("\ntest2", formatFontScale(2))
       );
-      layer.setProperties(textField(expression));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      layer.setProperties(textField(expression), textColor("rgba(128, 0, 0, 1)"));
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
@@ -487,7 +524,7 @@ public class ExpressionTest extends EspressoTest {
       mapboxMap.getStyle().addLayer(layer);
 
       layer.setProperties(textField("test"));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());
@@ -509,10 +546,11 @@ public class ExpressionTest extends EspressoTest {
 
       Formatted formatted = new Formatted(
         new FormattedSection("test", 1.5),
-        new FormattedSection("\ntest", 0.5, new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"})
+        new FormattedSection("\ntest", 0.5, new String[] {"Arial Unicode MS Regular", "DIN Offc Pro Regular"}),
+        new FormattedSection("test", null, null, "rgba(0, 255, 0, 1)")
       );
-      layer.setProperties(textField(formatted));
-      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, idlingResource.getMapView());
+      layer.setProperties(textField(formatted), textColor("rgba(128, 0, 0, 1)"));
+      TestingAsyncUtils.INSTANCE.waitForLayer(uiController, mapView);
 
       assertFalse(mapboxMap.queryRenderedFeatures(mapboxMap.getProjection().toScreenLocation(latLng), "layer")
         .isEmpty());

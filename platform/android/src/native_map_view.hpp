@@ -4,9 +4,7 @@
 #include <mbgl/map/camera.hpp>
 #include <mbgl/map/map.hpp>
 #include <mbgl/util/noncopyable.hpp>
-#include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/util/run_loop.hpp>
-#include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/network_status.hpp>
 
 #include "annotation/marker.hpp"
@@ -62,7 +60,7 @@ public:
     void onCameraDidChange(MapObserver::CameraChangeMode) override;
     void onWillStartLoadingMap() override;
     void onDidFinishLoadingMap() override;
-    void onDidFailLoadingMap(std::exception_ptr) override;
+    void onDidFailLoadingMap(MapLoadError, const std::string&) override;
     void onWillStartRenderingFrame() override;
     void onDidFinishRenderingFrame(MapObserver::RenderMode) override;
     void onWillStartRenderingMap() override;
@@ -70,6 +68,7 @@ public:
     void onDidBecomeIdle() override;
     void onDidFinishLoadingStyle() override;
     void onSourceChanged(mbgl::style::Source&) override;
+    void onStyleImageMissing(const std::string&) override;
 
     // JNI //
 
@@ -258,7 +257,6 @@ private:
     int height = 64;
 
     // Ensure these are initialised last
-    std::shared_ptr<mbgl::ThreadPool> threadPool;
     std::unique_ptr<mbgl::Map> map;
     mbgl::EdgeInsets insets;
 };

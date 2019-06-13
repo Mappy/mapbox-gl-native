@@ -1,7 +1,7 @@
 #import "MGLFoundation.h"
 #import <Foundation/Foundation.h>
-#import <mbgl/storage/default_file_source.hpp>
-#import <mbgl/renderer/mode.hpp>
+
+#include <mbgl/util/optional.hpp>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -14,12 +14,6 @@ MGL_EXPORT
 
 /** Returns an instance of the current renderer configuration. */
 @property (class, nonatomic, readonly) MGLRendererConfiguration *currentConfiguration;
-
-/** The file source to use. Defaults to `mbgl::DefaultFileSource` */
-@property (nonatomic, readonly) mbgl::DefaultFileSource *fileSource;
-
-/** The GL context mode to use. Defaults to `mbgl::GLContextMode::Unique` */
-@property (nonatomic, readonly) mbgl::GLContextMode contextMode;
 
 /** The scale factor to use.
 
@@ -34,8 +28,9 @@ MGL_EXPORT
  Currently only used for CJK glyphs. Changing this at run time is not currently
  supported. Enable client-side rendering of CJK glyphs by setting
  `MGLIdeographicFontFamilyName` in your containing app's Info.plist to a value
- which will be available at run time, e.g. "PingFang". */
-@property (nonatomic, readonly) mbgl::optional<std::string> localFontFamilyName;
+ which will be available at run time. Default font for local ideograph font family
+ is "PingFang". */
+@property (nonatomic, readonly) std::string localFontFamilyName;
 
 /**
  A Boolean value indicating whether symbol layers may enable per-source symbol

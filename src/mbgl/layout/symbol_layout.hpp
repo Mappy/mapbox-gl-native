@@ -6,30 +6,26 @@
 #include <mbgl/layout/symbol_feature.hpp>
 #include <mbgl/layout/symbol_instance.hpp>
 #include <mbgl/text/bidi.hpp>
-#include <mbgl/style/layers/symbol_layer_impl.hpp>
-#include <mbgl/programs/symbol_program.hpp>
+#include <mbgl/renderer/buckets/symbol_bucket.hpp>
 
 #include <memory>
 #include <map>
-#include <unordered_set>
 #include <vector>
 
 namespace mbgl {
 
 class BucketParameters;
-class SymbolBucket;
 class Anchor;
-class RenderLayer;
 class PlacedSymbol;
 
 namespace style {
 class Filter;
 } // namespace style
 
-class SymbolLayout : public Layout {
+class SymbolLayout final : public Layout {
 public:
     SymbolLayout(const BucketParameters&,
-                 const std::vector<const RenderLayer*>&,
+                 const std::vector<Immutable<style::LayerProperties>>&,
                  std::unique_ptr<GeometryTileLayer>,
                  ImageDependencies&,
                  GlyphDependencies&);
@@ -39,22 +35,25 @@ public:
     void prepareSymbols(const GlyphMap&, const GlyphPositions&,
                  const ImageMap&, const ImagePositions&) override;
 
-    void createBucket(const ImagePositions&, std::unique_ptr<FeatureIndex>&, std::unordered_map<std::string, std::shared_ptr<Bucket>>&, const bool firstLoad, const bool showCollisionBoxes) override;
+    void createBucket(const ImagePositions&, std::unique_ptr<FeatureIndex>&, std::unordered_map<std::string, LayerRenderData>&, const bool firstLoad, const bool showCollisionBoxes) override;
 
     bool hasSymbolInstances() const override;
     bool hasDependencies() const override;
 
-    std::map<std::string, style::SymbolPaintProperties::PossiblyEvaluated> layerPaintProperties;
+    std::map<std::string, Immutable<style::LayerProperties>> layerPaintProperties;
 
     const std::string bucketLeaderID;
     std::vector<SymbolInstance> symbolInstances;
 
+    static Point<float> evaluateRadialOffset(style::SymbolAnchorType anchor, float radialOffset);
+
 private:
     void addFeature(const size_t,
                     const SymbolFeature&,
-                    const std::pair<Shaping, Shaping>& shapedTextOrientations,
+                    const ShapedTextOrientations& shapedTextOrientations,
                     optional<PositionedIcon> shapedIcon,
-                    const GlyphPositions&);
+                    const GlyphPositions&,
+                    Point<float> textOffset);
 
     bool anchorIsTooClose(const std::u16string& text, const float repeatDistance, const Anchor&);
     std::map<std::u16string, std::vector<Anchor>> compareText;
@@ -62,12 +61,26 @@ private:
     void addToDebugBuffers(SymbolBucket&);
 
     // Adds placed items to the buffer.
-    template <typename Buffer>
-    size_t addSymbol(Buffer&,
-                   const Range<float> sizeData,
-                   const SymbolQuad&,
-                   const Anchor& labelAnchor,
-                   PlacedSymbol& placedSymbol);
+    size_t addSymbol(SymbolBucket::Buffer&,
+                     const Range<float> sizeData,
+                     const SymbolQuad&,
+                     const Anchor& labelAnchor,
+                     PlacedSymbol& placedSymbol,
+                     float sortKey);
+
+    // Adds symbol quads to bucket and returns formatted section index of last
+    // added quad.
+    std::size_t addSymbolGlyphQuads(SymbolBucket&,
+                                    SymbolInstance&,
+                                    const SymbolFeature&,
+                                    WritingModeType,
+                                    optional<size_t>& placedIndex,
+                                    const SymbolQuads&,
+                                    optional<std::size_t> lastAddedSection = nullopt);
+
+    void updatePaintPropertiesForSection(SymbolBucket&,
+                                         const SymbolFeature&,
+                                         std::size_t sectionIndex);
 
     // Stores the layer so that we can hold on to GeometryTileFeature instances in SymbolFeature,
     // which may reference data from this object.
@@ -84,6 +97,7 @@ private:
 
     bool sdfIcons = false;
     bool iconsNeedLinear = false;
+    bool sortFeaturesByY = false;
 
     style::TextSize::UnevaluatedType textSize;
     style::IconSize::UnevaluatedType iconSize;

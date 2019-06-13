@@ -1,12 +1,13 @@
 #include <mbgl/test/util.hpp>
 #include <mbgl/test/stub_file_source.hpp>
-#include <mbgl/map/map.hpp>
+#include <mbgl/test/map_adapter.hpp>
+
+#include <mbgl/map/map_options.hpp>
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/color.hpp>
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/gl/headless_frontend.hpp>
-#include <mbgl/util/default_thread_pool.hpp>
 #include <mbgl/style/style.hpp>
 
 /*
@@ -32,17 +33,15 @@ namespace {
 class LocalGlyphRasterizerTest {
 public:
     LocalGlyphRasterizerTest(const optional<std::string> fontFamily)
-        : frontend(pixelRatio, fileSource, threadPool, optional<std::string>(), GLContextMode::Unique, fontFamily)
+        : frontend(1, optional<std::string>(), gfx::ContextMode::Unique, fontFamily)
     {
     }
 
     util::RunLoop loop;
-    StubFileSource fileSource;
-    ThreadPool threadPool { 4 };
-    float pixelRatio { 1 };
+    std::shared_ptr<StubFileSource> fileSource = std::make_shared<StubFileSource>();
     HeadlessFrontend frontend;
-    Map map { frontend, MapObserver::nullObserver(), frontend.getSize(), pixelRatio, fileSource,
-              threadPool, MapMode::Static};
+    MapAdapter map { frontend, MapObserver::nullObserver(), fileSource,
+                  MapOptions().withMapMode(MapMode::Static).withSize(frontend.getSize())};
 
     void checkRendering(const char * name) {
         test::checkImage(std::string("test/fixtures/local_glyphs/") + name,
@@ -58,7 +57,7 @@ public:
 TEST(LocalGlyphRasterizer, PingFang) {
     LocalGlyphRasterizerTest test(std::string("PingFang"));
 
-    test.fileSource.glyphsResponse = [&] (const Resource& resource) {
+    test.fileSource->glyphsResponse = [&] (const Resource& resource) {
         EXPECT_EQ(Resource::Kind::Glyphs, resource.kind);
         Response response;
         response.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/glyphs.pbf"));
@@ -79,7 +78,7 @@ TEST(LocalGlyphRasterizer, NoLocal) {
     // the output should just contain basic latin characters.
     LocalGlyphRasterizerTest test({});
 
-    test.fileSource.glyphsResponse = [&] (const Resource& resource) {
+    test.fileSource->glyphsResponse = [&] (const Resource& resource) {
         EXPECT_EQ(Resource::Kind::Glyphs, resource.kind);
         Response response;
         response.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/glyphs.pbf"));

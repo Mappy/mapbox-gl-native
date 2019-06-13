@@ -1,8 +1,8 @@
 #pragma once
 
-#include <mbgl/gl/index_buffer.hpp>
-#include <mbgl/gl/texture.hpp>
-#include <mbgl/gl/vertex_buffer.hpp>
+#include <mbgl/gfx/index_buffer.hpp>
+#include <mbgl/gfx/texture.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
 #include <mbgl/programs/hillshade_program.hpp>
 #include <mbgl/programs/hillshade_prepare_program.hpp>
 #include <mbgl/renderer/bucket.hpp>
@@ -22,15 +22,15 @@ public:
     HillshadeBucket(DEMData&&);
     ~HillshadeBucket() override;
 
-    void upload(gl::Context&) override;
+    void upload(gfx::UploadPass&) override;
     bool hasData() const override;
     bool supportsLayer(const style::Layer::Impl&) const override;
 
     void clear();
     void setMask(TileMask&&);
 
-    optional<gl::Texture> dem;
-    optional<gl::Texture> texture;
+    optional<gfx::Texture> dem;
+    optional<gfx::Texture> texture;
 
     TileMask mask{ { 0, 0, 0 } };
 
@@ -46,12 +46,12 @@ public:
     }
 
     // Raster-DEM Tile Sources use the default buffers from Painter
-    gl::VertexVector<HillshadeLayoutVertex> vertices;
-    gl::IndexVector<gl::Triangles> indices;
+    gfx::VertexVector<HillshadeLayoutVertex> vertices;
+    gfx::IndexVector<gfx::Triangles> indices;
     SegmentVector<HillshadeAttributes> segments;
 
-    optional<gl::VertexBuffer<HillshadeLayoutVertex>> vertexBuffer;
-    optional<gl::IndexBuffer<gl::Triangles>> indexBuffer;
+    optional<gfx::VertexBuffer<HillshadeLayoutVertex>> vertexBuffer;
+    optional<gfx::IndexBuffer> indexBuffer;
 private: 
     DEMData demdata;
     bool prepared = false;

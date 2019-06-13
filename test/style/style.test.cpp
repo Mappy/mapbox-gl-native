@@ -9,7 +9,6 @@
 #include <mbgl/style/layers/line_layer.hpp>
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/run_loop.hpp>
-#include <mbgl/util/default_thread_pool.hpp>
 
 #include <memory>
 
@@ -19,9 +18,8 @@ using namespace mbgl::style;
 TEST(Style, Properties) {
     util::RunLoop loop;
 
-    ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style::Impl style { threadPool, fileSource, 1.0 };
+    Style::Impl style { fileSource, 1.0 };
 
     style.loadJSON(R"STYLE({"name": "Test"})STYLE");
     ASSERT_EQ("Test", style.getName());
@@ -33,7 +31,7 @@ TEST(Style, Properties) {
     style.loadJSON(R"STYLE({"bearing": 24})STYLE");
     ASSERT_EQ("", style.getName());
     ASSERT_EQ(LatLng {}, *style.getDefaultCamera().center);
-    ASSERT_EQ(24, *style.getDefaultCamera().angle);
+    ASSERT_EQ(24, *style.getDefaultCamera().bearing);
 
     style.loadJSON(R"STYLE({"zoom": 13.3})STYLE");
     ASSERT_EQ("", style.getName());
@@ -55,16 +53,15 @@ TEST(Style, Properties) {
     ASSERT_EQ("", style.getName());
     ASSERT_EQ(LatLng {}, *style.getDefaultCamera().center);
     ASSERT_EQ(0, *style.getDefaultCamera().zoom);
-    ASSERT_EQ(0, *style.getDefaultCamera().angle);
+    ASSERT_EQ(0, *style.getDefaultCamera().bearing);
     ASSERT_EQ(0, *style.getDefaultCamera().pitch);
 }
 
 TEST(Style, DuplicateSource) {
     util::RunLoop loop;
 
-    ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style::Impl style { threadPool, fileSource, 1.0 };
+    Style::Impl style { fileSource, 1.0 };
 
     style.loadJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
 
@@ -84,9 +81,8 @@ TEST(Style, RemoveSourceInUse) {
     auto log = new FixtureLogObserver();
     Log::setObserver(std::unique_ptr<Log::Observer>(log));
 
-    ThreadPool threadPool{ 1 };
     StubFileSource fileSource;
-    Style::Impl style { threadPool, fileSource, 1.0 };
+    Style::Impl style { fileSource, 1.0 };
 
     style.loadJSON(util::read_file("test/fixtures/resources/style-unused-sources.json"));
 
