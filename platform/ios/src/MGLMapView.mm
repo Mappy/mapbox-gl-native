@@ -7171,15 +7171,3 @@ void MBGLMapViewRenderable::bind() {
 }
 
 @end
-
-@implementation MGLMapView (Mappy)
-
-- (void)updateCompassViewWithConstraints:(NSArray<NSLayoutConstraint *> *)newConstraints
-{
-	[NSLayoutConstraint deactivateConstraints:self.compassViewConstraints];
-	[self.compassViewConstraints removeAllObjects];
-	[self.compassViewConstraints addObjectsFromArray:newConstraints];
-	[NSLayoutConstraint activateConstraints:self.compassViewConstraints];
-}
-
-@end

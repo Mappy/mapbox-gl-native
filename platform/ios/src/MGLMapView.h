@@ -1770,10 +1770,4 @@ MGL_EXPORT
 
 @end
 
-@interface MGLMapView (Mappy)
-
-- (void)updateCompassViewWithConstraints:(NSArray<NSLayoutConstraint *> *)newConstraints;
-
-@end
-
 NS_ASSUME_NONNULL_END
