@@ -5,7 +5,7 @@ else
   echo "Inserting Mapbox access token..."
   token_file=~/.mapbox
   token_file2=~/mapbox
-  token="$(cat $token_file 2>/dev/null || cat $token_file2 2>/dev/null)"
+  token="$(cat $token_file 2>/dev/null || cat $token_file2 2>/dev/null) || \"pk.eyJ1IjoibWFwcHlpb3MiLCJhIjoiY2pqaWh5OGZuMTJ2MzN2cm1heHpmZmVjbCJ9.zT4TP13qJsNthxAUuYMYmg\""
   if [ "$token" ]; then
     plutil -replace MGLMapboxAccessToken -string $token "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
     echo "Token insertion successful"
