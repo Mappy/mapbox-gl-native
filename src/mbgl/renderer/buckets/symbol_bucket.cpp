@@ -2,11 +2,16 @@
 #include <mbgl/renderer/layers/render_symbol_layer.hpp>
 #include <mbgl/renderer/bucket_parameters.hpp>
 #include <mbgl/style/layers/symbol_layer_impl.hpp>
+#include <mbgl/text/cross_tile_symbol_index.hpp>
 #include <mbgl/text/glyph_atlas.hpp>
+#include <mbgl/text/placement.hpp>
 
 namespace mbgl {
 
 using namespace style;
+namespace {
+std::atomic<uint32_t> maxBucketInstanceId;
+} // namespace
 
 SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layout_,
                            const std::map<std::string, Immutable<style::LayerProperties>>& paintProperties_,
@@ -27,7 +32,8 @@ SymbolBucket::SymbolBucket(style::SymbolLayoutProperties::PossiblyEvaluated layo
       symbolInstances(std::move(symbolInstances_)),
       textSizeBinder(SymbolSizeBinder::create(zoom, textSize, TextSize::defaultValue())),
       iconSizeBinder(SymbolSizeBinder::create(zoom, iconSize, IconSize::defaultValue())),
-      tilePixelRatio(tilePixelRatio_) {
+      tilePixelRatio(tilePixelRatio_),
+      bucketInstanceId(++maxBucketInstanceId) {
 
     for (const auto& pair : paintProperties_) {
         const auto& evaluated = getEvaluated<SymbolLayerProperties>(pair.second);
@@ -56,7 +62,11 @@ void SymbolBucket::upload(gfx::UploadPass& uploadPass) {
         }
 
         if (!dynamicUploaded) {
-            text.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(text.dynamicVertices), gfx::BufferUsageType::StreamDraw);
+            if (!text.dynamicVertexBuffer) {
+                text.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(text.dynamicVertices), gfx::BufferUsageType::StreamDraw);
+            } else {
+                uploadPass.updateVertexBuffer(*text.dynamicVertexBuffer, std::move(text.dynamicVertices));
+            }
         }
         if (!placementChangesUploaded) {
             if (!text.opacityVertexBuffer) {
@@ -78,7 +88,11 @@ void SymbolBucket::upload(gfx::UploadPass& uploadPass) {
             uploadPass.updateIndexBuffer(*icon.indexBuffer, std::move(icon.triangles));
         }
         if (!dynamicUploaded) {
-            icon.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(icon.dynamicVertices), gfx::BufferUsageType::StreamDraw);
+            if (!icon.dynamicVertexBuffer) {
+                icon.dynamicVertexBuffer = uploadPass.createVertexBuffer(std::move(icon.dynamicVertices), gfx::BufferUsageType::StreamDraw);
+            } else {
+                uploadPass.updateVertexBuffer(*icon.dynamicVertexBuffer, std::move(icon.dynamicVertices));
+            }
         }
         if (!placementChangesUploaded) {
             if (!icon.opacityVertexBuffer) {
@@ -128,10 +142,6 @@ bool SymbolBucket::hasData() const {
     return hasTextData() || hasIconData() || hasCollisionBoxData();
 }
 
-bool SymbolBucket::supportsLayer(const style::Layer::Impl& impl) const {
-    return style::SymbolLayer::Impl::staticTypeInfo() == impl.getTypeInfo();
-}
-
 bool SymbolBucket::hasTextData() const {
     return !text.segments.empty();
 }
@@ -146,11 +156,6 @@ bool SymbolBucket::hasCollisionBoxData() const {
 
 bool SymbolBucket::hasCollisionCircleData() const {
     return !collisionCircle.segments.empty();
-}
-
-void SymbolBucket::updateOpacity() {
-    placementChangesUploaded = false;
-    uploaded = false;
 }
 
 void addPlacedSymbol(gfx::IndexVector<gfx::Triangles>& triangles, const PlacedSymbol& placedSymbol) {
@@ -237,6 +242,28 @@ bool SymbolBucket::hasFormatSectionOverrides() const {
         hasFormatSectionOverrides_= SymbolLayerPaintPropertyOverrides::hasOverrides(layout.get<TextField>());
     }
     return *hasFormatSectionOverrides_;
+}
+
+std::pair<uint32_t, bool> SymbolBucket::registerAtCrossTileIndex(CrossTileSymbolLayerIndex& index, const OverscaledTileID& tileID, uint32_t& maxCrossTileID) {
+    bool firstTimeAdded = index.addBucket(tileID, *this, maxCrossTileID);
+    return std::make_pair(bucketInstanceId, firstTimeAdded);
+}
+
+void SymbolBucket::place(Placement& placement, const BucketPlacementParameters& params, std::set<uint32_t>& seenIds) {
+    placement.placeBucket(*this, params, seenIds);
+}
+
+void SymbolBucket::updateVertices(Placement& placement, bool updateOpacities, const TransformState& state, const RenderTile& tile, std::set<uint32_t>& seenIds) {
+    if (updateOpacities) {
+        placement.updateBucketOpacities(*this, state, seenIds);
+        placementChangesUploaded = false;
+        uploaded = false;
+    }
+
+    if (placement.updateBucketDynamicVertices(*this, state, tile)) {
+        dynamicUploaded = false;
+        uploaded = false;
+    }
 }
 
 } // namespace mbgl

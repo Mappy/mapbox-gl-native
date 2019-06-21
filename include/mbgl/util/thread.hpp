@@ -6,6 +6,7 @@
 #include <mbgl/util/platform.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/util.hpp>
+#include <mbgl/platform/thread.hpp>
 
 #include <cassert>
 #include <future>
@@ -55,18 +56,24 @@ public:
         ] () mutable {
             platform::setCurrentThreadName(name);
             platform::makeThreadLowPriority();
+            platform::attachThread();
 
-            util::RunLoop loop_(util::RunLoop::Type::New);
-            loop = &loop_;
-            EstablishedActor<Object> establishedActor(loop_, object, std::move(capturedArgs));
+            // narrowing the scope to release the Object before we detach the thread
+            {
+                util::RunLoop loop_(util::RunLoop::Type::New);
+                loop = &loop_;
+                EstablishedActor<Object> establishedActor(loop_, object, std::move(capturedArgs));
 
-            runningPromise.set_value();
-            
-            loop->run();
-            
-            (void) establishedActor;
-            
-            loop = nullptr;
+                runningPromise.set_value();
+
+                loop->run();
+
+                (void) establishedActor;
+
+                loop = nullptr;
+            }
+
+            platform::detachThread();
         });
     }
 

@@ -124,7 +124,7 @@ void FillBucket::addFeature(const GeometryTileFeature& feature,
 void FillBucket::upload(gfx::UploadPass& uploadPass) {
     vertexBuffer = uploadPass.createVertexBuffer(std::move(vertices));
     lineIndexBuffer = uploadPass.createIndexBuffer(std::move(lines));
-    triangleIndexBuffer = uploadPass.createIndexBuffer(std::move(triangles));
+    triangleIndexBuffer = triangles.empty() ? optional<gfx::IndexBuffer> {} : uploadPass.createIndexBuffer(std::move(triangles));
 
     for (auto& pair : paintPropertyBinders) {
         pair.second.upload(uploadPass);
@@ -135,10 +135,6 @@ void FillBucket::upload(gfx::UploadPass& uploadPass) {
 
 bool FillBucket::hasData() const {
     return !triangleSegments.empty() || !lineSegments.empty();
-}
-
-bool FillBucket::supportsLayer(const style::Layer::Impl& impl) const {
-    return style::FillLayer::Impl::staticTypeInfo() == impl.getTypeInfo();
 }
 
 float FillBucket::getQueryRadius(const RenderLayer& layer) const {

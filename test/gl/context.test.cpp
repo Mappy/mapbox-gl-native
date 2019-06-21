@@ -6,7 +6,7 @@
 #include <mbgl/map/map_options.hpp>
 #include <mbgl/gfx/backend_scope.hpp>
 #include <mbgl/gl/defines.hpp>
-#include <mbgl/gl/headless_frontend.hpp>
+#include <mbgl/gfx/headless_frontend.hpp>
 #include <mbgl/gl/renderable_resource.hpp>
 #include <mbgl/storage/resource_options.hpp>
 #include <mbgl/style/style.hpp>
@@ -85,6 +85,10 @@ struct Buffer {
 };
 
 TEST(GLContextMode, Shared) {
+    if (gfx::Backend::GetType() != gfx::Backend::Type::OpenGL) {
+        return;
+    }
+
     util::RunLoop loop;
 
     HeadlessFrontend frontend { 1, {}, gfx::ContextMode::Shared };

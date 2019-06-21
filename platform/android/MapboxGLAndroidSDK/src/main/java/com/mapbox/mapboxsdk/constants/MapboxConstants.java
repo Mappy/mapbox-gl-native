@@ -37,6 +37,12 @@ public class MapboxConstants {
    */
   public static final boolean DEFAULT_MEASURE_TILE_DOWNLOAD_ON = false;
 
+  public static final String KEY_PREFERENCE_SKU_TOKEN = "com.mapbox.mapboxsdk.accounts.skutoken";
+
+  public static final String KEY_META_DATA_MANAGE_SKU_TOKEN = "com.mapbox.ManageSkuToken";
+
+  public static final boolean DEFAULT_MANAGE_SKU_TOKEN = true;
+
   /**
    * Unmeasured state
    */
@@ -128,6 +134,11 @@ public class MapboxConstants {
   public static final float MAXIMUM_SCALE_FACTOR_CLAMP = 0.15f;
 
   /**
+   * Zoom value multiplier for scale gestures.
+   */
+  public static final float ZOOM_RATE = 0.65f;
+
+  /**
    * Fragment Argument Key for MapboxMapOptions
    */
   public static final String FRAG_ARG_MAPBOXMAPOPTIONS = "MapboxMapOptions";
@@ -146,6 +157,7 @@ public class MapboxConstants {
   public static final String STATE_TILT_ENABLED = "mapbox_tiltEnabled";
   public static final String STATE_DOUBLE_TAP_ENABLED = "mapbox_doubleTapEnabled";
   public static final String STATE_QUICK_ZOOM_ENABLED = "mapbox_quickZoom";
+  public static final String STATE_ZOOM_RATE = "mapbox_zoomRate";
   public static final String STATE_DEBUG_ACTIVE = "mapbox_debugActive";
   public static final String STATE_COMPASS_ENABLED = "mapbox_compassEnabled";
   public static final String STATE_COMPASS_GRAVITY = "mapbox_compassGravity";

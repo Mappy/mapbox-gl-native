@@ -171,8 +171,8 @@ final class NativeMapView implements NativeMap {
   }
 
   @Override
-  public void setStyleUrl(String url) {
-    if (checkState("setStyleUrl")) {
+  public void setStyleUri(String url) {
+    if (checkState("setStyleUri")) {
       return;
     }
     nativeSetStyleUrl(url);
@@ -180,8 +180,8 @@ final class NativeMapView implements NativeMap {
 
   @Override
   @NonNull
-  public String getStyleUrl() {
-    if (checkState("getStyleUrl")) {
+  public String getStyleUri() {
+    if (checkState("getStyleUri")) {
       return "";
     }
     return nativeGetStyleUrl();
@@ -532,7 +532,7 @@ final class NativeMapView implements NativeMap {
   @Override
   @NonNull
   public long[] queryPointAnnotations(RectF rect) {
-    if (checkState("queryPointAnnotations") || !mapRenderer.hasSurface()) {
+    if (checkState("queryPointAnnotations")) {
       return new long[] {};
     }
     return nativeQueryPointAnnotations(rect);
@@ -541,7 +541,7 @@ final class NativeMapView implements NativeMap {
   @Override
   @NonNull
   public long[] queryShapeAnnotations(RectF rectF) {
-    if (checkState("queryShapeAnnotations") || !mapRenderer.hasSurface()) {
+    if (checkState("queryShapeAnnotations")) {
       return new long[] {};
     }
     return nativeQueryShapeAnnotations(rectF);
@@ -573,7 +573,7 @@ final class NativeMapView implements NativeMap {
 
   @Override
   public void onLowMemory() {
-    if (checkState("onLowMemory") || !mapRenderer.hasSurface()) {
+    if (checkState("onLowMemory")) {
       return;
     }
     nativeOnLowMemory();
@@ -890,7 +890,7 @@ final class NativeMapView implements NativeMap {
   public List<Feature> queryRenderedFeatures(@NonNull PointF coordinates,
                                              @Nullable String[] layerIds,
                                              @Nullable Expression filter) {
-    if (checkState("queryRenderedFeatures") || !mapRenderer.hasSurface()) {
+    if (checkState("queryRenderedFeatures")) {
       return new ArrayList<>();
     }
     Feature[] features = nativeQueryRenderedFeaturesForPoint(coordinates.x / pixelRatio,
@@ -903,7 +903,7 @@ final class NativeMapView implements NativeMap {
   public List<Feature> queryRenderedFeatures(@NonNull RectF coordinates,
                                              @Nullable String[] layerIds,
                                              @Nullable Expression filter) {
-    if (checkState("queryRenderedFeatures") || !mapRenderer.hasSurface()) {
+    if (checkState("queryRenderedFeatures")) {
       return new ArrayList<>();
     }
     Feature[] features = nativeQueryRenderedFeaturesForBox(
@@ -1051,19 +1051,34 @@ final class NativeMapView implements NativeMap {
   }
 
   @Keep
+  private boolean onCanRemoveUnusedStyleImage(String imageId) {
+    if (stateCallback != null) {
+      return stateCallback.onCanRemoveUnusedStyleImage(imageId);
+    }
+
+    return true;
+  }
+
+  @Keep
   protected void onSnapshotReady(@Nullable Bitmap mapContent) {
     if (checkState("OnSnapshotReady")) {
       return;
     }
-    if (snapshotReadyCallback != null && mapContent != null) {
-      if (viewCallback == null) {
-        snapshotReadyCallback.onSnapshotReady(mapContent);
-      } else {
-        Bitmap viewContent = viewCallback.getViewContent();
-        if (viewContent != null) {
-          snapshotReadyCallback.onSnapshotReady(BitmapUtils.mergeBitmap(mapContent, viewContent));
+
+    try {
+      if (snapshotReadyCallback != null && mapContent != null) {
+        if (viewCallback == null) {
+          snapshotReadyCallback.onSnapshotReady(mapContent);
+        } else {
+          Bitmap viewContent = viewCallback.getViewContent();
+          if (viewContent != null) {
+            snapshotReadyCallback.onSnapshotReady(BitmapUtils.mergeBitmap(mapContent, viewContent));
+          }
         }
       }
+    } catch (Throwable err) {
+      Logger.e(TAG, "Exception in onSnapshotReady", err);
+      throw err;
     }
   }
 
@@ -1457,5 +1472,7 @@ final class NativeMapView implements NativeMap {
     void onSourceChanged(String sourceId);
 
     void onStyleImageMissing(String imageId);
+
+    boolean onCanRemoveUnusedStyleImage(String imageId);
   }
 }

@@ -1,5 +1,5 @@
 #include "glfw_view.hpp"
-#include "glfw_gl_backend.hpp"
+#include "glfw_backend.hpp"
 #include "glfw_renderer_frontend.hpp"
 #include "ny_route.hpp"
 
@@ -17,6 +17,7 @@
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/geo.hpp>
 #include <mbgl/renderer/renderer.hpp>
+#include <mbgl/gfx/backend.hpp>
 #include <mbgl/gfx/backend_scope.hpp>
 #include <mbgl/map/camera.hpp>
 
@@ -76,6 +77,10 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
 
+    if (mbgl::gfx::Backend::GetType() != mbgl::gfx::Backend::Type::OpenGL) {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    }
+
     glfwWindowHint(GLFW_RED_BITS, 8);
     glfwWindowHint(GLFW_GREEN_BITS, 8);
     glfwWindowHint(GLFW_BLUE_BITS, 8);
@@ -100,7 +105,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
 
     glfwGetWindowSize(window, &width, &height);
 
-    backend = std::make_unique<GLFWGLBackend>(window, benchmark);
+    backend = GLFWBackend::Create(window, benchmark);
 
     pixelRatio = static_cast<float>(backend->getSize().width) / width;
 
@@ -715,78 +720,3 @@ void GLFWView::toggleCustomSource() {
                              mbgl::style::VisibilityType::None : mbgl::style::VisibilityType::Visible);
     }
 }
-
-namespace mbgl {
-namespace platform {
-
-#ifndef MBGL_USE_GLES2
-void showDebugImage(std::string name, const char *data, size_t width, size_t height) {
-    glfwInit();
-
-    static GLFWwindow *debugWindow = nullptr;
-    if (!debugWindow) {
-        debugWindow = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), name.c_str(), nullptr, nullptr);
-        if (!debugWindow) {
-            glfwTerminate();
-            fprintf(stderr, "Failed to initialize window\n");
-            exit(1);
-        }
-    }
-
-    GLFWwindow *currentWindow = glfwGetCurrentContext();
-
-    glfwSetWindowSize(debugWindow, static_cast<int>(width), static_cast<int>(height));
-    glfwMakeContextCurrent(debugWindow);
-
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(debugWindow, &fbWidth, &fbHeight);
-    float scale = static_cast<float>(fbWidth) / static_cast<float>(width);
-
-    glPixelZoom(scale, -scale);
-    glRasterPos2f(-1.0f, 1.0f);
-    glDrawPixels(width, height, GL_LUMINANCE, GL_UNSIGNED_BYTE, data);
-
-    glfwSwapBuffers(debugWindow);
-
-    glfwMakeContextCurrent(currentWindow);
-}
-
-void showColorDebugImage(std::string name, const char *data, size_t logicalWidth, size_t logicalHeight, size_t width, size_t height) {
-    glfwInit();
-
-    static GLFWwindow *debugWindow = nullptr;
-    if (!debugWindow) {
-        debugWindow = glfwCreateWindow(static_cast<int>(logicalWidth), static_cast<int>(logicalHeight), name.c_str(), nullptr, nullptr);
-        if (!debugWindow) {
-            glfwTerminate();
-            fprintf(stderr, "Failed to initialize window\n");
-            exit(1);
-        }
-    }
-
-    GLFWwindow *currentWindow = glfwGetCurrentContext();
-
-    glfwSetWindowSize(debugWindow, static_cast<int>(logicalWidth), static_cast<int>(logicalHeight));
-    glfwMakeContextCurrent(debugWindow);
-
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(debugWindow, &fbWidth, &fbHeight);
-    float xScale = static_cast<float>(fbWidth) / static_cast<float>(width);
-    float yScale = static_cast<float>(fbHeight) / static_cast<float>(height);
-
-    glClearColor(0.8, 0.8, 0.8, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glPixelZoom(xScale, -yScale);
-    glRasterPos2f(-1.0f, 1.0f);
-    glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-
-    glfwSwapBuffers(debugWindow);
-
-    glfwMakeContextCurrent(currentWindow);
-}
-#endif
-
-} // namespace platform
-} // namespace mbgl

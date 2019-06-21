@@ -66,18 +66,13 @@ MAPBOX_ETERNAL_CONSTEXPR const auto extensionGetters = mapbox::eternal::hash_map
 } // namespace
 
 RenderGeoJSONSource::RenderGeoJSONSource(Immutable<style::GeoJSONSource::Impl> impl_)
-    : RenderSource(impl_) {
-    tilePyramid.setObserver(this);
+    : RenderTileSource(std::move(impl_)) {
 }
 
 RenderGeoJSONSource::~RenderGeoJSONSource() = default;
 
 const style::GeoJSONSource::Impl& RenderGeoJSONSource::impl() const {
     return static_cast<const style::GeoJSONSource::Impl&>(*baseImpl);
-}
-
-bool RenderGeoJSONSource::isLoaded() const {
-    return tilePyramid.isLoaded();
 }
 
 void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
@@ -123,35 +118,6 @@ void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
                        });
 }
 
-void RenderGeoJSONSource::upload(gfx::UploadPass& parameters) {
-    tilePyramid.upload(parameters);
-}
-
-void RenderGeoJSONSource::prepare(PaintParameters& parameters) {
-    tilePyramid.prepare(parameters);
-}
-
-void RenderGeoJSONSource::finishRender(PaintParameters& parameters) {
-    tilePyramid.finishRender(parameters);
-}
-
-std::vector<std::reference_wrapper<RenderTile>> RenderGeoJSONSource::getRenderTiles() {
-    return tilePyramid.getRenderTiles();
-}
-
-std::unordered_map<std::string, std::vector<Feature>>
-RenderGeoJSONSource::queryRenderedFeatures(const ScreenLineString& geometry,
-                                           const TransformState& transformState,
-                                           const std::vector<const RenderLayer*>& layers,
-                                           const RenderedQueryOptions& options,
-                                           const mat4& projMatrix) const {
-    return tilePyramid.queryRenderedFeatures(geometry, transformState, layers, options, projMatrix);
-}
-
-std::vector<Feature> RenderGeoJSONSource::querySourceFeatures(const SourceQueryOptions& options) const {
-    return tilePyramid.querySourceFeatures(options);
-}
-
 mapbox::util::variant<Value, FeatureCollection>
 RenderGeoJSONSource::queryFeatureExtensions(const Feature& feature,
                                             const std::string& extension,
@@ -177,14 +143,6 @@ RenderGeoJSONSource::queryFeatureExtensions(const Feature& feature,
     }
 
     return extensionIt->second(std::move(jsonData), static_cast<std::uint32_t>(*clusterID), args);
-}
-
-void RenderGeoJSONSource::reduceMemoryUse() {
-    tilePyramid.reduceMemoryUse();
-}
-
-void RenderGeoJSONSource::dumpDebugLogs() const {
-    tilePyramid.dumpDebugLogs();
 }
 
 } // namespace mbgl

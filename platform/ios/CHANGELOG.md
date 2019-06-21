@@ -2,15 +2,32 @@
 
 Mapbox welcomes participation and contributions from everyone. Please read [CONTRIBUTING.md](../../CONTRIBUTING.md) to get started.
 
+## 5.1.0 - June 19, 2019
+
+### Styles and rendering
+
+* Fixed a crash when a fill pattern in a style could not be found. ([#14696](https://github.com/mapbox/mapbox-gl-native/pull/14696))
+* Setting `MGLMapView.contentInset` now moves the map’s focal point to the center of the content frame after insetting. ([#14664](https://github.com/mapbox/mapbox-gl-native/pull/14664))
+* Fixed a rendering performance regression when rendering polylines. ([#14851](https://github.com/mapbox/mapbox-gl-native/pull/14851))
+* Fixed a rendering performance regression introduced in 4.11.0. ([#14907](https://github.com/mapbox/mapbox-gl-native/pull/14907))
+* Fixed an issue where symbols underneath opaque fill layers could be incorrectly drawn above such layers. ([#14839](https://github.com/mapbox/mapbox-gl-native/pull/14839))
+* Fixed an issue where `MGLFillExtrusionStyleLayer` vertical gradients might not be rendered. ([#14808](https://github.com/mapbox/mapbox-gl-native/pull/14808))
+
+### Other changes
+
+* The `-[MGLMapView setCamera:withDuration:animationTimingFunction:edgePadding:completionHandler:]` method now adds the current value of the `MGLMapView.contentInset` property to the `edgePadding` parameter. ([#14813](https://github.com/mapbox/mapbox-gl-native/pull/14813))
+* Fixed a feature querying bug caused by incorrect sort feature index calculation. ([#14884](https://github.com/mapbox/mapbox-gl-native/pull/14884))
+
 ## 5.0.0 - May 22, 2019
 
-This release improves how monthly active users are counted. By upgrading to this release, you are opting into the changes outlined in [this blog post](https://www.mapbox.com/52219) and ([#14421](https://github.com/mapbox/mapbox-gl-native/pull/14421)).
+This release improves how monthly active users are counted. By upgrading to this release, you are opting into the changes outlined in [this blog post](https://www.mapbox.com/52219) and [#14421](https://github.com/mapbox/mapbox-gl-native/pull/14421).
 
 There are no breaking API changes in this release.
 
 ### Styles and rendering
 
 * Changed placement order of `MGLSymbolStyleLayer` to match the viewport-y order when `MGLSymbolStyleLayer.symbolZOrder` is set to `MGLSymbolZOrderViewportY`, allowing icons to overlap but not text. ([#14486](https://github.com/mapbox/mapbox-gl-native/pull/14486))
+* Added `MGLSymbolStyleLayer.symbolSortKey` and `MGLSymbolZOrderAuto` to allow customization of symbol z-ordering. ([#14386](https://github.com/mapbox/mapbox-gl-native/pull/14386))
 
 ### Other changes
 
@@ -21,6 +38,7 @@ There are no breaking API changes in this release.
 ### Styles and rendering
 
 * Fixed a bug where some layers weren’t rendering correctly after panning. ([#14527](https://github.com/mapbox/mapbox-gl-native/pull/14527))
+* Speculatively fixed a rare background crash when receiving a memory warning. ([#14383](https://github.com/mapbox/mapbox-gl-native/pull/14383))
 
 ### Annotations
 

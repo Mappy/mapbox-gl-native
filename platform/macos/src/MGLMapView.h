@@ -188,6 +188,19 @@ MGL_EXPORT IB_DESIGNABLE
  */
 @property (nonatomic, readonly) NSView *attributionView;
 
+/**
+ A Boolean value indicating whether the map should prefetch tiles.
+ 
+ When this property is set to `YES`, the map view prefetches tiles designed for
+ a low zoom level and displays them until receiving more detailed tiles for the
+ current zoom level. The prefetched tiles typically contain simplified versions
+ of each shape, improving the map view’s perceived performance.
+ 
+ The default value of this property is `YES`.
+ */
+@property (nonatomic, assign) BOOL prefetchesTiles;
+
+
 #pragma mark Manipulating the Viewpoint
 
 /**
@@ -325,7 +338,8 @@ MGL_EXPORT IB_DESIGNABLE
 
  /**
  Moves the viewpoint to a different location with respect to the map with an
- optional transition duration and timing function.
+ optional transition duration and timing function, and optionally some additional
+ padding on each side.
  
  @param camera The new viewpoint.
  @param duration The amount of time, measured in seconds, that the transition

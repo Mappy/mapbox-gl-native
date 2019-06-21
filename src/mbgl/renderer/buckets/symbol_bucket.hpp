@@ -16,6 +16,8 @@
 
 namespace mbgl {
 
+class CrossTileSymbolLayerIndex;
+
 class PlacedSymbol {
 public:
     PlacedSymbol(Point<float> anchorPoint_, uint16_t segment_, float lowerSize_, float upperSize_,
@@ -56,14 +58,16 @@ public:
 
     void upload(gfx::UploadPass&) override;
     bool hasData() const override;
-    bool supportsLayer(const style::Layer::Impl&) const override;
+    std::pair<uint32_t, bool> registerAtCrossTileIndex(CrossTileSymbolLayerIndex&, const OverscaledTileID&, uint32_t& maxCrossTileID) override;
+    void place(Placement&, const BucketPlacementParameters&, std::set<uint32_t>&) override;
+    void updateVertices(Placement&, bool updateOpacities, const TransformState&, const RenderTile&, std::set<uint32_t>&) override;
     bool hasTextData() const;
     bool hasIconData() const;
     bool hasCollisionBoxData() const;
     bool hasCollisionCircleData() const;
     bool hasFormatSectionOverrides() const;
 
-    void updateOpacity();
+
     void sortFeatures(const float angle);
     // The result contains references to the `symbolInstances` items, sorted by viewport Y.
     std::vector<std::reference_wrapper<SymbolInstance>> getSortedSymbols(const float angle);
@@ -132,8 +136,9 @@ public:
     } collisionCircle;
 
     const float tilePixelRatio;
-    uint32_t bucketInstanceId = 0;
+    uint32_t bucketInstanceId;
     bool justReloaded = false;
+    bool hasVariablePlacement = false;
     mutable optional<bool> hasFormatSectionOverrides_;
 
     std::shared_ptr<std::vector<size_t>> featureSortOrder;

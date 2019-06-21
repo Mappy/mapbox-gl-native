@@ -62,12 +62,6 @@ public:
     // Returns `true` if the corresponding render layer data is present in this tile (and i.e. it
     // was succesfully updated); returns `false` otherwise.
     virtual bool updateLayerProperties(const Immutable<style::LayerProperties>&) { return true; }
-
-    template <class T>
-    T* getBucket(const style::Layer::Impl& layer) const {
-        return static_cast<T*>(getBucket(layer));
-    }
-
     virtual void setShowCollisionBoxes(const bool) {}
     virtual void setLayers(const std::vector<Immutable<style::LayerProperties>>&) {}
     virtual void setMask(TileMask&&) {}
@@ -137,12 +131,16 @@ public:
     OverscaledTileID id;
     optional<Timestamp> modified;
     optional<Timestamp> expires;
+    // Indicates whether this tile is used for the currently visible layers on the map.
+    // Re-initialized at every source update.
+    bool usedByRenderedLayers = false;
 
 protected:
     bool triedOptional = false;
     bool renderable = false;
     bool pending = false;
     bool loaded = false;
+
 
     TileObserver* observer = nullptr;
 };

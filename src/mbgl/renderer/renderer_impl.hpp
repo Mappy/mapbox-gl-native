@@ -29,6 +29,7 @@ class SourceQueryOptions;
 class GlyphManager;
 class ImageManager;
 class LineAtlas;
+class PatternAtlas;
 class CrossTileSymbolIndex;
 
 namespace gfx {
@@ -91,8 +92,7 @@ private:
 
     // ImageManagerObserver implementation
     void onStyleImageMissing(const std::string&, std::function<void()>) override;
-
-    void updateFadingTiles();
+    void onRemoveUnusedStyleImages(const std::vector<std::string>&) final;
 
     friend class Renderer;
 
@@ -117,6 +117,7 @@ private:
     std::unique_ptr<GlyphManager> glyphManager;
     std::unique_ptr<ImageManager> imageManager;
     std::unique_ptr<LineAtlas> lineAtlas;
+    std::unique_ptr<PatternAtlas> patternAtlas;
     std::unique_ptr<RenderStaticData> staticData;
 
     Immutable<std::vector<Immutable<style::Image::Impl>>> imageImpls;
@@ -131,7 +132,6 @@ private:
     std::unique_ptr<Placement> placement;
 
     bool contextLost = false;
-    bool fadingTiles = false;
 };
 
 } // namespace mbgl

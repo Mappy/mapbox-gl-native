@@ -1,5 +1,4 @@
 #include <mbgl/programs/line_program.hpp>
-#include <mbgl/gfx/context_impl.hpp>
 #include <mbgl/style/layers/line_layer_properties.hpp>
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/renderer/image_atlas.hpp>
@@ -9,14 +8,9 @@
 
 namespace mbgl {
 
-template std::unique_ptr<gfx::Program<LineProgram>> gfx::Context::createProgram(const ProgramParameters&);
-template std::unique_ptr<gfx::Program<LinePatternProgram>> gfx::Context::createProgram(const ProgramParameters&);
-template std::unique_ptr<gfx::Program<LineGradientProgram>> gfx::Context::createProgram(const ProgramParameters&);
-template std::unique_ptr<gfx::Program<LineSDFProgram>> gfx::Context::createProgram(const ProgramParameters&);
-
 using namespace style;
 
-static_assert(sizeof(LineLayoutVertex) == 12, "expected LineLayoutVertex size");
+static_assert(sizeof(LineLayoutVertex) == 8, "expected LineLayoutVertex size");
 
 template <class Values, class...Args>
 Values makeValues(const style::LinePaintProperties::PossiblyEvaluated& properties,

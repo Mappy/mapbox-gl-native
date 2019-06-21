@@ -7,6 +7,7 @@
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/renderer/update_parameters.hpp>
 #include <mbgl/renderer/upload_parameters.hpp>
+#include <mbgl/renderer/pattern_atlas.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/transition_parameters.hpp>
 #include <mbgl/renderer/property_evaluation_parameters.hpp>
@@ -52,6 +53,7 @@ Renderer::Impl::Impl(gfx::RendererBackend& backend_,
     , glyphManager(std::make_unique<GlyphManager>(std::make_unique<LocalGlyphRasterizer>(localFontFamily)))
     , imageManager(std::make_unique<ImageManager>())
     , lineAtlas(std::make_unique<LineAtlas>(Size{ 256, 512 }))
+    , patternAtlas(std::make_unique<PatternAtlas>())
     , imageImpls(makeMutable<std::vector<Immutable<style::Image::Impl>>>())
     , sourceImpls(makeMutable<std::vector<Immutable<style::Source::Impl>>>())
     , layerImpls(makeMutable<std::vector<Immutable<style::Layer::Impl>>>())
@@ -143,6 +145,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     // Remove removed images from sprite atlas.
     for (const auto& entry : imageDiff.removed) {
         imageManager->removeImage(entry.first);
+        patternAtlas->removePattern(entry.first);
     }
 
     // Add added images to sprite atlas.
@@ -152,7 +155,10 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
     // Update changed images.
     for (const auto& entry : imageDiff.changed) {
-        hasImageDiff = imageManager->updateImage(entry.second.after) || hasImageDiff;
+        if (imageManager->updateImage(entry.second.after)) {
+            patternAtlas->removePattern(entry.first);
+            hasImageDiff = true;
+        }
     }
 
     imageManager->notifyIfMissingImageAdded();
@@ -224,7 +230,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     };
 
     std::set<RenderItem> renderItems;
-    std::vector<const RenderLayerSymbolInterface*> renderItemsWithSymbols;
+    std::vector<std::reference_wrapper<RenderLayer>> layersNeedPlacement;
     auto renderItemsEmplaceHint = renderItems.begin();
 
     // Update all sources and initialize renderItems.
@@ -291,15 +297,20 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
     observer->onWillStartRenderingFrame();
 
-    // Set render tiles to the render items.
-    for (auto& renderItem : renderItems) {
-        if (!renderItem.source) {
-            continue;
+    TransformParameters transformParams(updateParameters.transformState);
+
+    // Update all matrices and generate data that we should upload to the GPU.
+    for (const auto& entry : renderSources) {
+        if (entry.second->isEnabled()) {
+            entry.second->prepare({transformParams, updateParameters.debugOptions});
         }
+    }
+
+    for (auto& renderItem : renderItems) {
         RenderLayer& renderLayer = renderItem.layer;
-        renderLayer.setRenderTiles(renderItem.source->getRenderTiles(), updateParameters.transformState);
-        if (const RenderLayerSymbolInterface* symbolLayer = renderLayer.getSymbolInterface()) {
-            renderItemsWithSymbols.push_back(symbolLayer);
+        renderLayer.prepare({renderItem.source, *imageManager, *patternAtlas, updateParameters.transformState});
+        if (renderLayer.needsPlacement()) {
+            layersNeedPlacement.emplace_back(renderLayer);
         }
     }
 
@@ -312,7 +323,6 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         bool symbolBucketsChanged = false;
         const bool placementChanged = !placement->stillRecent(updateParameters.timePoint);
         std::set<std::string> usedSymbolLayers;
-
         if (placementChanged) {
             placement = std::make_unique<Placement>(
                 updateParameters.transformState, updateParameters.mode,
@@ -320,32 +330,28 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
                 std::move(placement));
         }
 
-        for (auto it = renderItemsWithSymbols.rbegin(); it != renderItemsWithSymbols.rend(); ++it) {
-            const RenderLayerSymbolInterface *symbolLayer = *it;
-            if (crossTileSymbolIndex.addLayer(*symbolLayer, updateParameters.transformState.getLatLng().longitude())) symbolBucketsChanged = true;
+        for (auto it = layersNeedPlacement.rbegin(); it != layersNeedPlacement.rend(); ++it) {
+            const RenderLayer& layer = *it;
+            if (crossTileSymbolIndex.addLayer(layer, updateParameters.transformState.getLatLng().longitude())) symbolBucketsChanged = true;
 
             if (placementChanged) {
-                usedSymbolLayers.insert(symbolLayer->layerID());
-                mat4 projMatrix;
-                updateParameters.transformState.getProjMatrix(projMatrix);
-                placement->placeLayer(*symbolLayer, projMatrix, updateParameters.debugOptions & MapDebugOptions::Collision);
+                usedSymbolLayers.insert(layer.getID());
+                placement->placeLayer(layer, transformParams.projMatrix, updateParameters.debugOptions & MapDebugOptions::Collision);
             }
         }
 
         if (placementChanged) {
             placement->commit(updateParameters.timePoint);
             crossTileSymbolIndex.pruneUnusedLayers(usedSymbolLayers);
-            updateFadingTiles();
+            for (const auto& entry : renderSources) {
+                entry.second->updateFadingTiles();
+            }
         } else {
             placement->setStale();
         }
 
-
-        if (placementChanged || symbolBucketsChanged) {
-            for (auto it = renderItemsWithSymbols.rbegin(); it != renderItemsWithSymbols.rend(); ++it) {
-                const RenderLayerSymbolInterface *symbolLayer = *it;
-                placement->updateLayerOpacities(*symbolLayer);
-            }
+        for (auto it = layersNeedPlacement.rbegin(); it != layersNeedPlacement.rend(); ++it) {
+            placement->updateLayerBuckets(*it, updateParameters.transformState, placementChanged || symbolBucketsChanged);
         }
     }
 
@@ -360,24 +366,13 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         backend,
         updateParameters,
         renderLight.getEvaluated(),
+        transformParams,
         *staticData,
-        *imageManager,
         *lineAtlas,
+        *patternAtlas
     };
 
     parameters.symbolFadeChange = placement->symbolFadeChange(updateParameters.timePoint);
-
-    // TODO: move this pass to before the PaintParameters initialization
-    // - PREPARE PASS -------------------------------------------------------------------------------
-    // Runs an initialization pass for all sources.
-    {
-        // Update all matrices and generate data that we should upload to the GPU.
-        for (const auto& entry : renderSources) {
-            if (entry.second->isEnabled()) {
-                entry.second->prepare(parameters);
-            }
-        }
-    }
 
     // - UPLOAD PASS -------------------------------------------------------------------------------
     // Uploads all required buffers and images before we do any actual rendering.
@@ -393,8 +388,6 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
 
         UploadParameters uploadParameters{
             updateParameters.transformState,
-            placement->getVariableOffsets(),
-            *imageManager,
             *lineAtlas,
         };
 
@@ -406,8 +399,8 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
         }
 
         staticData->upload(*uploadPass);
-        imageManager->upload(*uploadPass);
         lineAtlas->upload(*uploadPass);
+        patternAtlas->upload(*uploadPass);
     }
 
     // - 3D PASS -------------------------------------------------------------------------------------
@@ -432,7 +425,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
             RenderLayer& renderLayer = it->layer;
             if (renderLayer.hasRenderPass(parameters.pass)) {
                 const auto layerDebugGroup(parameters.encoder->createDebugGroup(renderLayer.getID().c_str()));
-                renderLayer.render(parameters, it->source);
+                renderLayer.render(parameters);
             }
         }
     }
@@ -466,7 +459,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
             RenderLayer& renderLayer = it->layer;
             if (renderLayer.hasRenderPass(parameters.pass)) {
                 const auto layerDebugGroup(parameters.renderPass->createDebugGroup(renderLayer.getID().c_str()));
-                renderLayer.render(parameters, it->source);
+                renderLayer.render(parameters);
             }
         }
     }
@@ -483,7 +476,7 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
             RenderLayer& renderLayer = it->layer;
             if (renderLayer.hasRenderPass(parameters.pass)) {
                 const auto layerDebugGroup(parameters.renderPass->createDebugGroup(renderLayer.getID().c_str()));
-                renderLayer.render(parameters, it->source);
+                renderLayer.render(parameters);
             }
         }
     }
@@ -514,9 +507,21 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     }
 #endif
 
+    // Ends the RenderPass
+    parameters.renderPass.reset();
+
+    if (updateParameters.mode == MapMode::Continuous) {
+        parameters.encoder->present(parameters.backend.getDefaultRenderable());
+    }
+
+    // CommandEncoder destructor submits render commands.
+    parameters.encoder.reset();
+
+
+    const bool needsRepaint = isMapModeContinuous && hasTransitions(parameters.timePoint);
     observer->onDidFinishRenderingFrame(
         loaded ? RendererObserver::RenderMode::Full : RendererObserver::RenderMode::Partial,
-        isMapModeContinuous && hasTransitions(parameters.timePoint)
+        needsRepaint
     );
 
     if (!loaded) {
@@ -524,13 +529,11 @@ void Renderer::Impl::render(const UpdateParameters& updateParameters) {
     } else if (renderState != RenderState::Fully) {
         renderState = RenderState::Fully;
         observer->onDidFinishRenderingMap();
+    } else if (!needsRepaint) {
+        // Notify observer about unused images when map is fully loaded
+        // and there are no ongoing transitions.
+        imageManager->reduceMemoryUseIfCacheSizeExceedsLimit();
     }
-
-    if (updateParameters.mode == MapMode::Continuous) {
-        parameters.encoder->present(parameters.backend.getDefaultRenderable());
-    }
-
-    // CommandEncoder destructor submits render commands.
 }
 
 std::vector<Feature> Renderer::Impl::queryRenderedFeatures(const ScreenLineString& geometry, const RenderedQueryOptions& options) const {
@@ -663,11 +666,9 @@ void Renderer::Impl::reduceMemoryUse() {
     for (const auto& entry : renderSources) {
         entry.second->reduceMemoryUse();
     }
-    backend.getContext().performCleanup();
+    backend.getContext().reduceMemoryUsage();
+    imageManager->reduceMemoryUse();
     observer->onInvalidate();
-    if (imageManager) {
-        imageManager->reduceMemoryUse();
-    }
 }
 
 void Renderer::Impl::dumpDebugLogs() {
@@ -707,25 +708,14 @@ bool Renderer::Impl::hasTransitions(TimePoint timePoint) const {
     if (placement->hasTransitions(timePoint)) {
         return true;
     }
-    
-    if (fadingTiles) {
-        return true;
+
+    for (const auto& entry : renderSources) {
+        if (entry.second->hasFadingTiles()) {
+            return true;
+        }
     }
 
     return false;
-}
-
-void Renderer::Impl::updateFadingTiles() {
-    fadingTiles = false;
-    for (auto& source : renderSources) {
-        for (auto& renderTile : source.second->getRenderTiles()) {
-            Tile& tile = renderTile.get().tile;
-            if (tile.holdForFade()) {
-                fadingTiles = true;
-                tile.performedFadePlacement();
-            }
-        }
-    }
 }
 
 bool Renderer::Impl::isLoaded() const {
@@ -760,6 +750,10 @@ void Renderer::Impl::onTileChanged(RenderSource&, const OverscaledTileID&) {
 
 void Renderer::Impl::onStyleImageMissing(const std::string& id, std::function<void()> done) {
     observer->onStyleImageMissing(id, std::move(done));
+}
+
+void Renderer::Impl::onRemoveUnusedStyleImages(const std::vector<std::string>& unusedImageIDs) {
+    observer->onRemoveUnusedStyleImages(unusedImageIDs);
 }
 
 } // namespace mbgl

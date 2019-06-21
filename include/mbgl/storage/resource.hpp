@@ -29,6 +29,11 @@ public:
         Low
     };
 
+    enum class Usage : bool {
+        Online,
+        Offline
+    };
+
     struct TileData {
         std::string urlTemplate;
         uint8_t pixelRatio;
@@ -49,41 +54,39 @@ public:
 
     Resource(Kind kind_,
              std::string url_,
-             Priority priority_ = Resource::Priority::Regular,
              optional<TileData> tileData_ = {},
              LoadingMethod loadingMethod_ = LoadingMethod::All)
         : kind(kind_),
           loadingMethod(loadingMethod_),
-          priority(priority_),
           url(std::move(url_)),
           tileData(std::move(tileData_)) {
     }
 
     void setPriority(Priority p) { priority = p; }
+    void setUsage(Usage u) { usage = u; }
 
     bool hasLoadingMethod(LoadingMethod method);
 
-    static Resource style(const std::string& url, const Priority priority = Resource::Priority::Regular);
-    static Resource source(const std::string& url, const Priority priority = Resource::Priority::Regular);
+    static Resource style(const std::string& url);
+    static Resource source(const std::string& url);
     static Resource tile(const std::string& urlTemplate,
                          float pixelRatio,
                          int32_t x,
                          int32_t y,
                          int8_t z,
                          Tileset::Scheme scheme,
-                         const Priority priority = Resource::Priority::Regular,
                          LoadingMethod = LoadingMethod::All);
     static Resource glyphs(const std::string& urlTemplate,
                            const FontStack& fontStack,
-                           const std::pair<uint16_t, uint16_t>& glyphRange,
-                           const Priority priority = Resource::Priority::Regular);
-    static Resource spriteImage(const std::string& base, float pixelRatio, const Priority priority = Resource::Priority::Regular);
-    static Resource spriteJSON(const std::string& base, float pixelRatio, const Priority priority = Resource::Priority::Regular);
-    static Resource image(const std::string& url, const Priority priority = Resource::Priority::Regular);
+                           const std::pair<uint16_t, uint16_t>& glyphRange);
+    static Resource spriteImage(const std::string& base, float pixelRatio);
+    static Resource spriteJSON(const std::string& base, float pixelRatio);
+    static Resource image(const std::string& url);
 
     Kind kind;
     LoadingMethod loadingMethod;
-    Priority priority;
+    Usage usage{ Usage::Online };
+    Priority priority{ Priority::Regular };
     std::string url;
 
     // Includes auxiliary data if this is a tile request.

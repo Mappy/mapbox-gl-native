@@ -8,19 +8,16 @@
 #if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
 #import "MGLMapboxEvents.h"
 #import "MBXSKUToken.h"
-#endif
 
-static const NSTimeInterval MGLAccountManagerSKUTokenLifespan = 3600;
+static NSString * const MGLAccountManagerExternalClassName = @"MBXAccounts";
+static NSString * const MGLAccountManagerExternalMethodName = @"skuToken";
+#endif
 
 @interface MGLAccountManager ()
 
 @property (atomic) NSString *accessToken;
 @property (nonatomic) NSURL *apiBaseURL;
 
-#if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
-@property (atomic) NSString *skuToken;
-@property (atomic) NSDate *skuTokenExpiration;
-#endif
 @end
 
 @implementation MGLAccountManager
@@ -40,10 +37,6 @@ static const NSTimeInterval MGLAccountManagerSKUTokenLifespan = 3600;
     if (apiBaseURL.length && [NSURL URLWithString:apiBaseURL]) {
         [self setAPIBaseURL:[NSURL URLWithString:apiBaseURL]];
     }
-
-#if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
-    self.skuToken = [MBXSKUToken tokenForSKUID:MBXAccountsSKUIDMaps type:MBXAccountsSKUTypeUser];
-#endif
 }
 
 + (instancetype)sharedManager {
@@ -102,20 +95,14 @@ static const NSTimeInterval MGLAccountManagerSKUTokenLifespan = 3600;
 
 #if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
 
-+ (void)setSkuToken:(NSString *)skuToken {
-    MGLAccountManager.sharedManager.skuTokenExpiration = [NSDate dateWithTimeIntervalSinceNow:MGLAccountManagerSKUTokenLifespan];
-    MGLAccountManager.sharedManager.skuToken = skuToken;
-}
-
 + (NSString *)skuToken {
-    return [MGLAccountManager.sharedManager isSKUTokenExpired] ?
-        [MBXSKUToken tokenForSKUID:MBXAccountsSKUIDMaps type:MBXAccountsSKUTypeUser] :
-        MGLAccountManager.sharedManager.skuToken;
-}
-
-- (BOOL)isSKUTokenExpired {
-    NSTimeInterval secondsUntilExpiration = [MGLAccountManager.sharedManager.skuTokenExpiration timeIntervalSinceNow];
-    return secondsUntilExpiration < 0;
+    Class mbx = NSClassFromString(MGLAccountManagerExternalClassName);
+    
+    if ([mbx respondsToSelector:NSSelectorFromString(MGLAccountManagerExternalMethodName)]) {
+        return (NSString *)[mbx valueForKeyPath:MGLAccountManagerExternalMethodName];
+    }
+    
+    return MBXSKUToken.skuToken;
 }
 
 #endif

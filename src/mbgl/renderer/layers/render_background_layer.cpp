@@ -3,6 +3,7 @@
 #include <mbgl/renderer/bucket.hpp>
 #include <mbgl/renderer/upload_parameters.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
+#include <mbgl/renderer/pattern_atlas.hpp>
 #include <mbgl/renderer/image_manager.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/programs/programs.hpp>
@@ -38,9 +39,6 @@ void RenderBackgroundLayer::evaluate(const PropertyEvaluationParameters &paramet
 
     passes = properties->evaluated.get<style::BackgroundOpacity>() > 0 ? RenderPass::Translucent
                                                                        : RenderPass::None;
-    if (passes != RenderPass::None && !properties->evaluated.get<style::BackgroundPattern>().to.empty()) {
-        passes |= RenderPass::Upload;
-    }
     evaluatedProperties = std::move(properties);
 }
 
@@ -52,23 +50,14 @@ bool RenderBackgroundLayer::hasCrossfade() const {
     return getCrossfade<BackgroundLayerProperties>(evaluatedProperties).t != 1;
 }
 
-void RenderBackgroundLayer::upload(gfx::UploadPass&, UploadParameters& parameters) {
-    const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
-    if (!evaluated.get<BackgroundPattern>().to.empty()) {
-        // Ensures that the texture gets added and uploaded to the atlas.
-        parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().from);
-        parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().to);
-    }
-}
-
-void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
+void RenderBackgroundLayer::render(PaintParameters& parameters) {
     // Note that for bottommost layers without a pattern, the background color is drawn with
     // glClear rather than this method.
 
     const Properties<>::PossiblyEvaluated properties;
     const BackgroundProgram::Binders paintAttributeData(properties, 0);
 
-    auto draw = [&](auto& program, auto&& uniformValues, const auto& textureBindings) {
+    auto draw = [&](auto& program, auto&& uniformValues, const auto& textureBindings, const UnwrappedTileID& id) {
         const auto allUniformValues = program.computeAllUniformValues(
             std::move(uniformValues),
             paintAttributeData,
@@ -96,14 +85,14 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
             allUniformValues,
             allAttributeBindings,
             textureBindings,
-            getID()
+            getID() + "/" + util::toString(id)
         );
     };
     const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
     const auto& crossfade = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).crossfade;
     if (!evaluated.get<BackgroundPattern>().to.empty()) {
-        optional<ImagePosition> imagePosA = parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().from);
-        optional<ImagePosition> imagePosB = parameters.imageManager.getPattern(evaluated.get<BackgroundPattern>().to);
+        optional<ImagePosition> imagePosA = parameters.patternAtlas.getPattern(evaluated.get<BackgroundPattern>().from);
+        optional<ImagePosition> imagePosB = parameters.patternAtlas.getPattern(evaluated.get<BackgroundPattern>().to);
 
         if (!imagePosA || !imagePosB)
             return;
@@ -114,7 +103,7 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
                 BackgroundPatternProgram::layoutUniformValues(
                     parameters.matrixForTile(tileID),
                     evaluated.get<BackgroundOpacity>(),
-                    parameters.imageManager.getPixelSize(),
+                    parameters.patternAtlas.getPixelSize(),
                     *imagePosA,
                     *imagePosB,
                     crossfade,
@@ -122,8 +111,9 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
                     parameters.state
                 ),
                 BackgroundPatternProgram::TextureBindings{
-                    textures::image::Value{ parameters.imageManager.textureBinding() },
-                }
+                    textures::image::Value{ parameters.patternAtlas.textureBinding() },
+                },
+                tileID
             );
         }
     } else {
@@ -135,7 +125,8 @@ void RenderBackgroundLayer::render(PaintParameters& parameters, RenderSource*) {
                     uniforms::color::Value( evaluated.get<BackgroundColor>() ),
                     uniforms::opacity::Value( evaluated.get<BackgroundOpacity>() ),
                 },
-                BackgroundProgram::TextureBindings{}
+                BackgroundProgram::TextureBindings{},
+                tileID
             );
         }
     }
@@ -148,6 +139,26 @@ optional<Color> RenderBackgroundLayer::getSolidBackground() const {
     }
 
     return { evaluated.get<BackgroundColor>() * evaluated.get<BackgroundOpacity>() };
+}
+
+namespace {
+void addPatternIfNeeded(const std::string& id, const LayerPrepareParameters& params) {
+    if (!params.patternAtlas.getPattern(id)) {
+        if (auto* image = params.imageManager.getImage(id)) {
+            params.patternAtlas.addPattern(*image);
+        }
+    }  
+}
+} // namespace
+
+void RenderBackgroundLayer::prepare(const LayerPrepareParameters& params) {
+    const auto& evaluated = static_cast<const BackgroundLayerProperties&>(*evaluatedProperties).evaluated;
+    if (!evaluated.get<BackgroundPattern>().to.empty()) {
+        // Ensures that the pattern bitmap gets copied to atlas bitmap. 
+        // Atlas bitmap is uploaded to atlas texture in upload.
+        addPatternIfNeeded(evaluated.get<BackgroundPattern>().from, params);
+        addPatternIfNeeded(evaluated.get<BackgroundPattern>().to, params);
+    }
 }
 
 } // namespace mbgl

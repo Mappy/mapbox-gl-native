@@ -4,12 +4,12 @@ import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
-
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Geometry;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
 
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,7 +80,7 @@ public class GeoJsonSource extends Source {
    */
   public GeoJsonSource(String id, @Nullable String geoJson, GeoJsonOptions options) {
     super();
-    if (geoJson == null || geoJson.startsWith("http")) {
+    if (geoJson == null || geoJson.startsWith("http") || geoJson.startsWith("asset") || geoJson.startsWith("file")) {
       throw new IllegalArgumentException("Expected a raw json body");
     }
     initialize(id, options);
@@ -92,7 +92,9 @@ public class GeoJsonSource extends Source {
    *
    * @param id  the source id
    * @param url remote json file
+   * @deprecated use {@link #GeoJsonSource(String, URI)} instead
    */
+  @Deprecated
   public GeoJsonSource(String id, URL url) {
     super();
     initialize(id, null);
@@ -105,11 +107,74 @@ public class GeoJsonSource extends Source {
    * @param id      the source id
    * @param url     remote json file
    * @param options options
+   * @deprecated use {@link #GeoJsonSource(String, URI, GeoJsonOptions)} instead
    */
+  @Deprecated
   public GeoJsonSource(String id, URL url, GeoJsonOptions options) {
     super();
     initialize(id, options);
     nativeSetUrl(url.toExternalForm());
+  }
+
+  /**
+   * Create a GeoJsonSource from a geo json URI
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param id  the source id
+   * @param uri unique resource identifier
+   */
+  public GeoJsonSource(String id, URI uri) {
+    super();
+    initialize(id, null);
+    nativeSetUrl(uri.toString());
+  }
+
+  /**
+   * Create a GeoJsonSource from a geo json URI and non-default GeoJsonOptions
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param id      the source id
+   * @param uri     remote json file
+   * @param options options
+   */
+  public GeoJsonSource(String id, URI uri, GeoJsonOptions options) {
+    super();
+    initialize(id, options);
+    nativeSetUrl(uri.toString());
   }
 
   /**
@@ -219,14 +284,21 @@ public class GeoJsonSource extends Source {
    * Updates the GeoJson. The update is performed asynchronously,
    * so the data won't be immediately visible or available to query when this method returns.
    *
-   * @param features the GeoJSON FeatureCollection
+   * @param featureCollection the GeoJSON FeatureCollection
    */
-  public void setGeoJson(FeatureCollection features) {
+  public void setGeoJson(@Nullable FeatureCollection featureCollection) {
     if (detached) {
       return;
     }
     checkThread();
-    nativeSetFeatureCollection(features);
+
+    if (featureCollection != null && featureCollection.features() != null) {
+      List<Feature> features = featureCollection.features();
+      List<Feature> featuresCopy = new ArrayList<>(features);
+      nativeSetFeatureCollection(FeatureCollection.fromFeatures(featuresCopy));
+    } else {
+      nativeSetFeatureCollection(featureCollection);
+    }
   }
 
   /**
@@ -247,27 +319,98 @@ public class GeoJsonSource extends Source {
    * Updates the url
    *
    * @param url the GeoJSON FeatureCollection url
+   * @deprecated use {@link #setUri(URI)} instead
    */
+  @Deprecated
   public void setUrl(@NonNull URL url) {
     checkThread();
     setUrl(url.toExternalForm());
   }
 
   /**
+   * Updates the URI of the source.
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param uri the GeoJSON FeatureCollection uri
+   */
+  public void setUri(@NonNull URI uri) {
+    setUri(uri.toString());
+  }
+
+  /**
    * Updates the url
    *
    * @param url the GeoJSON FeatureCollection url
+   * @deprecated use {@link #setUri(String)} instead
    */
+  @Deprecated
   public void setUrl(String url) {
     checkThread();
     nativeSetUrl(url);
   }
 
   /**
+   * Updates the URI of the source.
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param uri the GeoJSON FeatureCollection uri
+   */
+  public void setUri(String uri) {
+    checkThread();
+    nativeSetUrl(uri);
+  }
+
+  /**
    * @return The url or null
+   * @deprecated use {@link #getUri()} instead
    */
   @Nullable
   public String getUrl() {
+    checkThread();
+    return nativeGetUrl();
+  }
+
+  /**
+   * Get the URI of the source.
+   *
+   * @return The uri or null
+   */
+  @Nullable
+  public String getUri() {
     checkThread();
     return nativeGetUrl();
   }
@@ -308,7 +451,7 @@ public class GeoJsonSource extends Source {
    * </p>
    *
    * @param cluster cluster from which to retrieve leaves from
-   * @param limit  limit is the number of points to return
+   * @param limit   limit is the number of points to return
    * @param offset  offset is the amount of points to skip (for pagination)
    * @return a list of features for the underlying leaves
    */
@@ -360,10 +503,10 @@ public class GeoJsonSource extends Source {
   private native Feature[] querySourceFeatures(Object[] filter);
 
   @Keep
-  private native Feature[]  nativeGetClusterChildren(Feature feature);
+  private native Feature[] nativeGetClusterChildren(Feature feature);
 
   @Keep
-  private native Feature[]  nativeGetClusterLeaves(Feature feature, long limit, long offset);
+  private native Feature[] nativeGetClusterLeaves(Feature feature, long limit, long offset);
 
   @Keep
   private native int nativeGetClusterExpansionZoom(Feature feature);

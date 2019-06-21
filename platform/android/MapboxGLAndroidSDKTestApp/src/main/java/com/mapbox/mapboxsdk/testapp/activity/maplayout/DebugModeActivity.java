@@ -101,14 +101,14 @@ public class DebugModeActivity extends AppCompatActivity implements OnMapReadyCa
   }
 
   protected MapboxMapOptions setupMapboxMapOptions() {
-    return new MapboxMapOptions();
+    return MapboxMapOptions.createFromAttributes(this, null);
   }
 
   @Override
   public void onMapReady(@NonNull MapboxMap map) {
     mapboxMap = map;
     mapboxMap.setStyle(
-      new Style.Builder().fromUrl(STYLES[currentStyleIndex]), style -> setupNavigationView(style.getLayers())
+      new Style.Builder().fromUri(STYLES[currentStyleIndex]), style -> setupNavigationView(style.getLayers())
     );
     setupZoomView();
     setFpsView();
@@ -173,7 +173,7 @@ public class DebugModeActivity extends AppCompatActivity implements OnMapReadyCa
         if (currentStyleIndex == STYLES.length) {
           currentStyleIndex = 0;
         }
-        mapboxMap.setStyle(new Style.Builder().fromUrl(STYLES[currentStyleIndex]));
+        mapboxMap.setStyle(new Style.Builder().fromUri(STYLES[currentStyleIndex]));
       }
     });
   }

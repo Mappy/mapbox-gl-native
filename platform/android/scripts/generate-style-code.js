@@ -193,7 +193,7 @@ global.defaultValueJava = function(property) {
       case 'enum':
         return snakeCaseUpper(property.name) + "_" + snakeCaseUpper(Object.keys(property.values)[0]);
       case 'color':
-        return '"rgba(0, 0, 0, 1)"';
+        return '"rgba(255,128,0,0.7)"';
       case 'array':
              switch (property.value) {
               case 'string':
@@ -276,6 +276,10 @@ global.propertyValueDoc = function (property, value) {
             return '{@link Property#' + `${propertyValue}` + '}';
         } else if (str.substr(offset - 4, 3) !== 'CSS' && symbol[0].toUpperCase() != symbol[0]) {
             // Property 'enums'
+            if (symbol === 'symbol-sort-key') {
+               return 'symbol sort key';
+            }
+
             symbol = snakeCaseUpper(symbol);
             return '{@link ' + symbol + '}';
         } else {

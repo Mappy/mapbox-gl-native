@@ -32,7 +32,7 @@ public:
 };
 
 HeadlessBackend::HeadlessBackend(const Size size_, const gfx::ContextMode contextMode_)
-    : mbgl::gl::RendererBackend(contextMode_), mbgl::gfx::Renderable(size_, nullptr) {
+    : mbgl::gl::RendererBackend(contextMode_), mbgl::gfx::HeadlessBackend(size_) {
 }
 
 HeadlessBackend::~HeadlessBackend() {
@@ -72,22 +72,29 @@ gfx::Renderable& HeadlessBackend::getDefaultRenderable() {
     return *this;
 }
 
-Size HeadlessBackend::getFramebufferSize() const {
-    return size;
-}
-
 void HeadlessBackend::updateAssumedState() {
     // no-op
-}
-
-void HeadlessBackend::setSize(Size size_) {
-    size = size_;
-    resource.reset();
 }
 
 PremultipliedImage HeadlessBackend::readStillImage() {
     return static_cast<gl::Context&>(getContext()).readFramebuffer<PremultipliedImage>(size);
 }
 
+RendererBackend* HeadlessBackend::getRendererBackend() {
+    return this;
+}
+
 } // namespace gl
+
+namespace gfx {
+
+template <>
+std::unique_ptr<gfx::HeadlessBackend>
+Backend::Create<gfx::Backend::Type::OpenGL>(const Size size, const gfx::ContextMode contextMode) {
+    return std::make_unique<gl::HeadlessBackend>(size, contextMode);
+}
+
+} // namespace gfx
 } // namespace mbgl
+
+

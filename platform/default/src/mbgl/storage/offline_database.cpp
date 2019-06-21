@@ -613,6 +613,47 @@ void OfflineDatabase::deleteAllTilesAndStyles(void) {
 }
 
 
+std::exception_ptr OfflineDatabase::invalidateTileCache() try {
+    // clang-format off
+    mapbox::sqlite::Query query{ getStatement(
+        "UPDATE tiles "
+        "SET expires = 0, must_revalidate = 1 "
+        "WHERE id NOT IN ("
+        "    SELECT tile_id FROM region_tiles"
+        ")"
+    ) };
+    // clang-format on
+
+    query.run();
+    return nullptr;
+} catch (const mapbox::sqlite::Exception& ex) {
+    handleError(ex, "invalidate tile cache");
+    return std::current_exception();
+}
+
+std::exception_ptr OfflineDatabase::invalidateRegion(int64_t regionID) try {
+    {
+        // clang-format off
+        mapbox::sqlite::Query query{ getStatement(
+            "UPDATE tiles "
+            "SET expires = 0, must_revalidate = 1 "
+            "WHERE id IN ("
+            "    SELECT tile_id FROM region_tiles WHERE region_id = ?"
+            ")"
+        ) };
+        // clang-format on
+
+        query.bind(1, regionID);
+        query.run();
+    }
+
+    assert(db);
+    return nullptr;
+} catch (const mapbox::sqlite::Exception& ex) {
+    handleError(ex, "invalidate region");
+    return std::current_exception();
+}
+
 expected<OfflineRegions, std::exception_ptr> OfflineDatabase::listRegions() try {
     mapbox::sqlite::Query query{ getStatement("SELECT id, definition, description FROM regions") };
     OfflineRegions result;

@@ -63,7 +63,7 @@ interface NativeMap {
 
   LatLng getLatLng();
 
-  void setLatLngBounds(@NonNull LatLngBounds latLngBounds);
+  void setLatLngBounds(@Nullable LatLngBounds latLngBounds);
 
   void setVisibleCoordinateBounds(@NonNull LatLng[] coordinates, @NonNull RectF padding,
                                   double direction, long duration);
@@ -102,10 +102,10 @@ interface NativeMap {
   // Style API
   //
 
-  void setStyleUrl(String url);
+  void setStyleUri(String url);
 
   @NonNull
-  String getStyleUrl();
+  String getStyleUri();
 
   void setStyleJson(String newStyleJson);
 

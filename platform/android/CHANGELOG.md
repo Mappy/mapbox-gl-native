@@ -4,7 +4,77 @@ Mapbox welcomes participation and contributions from everyone.  If you'd like to
 
 ## master
 
-## 8.0.0-beta.1 - May 16, 2019
+### Bugs
+ - Fixed queryRenderedFeatues bug caused by incorrect sort feature index calculation [#14884](https://github.com/mapbox/mapbox-gl-native/pull/14884) 
+
+### Styles and rendering
+
+ - Implemented asymmetric center of perspective: fixed an issue that caused the focal point to be always based on the view's horizontal center when setting [MapboxMap setPadding](https://docs.mapbox.com/android/api/map-sdk/8.0.0/com/mapbox/mapboxsdk/maps/MapboxMap.html#setPadding-int-int-int-int-). [#14664](https://github.com/mapbox/mapbox-gl-native/pull/14664)
+
+## 8.1.0-beta.1 - June 13, 2019
+
+### Bugs
+ - Fix compilation warning with updated clang [#14865](https://github.com/mapbox/mapbox-gl-native/pull/14865)
+ - Fix reset behavior for setLatLngBoundsForCameraTarget [#14882](https://github.com/mapbox/mapbox-gl-native/pull/14882)
+
+### Features
+ - Change library loader to soloader [#14890](https://github.com/mapbox/mapbox-gl-native/pull/14890)
+ -  Add resource usage to HttpRequest, add offline query param [#14837](https://github.com/mapbox/mapbox-gl-native/pull/14837)
+
+## 8.0.1 - June 11, 2019
+
+### Bugs
+ - Reset the native renderer only when the GL thread exits [#14841](https://github.com/mapbox/mapbox-gl-native/pull/14841)
+ - Change library loader from Relinker to SoLoader [#14890](https://github.com/mapbox/mapbox-gl-native/pull/14890)
+
+## 8.1.0-alpha.2 - June 6, 2019
+
+### Bugs
+ - Copy features array before passing them to core [#14804](https://github.com/mapbox/mapbox-gl-native/pull/14804)
+ - Improve test stability [#14853](https://github.com/mapbox/mapbox-gl-native/pull/14853)
+
+### Features
+ - Rename URL API to URI [#14836](https://github.com/mapbox/mapbox-gl-native/pull/14836)
+
+### Build
+ - Bumping Android telemetry to 4.5.1 [#14874](https://github.com/mapbox/mapbox-gl-native/pull/14874)
+
+### Docs
+ - Add external links to javadoc generation, fix warnings [#14792](https://github.com/mapbox/mapbox-gl-native/pull/14792)
+
+## 8.1.0-alpha.1 - June 3, 2019
+
+### Bugs
+ - Return color string values in the [0-255] range [#14233](https://github.com/mapbox/mapbox-gl-native/pull/14233)
+ - Resume file source to complete resources cache path change [#14546](https://github.com/mapbox/mapbox-gl-native/pull/14546)
+ - Remove binary shader support [#14707](https://github.com/mapbox/mapbox-gl-native/pull/14707)
+ - Deprecate MapboxMapOptions empty constructor [#14748](https://github.com/mapbox/mapbox-gl-native/pull/14748)
+
+
+### Features
+ - Break location camera tracking when a developer invoked animation starts [#14745](https://github.com/mapbox/mapbox-gl-native/pull/14745)
+ - Use URI instead of URL to enable asset loading [#14750](https://github.com/mapbox/mapbox-gl-native/pull/14750)
+ - Option to change the zoom rate. Decrease the default zoom rate by 35% [#14774](https://github.com/mapbox/mapbox-gl-native/pull/14774)
+ - Provide API to control eviction of cached images [#14610](https://github.com/mapbox/mapbox-gl-native/pull/14610)
+ - Android specific thread pool that keeps threads attached to JVM [#14450](https://github.com/mapbox/mapbox-gl-native/pull/14450)
+ - Asymmetric viewport when edge insets are specified [#14664](https://github.com/mapbox/mapbox-gl-native/pull/14664)
+
+### Build
+ - Update maven publishing script to enable aar packaging [#14778](https://github.com/mapbox/mapbox-gl-native/pull/14778)
+ - Do not try to package duplicate files in the publication [#14822](https://github.com/mapbox/mapbox-gl-native/pull/14822)
+
+### Docs
+ - Document that elevation(0) turns off the location shadow [#14723](https://github.com/mapbox/mapbox-gl-native/pull/14723)
+
+## 8.0.0 - May 22, 2019
+ - This release improves the method for counting monthly active users. By upgrading to this release, you are opting into the changes outlined [in this blog post](https://www.mapbox.com/52219). [#14404](https://github.com/mapbox/mapbox-gl-native/pull/14404)
+
+## 6.8.2 - May 17, 2019
+
+### Bugs
+ - Avoid binary shader load race condition with using multiple maps, disable binary shaders [#14298](https://github.com/mapbox/mapbox-gl-native/pull/14298)
+
+## 7.5.0-beta.1 - May 17, 2019
 
 ### Features
  - Option to provide custom values for location camera transition [#14606](https://github.com/mapbox/mapbox-gl-native/pull/14606)

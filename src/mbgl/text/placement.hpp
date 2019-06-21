@@ -10,7 +10,6 @@
 
 namespace mbgl {
 
-class RenderLayerSymbolInterface;
 class SymbolBucket;
 class SymbolInstance;
 
@@ -88,13 +87,21 @@ private:
     uint16_t maxGroupID;
     bool crossSourceCollisions;
 };
+
+class BucketPlacementParameters {
+public:
+    const RenderTile& tile;
+    const mat4& projMatrix;
+    std::string sourceId;
+    bool showCollisionBoxes;
+};
     
 class Placement {
 public:
     Placement(const TransformState&, MapMode, style::TransitionOptions, const bool crossSourceCollisions, std::unique_ptr<Placement> prevPlacementOrNull = nullptr);
-    void placeLayer(const RenderLayerSymbolInterface&, const mat4&, bool showCollisionBoxes);
+    void placeLayer(const RenderLayer&, const mat4&, bool showCollisionBoxes);
     void commit(TimePoint);
-    void updateLayerOpacities(const RenderLayerSymbolInterface&);
+    void updateLayerBuckets(const RenderLayer&, const TransformState&,  bool updateOpacities);
     float symbolFadeChange(TimePoint now) const;
     bool hasTransitions(TimePoint now) const;
 
@@ -105,28 +112,19 @@ public:
     void setStale();
     
     const RetainedQueryData& getQueryData(uint32_t bucketInstanceId) const;
-    using VariableOffsets = std::unordered_map<uint32_t, VariableOffset>;
-    const VariableOffsets& getVariableOffsets() const { return variableOffsets; }
-
 private:
-    void placeLayerBucket(
+    friend SymbolBucket;
+    void placeBucket(
             SymbolBucket&,
-            const mat4& posMatrix,
-            const mat4& textLabelPlaneMatrix,
-            const mat4& iconLabelPlaneMatrix,
-            const float scale,
-            const float pixelRatio,
-            const bool showCollisionBoxes,
-            std::unordered_set<uint32_t>& seenCrossTileIDs,
-            const bool holdingForFade,
-            const CollisionGroups::CollisionGroup& collisionGroup);
-
-    void updateBucketOpacities(SymbolBucket&, std::set<uint32_t>&);
+            const BucketPlacementParameters&,
+            std::set<uint32_t>& seenCrossTileIDs);
+    // Returns `true` if bucket vertices were updated; returns `false` otherwise.
+    bool updateBucketDynamicVertices(SymbolBucket&, const TransformState&, const RenderTile& tile);
+    void updateBucketOpacities(SymbolBucket&, const TransformState&, std::set<uint32_t>&);
     void markUsedJustification(SymbolBucket&, style::TextVariableAnchorType, SymbolInstance&);
 
     CollisionIndex collisionIndex;
 
-    TransformState state;
     MapMode mapMode;
     style::TransitionOptions transitionOptions;
 

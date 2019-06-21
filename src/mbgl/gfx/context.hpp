@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mbgl/gfx/backend.hpp>
 #include <mbgl/gfx/renderbuffer.hpp>
 #include <mbgl/gfx/command_encoder.hpp>
 #include <mbgl/gfx/draw_scope.hpp>
@@ -17,12 +18,11 @@ class OffscreenTexture;
 
 class Context {
 protected:
-    Context(ContextType type_, uint32_t maximumVertexBindingCount_)
-        : backend(type_), maximumVertexBindingCount(maximumVertexBindingCount_) {
+    Context(uint32_t maximumVertexBindingCount_)
+        : maximumVertexBindingCount(maximumVertexBindingCount_) {
     }
 
 public:
-    const ContextType backend;
     static constexpr const uint32_t minimumRequiredVertexBindingCount = 8;
     const uint32_t maximumVertexBindingCount;
     bool supportsHalfFloatTextures = false;
@@ -38,15 +38,13 @@ public:
     // Called at the end of a frame.
     virtual void performCleanup() = 0;
 
+    // Called when the app receives a memory warning and before it goes to the background.
+    virtual void reduceMemoryUsage() = 0;
+
 public:
     virtual std::unique_ptr<OffscreenTexture>
         createOffscreenTexture(Size,
                                TextureChannelDataType = TextureChannelDataType::UnsignedByte) = 0;
-    virtual std::unique_ptr<OffscreenTexture>
-    createOffscreenTexture(Size,
-                           Renderbuffer<RenderbufferPixelType::Depth>&,
-                           TextureChannelDataType = TextureChannelDataType::UnsignedByte) = 0;
-
 public:
     // Creates an empty texture with the specified dimensions.
     Texture createTexture(const Size size,
@@ -80,11 +78,9 @@ protected:
 
 public:
     template <typename Name>
-    std::unique_ptr<Program<Name>> createProgram(const ProgramParameters&);
-
-private:
-    template <typename Backend, typename Name>
-    std::unique_ptr<Program<Name>> createProgram(const ProgramParameters&);
+    std::unique_ptr<Program<Name>> createProgram(const ProgramParameters& programParameters) {
+        return Backend::Create<Program<Name>, const ProgramParameters&>(programParameters);
+    }
 
 public:
     virtual std::unique_ptr<CommandEncoder> createCommandEncoder() = 0;

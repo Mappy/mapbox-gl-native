@@ -27,7 +27,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
         NSBundle *bundle = [NSBundle mainBundle];
         NSNumber *accountTypeNumber = [bundle objectForInfoDictionaryKey:MGLMapboxAccountType];
         [[NSUserDefaults standardUserDefaults] registerDefaults:@{MGLMapboxAccountType: accountTypeNumber ?: @0,
-                                                                  MGLMapboxMetricsEnabled: @NO,
+                                                                  MGLMapboxMetricsEnabled: @YES,
                                                                   MGLMapboxMetricsDebugLoggingEnabled: @NO}];
     }
 }
@@ -37,7 +37,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
     static dispatch_once_t onceToken;
     static MGLMapboxEvents *_sharedInstance;
     dispatch_once(&onceToken, ^{
-		_sharedInstance = nil; //[[self alloc] init];
+        _sharedInstance = [[self alloc] init];
     });
     return _sharedInstance;
 }
@@ -45,7 +45,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _eventsManager = [[MMEEventsManager alloc] init];
+        _eventsManager = MMEEventsManager.sharedManager;
         _eventsManager.debugLoggingEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:MGLMapboxMetricsDebugLoggingEnabled];
         _eventsManager.accountType = [[NSUserDefaults standardUserDefaults] integerForKey:MGLMapboxAccountType];
         _eventsManager.metricsEnabled = [[NSUserDefaults standardUserDefaults] boolForKey:MGLMapboxMetricsEnabled];
@@ -145,7 +145,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
             [[MGLMapboxEvents sharedInstance] eventsManager].baseURL = [MGLMapboxEvents sharedInstance].baseURL;
         }
 
-        [[self sharedInstance] eventsManager].skuId = MBXAccountsSKUIDMaps;
+        [[self sharedInstance] eventsManager].skuId = MBXAccountsSKUIDMapsUser;
         
         [self flush];
     });
@@ -170,7 +170,7 @@ static NSString * const MGLVariableGeofence = @"VariableGeofence";
     if (!metricsEnabledSettingShownInAppFlag &&
         [[NSUserDefaults standardUserDefaults] integerForKey:MGLMapboxAccountType] == 0) {
         // Opt-out is not configured in UI, so check for Settings.bundle
-        id defaultEnabledValue = @(NO);
+        id defaultEnabledValue;
         NSString *appSettingsBundle = [[NSBundle mainBundle] pathForResource:@"Settings" ofType:@"bundle"];
         
         if (appSettingsBundle) {

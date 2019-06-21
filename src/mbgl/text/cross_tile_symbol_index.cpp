@@ -1,7 +1,6 @@
 #include <mbgl/text/cross_tile_symbol_index.hpp>
 #include <mbgl/layout/symbol_instance.hpp>
 #include <mbgl/renderer/buckets/symbol_bucket.hpp>
-#include <mbgl/renderer/layers/render_layer_symbol_interface.hpp>
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/tile/tile.hpp>
 
@@ -164,36 +163,21 @@ bool CrossTileSymbolLayerIndex::removeStaleBuckets(const std::unordered_set<uint
 
 CrossTileSymbolIndex::CrossTileSymbolIndex() = default;
 
-bool CrossTileSymbolIndex::addLayer(const RenderLayerSymbolInterface& symbolInterface, float lng) {
-
-    auto& layerIndex = layerIndexes[symbolInterface.layerID()];
+bool CrossTileSymbolIndex::addLayer(const RenderLayer& layer, float lng) {
+    auto& layerIndex = layerIndexes[layer.getID()];
 
     bool symbolBucketsChanged = false;
     std::unordered_set<uint32_t> currentBucketIDs;
 
     layerIndex.handleWrapJump(lng);
 
-    for (const RenderTile& renderTile : symbolInterface.getRenderTiles()) {
-        assert(renderTile.tile.isRenderable());
-
-        auto bucket = symbolInterface.getSymbolBucket(renderTile);
-        if (!bucket) {
-            continue;
-        }
-        SymbolBucket& symbolBucket = *bucket;
-
-        if (symbolBucket.bucketLeaderID != symbolInterface.layerID()) {
-            // Only add this layer if it's the "group leader" for the bucket
-            continue;
-        }
-
-        if (!symbolBucket.bucketInstanceId) {
-            symbolBucket.bucketInstanceId = ++maxBucketInstanceId;
-        }
-
-        const bool bucketAdded = layerIndex.addBucket(renderTile.tile.id, symbolBucket, maxCrossTileID);
-        symbolBucketsChanged = symbolBucketsChanged || bucketAdded;
-        currentBucketIDs.insert(symbolBucket.bucketInstanceId);
+    for (const auto& item : layer.getPlacementData()) {
+        RenderTile& renderTile = item.tile;
+        Bucket& bucket = item.bucket;
+        auto result = bucket.registerAtCrossTileIndex(layerIndex, renderTile.getOverscaledTileID(), maxCrossTileID);
+        assert(result.first != 0u);
+        symbolBucketsChanged = symbolBucketsChanged || result.second;
+        currentBucketIDs.insert(result.first);
     }
 
     if (layerIndex.removeStaleBuckets(currentBucketIDs)) {
@@ -203,14 +187,12 @@ bool CrossTileSymbolIndex::addLayer(const RenderLayerSymbolInterface& symbolInte
 }
 
 void CrossTileSymbolIndex::pruneUnusedLayers(const std::set<std::string>& usedLayers) {
-    std::vector<std::string> unusedLayers;
-    for (auto layerIndex : layerIndexes) {
-        if (usedLayers.find(layerIndex.first) == usedLayers.end()) {
-            unusedLayers.push_back(layerIndex.first);
+    for (auto it = layerIndexes.begin(); it != layerIndexes.end();) {
+        if (usedLayers.find(it->first) == usedLayers.end()) {
+            it = layerIndexes.erase(it);
+        } else {
+            ++it;
         }
-    }
-    for (auto unusedLayer : unusedLayers) {
-        layerIndexes.erase(unusedLayer);
     }
 }
 

@@ -16,8 +16,8 @@ template <>
 struct ShaderSource<RasterProgram> {
     static constexpr const char* name = "raster";
     static constexpr const uint8_t hash[8] = { 0x40, 0x3d, 0x6c, 0xf4, 0xd0, 0x41, 0x51, 0x0e };
-    static constexpr const auto vertexOffset = 48671;
-    static constexpr const auto fragmentOffset = 49020;
+    static constexpr const auto vertexOffset = 48827;
+    static constexpr const auto fragmentOffset = 49176;
 };
 
 constexpr const char* ShaderSource<RasterProgram>::name;
@@ -29,8 +29,8 @@ constexpr const uint8_t ShaderSource<RasterProgram>::hash[8];
 namespace gfx {
 
 template <>
-std::unique_ptr<Program<RasterProgram>>
-Context::createProgram<gl::Context>(const ProgramParameters& programParameters) {
+std::unique_ptr<gfx::Program<RasterProgram>>
+Backend::Create<gfx::Backend::Type::OpenGL>(const ProgramParameters& programParameters) {
     return std::make_unique<gl::Program<RasterProgram>>(programParameters);
 }
 

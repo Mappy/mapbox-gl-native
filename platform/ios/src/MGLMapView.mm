@@ -1,7 +1,5 @@
 #import "MGLMapView_Private.h"
-
-#import <GLKit/GLKit.h>
-#import <OpenGLES/EAGL.h>
+#import "MGLMapView+Impl.h"
 
 #include <mbgl/map/map.hpp>
 #include <mbgl/map/map_options.hpp>
@@ -17,8 +15,6 @@
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/style/layers/custom_layer.hpp>
 #include <mbgl/renderer/renderer.hpp>
-#import <mbgl/gl/renderer_backend.hpp>
-#import <mbgl/gl/renderable_resource.hpp>
 #include <mbgl/math/wrap.hpp>
 #include <mbgl/util/exception.hpp>
 #include <mbgl/util/geo.hpp>
@@ -78,7 +74,6 @@
 #include <map>
 #include <unordered_set>
 
-class MBGLView;
 class MGLAnnotationContext;
 
 const MGLMapViewDecelerationRate MGLMapViewDecelerationRateNormal = UIScrollViewDecelerationRateNormal;
@@ -192,15 +187,12 @@ public:
 #pragma mark - Private -
 
 @interface MGLMapView () <UIGestureRecognizerDelegate,
-                          GLKViewDelegate,
                           MGLLocationManagerDelegate,
                           MGLSMCalloutViewDelegate,
                           MGLCalloutViewDelegate,
                           MGLMultiPointDelegate,
                           MGLAnnotationImageDelegate>
 
-@property (nonatomic, readwrite) EAGLContext *context;
-@property (nonatomic) GLKView *glView;
 @property (nonatomic) UIImageView *glSnapshotView;
 
 @property (nonatomic) NSMutableArray<NSLayoutConstraint *> *scaleBarConstraints;
@@ -275,7 +267,7 @@ public:
 @implementation MGLMapView
 {
     mbgl::Map *_mbglMap;
-    MBGLView *_mbglView;
+    std::unique_ptr<MGLMapViewImpl> _mbglView;
     std::unique_ptr<MGLRenderFrontend> _rendererFrontend;
     
     BOOL _opaque;
@@ -328,9 +320,6 @@ public:
     CFTimeInterval _frameCounterStartTime;
     NSInteger _frameCount;
     CFTimeInterval _frameDurations;
-    
-    BOOL _atLeastiOS_12_2_0;
-
 }
 
 #pragma mark - Setup & Teardown -
@@ -441,13 +430,6 @@ public:
 - (void)commonInit
 {
     _opaque = NO;
-    _atLeastiOS_12_2_0 = [NSProcessInfo.processInfo isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){12,2,0}];
-
-    BOOL background = [UIApplication sharedApplication].applicationState == UIApplicationStateBackground;
-    if (!background)
-    {
-        [self createGLView];
-    }
 
     // setup accessibility
     //
@@ -463,8 +445,13 @@ public:
     self.preferredFramesPerSecond = MGLMapViewPreferredFramesPerSecondDefault;
 
     // setup mbgl view
-    _mbglView = new MBGLView(self);
-
+    _mbglView = MGLMapViewImpl::Create(self);
+    
+    BOOL background = [UIApplication sharedApplication].applicationState == UIApplicationStateBackground;
+    if (!background)
+    {
+        _mbglView->createView();
+    }
     // Delete the pre-offline ambient cache at ~/Library/Caches/cache.db.
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
     NSString *fileCachePath = [paths.firstObject stringByAppendingPathComponent:@"cache.db"];
@@ -473,9 +460,9 @@ public:
     // setup mbgl map
     MGLRendererConfiguration *config = [MGLRendererConfiguration currentConfiguration];
 
-    auto renderer = std::make_unique<mbgl::Renderer>(*_mbglView, config.scaleFactor, config.cacheDir, config.localFontFamilyName);
+    auto renderer = std::make_unique<mbgl::Renderer>(_mbglView->getRendererBackend(), config.scaleFactor, config.cacheDir, config.localFontFamilyName);
     BOOL enableCrossSourceCollisions = !config.perSourceCollisions;
-    _rendererFrontend = std::make_unique<MGLRenderFrontend>(std::move(renderer), self, *_mbglView);
+    _rendererFrontend = std::make_unique<MGLRenderFrontend>(std::move(renderer), self, _mbglView->getRendererBackend());
 
     mbgl::MapOptions mapOptions;
     mapOptions.withMapMode(mbgl::MapMode::Continuous)
@@ -641,7 +628,7 @@ public:
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willEnterForeground:) name:UIApplicationWillEnterForegroundNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
     
-    // As of 3.7.5, we intentionally do not listen for `UIApplicationWillResignActiveNotification` or call `sleepGL:` in response to it, as doing
+    // As of 3.7.5, we intentionally do not listen for `UIApplicationWillResignActiveNotification` or call `pauseRendering:` in response to it, as doing
     // so causes a loop when asking for location permission. See: https://github.com/mapbox/mapbox-gl-native/issues/11225
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didReceiveMemoryWarning) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
@@ -680,47 +667,6 @@ public:
     CGSize size = CGSizeMake(MAX(self.bounds.size.width, 64), MAX(self.bounds.size.height, 64));
     return { static_cast<uint32_t>(size.width),
              static_cast<uint32_t>(size.height) };
-}
-
-- (mbgl::Size)framebufferSize
-{
-    return { static_cast<uint32_t>(self.glView.drawableWidth),
-             static_cast<uint32_t>(self.glView.drawableHeight) };
-}
-
-+ (GLKView *)GLKViewWithFrame:(CGRect)frame context:(EAGLContext *)context opaque:(BOOL)opaque
-{
-    GLKView *glView = [[GLKView alloc] initWithFrame:frame context:context];
-    glView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    glView.enableSetNeedsDisplay = NO;
-    glView.drawableStencilFormat = GLKViewDrawableStencilFormat8;
-    glView.drawableDepthFormat = GLKViewDrawableDepthFormat16;
-    glView.contentScaleFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ? [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
-    glView.layer.opaque = opaque;
-    glView.contentMode = UIViewContentModeCenter;
-    
-    return glView;
-}
-
-- (void)createGLView
-{
-    if (_context) return;
-
-    // create context
-    //
-    _context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-    MGLAssert(_context, @"Failed to create OpenGL ES context.");
-
-    // create GL view
-    //
-    _glView = [MGLMapView GLKViewWithFrame:self.bounds context:_context opaque:_opaque];
-    _glView.delegate = self;
-
-    CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-    eaglLayer.presentsWithTransaction = NO;
-    
-    [_glView bindDrawable];
-    [self insertSubview:_glView atIndex:0];
 }
 
 - (UIImage *)compassImage
@@ -768,8 +714,7 @@ public:
     delete _mbglMap;
     _mbglMap = nullptr;
 
-    delete _mbglView;
-    _mbglView = nullptr;
+    _mbglView.reset();
 
     _rendererFrontend.reset();
 }
@@ -794,11 +739,6 @@ public:
 
     [self destroyCoreObjects];
 
-    if ([[EAGLContext currentContext] isEqual:_context])
-    {
-        [EAGLContext setCurrentContext:nil];
-    }
-    
     [self.compassViewConstraints removeAllObjects];
     self.compassViewConstraints = nil;
     
@@ -839,6 +779,11 @@ public:
     }
     
     self.lastSnapshotImage = nil;
+}
+
+- (MGLMapViewImpl *)viewImpl
+{
+    return _mbglView.get();
 }
 
 #pragma mark - Layout -
@@ -982,11 +927,13 @@ public:
 
 - (void)setOpaque:(BOOL)opaque
 {
-    _glView.layer.opaque = _opaque = opaque;
+    _opaque = opaque;
+    if (_mbglView) {
+        _mbglView->setOpaque(opaque);
+    }
 }
 
-// This is the delegate of the GLKView object's display call.
-- (void)glkView:(__unused GLKView *)view drawInRect:(__unused CGRect)rect
+- (void)renderSync
 {
     if ( ! self.dormant && _rendererFrontend)
     {
@@ -1008,6 +955,10 @@ public:
     [super layoutSubviews];
 
     [self adjustContentInset];
+
+    if (_mbglView) {
+        _mbglView->layoutChanged();
+    }
 
     if (_mbglMap) {
         self.mbglMap.setSize([self size]);
@@ -1081,24 +1032,19 @@ public:
         return;
     }
 
-    // After adjusting the content inset, move the center coordinate from the
-    // old frame of reference to the new one represented by the newly set
-    // content inset.
-    CLLocationCoordinate2D oldCenter = self.centerCoordinate;
-
-    _contentInset = contentInset;
-
     if (self.userTrackingMode == MGLUserTrackingModeNone)
     {
         // Don’t call -setCenterCoordinate:, which resets the user tracking mode.
-        [self _setCenterCoordinate:oldCenter animated:animated];
+        [self _setCenterCoordinate:self.centerCoordinate edgePadding:contentInset zoomLevel:self.zoomLevel direction:self.direction duration:animated ? MGLAnimationDuration : 0 animationTimingFunction:nil completionHandler:nil];
+        _contentInset = contentInset;
     }
     else
     {
+        _contentInset = contentInset;
         [self didUpdateLocationWithUserTrackingAnimated:animated];
     }
 
-    // Compass, logo and attribution button constraints needs to be updated.
+    // Compass, logo and attribution button constraints needs to be updated.z
     [self installConstraints];
 }
 
@@ -1148,27 +1094,7 @@ public:
         [self updateAnnotationViews];
         [self updateCalloutView];
 
-#ifdef MGL_RECREATE_GL_IN_AN_EMERGENCY
-        // See https://github.com/mapbox/mapbox-gl-native/issues/14232
-        // glClear can be blocked for 1 second. This code is an "escape hatch",
-        // an attempt to detect this situation and rebuild the GL views.
-        if (self.enablePresentsWithTransaction && _atLeastiOS_12_2_0)
-        {
-            CFTimeInterval before = CACurrentMediaTime();
-            [self.glView display];
-            CFTimeInterval after = CACurrentMediaTime();
-            
-            if (after-before >= 1.0) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [self emergencyRecreateGL];
-                });
-            }
-        }
-        else
-#endif
-        {
-            [self.glView display];
-        }
+        _mbglView->display();
     }
 
     if (self.experimental_enableFrameRateMeasurement)
@@ -1193,7 +1119,7 @@ public:
     }
 }
 
-- (void)setNeedsGLDisplay
+- (void)setNeedsRerender
 {
     MGLAssertIsMainThread();
 
@@ -1208,7 +1134,7 @@ public:
     {
         [self validateDisplayLink];
         self.dormant = YES;
-        [self.glView deleteDrawable];
+        _mbglView->deleteView();
     }
 
     [self destroyCoreObjects];
@@ -1294,52 +1220,9 @@ public:
     
     // If the map is visible, change the layer property too
     if (self.window) {
-        CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-        eaglLayer.presentsWithTransaction = _enablePresentsWithTransaction;
+        _mbglView->setPresentsWithTransaction(_enablePresentsWithTransaction);
     }
 }
-
-#ifdef MGL_RECREATE_GL_IN_AN_EMERGENCY
-// See https://github.com/mapbox/mapbox-gl-native/issues/14232
-- (void)emergencyRecreateGL {
-    MGLLogError(@"Rendering took too long - creating GL views");
-
-    CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-    eaglLayer.presentsWithTransaction = NO;
-
-    [self sleepGL:nil];
-
-    // Just performing a sleepGL/wakeGL pair isn't sufficient - in this case
-    // we can still get errors when calling bindDrawable. Here we completely
-    // recreate the GLKView
-    
-    [self.userLocationAnnotationView removeFromSuperview];
-    [_glView removeFromSuperview];
-    
-    _glView = [MGLMapView GLKViewWithFrame:self.bounds context:_context opaque:_opaque];
-    _glView.delegate = self;
-
-    [self insertSubview:_glView atIndex:0];
-
-    if (self.annotationContainerView)
-    {
-        [_glView insertSubview:self.annotationContainerView atIndex:0];
-    }
-    
-    [self updateUserLocationAnnotationView];
-    
-    // Do not bind...yet
-    
-    if (self.window) {
-        [self wakeGL:nil];
-        CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-        eaglLayer.presentsWithTransaction = self.enablePresentsWithTransaction;
-    }
-    else {
-        MGLLogDebug(@"No window - skipping wakeGL");
-    }
-}
-#endif
 
 - (void)willMoveToWindow:(UIWindow *)newWindow {
     [super willMoveToWindow:newWindow];
@@ -1351,9 +1234,8 @@ public:
         // In iOS 12.2, CAEAGLLayer.presentsWithTransaction can cause dramatic
         // slow down. The exact cause of this is unknown, but this work around
         // appears to lessen the effects.
-        CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-        eaglLayer.presentsWithTransaction = NO;
-        
+        _mbglView->setPresentsWithTransaction(NO);
+
         // Moved from didMoveToWindow
         [self validateDisplayLink];
     }
@@ -1366,9 +1248,8 @@ public:
     if (self.window)
     {
         // See above comment
-        CAEAGLLayer *eaglLayer = MGL_OBJC_DYNAMIC_CAST(_glView.layer, CAEAGLLayer);
-        eaglLayer.presentsWithTransaction = self.enablePresentsWithTransaction;
-        
+        _mbglView->setPresentsWithTransaction(self.enablePresentsWithTransaction);
+
         [self validateDisplayLink];
     }
 }
@@ -1485,7 +1366,7 @@ public:
         return;
     }
     
-    self.lastSnapshotImage = self.glView.snapshot;
+    self.lastSnapshotImage = _mbglView->snapshot();
     
     // For OpenGL this calls glFinish as recommended in
     // https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/ImplementingaMultitasking-awareOpenGLESApplication/ImplementingaMultitasking-awareOpenGLESApplication.html#//apple_ref/doc/uid/TP40008793-CH5-SW1
@@ -1498,21 +1379,25 @@ public:
 
 - (void)didEnterBackground:(NSNotification *)notification
 {
-    [self sleepGL:notification];
+    [self pauseRendering:notification];
 }
 
 - (void)willEnterForeground:(NSNotification *)notification
 {
-    // Do nothing, currently if wakeGL is called here it's a no-op.
+    // Do nothing, currently if resumeRendering is called here it's a no-op.
 }
 
 - (void)didBecomeActive:(NSNotification *)notification
 {
-    [self wakeGL:notification];
+    [self resumeRendering:notification];
     self.lastSnapshotImage = nil;
 }
 
 #pragma mark - GL / display link wake/sleep
+
+- (EAGLContext *)context {
+    return _mbglView->getEAGLContext();
+}
 
 - (BOOL)supportsBackgroundRendering
 {
@@ -1524,9 +1409,7 @@ public:
     return (self.window.screen != [UIScreen mainScreen]);
 }
 
-
-
-- (void)sleepGL:(__unused NSNotification *)notification
+- (void)pauseRendering:(__unused NSNotification *)notification
 {
     // If this view targets an external display, such as AirPlay or CarPlay, we
     // can safely continue to render OpenGL content without tripping
@@ -1563,10 +1446,10 @@ public:
 
         if ( ! self.glSnapshotView)
         {
-            self.glSnapshotView = [[UIImageView alloc] initWithFrame:self.glView.frame];
-            self.glSnapshotView.autoresizingMask = self.glView.autoresizingMask;
+            self.glSnapshotView = [[UIImageView alloc] initWithFrame: _mbglView->getView().frame];
+            self.glSnapshotView.autoresizingMask = _mbglView->getView().autoresizingMask;
             self.glSnapshotView.contentMode = UIViewContentModeCenter;
-            [self insertSubview:self.glSnapshotView aboveSubview:self.glView];
+            [self insertSubview:self.glSnapshotView aboveSubview:_mbglView->getView()];
         }
 
         self.glSnapshotView.image = self.lastSnapshotImage;
@@ -1580,11 +1463,11 @@ public:
             [self.glSnapshotView addSubview:snapshotTint];
         }
 
-        [self.glView deleteDrawable];
+        _mbglView->deleteView();
     }
 }
 
-- (void)wakeGL:(__unused NSNotification *)notification
+- (void)resumeRendering:(__unused NSNotification *)notification
 {
     MGLLogInfo(@"Entering foreground.");
     MGLAssertIsMainThread();
@@ -1593,13 +1476,11 @@ public:
     {
         self.dormant = NO;
 
-        [self createGLView];
+        _mbglView->createView();
 
         self.glSnapshotView.hidden = YES;
 
         [self.glSnapshotView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
-
-        [self.glView bindDrawable];
 
         _displayLink.paused = NO;
 
@@ -3331,7 +3212,7 @@ public:
                 zoomLevel,
                 direction,
                 MGLStringFromBOOL(animated));
-    [self setCenterCoordinate:centerCoordinate zoomLevel:zoomLevel direction:direction animated:animated completionHandler:NULL];
+    [self setCenterCoordinate:centerCoordinate zoomLevel:zoomLevel direction:direction animated:animated completionHandler:nil];
 }
 
 - (void)setCenterCoordinate:(CLLocationCoordinate2D)centerCoordinate zoomLevel:(double)zoomLevel direction:(CLLocationDirection)direction animated:(BOOL)animated completionHandler:(nullable void (^)(void))completion
@@ -3347,10 +3228,6 @@ public:
     self.cameraChangeReasonBitmask |= MGLCameraChangeReasonProgrammatic;
 
     [self _setCenterCoordinate:centerCoordinate edgePadding:self.contentInset zoomLevel:zoomLevel direction:direction duration:animated ? MGLAnimationDuration : 0 animationTimingFunction:nil completionHandler:completion];
-}
-
-- (void)_setCenterCoordinate:(CLLocationCoordinate2D)centerCoordinate animated:(BOOL)animated {
-    [self _setCenterCoordinate:centerCoordinate edgePadding:self.contentInset zoomLevel:self.zoomLevel direction:self.direction duration:animated ? MGLAnimationDuration : 0 animationTimingFunction:nil completionHandler:NULL];
 }
 
 - (void)_setCenterCoordinate:(CLLocationCoordinate2D)centerCoordinate edgePadding:(UIEdgeInsets)insets zoomLevel:(double)zoomLevel direction:(CLLocationDirection)direction duration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion
@@ -3392,7 +3269,7 @@ public:
     }
     
     MGLMapCamera *camera = [self cameraForCameraOptions:cameraOptions];
-    if ([self.camera isEqualToMapCamera:camera])
+    if ([self.camera isEqualToMapCamera:camera] && UIEdgeInsetsEqualToEdgeInsets(_contentInset, insets))
     {
         if (completion)
         {
@@ -3597,7 +3474,10 @@ public:
             });
         };
     }
-    
+
+    // Padding is baked in adjusted camera center (in cameraForLatLngs) and
+    // cameraOptions.padding at this point is (0, 0, 0, 0) and we don't need to
+    // check if cameraOptions.contentInsets are equal to contentInsets.
     MGLMapCamera *camera = [self cameraForCameraOptions:cameraOptions];
     if ([self.camera isEqualToMapCamera:camera])
     {
@@ -3716,13 +3596,13 @@ public:
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function
 {
     MGLLogDebug(@"Setting camera: %@ duration: %f animationTimingFunction: %@", camera, duration, function);
-    [self setCamera:camera withDuration:duration animationTimingFunction:function completionHandler:NULL];
+    [self setCamera:camera withDuration:duration animationTimingFunction:function completionHandler:nil];
 }
 
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function completionHandler:(nullable void (^)(void))completion
 {
     MGLLogDebug(@"Setting camera: %@ duration: %f animationTimingFunction: %@ completionHandler: %@", camera, duration, function, completion);
-    [self setCamera:camera withDuration:duration animationTimingFunction:function edgePadding:self.contentInset completionHandler:completion];
+    [self setCamera:camera withDuration:duration animationTimingFunction:function edgePadding:UIEdgeInsetsZero completionHandler:completion];
 }
 
 - (void)setCamera:(MGLMapCamera *)camera withDuration:(NSTimeInterval)duration animationTimingFunction:(nullable CAMediaTimingFunction *)function edgePadding:(UIEdgeInsets)edgePadding completionHandler:(nullable void (^)(void))completion {
@@ -3736,6 +3616,8 @@ public:
     }
 
     MGLLogDebug(@"Setting camera: %@ duration: %f animationTimingFunction: %@ edgePadding: %@ completionHandler: %@", camera, duration, function, NSStringFromUIEdgeInsets(edgePadding), completion);
+    
+    edgePadding = MGLEdgeInsetsInsetEdgeInset(edgePadding, self.contentInset);
 
     mbgl::AnimationOptions animationOptions;
     if (duration > 0)
@@ -3752,7 +3634,7 @@ public:
         };
     }
     
-    if ([self.camera isEqualToMapCamera:camera])
+    if ([self.camera isEqualToMapCamera:camera] && UIEdgeInsetsEqualToEdgeInsets(_contentInset, edgePadding))
     {
         if (completion)
         {
@@ -3823,7 +3705,7 @@ public:
         };
     }
     
-    if ([self.camera isEqualToMapCamera:camera])
+    if ([self.camera isEqualToMapCamera:camera] && UIEdgeInsetsEqualToEdgeInsets(_contentInset, insets))
     {
         if (completion)
         {
@@ -4331,7 +4213,7 @@ public:
     newAnnotationContainerView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     newAnnotationContainerView.contentMode = UIViewContentModeCenter;
     [newAnnotationContainerView addSubviews:annotationViews];
-    [_glView insertSubview:newAnnotationContainerView atIndex:0];
+    [_mbglView->getView() insertSubview:newAnnotationContainerView atIndex:0];
     self.annotationContainerView = newAnnotationContainerView;
     
     [self updatePresentsWithTransaction];
@@ -5057,7 +4939,7 @@ public:
 
     // Remember, calloutView can be nil here.
     [calloutView presentCalloutFromRect:calloutPositioningRect
-                                 inView:self.glView
+                                 inView:_mbglView->getView()
                       constrainedToRect:constrainedRect
                                animated:animateSelection];
 
@@ -5743,7 +5625,7 @@ public:
                      direction:self.directionByFollowingWithCourse
                       duration:animated ? MGLUserLocationAnimationDuration : 0
        animationTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionLinear]
-             completionHandler:NULL];
+             completionHandler:nil];
 }
 
 /// Changes the viewport based on a significant location update, such as the
@@ -6342,7 +6224,7 @@ public:
     }
 }
 
-- (void)didFinishLoadingStyle {
+- (void)mapViewDidFinishLoadingStyle {
     if (!_mbglMap)
     {
         return;
@@ -6357,6 +6239,22 @@ public:
 #if DEBUG
 	_mbglMap->dumpDebugLogs();
 #endif
+}
+
+- (void)sourceDidChange:(MGLSource *)source {
+    // no-op: we only show attribution after tapping the info button, so there's no
+    // interactive update needed.
+}
+
+- (void)didFailToLoadImage:(NSString *)imageName {
+
+    if ([self.delegate respondsToSelector:@selector(mapView:didFailToLoadImage:)]) {
+        MGLImage *imageToLoad = [self.delegate mapView:self didFailToLoadImage:imageName];
+        if (imageToLoad) {
+            auto image = [imageToLoad mgl_styleImageWithIdentifier:imageName];
+            _mbglMap->getStyle().addImage(std::move(image));
+        }
+    }
 }
 
 - (void)updateUserLocationAnnotationView
@@ -6575,7 +6473,7 @@ public:
 
     if ( ! annotationView.superview)
     {
-        [self.glView addSubview:annotationView];
+        [_mbglView->getView() addSubview:annotationView];
         // Prevents the view from sliding in from the origin.
         annotationView.center = userPoint;
     }
@@ -6841,190 +6739,6 @@ public:
     }
 
     return _annotationViewReuseQueueByIdentifier[identifier];
-}
-
-class MBGLView;
-
-class MBGLMapViewRenderable final : public mbgl::gl::RenderableResource {
-public:
-    MBGLMapViewRenderable(MBGLView& backend_) : backend(backend_) {
-    }
-
-    void bind() override;
-
-private:
-    MBGLView& backend;
-};
-
-class MBGLView : public mbgl::gl::RendererBackend,
-                 public mbgl::gfx::Renderable,
-                 public mbgl::MapObserver {
-public:
-    MBGLView(MGLMapView* nativeView_)
-        : mbgl::gl::RendererBackend(mbgl::gfx::ContextMode::Unique),
-          mbgl::gfx::Renderable(nativeView_.framebufferSize,
-                                std::make_unique<MBGLMapViewRenderable>(*this)),
-          nativeView(nativeView_) {
-    }
-
-    /// This function is called before we start rendering, when iOS invokes our rendering method.
-    /// iOS already sets the correct framebuffer and viewport for us, so we need to update the
-    /// context state with the anticipated values.
-    void updateAssumedState() override {
-        assumeFramebufferBinding(ImplicitFramebufferBinding);
-        assumeViewport(0, 0, nativeView.framebufferSize);
-    }
-
-    void restoreFramebufferBinding() {
-        if (!implicitFramebufferBound()) {
-            // Something modified our state, and we need to bind the original drawable again.
-            // Doing this also sets the viewport to the full framebuffer.
-            // Note that in reality, iOS does not use the Framebuffer 0 (it's typically 1), and we
-            // only use this is a placeholder value.
-            [nativeView.glView bindDrawable];
-            updateAssumedState();
-        } else {
-            // Our framebuffer is still bound, but the viewport might have changed.
-            setViewport(0, 0, nativeView.framebufferSize);
-        }
-    }
-
-    void onCameraWillChange(mbgl::MapObserver::CameraChangeMode mode) override {
-        bool animated = mode == mbgl::MapObserver::CameraChangeMode::Animated;
-        [nativeView cameraWillChangeAnimated:animated];
-    }
-
-    void onCameraIsChanging() override {
-        [nativeView cameraIsChanging];
-    }
-
-    void onCameraDidChange(mbgl::MapObserver::CameraChangeMode mode) override {
-        bool animated = mode == mbgl::MapObserver::CameraChangeMode::Animated;
-        [nativeView cameraDidChangeAnimated:animated];
-    }
-
-    void onWillStartLoadingMap() override {
-        [nativeView mapViewWillStartLoadingMap];
-    }
-
-    void onDidFinishLoadingMap() override {
-        [nativeView mapViewDidFinishLoadingMap];
-    }
-
-    void onDidFailLoadingMap(mbgl::MapLoadError mapError, const std::string& what) override {
-        NSString *description;
-        MGLErrorCode code;
-        switch (mapError) {
-            case mbgl::MapLoadError::StyleParseError:
-                code = MGLErrorCodeParseStyleFailed;
-                description = NSLocalizedStringWithDefaultValue(@"PARSE_STYLE_FAILED_DESC", nil, nil, @"The map failed to load because the style is corrupted.", @"User-friendly error description");
-                break;
-            case mbgl::MapLoadError::StyleLoadError:
-                code = MGLErrorCodeLoadStyleFailed;
-                description = NSLocalizedStringWithDefaultValue(@"LOAD_STYLE_FAILED_DESC", nil, nil, @"The map failed to load because the style can't be loaded.", @"User-friendly error description");
-                break;
-            case mbgl::MapLoadError::NotFoundError:
-                code = MGLErrorCodeNotFound;
-                description = NSLocalizedStringWithDefaultValue(@"STYLE_NOT_FOUND_DESC", nil, nil, @"The map failed to load because the style can’t be found or is incompatible.", @"User-friendly error description");
-                break;
-            default:
-                code = MGLErrorCodeUnknown;
-                description = NSLocalizedStringWithDefaultValue(@"LOAD_MAP_FAILED_DESC", nil, nil, @"The map failed to load because an unknown error occurred.", @"User-friendly error description");
-        }
-        NSDictionary *userInfo = @{
-            NSLocalizedDescriptionKey: description,
-            NSLocalizedFailureReasonErrorKey: @(what.c_str()),
-        };
-        NSError *error = [NSError errorWithDomain:MGLErrorDomain code:code userInfo:userInfo];
-        [nativeView mapViewDidFailLoadingMapWithError:error];
-    }
-
-    void onWillStartRenderingFrame() override {
-        [nativeView mapViewWillStartRenderingFrame];
-    }
-
-    void onDidFinishRenderingFrame(mbgl::MapObserver::RenderMode mode) override {
-        bool fullyRendered = mode == mbgl::MapObserver::RenderMode::Full;
-        [nativeView mapViewDidFinishRenderingFrameFullyRendered:fullyRendered];
-    }
-
-    void onWillStartRenderingMap() override {
-        [nativeView mapViewWillStartRenderingMap];
-    }
-
-    void onDidFinishRenderingMap(mbgl::MapObserver::RenderMode mode) override {
-        bool fullyRendered = mode == mbgl::MapObserver::RenderMode::Full;
-        [nativeView mapViewDidFinishRenderingMapFullyRendered:fullyRendered];
-    }
-
-    void onDidBecomeIdle() override {
-        [nativeView mapViewDidBecomeIdle];
-    }
-    
-    void onDidFinishLoadingStyle() override {
-        [nativeView didFinishLoadingStyle];
-    }
-    
-    void onStyleImageMissing(const std::string& imageIdentifier) override {
-        NSString *imageName = [NSString stringWithUTF8String:imageIdentifier.c_str()];
-        
-        if ([nativeView.delegate respondsToSelector:@selector(mapView:didFailToLoadImage:)]) {
-            UIImage *imageToLoad = [nativeView.delegate mapView:nativeView didFailToLoadImage:imageName];
-            
-            if (imageToLoad) {
-                auto image = [imageToLoad mgl_styleImageWithIdentifier:imageName];
-                nativeView.mbglMap.getStyle().addImage(std::move(image));
-            }
-            
-        }
-    }
-
-    mbgl::gl::ProcAddress getExtensionFunctionPointer(const char* name) override {
-        static CFBundleRef framework = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.opengles"));
-        if (!framework) {
-            throw std::runtime_error("Failed to load OpenGL framework.");
-        }
-
-        CFStringRef str =
-            CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII);
-        void* symbol = CFBundleGetFunctionPointerForName(framework, str);
-        CFRelease(str);
-
-        return reinterpret_cast<mbgl::gl::ProcAddress>(symbol);
-    }
-
-    mbgl::gfx::Renderable& getDefaultRenderable() override {
-        return *this;
-    }
-
-    void activate() override
-    {
-        if (activationCount++)
-        {
-            return;
-        }
-
-        [EAGLContext setCurrentContext:nativeView.context];
-    }
-
-    void deactivate() override
-    {
-        if (--activationCount)
-        {
-            return;
-        }
-
-        [EAGLContext setCurrentContext:nil];
-    }
-
-private:
-    __weak MGLMapView* nativeView = nullptr;
-
-    NSUInteger activationCount = 0;
-};
-
-void MBGLMapViewRenderable::bind() {
-    backend.restoreFramebufferBinding();
 }
 
 @end

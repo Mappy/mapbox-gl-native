@@ -54,6 +54,9 @@ public:
     uint8_t getIntegerZoom() const;
     double getZoomFraction() const;
 
+    // Scale
+    double getScale() const { return scale; }
+
     // Bounds
     void setLatLngBounds(LatLngBounds);
     LatLngBounds getLatLngBounds() const;
@@ -61,6 +64,10 @@ public:
     double getMinZoom() const;
     void setMaxZoom(double);
     double getMaxZoom() const;
+
+    // Viewport center offset, from [size.width / 2, size.height / 2], defined
+    // by |edgeInsets| in screen coordinates, with top left origin.
+    ScreenCoordinate getCenterOffset() const;
 
     // Rotation
     float getBearing() const;
@@ -136,6 +143,8 @@ private:
     double xSkew = 0.0;
     double ySkew = 1.0;
     bool axonometric = false;
+
+    EdgeInsets edgeInsets;
 
     // cache values for spherical mercator math
     double Bc = Projection::worldSize(scale) / util::DEGREES_MAX;

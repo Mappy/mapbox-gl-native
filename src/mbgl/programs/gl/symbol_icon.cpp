@@ -16,8 +16,8 @@ template <>
 struct ShaderSource<SymbolIconProgram> {
     static constexpr const char* name = "symbol_icon";
     static constexpr const uint8_t hash[8] = { 0xf3, 0x81, 0x62, 0xe8, 0x24, 0x49, 0xc6, 0x8f };
-    static constexpr const auto vertexOffset = 50079;
-    static constexpr const auto fragmentOffset = 52727;
+    static constexpr const auto vertexOffset = 50235;
+    static constexpr const auto fragmentOffset = 52883;
 };
 
 constexpr const char* ShaderSource<SymbolIconProgram>::name;
@@ -29,8 +29,8 @@ constexpr const uint8_t ShaderSource<SymbolIconProgram>::hash[8];
 namespace gfx {
 
 template <>
-std::unique_ptr<Program<SymbolIconProgram>>
-Context::createProgram<gl::Context>(const ProgramParameters& programParameters) {
+std::unique_ptr<gfx::Program<SymbolIconProgram>>
+Backend::Create<gfx::Backend::Type::OpenGL>(const ProgramParameters& programParameters) {
     return std::make_unique<gl::Program<SymbolIconProgram>>(programParameters);
 }
 

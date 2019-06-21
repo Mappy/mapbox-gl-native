@@ -5,6 +5,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
 
+import java.net.URI;
 import java.net.URL;
 
 /**
@@ -31,32 +32,98 @@ public class RasterDemSource extends Source {
    *
    * @param id  the source id
    * @param url the source url
+   * @deprecated use {@link #RasterDemSource(String, URI)} instead
    */
+  @Deprecated
   public RasterDemSource(String id, URL url) {
     this(id, url.toExternalForm());
   }
 
   /**
-   * Create the raster dem source from an URL
+   * Create the raster dem source from an URI.
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
    *
    * @param id  the source id
-   * @param url the source url
+   * @param uri the source uri
    */
-  public RasterDemSource(String id, String url) {
+  public RasterDemSource(String id, URI uri) {
+    this(id, uri.toString());
+  }
+
+  /**
+   * Create the raster dem source from an URI
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param id  the source id
+   * @param uri the source uri
+   */
+  public RasterDemSource(String id, String uri) {
     super();
-    initialize(id, url, DEFAULT_TILE_SIZE);
+    initialize(id, uri, DEFAULT_TILE_SIZE);
   }
 
   /**
    * Create the raster source from an URL with a specific tile size
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
    *
    * @param id       the source id
-   * @param url      the source url
+   * @param uri     the source url
    * @param tileSize the tile size
    */
-  public RasterDemSource(String id, String url, int tileSize) {
+  public RasterDemSource(String id, String uri, int tileSize) {
     super();
-    initialize(id, url, tileSize);
+    initialize(id, uri, tileSize);
   }
 
   /**
@@ -84,9 +151,22 @@ public class RasterDemSource extends Source {
 
   /**
    * @return The url or null
+   * @deprecated use {@link #getUri()} instead
    */
+  @Deprecated
   @Nullable
   public String getUrl() {
+    checkThread();
+    return nativeGetUrl();
+  }
+
+  /**
+   * Get the source URI.
+   *
+   * @return The uri or null
+   */
+  @Nullable
+  public String getUri() {
     checkThread();
     return nativeGetUrl();
   }

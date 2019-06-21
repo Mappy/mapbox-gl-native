@@ -52,13 +52,13 @@ bool RenderCircleLayer::hasCrossfade() const {
     return false;
 }
 
-void RenderCircleLayer::render(PaintParameters& parameters, RenderSource*) {
+void RenderCircleLayer::render(PaintParameters& parameters) {
     if (parameters.pass == RenderPass::Opaque) {
         return;
     }
 
     for (const RenderTile& tile : renderTiles) {
-        const LayerRenderData* renderData = tile.tile.getLayerRenderData(*baseImpl);
+        const LayerRenderData* renderData = tile.getLayerRenderData(*baseImpl);
         if (!renderData) {
             continue;
         }

@@ -32,7 +32,7 @@ void FeatureIndex::insert(const GeometryCollection& geometries,
             envelope.min.y < util::EXTENT &&
             envelope.max.x >= 0 &&
             envelope.max.y >= 0) {
-            grid.insert(IndexedSubfeature(index, sourceLayerName, bucketLeaderID, featureSortIndex++),
+            grid.insert(IndexedSubfeature(index, sourceLayerName, bucketLeaderID, featureSortIndex),
                         {convertPoint<float>(envelope.min), convertPoint<float>(envelope.max)});
         }
     }
@@ -156,7 +156,8 @@ void FeatureIndex::addFeature(
             assert(geometryTileFeature);
         }
 
-        if (!renderLayer->getSymbolInterface() &&
+        bool needsCrossTileIndex = renderLayer->baseImpl->getTypeInfo()->crossTileIndex == style::LayerTypeInfo::CrossTileIndex::Required;
+        if (!needsCrossTileIndex &&
              !renderLayer->queryIntersectsFeature(queryGeometry, *geometryTileFeature, tileID.z, transformState, pixelsToTileUnits, posMatrix)) {
             continue;
         }

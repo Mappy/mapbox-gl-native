@@ -2,7 +2,6 @@
 
 #include <mbgl/layout/symbol_layout.hpp>
 #include <mbgl/renderer/render_layer.hpp>
-#include <mbgl/renderer/layers/render_layer_symbol_interface.hpp>
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/renderer/buckets/symbol_bucket.hpp>
@@ -61,7 +60,6 @@ const CollisionGroups::CollisionGroup& CollisionGroups::get(const std::string& s
 
 Placement::Placement(const TransformState& state_, MapMode mapMode_, style::TransitionOptions transitionOptions_, const bool crossSourceCollisions, std::unique_ptr<Placement> prevPlacement_)
     : collisionIndex(state_)
-    , state(state_)
     , mapMode(mapMode_)
     , transitionOptions(std::move(transitionOptions_))
     , collisionGroups(crossSourceCollisions)
@@ -72,59 +70,16 @@ Placement::Placement(const TransformState& state_, MapMode mapMode_, style::Tran
     }
 }
 
-void Placement::placeLayer(const RenderLayerSymbolInterface& symbolInterface, const mat4& projMatrix, bool showCollisionBoxes) {
-
-    std::unordered_set<uint32_t> seenCrossTileIDs;
-
-    for (const RenderTile& renderTile : symbolInterface.getRenderTiles()) {
-        assert(renderTile.tile.isRenderable());
-        assert(renderTile.tile.kind == Tile::Kind::Geometry);
-        auto& geometryTile = static_cast<GeometryTile&>(renderTile.tile);
-
-        auto bucket = symbolInterface.getSymbolBucket(renderTile);
-        if (!bucket) {
-            continue;
-        }
-        SymbolBucket& symbolBucket = *bucket;
-
-        if (symbolBucket.bucketLeaderID != symbolInterface.layerID()) {
-            // Only place this layer if it's the "group leader" for the bucket
-            continue;
-        }
-
-        auto& layout = symbolBucket.layout;
-
-        const float pixelsToTileUnits = renderTile.id.pixelsToTileUnits(1, state.getZoom());
-
-        const float scale = std::pow(2, state.getZoom() - geometryTile.id.overscaledZ);
-        const float textPixelRatio = (util::tileSize * geometryTile.id.overscaleFactor()) / util::EXTENT;
-
-        mat4 posMatrix;
-        state.matrixFor(posMatrix, renderTile.id);
-        matrix::multiply(posMatrix, projMatrix, posMatrix);
-
-        mat4 textLabelPlaneMatrix = getLabelPlaneMatrix(posMatrix,
-                layout.get<style::TextPitchAlignment>() == style::AlignmentType::Map,
-                layout.get<style::TextRotationAlignment>() == style::AlignmentType::Map,
-                state,
-                pixelsToTileUnits);
-
-        mat4 iconLabelPlaneMatrix = getLabelPlaneMatrix(posMatrix,
-                layout.get<style::IconPitchAlignment>() == style::AlignmentType::Map,
-                layout.get<style::IconRotationAlignment>() == style::AlignmentType::Map,
-                state,
-                pixelsToTileUnits);
-        
-        
-        // As long as this placement lives, we have to hold onto this bucket's
-        // matching FeatureIndex/data for querying purposes
-        retainedQueryData.emplace(std::piecewise_construct,
-                                  std::forward_as_tuple(symbolBucket.bucketInstanceId),
-                                  std::forward_as_tuple(symbolBucket.bucketInstanceId, geometryTile.getFeatureIndex(), geometryTile.id));
-        
-        const auto collisionGroup = collisionGroups.get(geometryTile.sourceID);
-        
-        placeLayerBucket(symbolBucket, posMatrix, textLabelPlaneMatrix, iconLabelPlaneMatrix, scale, textPixelRatio, showCollisionBoxes, seenCrossTileIDs, renderTile.tile.holdForFade(), collisionGroup);
+void Placement::placeLayer(const RenderLayer& layer, const mat4& projMatrix, bool showCollisionBoxes) {
+    std::set<uint32_t> seenCrossTileIDs;
+    for (const auto& item : layer.getPlacementData()) {
+        Bucket& bucket = item.bucket;
+        BucketPlacementParameters params{
+                item.tile,
+                projMatrix,
+                layer.baseImpl->source,
+                showCollisionBoxes};
+        bucket.place(*this, params, seenCrossTileIDs);
     }
 }
 
@@ -141,30 +96,47 @@ Point<float> calculateVariableLayoutOffset(style::SymbolAnchorType anchor, float
 }
 } // namespace
 
-void Placement::placeLayerBucket(
+void Placement::placeBucket(
         SymbolBucket& bucket,
-        const mat4& posMatrix,
-        const mat4& textLabelPlaneMatrix,
-        const mat4& iconLabelPlaneMatrix,
-        const float scale,
-        const float textPixelRatio,
-        const bool showCollisionBoxes,
-        std::unordered_set<uint32_t>& seenCrossTileIDs,
-        const bool holdingForFade,
-        const CollisionGroups::CollisionGroup& collisionGroup) {
+        const BucketPlacementParameters& params,
+        std::set<uint32_t>& seenCrossTileIDs) {
+    const auto& layout = bucket.layout;
+    const auto& renderTile = params.tile;
+    const auto& state = collisionIndex.getTransformState();
+    const float pixelsToTileUnits = renderTile.id.pixelsToTileUnits(1, state.getZoom());
+    const OverscaledTileID& overscaledID = renderTile.getOverscaledTileID();
+    const float scale = std::pow(2, state.getZoom() - overscaledID.overscaledZ);
+    const float pixelRatio = (util::tileSize * overscaledID.overscaleFactor()) / util::EXTENT;
 
+    mat4 posMatrix;
+    state.matrixFor(posMatrix, renderTile.id);
+    matrix::multiply(posMatrix, params.projMatrix, posMatrix);
+
+    mat4 textLabelPlaneMatrix = getLabelPlaneMatrix(posMatrix,
+            layout.get<style::TextPitchAlignment>() == style::AlignmentType::Map,
+            layout.get<style::TextRotationAlignment>() == style::AlignmentType::Map,
+            state,
+            pixelsToTileUnits);
+
+    mat4 iconLabelPlaneMatrix = getLabelPlaneMatrix(posMatrix,
+            layout.get<style::IconPitchAlignment>() == style::AlignmentType::Map,
+            layout.get<style::IconRotationAlignment>() == style::AlignmentType::Map,
+            state,
+            pixelsToTileUnits);
+
+    const auto& collisionGroup = collisionGroups.get(params.sourceId);
     auto partiallyEvaluatedTextSize = bucket.textSizeBinder->evaluateForZoom(state.getZoom());
     auto partiallyEvaluatedIconSize = bucket.iconSizeBinder->evaluateForZoom(state.getZoom());
 
     optional<CollisionTileBoundaries> avoidEdges;
     if (mapMode == MapMode::Tile &&
-        (bucket.layout.get<style::SymbolAvoidEdges>() ||
-         bucket.layout.get<style::SymbolPlacement>() == style::SymbolPlacementType::Line)) {
+        (layout.get<style::SymbolAvoidEdges>() ||
+         layout.get<style::SymbolPlacement>() == style::SymbolPlacementType::Line)) {
         avoidEdges = collisionIndex.projectTileBoundaries(posMatrix);
     }
     
-    const bool textAllowOverlap = bucket.layout.get<style::TextAllowOverlap>();
-    const bool iconAllowOverlap = bucket.layout.get<style::IconAllowOverlap>();
+    const bool textAllowOverlap = layout.get<style::TextAllowOverlap>();
+    const bool iconAllowOverlap = layout.get<style::IconAllowOverlap>();
     // This logic is similar to the "defaultOpacityState" logic below in updateBucketOpacities
     // If we know a symbol is always supposed to show, force it to be marked visible even if
     // it wasn't placed into the collision index (because some or all of it was outside the range
@@ -179,18 +151,18 @@ void Placement::placeLayerBucket(
     //  This is the reverse of our normal policy of "fade in on pan", but should look like any other
     //  collision and hopefully not be too noticeable.
     // See https://github.com/mapbox/mapbox-gl-native/issues/12683
-    const bool alwaysShowText = textAllowOverlap && (iconAllowOverlap || !bucket.hasIconData() || bucket.layout.get<style::IconOptional>());
-    const bool alwaysShowIcon = iconAllowOverlap && (textAllowOverlap || !bucket.hasTextData() || bucket.layout.get<style::TextOptional>());
-    std::vector<style::TextVariableAnchorType> variableTextAnchors = bucket.layout.get<style::TextVariableAnchor>();
-    const bool rotateWithMap = bucket.layout.get<style::TextRotationAlignment>() == style::AlignmentType::Map;
-    const bool pitchWithMap = bucket.layout.get<style::TextPitchAlignment>() == style::AlignmentType::Map;
+    const bool alwaysShowText = textAllowOverlap && (iconAllowOverlap || !bucket.hasIconData() || layout.get<style::IconOptional>());
+    const bool alwaysShowIcon = iconAllowOverlap && (textAllowOverlap || !bucket.hasTextData() || layout.get<style::TextOptional>());
+    std::vector<style::TextVariableAnchorType> variableTextAnchors = layout.get<style::TextVariableAnchor>();
+    const bool rotateWithMap = layout.get<style::TextRotationAlignment>() == style::AlignmentType::Map;
+    const bool pitchWithMap = layout.get<style::TextPitchAlignment>() == style::AlignmentType::Map;
 
-    const bool zOrderByViewportY = bucket.layout.get<style::SymbolZOrder>() == style::SymbolZOrderType::ViewportY;
+    const bool zOrderByViewportY = layout.get<style::SymbolZOrder>() == style::SymbolZOrderType::ViewportY;
 
     auto placeSymbol = [&] (SymbolInstance& symbolInstance) {
         if (seenCrossTileIDs.count(symbolInstance.crossTileID) != 0u) return;
 
-        if (holdingForFade) {
+        if (renderTile.holdForFade()) {
             // Mark all symbols from this tile as "not placed", but don't add to seenCrossTileIDs, because we don't
             // know yet if we have a duplicate in a parent tile that _should_ be placed.
             placements.emplace(symbolInstance.crossTileID, JointPlacement(false, false, false));
@@ -207,11 +179,11 @@ void Placement::placeLayerBucket(
             const float fontSize = evaluateSizeForFeature(partiallyEvaluatedTextSize, placedSymbol);
             if (variableTextAnchors.empty()) {
                 auto placed = collisionIndex.placeFeature(textCollisionFeature, {},
-                        posMatrix, textLabelPlaneMatrix, textPixelRatio,
+                        posMatrix, textLabelPlaneMatrix, pixelRatio,
                         placedSymbol, scale, fontSize,
-                        bucket.layout.get<style::TextAllowOverlap>(),
+                        layout.get<style::TextAllowOverlap>(),
                         pitchWithMap,
-                        showCollisionBoxes, avoidEdges, collisionGroup.second);
+                        params.showCollisionBoxes, avoidEdges, collisionGroup.second);
                 placeText = placed.first;
                 offscreen &= placed.second;
             } else if (!textCollisionFeature.alongLine && !textCollisionFeature.boxes.empty()) {
@@ -246,11 +218,11 @@ void Placement::placeLayerBucket(
                     }
 
                     auto placed = collisionIndex.placeFeature(textCollisionFeature, shift,
-                                                                posMatrix, mat4(), textPixelRatio,
+                                                                posMatrix, mat4(), pixelRatio,
                                                                 placedSymbol, scale, fontSize,
-                                                                bucket.layout.get<style::TextAllowOverlap>(),
+                                                                layout.get<style::TextAllowOverlap>(),
                                                                 pitchWithMap,
-                                                                showCollisionBoxes, avoidEdges, collisionGroup.second);
+                                                                params.showCollisionBoxes, avoidEdges, collisionGroup.second);
 
                     if (placed.first) {
                         assert(symbolInstance.crossTileID != 0u);
@@ -301,17 +273,17 @@ void Placement::placeLayerBucket(
             const float fontSize = evaluateSizeForFeature(partiallyEvaluatedIconSize, placedSymbol);
 
             auto placed = collisionIndex.placeFeature(symbolInstance.iconCollisionFeature, {},
-                    posMatrix, iconLabelPlaneMatrix, textPixelRatio,
+                    posMatrix, iconLabelPlaneMatrix, pixelRatio,
                     placedSymbol, scale, fontSize,
-                    bucket.layout.get<style::IconAllowOverlap>(),
+                    layout.get<style::IconAllowOverlap>(),
                     pitchWithMap,
-                    showCollisionBoxes, avoidEdges, collisionGroup.second);
+                    params.showCollisionBoxes, avoidEdges, collisionGroup.second);
             placeIcon = placed.first;
             offscreen &= placed.second;
         }
 
-        const bool iconWithoutText = !symbolInstance.hasText || bucket.layout.get<style::TextOptional>();
-        const bool textWithoutIcon = !symbolInstance.hasIcon || bucket.layout.get<style::IconOptional>();
+        const bool iconWithoutText = !symbolInstance.hasText || layout.get<style::TextOptional>();
+        const bool textWithoutIcon = !symbolInstance.hasIcon || layout.get<style::IconOptional>();
 
         // combine placements for icon and text
         if (!iconWithoutText && !textWithoutIcon) {
@@ -323,11 +295,11 @@ void Placement::placeLayerBucket(
         }
 
         if (placeText) {
-            collisionIndex.insertFeature(symbolInstance.textCollisionFeature, bucket.layout.get<style::TextIgnorePlacement>(), bucket.bucketInstanceId, collisionGroup.first);
+            collisionIndex.insertFeature(symbolInstance.textCollisionFeature, layout.get<style::TextIgnorePlacement>(), bucket.bucketInstanceId, collisionGroup.first);
         }
 
         if (placeIcon) {
-            collisionIndex.insertFeature(symbolInstance.iconCollisionFeature, bucket.layout.get<style::IconIgnorePlacement>(), bucket.bucketInstanceId, collisionGroup.first);
+            collisionIndex.insertFeature(symbolInstance.iconCollisionFeature, layout.get<style::IconIgnorePlacement>(), bucket.bucketInstanceId, collisionGroup.first);
         }
 
         assert(symbolInstance.crossTileID != 0);
@@ -355,6 +327,12 @@ void Placement::placeLayerBucket(
     }
 
     bucket.justReloaded = false;
+
+    // As long as this placement lives, we have to hold onto this bucket's
+    // matching FeatureIndex/data for querying purposes
+    retainedQueryData.emplace(std::piecewise_construct,
+                                std::forward_as_tuple(bucket.bucketInstanceId),
+                                std::forward_as_tuple(bucket.bucketInstanceId, renderTile.getFeatureIndex(), overscaledID));
 }
 
 void Placement::commit(TimePoint now) {
@@ -406,26 +384,122 @@ void Placement::commit(TimePoint now) {
     fadeStartTime = placementChanged ? commitTime : prevPlacement->fadeStartTime;
 }
 
-void Placement::updateLayerOpacities(const RenderLayerSymbolInterface& symbolInterface) {
+void Placement::updateLayerBuckets(const RenderLayer& layer, const TransformState& state, bool updateOpacities) {
     std::set<uint32_t> seenCrossTileIDs;
-    for (const RenderTile& renderTile : symbolInterface.getRenderTiles()) {
-        assert(renderTile.tile.isRenderable());
-
-        auto bucket = symbolInterface.getSymbolBucket(renderTile);
-        if (!bucket) {
-            continue;
-        }
-        SymbolBucket& symbolBucket = *bucket;
-
-        if (symbolBucket.bucketLeaderID != symbolInterface.layerID()) {
-            // Only update opacities this layer if it's the "group leader" for the bucket
-            continue;
-        }
-        updateBucketOpacities(symbolBucket, seenCrossTileIDs);
+    for (const auto& item : layer.getPlacementData()) {
+        item.bucket.get().updateVertices(*this, updateOpacities, state, item.tile, seenCrossTileIDs);
     }
 }
 
-void Placement::updateBucketOpacities(SymbolBucket& bucket, std::set<uint32_t>& seenCrossTileIDs) {
+namespace {
+Point<float> calculateVariableRenderShift(style::SymbolAnchorType anchor, float width, float height, float radialOffset, float textBoxScale, float renderTextSize) {
+    AnchorAlignment alignment = AnchorAlignment::getAnchorAlignment(anchor);
+    float shiftX = -(alignment.horizontalAlign - 0.5f) * width;
+    float shiftY = -(alignment.verticalAlign - 0.5f) * height;
+    Point<float> offset = SymbolLayout::evaluateRadialOffset(anchor, radialOffset);
+    return { (shiftX / textBoxScale + offset.x) * renderTextSize,
+             (shiftY / textBoxScale + offset.y) * renderTextSize };
+}
+} // namespace
+
+bool Placement::updateBucketDynamicVertices(SymbolBucket& bucket, const TransformState& state, const RenderTile& tile) {
+    using namespace style;
+    const auto& layout = bucket.layout;
+    const bool alongLine = layout.get<SymbolPlacement>() != SymbolPlacementType::Point;
+    bool result = false;
+
+    if (alongLine) {
+        if (bucket.hasIconData() && layout.get<IconRotationAlignment>() == AlignmentType::Map) {
+            const bool pitchWithMap = layout.get<style::IconPitchAlignment>() == style::AlignmentType::Map;
+            const bool keepUpright = layout.get<style::IconKeepUpright>();
+            reprojectLineLabels(bucket.icon.dynamicVertices, bucket.icon.placedSymbols,
+                tile.matrix, pitchWithMap, true /*rotateWithMap*/, keepUpright,
+                tile, *bucket.iconSizeBinder, state);
+            result = true;
+        }
+
+        if (bucket.hasTextData() && layout.get<TextRotationAlignment>() == AlignmentType::Map) {
+            const bool pitchWithMap = layout.get<style::TextPitchAlignment>() == style::AlignmentType::Map;
+            const bool keepUpright = layout.get<style::TextKeepUpright>();
+            reprojectLineLabels(bucket.text.dynamicVertices, bucket.text.placedSymbols,
+                tile.matrix, pitchWithMap, true /*rotateWithMap*/, keepUpright,
+                tile, *bucket.textSizeBinder, state);
+            result = true;
+        }
+    } else if (!layout.get<TextVariableAnchor>().empty() && bucket.hasTextData()) {
+        bucket.text.dynamicVertices.clear();
+        bucket.hasVariablePlacement = false;
+
+        const auto partiallyEvaluatedSize = bucket.textSizeBinder->evaluateForZoom(state.getZoom());
+        const float tileScale = std::pow(2, state.getZoom() - tile.getOverscaledTileID().overscaledZ);
+        const bool rotateWithMap = layout.get<TextRotationAlignment>() == AlignmentType::Map;
+        const bool pitchWithMap = layout.get<TextPitchAlignment>() == AlignmentType::Map;
+        const float pixelsToTileUnits = tile.id.pixelsToTileUnits(1.0, state.getZoom());
+        const auto labelPlaneMatrix = getLabelPlaneMatrix(tile.matrix, pitchWithMap, rotateWithMap, state, pixelsToTileUnits);
+
+        for (const PlacedSymbol& symbol : bucket.text.placedSymbols) {
+            optional<VariableOffset> variableOffset;
+            if (!symbol.hidden && symbol.crossTileID != 0u) {
+                auto it = variableOffsets.find(symbol.crossTileID);
+                if (it != variableOffsets.end()) {
+                    bucket.hasVariablePlacement = true;
+                    variableOffset = it->second;
+                }
+            }
+
+            if (!variableOffset) {
+                // These symbols are from a justification that is not being used, or a label that wasn't placed
+                // so we don't need to do the extra math to figure out what incremental shift to apply.
+                hideGlyphs(symbol.glyphOffsets.size(), bucket.text.dynamicVertices);
+            } else {
+                const Point<float> tileAnchor = symbol.anchorPoint;
+                const auto projectedAnchor = project(tileAnchor, pitchWithMap ? tile.matrix : labelPlaneMatrix);
+                const float perspectiveRatio = 0.5f + 0.5f * (state.getCameraToCenterDistance() / projectedAnchor.second);
+                float renderTextSize = evaluateSizeForFeature(partiallyEvaluatedSize, symbol) * perspectiveRatio / util::ONE_EM;
+                if (pitchWithMap) {
+                    // Go from size in pixels to equivalent size in tile units
+                    renderTextSize *= bucket.tilePixelRatio / tileScale;
+                }
+
+                auto shift = calculateVariableRenderShift(
+                        (*variableOffset).anchor,
+                        (*variableOffset).width,
+                        (*variableOffset).height,
+                        (*variableOffset).radialOffset,
+                        (*variableOffset).textBoxScale,
+                        renderTextSize);
+
+                // Usual case is that we take the projected anchor and add the pixel-based shift
+                // calculated above. In the (somewhat weird) case of pitch-aligned text, we add an equivalent
+                // tile-unit based shift to the anchor before projecting to the label plane.
+                Point<float> shiftedAnchor;
+                if (pitchWithMap) {
+                    shiftedAnchor = project(Point<float>(tileAnchor.x + shift.x, tileAnchor.y + shift.y),
+                                            labelPlaneMatrix).first;
+                } else {
+                    if (rotateWithMap) {
+                        auto rotated = util::rotate(shift, -state.getPitch());
+                        shiftedAnchor = Point<float>(projectedAnchor.first.x + rotated.x,
+                                                    projectedAnchor.first.y + rotated.y);
+                    } else {
+                        shiftedAnchor = Point<float>(projectedAnchor.first.x + shift.x,
+                                                    projectedAnchor.first.y + shift.y);
+                    }
+                }
+
+                for (std::size_t i = 0; i < symbol.glyphOffsets.size(); ++i) {
+                    addDynamicAttributes(shiftedAnchor, 0, bucket.text.dynamicVertices);
+                }
+            }
+        }
+
+        result = true;
+    }
+
+    return result;
+}
+
+void Placement::updateBucketOpacities(SymbolBucket& bucket, const TransformState& state, std::set<uint32_t>& seenCrossTileIDs) {
     if (bucket.hasTextData()) bucket.text.opacityVertices.clear();
     if (bucket.hasIconData()) bucket.icon.opacityVertices.clear();
     if (bucket.hasCollisionBoxData()) bucket.collisionBox.dynamicVertices.clear();
@@ -523,7 +597,7 @@ void Placement::updateBucketOpacities(SymbolBucket& bucket, std::set<uint32_t>& 
             }
         };
 
-        auto updateCollisionTextBox = [this, &bucket, &symbolInstance, variablePlacement, rotateWithMap, pitchWithMap](const auto& feature, const bool placed) {
+        auto updateCollisionTextBox = [this, &bucket, &symbolInstance, &state, variablePlacement, rotateWithMap, pitchWithMap](const auto& feature, const bool placed) {
             if (feature.alongLine) {
                 return;
             }
@@ -581,7 +655,6 @@ void Placement::updateBucketOpacities(SymbolBucket& bucket, std::set<uint32_t>& 
         }
     }
 
-    bucket.updateOpacity();
     bucket.sortFeatures(state.getBearing());
     auto retainedData = retainedQueryData.find(bucket.bucketInstanceId);
     if (retainedData != retainedQueryData.end()) {

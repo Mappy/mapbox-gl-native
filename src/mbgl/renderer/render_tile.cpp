@@ -1,11 +1,14 @@
 #include <mbgl/renderer/render_tile.hpp>
+
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/buckets/debug_bucket.hpp>
+#include <mbgl/renderer/render_source.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/programs/programs.hpp>
 #include <mbgl/map/transform_state.hpp>
 #include <mbgl/gfx/cull_face_mode.hpp>
 #include <mbgl/tile/tile.hpp>
+#include <mbgl/tile/geometry_tile.hpp>
 #include <mbgl/util/math.hpp>
 
 namespace mbgl {
@@ -58,6 +61,39 @@ mat4 RenderTile::translatedClipMatrix(const std::array<float, 2>& translation,
     return translateVtxMatrix(nearClippedMatrix, translation, anchor, state, false);
 }
 
+const OverscaledTileID& RenderTile::getOverscaledTileID() const { return tile.id; }
+bool RenderTile::holdForFade() const { return tile.holdForFade(); }
+
+Bucket* RenderTile::getBucket(const style::Layer::Impl& impl) const {
+    return tile.getBucket(impl);
+}
+
+const LayerRenderData* RenderTile::getLayerRenderData(const style::Layer::Impl& impl) const {
+    return tile.getLayerRenderData(impl);
+}
+
+optional<ImagePosition> RenderTile::getPattern(const std::string& pattern) const {
+    assert(tile.kind == Tile::Kind::Geometry);
+    return static_cast<const GeometryTile&>(tile).getPattern(pattern);
+}
+
+const gfx::Texture& RenderTile::getGlyphAtlasTexture() const {
+    assert(tile.kind == Tile::Kind::Geometry);
+    assert(static_cast<const GeometryTile&>(tile).glyphAtlasTexture);
+    return *(static_cast<const GeometryTile&>(tile).glyphAtlasTexture);
+}
+
+const gfx::Texture& RenderTile::getIconAtlasTexture() const {
+    assert(tile.kind == Tile::Kind::Geometry);
+    assert(static_cast<const GeometryTile&>(tile).iconAtlasTexture);
+    return *(static_cast<const GeometryTile&>(tile).iconAtlasTexture);
+}
+
+std::shared_ptr<FeatureIndex> RenderTile::getFeatureIndex() const {
+    assert(tile.kind == Tile::Kind::Geometry);
+    return static_cast<const GeometryTile&>(tile).getFeatureIndex();
+}
+
 void RenderTile::setMask(TileMask&& mask) {
     tile.setMask(std::move(mask));
 }
@@ -70,7 +106,7 @@ void RenderTile::upload(gfx::UploadPass& uploadPass) {
     }
 }
 
-void RenderTile::prepare(PaintParameters& parameters) {
+void RenderTile::prepare(const SourcePrepareParameters& parameters) {
     if (parameters.debugOptions != MapDebugOptions::NoDebug &&
         (!debugBucket || debugBucket->renderable != tile.isRenderable() ||
          debugBucket->complete != tile.isComplete() ||
@@ -86,14 +122,15 @@ void RenderTile::prepare(PaintParameters& parameters) {
 
     // Calculate two matrices for this tile: matrix is the standard tile matrix; nearClippedMatrix
     // clips the near plane to 100 to save depth buffer precision
-    parameters.state.matrixFor(matrix, id);
-    parameters.state.matrixFor(nearClippedMatrix, id);
-    matrix::multiply(matrix, parameters.projMatrix, matrix);
-    matrix::multiply(nearClippedMatrix, parameters.nearClippedProjMatrix, nearClippedMatrix);
+    const auto& transform = parameters.transform;
+    transform.state.matrixFor(matrix, id);
+    transform.state.matrixFor(nearClippedMatrix, id);
+    matrix::multiply(matrix, transform.projMatrix, matrix);
+    matrix::multiply(nearClippedMatrix, transform.nearClippedProjMatrix, nearClippedMatrix);
 }
 
 void RenderTile::finishRender(PaintParameters& parameters) {
-    if (!used || parameters.debugOptions == MapDebugOptions::NoDebug)
+    if (!tile.usedByRenderedLayers || parameters.debugOptions == MapDebugOptions::NoDebug)
         return;
 
     static const style::Properties<>::PossiblyEvaluated properties {};

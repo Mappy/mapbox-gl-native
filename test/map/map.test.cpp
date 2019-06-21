@@ -8,7 +8,7 @@
 #include <mbgl/map/map_options.hpp>
 #include <mbgl/gfx/backend_scope.hpp>
 #include <mbgl/gl/context.hpp>
-#include <mbgl/gl/headless_frontend.hpp>
+#include <mbgl/gfx/headless_frontend.hpp>
 #include <mbgl/storage/resource_options.hpp>
 #include <mbgl/storage/network_status.hpp>
 #include <mbgl/storage/default_file_source.hpp>
@@ -610,6 +610,10 @@ TEST(Map, AddLayer) {
 }
 
 TEST(Map, WithoutVAOExtension) {
+    if (gfx::Backend::GetType() != gfx::Backend::Type::OpenGL) {
+        return;
+    }
+
     MapTest<DefaultFileSource> test { ":memory:", "test/fixtures/api/assets" };
 
     gfx::BackendScope scope { *test.frontend.getBackend() };

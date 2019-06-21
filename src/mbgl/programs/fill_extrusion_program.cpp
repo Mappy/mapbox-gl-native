@@ -1,5 +1,4 @@
 #include <mbgl/programs/fill_extrusion_program.hpp>
-#include <mbgl/gfx/context_impl.hpp>
 #include <mbgl/renderer/image_atlas.hpp>
 #include <mbgl/renderer/cross_faded_property_evaluator.hpp>
 #include <mbgl/tile/tile_id.hpp>
@@ -7,9 +6,6 @@
 #include <mbgl/util/mat3.hpp>
 
 namespace mbgl {
-
-template std::unique_ptr<gfx::Program<FillExtrusionProgram>> gfx::Context::createProgram(const ProgramParameters&);
-template std::unique_ptr<gfx::Program<FillExtrusionPatternProgram>> gfx::Context::createProgram(const ProgramParameters&);
 
 using namespace style;
 
@@ -36,13 +32,14 @@ float lightIntensity(const EvaluatedLight& light) {
 }
 
 FillExtrusionProgram::LayoutUniformValues FillExtrusionProgram::layoutUniformValues(
-    mat4 matrix, const TransformState& state, const float opacity, const EvaluatedLight& light) {
+    mat4 matrix, const TransformState& state, const float opacity, const EvaluatedLight& light, const float verticalGradient) {
     return {
         uniforms::matrix::Value( matrix ),
         uniforms::opacity::Value( opacity ),
         uniforms::lightcolor::Value( lightColor(light) ),
         uniforms::lightpos::Value( lightPosition(light, state) ),
-        uniforms::lightintensity::Value( lightIntensity(light) )
+        uniforms::lightintensity::Value( lightIntensity(light) ),
+        uniforms::vertical_gradient::Value( verticalGradient )
     };
 }
 
@@ -55,7 +52,8 @@ FillExtrusionPatternProgram::layoutUniformValues(mat4 matrix,
                                            const float opacity,
                                            const float heightFactor,
                                            const float pixelRatio,
-                                           const EvaluatedLight& light) {
+                                           const EvaluatedLight& light,
+                                           const float verticalGradient) {
     const auto tileRatio = 1 / tileID.pixelsToTileUnits(1, state.getIntegerZoom());
     int32_t tileSizeAtNearestZoom = util::tileSize * state.zoomScale(state.getIntegerZoom() - tileID.canonical.z);
     int32_t pixelX = tileSizeAtNearestZoom * (tileID.canonical.x + tileID.wrap * state.zoomScale(tileID.canonical.z));
@@ -73,6 +71,7 @@ FillExtrusionPatternProgram::layoutUniformValues(mat4 matrix,
         uniforms::lightcolor::Value( lightColor(light) ),
         uniforms::lightpos::Value( lightPosition(light, state) ),
         uniforms::lightintensity::Value( lightIntensity(light) ),
+        uniforms::vertical_gradient::Value( verticalGradient )
     };
 }
 

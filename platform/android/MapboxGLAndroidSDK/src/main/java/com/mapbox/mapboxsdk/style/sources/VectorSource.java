@@ -1,5 +1,6 @@
 package com.mapbox.mapboxsdk.style.sources;
 
+import android.net.Uri;
 import android.support.annotation.Keep;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -37,24 +38,72 @@ public class VectorSource extends Source {
    *
    * @param id  the source id
    * @param url the TileJSON resource url
+   * @deprecated use {@link #VectorSource(String, Uri)} instead
    */
+  @Deprecated
   public VectorSource(String id, URL url) {
     this(id, url.toExternalForm());
   }
 
   /**
-   * Create a vector source from a remote url
+   * Create a vector source from an URI.
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
    *
    * @param id  the source id
-   * @param url the url
+   * @param uri the TileJSON resource uri
    */
-  public VectorSource(String id, String url) {
-    super();
-    initialize(id, url);
+  public VectorSource(String id, Uri uri) {
+    this(id, uri.toString());
   }
 
   /**
-   * Create a vector source from a tilset
+   * Create a vector source from an URI.
+   * <p>
+   * An URI is a combination of a protocol and a resource path.
+   * The following URI protocol schemes are supported:
+   * </p>
+   * <ul>
+   * <li>http://</li>
+   * <ul>
+   * <li>load resources using HyperText Transfer Protocol</li>
+   * </ul>
+   * <li>file://</li>
+   * <ul>
+   * <li>load resources from the Android file system</li>
+   * </ul>
+   * <li>asset://</li>
+   * <ul>
+   * <li>load resources from the binary packaged assets folder</li>
+   * </ul>
+   * </ul>
+   *
+   * @param id  the source id
+   * @param uri the uri
+   */
+  public VectorSource(String id, String uri) {
+    super();
+    initialize(id, uri);
+  }
+
+  /**
+   * Create a vector source from a tileset
    *
    * @param id      the source id
    * @param tileSet the tileset
@@ -83,9 +132,22 @@ public class VectorSource extends Source {
 
   /**
    * @return The url or null
+   * @deprecated use {@link #getUri()} instead
    */
   @Nullable
+  @Deprecated
   public String getUrl() {
+    checkThread();
+    return nativeGetUrl();
+  }
+
+  /**
+   * Get the source URI.
+   *
+   * @return The uri or null
+   */
+  @Nullable
+  public String getUri() {
     checkThread();
     return nativeGetUrl();
   }

@@ -1,7 +1,7 @@
 #include <mbgl/map/map_snapshotter.hpp>
 
 #include <mbgl/actor/actor_ref.hpp>
-#include <mbgl/gl/headless_frontend.hpp>
+#include <mbgl/gfx/headless_frontend.hpp>
 #include <mbgl/map/map.hpp>
 #include <mbgl/map/map_options.hpp>
 #include <mbgl/map/transform_state.hpp>
@@ -146,7 +146,7 @@ Size MapSnapshotter::Impl::getSize() const {
 }
 
 void MapSnapshotter::Impl::setCameraOptions(CameraOptions cameraOptions) {
-	insets = cameraOptions.padding;
+	insets = cameraOptions.padding.value_or(EdgeInsets());
     map.jumpTo(cameraOptions);
 }
 

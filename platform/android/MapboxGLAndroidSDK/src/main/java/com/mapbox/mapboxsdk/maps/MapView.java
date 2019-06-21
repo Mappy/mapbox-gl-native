@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.graphics.drawable.ColorDrawable;
-import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
@@ -19,6 +18,7 @@ import android.view.TextureView;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+
 import com.mapbox.android.gestures.AndroidGesturesManager;
 import com.mapbox.mapboxsdk.MapStrictMode;
 import com.mapbox.mapboxsdk.Mapbox;
@@ -29,17 +29,19 @@ import com.mapbox.mapboxsdk.exceptions.MapboxConfigurationException;
 import com.mapbox.mapboxsdk.location.LocationComponent;
 import com.mapbox.mapboxsdk.maps.renderer.MapRenderer;
 import com.mapbox.mapboxsdk.maps.renderer.glsurfaceview.GLSurfaceViewMapRenderer;
+import com.mapbox.mapboxsdk.maps.renderer.glsurfaceview.MapboxGLSurfaceView;
 import com.mapbox.mapboxsdk.maps.renderer.textureview.TextureViewMapRenderer;
 import com.mapbox.mapboxsdk.maps.widgets.CompassView;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
 import com.mapbox.mapboxsdk.storage.FileSource;
 import com.mapbox.mapboxsdk.utils.BitmapUtils;
 
-import javax.microedition.khronos.egl.EGLConfig;
-import javax.microedition.khronos.opengles.GL10;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
 
 import static com.mapbox.mapboxsdk.maps.widgets.CompassView.TIME_MAP_NORTH_ANIMATION;
 import static com.mapbox.mapboxsdk.maps.widgets.CompassView.TIME_WAIT_IDLE;
@@ -169,7 +171,9 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     Transform transform = new Transform(this, nativeMapView, cameraDispatcher);
 
     // MapboxMap
-    mapboxMap = new MapboxMap(nativeMapView, transform, uiSettings, proj, registerTouchListener, cameraDispatcher);
+    List<MapboxMap.OnDeveloperAnimationListener> developerAnimationListeners = new ArrayList<>();
+    mapboxMap = new MapboxMap(nativeMapView, transform, uiSettings, proj, registerTouchListener, cameraDispatcher,
+      developerAnimationListeners);
     mapboxMap.injectAnnotationManager(annotationManager);
 
     // user input
@@ -182,7 +186,7 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     compassView.setOnClickListener(createCompassClickListener(cameraDispatcher));
 
     // LocationComponent
-    mapboxMap.injectLocationComponent(new LocationComponent(mapboxMap));
+    mapboxMap.injectLocationComponent(new LocationComponent(mapboxMap, transform, developerAnimationListeners));
 
     // inject widgets with MapboxMap
     attrView.setOnClickListener(attributionClickListener = new AttributionClickListener(context, mapboxMap));
@@ -293,7 +297,7 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
 
       addView(textureView, 0);
     } else {
-      GLSurfaceView glSurfaceView = new GLSurfaceView(getContext());
+      MapboxGLSurfaceView glSurfaceView = new MapboxGLSurfaceView(getContext());
       glSurfaceView.setZOrderMediaOverlay(mapboxMapOptions.getRenderSurfaceOnTop());
       mapRenderer = new GLSurfaceViewMapRenderer(getContext(), glSurfaceView, localFontFamily) {
         @Override
@@ -503,7 +507,7 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    */
   @UiThread
   public void onLowMemory() {
-    if (nativeMapView != null && mapboxMap != null && !destroyed ) {
+    if (nativeMapView != null && mapboxMap != null && !destroyed) {
       nativeMapView.onLowMemory();
     }
   }
@@ -743,7 +747,6 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
   }
 
   /**
-   *
    * Set a callback that's invoked when the style has finished loading.
    *
    * @param listener The callback that's invoked when the style has finished loading
@@ -795,6 +798,36 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    */
   public void removeOnStyleImageMissingListener(@NonNull OnStyleImageMissingListener listener) {
     mapChangeReceiver.removeOnStyleImageMissingListener(listener);
+  }
+
+  /**
+   * Set a callback that's invoked when map needs to release unused image resources.
+   * <p>
+   * A callback will be called only for unused images that were provided by the client via
+   * {@link OnStyleImageMissingListener#onStyleImageMissing(String)} listener interface.
+   * </p>
+   * <p>
+   * By default, platform will remove unused images from the style. By adding listener, default
+   * behavior can be overridden and client can control whether to release unused resources.
+   * </p>
+   *
+   * @param listener The callback that's invoked when map needs to release unused image resources
+   */
+  public void addOnCanRemoveUnusedStyleImageListener(@NonNull OnCanRemoveUnusedStyleImageListener listener) {
+    mapChangeReceiver.addOnCanRemoveUnusedStyleImageListener(listener);
+  }
+
+  /**
+   * Removes a callback that's invoked when map needs to release unused image resources.
+   * <p>
+   * When all listeners are removed, platform will fallback to default behavior, which is to remove
+   * unused images from the style.
+   * </p>
+   *
+   * @param listener The callback that's invoked when map needs to release unused image resources
+   */
+  public void removeOnCanRemoveUnusedStyleImageListener(@NonNull OnCanRemoveUnusedStyleImageListener listener) {
+    mapChangeReceiver.removeOnCanRemoveUnusedStyleImageListener(listener);
   }
 
   /**
@@ -992,6 +1025,22 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
      * @param id the id of the icon that is missing
      */
     void onStyleImageMissing(@NonNull String id);
+  }
+
+  /**
+   * Interface definition for a callback to be invoked with an unused image identifier.
+   * <p>
+   * {@link MapView#addOnCanRemoveUnusedStyleImageListener(OnCanRemoveUnusedStyleImageListener)}
+   * </p>
+   */
+  public interface OnCanRemoveUnusedStyleImageListener {
+    /**
+     * Called when the map needs to release unused image resources.
+     *
+     * @param id of an image that is not used by the map and can be removed from the style.
+     * @return true if image can be removed, false otherwise.
+     */
+    boolean onCanRemoveUnusedStyleImage(@NonNull String id);
   }
 
   /**

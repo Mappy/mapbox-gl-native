@@ -46,6 +46,7 @@
     self.mapView.scrollEnabled = NO;
     self.mapView.rotateEnabled = NO;
     self.mapView.userInteractionEnabled = YES;
+    self.mapView.preferredFramesPerSecond = MGLMapViewPreferredFramesPerSecondMaximum;
 
     [self.view addSubview:self.mapView];
 }
@@ -113,7 +114,7 @@ static const int benchmarkDuration = 200; // frames
             idx++;
             [self startBenchmarkIteration];
         } else {
-            [mapView setNeedsGLDisplay];
+            [mapView setNeedsRerender];
         }
         return;
     }
@@ -128,7 +129,7 @@ static const int benchmarkDuration = 200; // frames
             started = std::chrono::steady_clock::now();
             NSLog(@"- Benchmarking for %d frames...", benchmarkDuration);
         }
-        [mapView setNeedsGLDisplay];
+        [mapView setNeedsRerender];
         return;
     }
 
@@ -140,7 +141,7 @@ static const int benchmarkDuration = 200; // frames
             state = State::WarmingUp;
             [self.mapView didReceiveMemoryWarning];
             NSLog(@"- Warming up for %d frames...", warmupDuration);
-            [mapView setNeedsGLDisplay];
+            [mapView setNeedsRerender];
         }
         return;
     }

@@ -1,5 +1,6 @@
 #include <mbgl/renderer/render_layer.hpp>
 #include <mbgl/renderer/paint_parameters.hpp>
+#include <mbgl/renderer/render_source.hpp>
 #include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/layer.hpp>
@@ -21,6 +22,11 @@ void RenderLayer::transition(const TransitionParameters& parameters, Immutable<s
     transition(parameters);
 }
 
+bool RenderLayer::needsPlacement() const {
+    return baseImpl->getTypeInfo()->crossTileIndex == style::LayerTypeInfo::CrossTileIndex::Required
+           && !placementData.empty();
+}
+
 const std::string& RenderLayer::getID() const {
     return baseImpl->id;
 }
@@ -39,12 +45,9 @@ bool RenderLayer::supportsZoom(float zoom) const {
     return baseImpl->minZoom <= zoom && baseImpl->maxZoom >= zoom;
 }
 
-void RenderLayer::setRenderTiles(RenderTiles tiles, const TransformState&) {
-    renderTiles = filterRenderTiles(std::move(tiles));
-}
-
-const RenderLayerSymbolInterface* RenderLayer::getSymbolInterface() const {
-    return nullptr;
+void RenderLayer::prepare(const LayerPrepareParameters& params) {
+    assert(params.source);
+    renderTiles = filterRenderTiles(params.source->getRenderedTiles());
 }
 
 optional<Color> RenderLayer::getSolidBackground() const {
@@ -54,13 +57,11 @@ optional<Color> RenderLayer::getSolidBackground() const {
 RenderLayer::RenderTiles RenderLayer::filterRenderTiles(RenderTiles tiles) const {
     RenderTiles filtered;
 
-    for (auto& tileRef : tiles) {
-        auto& tile = tileRef.get().tile;
-        assert(tile.isRenderable());
+    for (RenderTile& tile : tiles) {
         if (tile.holdForFade()) {
             continue;
         }
-        filtered.emplace_back(tileRef);
+        filtered.emplace_back(tile);
     }
     return filtered;
 }
