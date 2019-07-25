@@ -874,6 +874,7 @@ CLLocationCoordinate2D randomWorldCoordinate() {
                                                       options:0
                                                         error:nil];
 
+		int zOrder = 0;
         if ([features isKindOfClass:[NSDictionary class]])
         {
             NSMutableArray *annotations = [NSMutableArray array];
@@ -888,6 +889,8 @@ CLLocationCoordinate2D randomWorldCoordinate() {
 
                 annotation.coordinate = coordinate;
                 annotation.title = title;
+				annotation.zOrder = zOrder++;
+				annotation.magnitude = featuresCount;
 
                 [annotations addObject:annotation];
 
@@ -2160,12 +2163,21 @@ CLLocationCoordinate2D randomWorldCoordinate() {
         return nil;
     }
 
+	NSInteger zOrder = 0;
+	CGFloat magnitude = 0;
+	if ([annotation isKindOfClass:[MGLPointAnnotation class]])
+	{
+		zOrder = [(MGLPointAnnotation *)annotation zOrder];
+		magnitude = [(MGLPointAnnotation *)annotation magnitude];
+	}
+
     MBXAnnotationView *annotationView = (MBXAnnotationView *)[mapView dequeueReusableAnnotationViewWithIdentifier:MBXViewControllerAnnotationViewReuseIdentifer];
     if (!annotationView)
     {
         annotationView = [[MBXAnnotationView alloc] initWithReuseIdentifier:MBXViewControllerAnnotationViewReuseIdentifer];
         annotationView.frame = CGRectMake(0, 0, 10, 10);
         annotationView.backgroundColor = [UIColor whiteColor];
+		annotationView.zOrder = zOrder;
 
         // Note that having two long press gesture recognizers on overlapping
         // views (`self.view` & `annotationView`) will cause weird behavior.
@@ -2176,6 +2188,14 @@ CLLocationCoordinate2D randomWorldCoordinate() {
         // orange indicates that the annotation view was reused
         annotationView.backgroundColor = [UIColor orangeColor];
     }
+
+	if (magnitude > 0)
+	{
+		annotationView.backgroundColor = [UIColor colorWithRed:(annotationView.zOrder / magnitude)
+														 green:0
+														  blue:1. - (annotationView.zOrder / magnitude)
+														 alpha:1];
+	}
     return annotationView;
 }
 
