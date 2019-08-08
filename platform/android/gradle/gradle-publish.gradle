@@ -27,7 +27,7 @@ afterEvaluate { project ->
         }
         repositories {
             maven {
-		        if(project.VERSION_NAME.endsWith('last-alpha')) {
+		        if(project.VERSION_NAME == 'SNAPSHOT') {
                 	url "file://${System.env.MAVEN_PRIVATE}"
             	} else {
                 	url "file://${System.env.MAVEN}"
