@@ -574,11 +574,6 @@ const MGLExceptionName MGLUnsupportedRegionTypeException = @"MGLUnsupportedRegio
         }
     });
 }
-
-- (void)cleanAmbientCache {
-	_mbglFileSource->cleanAmbientCache();
-}
-
 #pragma mark -
 
 - (unsigned long long)countOfBytesCompleted {

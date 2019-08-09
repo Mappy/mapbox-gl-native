@@ -75,8 +75,7 @@ public:
     updateMetadata(const int64_t regionID, const OfflineRegionMetadata&);
 
     std::exception_ptr deleteRegion(OfflineRegion&&);
-	std::exception_ptr invalidateRegion(int64_t regionID);
-    void deleteAllTilesAndStyles(void);
+    std::exception_ptr invalidateRegion(int64_t regionID);
 
     // Return value is (response, stored size)
     optional<std::pair<Response, uint64_t>> getRegionResource(int64_t regionID, const Resource&);

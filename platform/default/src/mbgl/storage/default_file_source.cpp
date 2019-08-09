@@ -199,11 +199,7 @@ public:
     void setMaximumAmbientCacheSize(uint64_t size, std::function<void (std::exception_ptr)> callback) {
         callback(offlineDatabase->setMaximumAmbientCacheSize(size));
     }
-	
-	void cleanAmbientCache(void) {
-		offlineDatabase->deleteAllTilesAndStyles();
-	}
-	
+
 private:
     expected<OfflineDownload*, std::exception_ptr> getDownload(int64_t regionID) {
         auto it = downloads.find(regionID);
@@ -334,10 +330,6 @@ void DefaultFileSource::getOfflineRegionStatus(OfflineRegion& region, std::funct
 
 void DefaultFileSource::setOfflineMapboxTileCountLimit(uint64_t limit) const {
     impl->actor().invoke(&Impl::setOfflineMapboxTileCountLimit, limit);
-}
-
-void DefaultFileSource::cleanAmbientCache(void) {
-    impl->actor().invoke(&Impl::cleanAmbientCache);
 }
 
 void DefaultFileSource::pause() {
