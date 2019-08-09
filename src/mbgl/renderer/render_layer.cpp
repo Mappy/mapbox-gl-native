@@ -47,23 +47,12 @@ bool RenderLayer::supportsZoom(float zoom) const {
 
 void RenderLayer::prepare(const LayerPrepareParameters& params) {
     assert(params.source);
-    renderTiles = filterRenderTiles(params.source->getRenderedTiles());
+    renderTiles = params.source->getRenderTiles();
+    addRenderPassesFromTiles();
 }
 
 optional<Color> RenderLayer::getSolidBackground() const {
     return nullopt;
-}
-
-RenderLayer::RenderTiles RenderLayer::filterRenderTiles(RenderTiles tiles) const {
-    RenderTiles filtered;
-
-    for (RenderTile& tile : tiles) {
-        if (tile.holdForFade()) {
-            continue;
-        }
-        filtered.emplace_back(tile);
-    }
-    return filtered;
 }
 
 void RenderLayer::markContextDestroyed() {
@@ -95,6 +84,22 @@ void RenderLayer::checkRenderability(const PaintParameters& parameters,
                    activeBindingCount - parameters.context.minimumRequiredVertexBindingCount);
         hasRenderFailures = true;
     }
+}
+
+void RenderLayer::addRenderPassesFromTiles() {
+    assert(renderTiles);
+    for (const RenderTile& tile : *renderTiles) {
+        if (const LayerRenderData* renderData = tile.getLayerRenderData(*baseImpl)) {
+            passes |= RenderPass(renderData->layerProperties->renderPasses);
+        }
+    }
+}
+
+const LayerRenderData* RenderLayer::getRenderDataForPass(const RenderTile& tile, RenderPass pass) const {
+    if (const LayerRenderData* renderData = tile.getLayerRenderData(*baseImpl)) {
+        return bool(RenderPass(renderData->layerProperties->renderPasses) & pass) ? renderData : nullptr;
+    }
+    return nullptr;
 }
 
 } //namespace mbgl

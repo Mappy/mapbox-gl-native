@@ -23,24 +23,11 @@ using PathChangeCallback = std::function<void ()>;
 
 class DefaultFileSource : public FileSource {
 public:
-    /*
-     * The maximumCacheSize parameter is a limit applied to non-offline resources only,
-     * i.e. resources added to the database for the "ambient use" caching functionality.
-     * There is no size limit for offline resources. If a user never creates any offline
-     * regions, we want the database to remain fairly small (order tens or low hundreds
-     * of megabytes).
-     */
-    DefaultFileSource(const std::string& cachePath,
-                      const std::string& assetPath,
-                      uint64_t maximumCacheSize = util::DEFAULT_MAX_CACHE_SIZE);
-    DefaultFileSource(const std::string& cachePath,
-                      std::unique_ptr<FileSource>&& assetFileSource,
-                      uint64_t maximumCacheSize = util::DEFAULT_MAX_CACHE_SIZE);
+    DefaultFileSource(const std::string& cachePath, const std::string& assetPath, bool supportCacheOnlyRequests = true);
+    DefaultFileSource(const std::string& cachePath, std::unique_ptr<FileSource>&& assetFileSource, bool supportCacheOnlyRequests = true);
     ~DefaultFileSource() override;
 
-    bool supportsCacheOnlyRequests() const override {
-        return true;
-    }
+    bool supportsCacheOnlyRequests() const override;
 
     void setAPIBaseURL(const std::string&);
     std::string getAPIBaseURL();
@@ -145,6 +132,14 @@ public:
     void deleteOfflineRegion(OfflineRegion&&, std::function<void (std::exception_ptr)>);
 
     /*
+     * Invalidate all the tiles from an offline region forcing Mapbox GL to revalidate
+     * the tiles with the server before using. This is more efficient than deleting the
+     * offline region and downloading it again because if the data on the cache matches
+     * the server, no new data gets transmitted.
+     */
+    void invalidateOfflineRegion(OfflineRegion&, std::function<void (std::exception_ptr)>);
+
+    /*
      * Changing or bypassing this limit without permission from Mapbox is prohibited
      * by the Mapbox Terms of Service.
      */
@@ -189,7 +184,55 @@ public:
      * executed on the database thread; it is the responsibility of the SDK bindings
      * to re-execute a user-provided callback on the main thread.
      */
-    void resetCache(std::function<void (std::exception_ptr)>);
+    void resetDatabase(std::function<void (std::exception_ptr)>);
+
+    /*
+     * Forces revalidation of the ambient cache.
+     *
+     * Forces Mapbox GL Native to revalidate resources stored in the ambient
+     * cache with the tile server before using them, making sure they
+     * are the latest version. This is more efficient than cleaning the
+     * cache because if the resource is considered valid after the server
+     * lookup, it will not get downloaded again.
+     *
+     * Resources overlapping with offline regions will not be affected
+     * by this call.
+     */
+    void invalidateAmbientCache(std::function<void (std::exception_ptr)>);
+
+    /*
+     * Erase resources from the ambient cache, freeing storage space.
+     *
+     * Erases the ambient cache, freeing resources. This operation can be
+     * potentially slow because it will trigger a VACUUM on SQLite,
+     * forcing the database to move pages on the filesystem.
+     *
+     * Resources overlapping with offline regions will not be affected
+     * by this call.
+     */
+    void clearAmbientCache(std::function<void (std::exception_ptr)>);
+
+    /*
+     * Sets the maximum size in bytes for the ambient cache.
+     *
+     * This call is potentially expensive because it will try
+     * to trim the data in case the database is larger than the
+     * size defined. The size of offline regions are not affected
+     * by this settings, but the ambient cache will always try
+     * to not exceed the maximum size defined, taking into account
+     * the current size for the offline regions.
+     *
+     * If the maximum size is set to 50 MB and 40 MB are already
+     * used by offline regions, the cache size will be effectively
+     * 10 MB.
+     *
+     * Setting the size to 0 will disable the cache if there is no
+     * offline region on the database.
+     *
+     * This method should always be called before using the database,
+     * otherwise the default maximum size will be used.
+     */
+    void setMaximumAmbientCacheSize(uint64_t size, std::function<void (std::exception_ptr)> callback);
 
     // For testing only.
     void setOnlineStatus(bool);
@@ -206,6 +249,8 @@ private:
 
     std::mutex cachedAccessTokenMutex;
     std::string cachedAccessToken;
+
+    const bool supportCacheOnlyRequests;
 };
 
 } // namespace mbgl

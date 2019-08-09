@@ -41,7 +41,7 @@ public:
     }
 
     void setResetCacheCallback(std::function<void()> callback) {
-        resetCacheCallback = callback;
+        resetDatabaseCallback = callback;
     };
 
     void setShouldClose();
@@ -68,6 +68,7 @@ private:
     static void onFramebufferResize(GLFWwindow *window, int width, int height);
     static void onMouseClick(GLFWwindow *window, int button, int action, int modifiers);
     static void onMouseMove(GLFWwindow *window, double x, double y);
+    static void onWindowFocus(GLFWwindow *window, int focused);
 
     // Internal
     void report(float duration);
@@ -125,7 +126,7 @@ private:
     std::function<void()> changeStyleCallback;
     std::function<void()> pauseResumeCallback;
     std::function<void()> onlineStatusCallback;
-    std::function<void()> resetCacheCallback;
+    std::function<void()> resetDatabaseCallback;
     std::function<void(mbgl::Map*)> animateRouteCallback;
 
     mbgl::util::RunLoop runLoop;
