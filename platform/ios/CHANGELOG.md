@@ -2,6 +2,50 @@
 
 Mapbox welcomes participation and contributions from everyone. Please read [CONTRIBUTING.md](../../CONTRIBUTING.md) to get started.
 
+## master
+
+* Fixed an issue that caused the tilt gesture to trigger too easily and conflict with pinch or pan gestures. ([#15349](https://github.com/mapbox/mapbox-gl-native/pull/15349))
+* Fixed a bug with annotation view positions after camera transitions. ([#15122](https://github.com/mapbox/mapbox-gl-native/pull/15122/))
+
+## 5.3.0 - August 28, 2019
+
+This release changes how offline tile requests are billed — they are now billed on a pay-as-you-go basis and all developers are able raise the offline tile limit for their users. Offline requests were previously exempt from monthly active user (MAU) billing and increasing the offline per-user tile limit to more than 6,000 tiles required the purchase of an enterprise license. By upgrading to this release, you are opting into the changes outlined in [this blog post](https://blog.mapbox.com/offline-maps-for-all-bb0fc51827be) and [#15380](https://github.com/mapbox/mapbox-gl-native/pull/15380).
+
+### Styles and rendering
+
+* Fixed flickering on style change for the same tile set. ([#15127](https://github.com/mapbox/mapbox-gl-native/pull/15127))
+* Fixed performance issues when tilting a map with custom content insets. ([#15195](https://github.com/mapbox/mapbox-gl-native/pull/15195))
+* Fixed an issue where animated camera transitions zoomed in or out too dramatically. ([#15281](https://github.com/mapbox/mapbox-gl-native/pull/15281))
+* Enabled variable label placement when `MGLSymbolStyleLayer.textAllowsOverlap` is set to true. ([#15354](https://github.com/mapbox/mapbox-gl-native/pull/15354))
+* Added the `MGLSymbolStyleLayer.textWritingModes` layout property. This property can be set to `MGLTextWritingModeHorizontal` or `MGLTextWritingModeVertical`. ([#14932](https://github.com/mapbox/mapbox-gl-native/pull/14932))
+* Fixed rendering and collision detection issues with using `MGLSymbolStyleLayer.textVariableAnchor` and `MGLSymbolStyleLayer.iconTextFit` properties on the same layer. ([#15367](https://github.com/mapbox/mapbox-gl-native/pull/15367))
+* Fixed symbol overlap when zooming out quickly. ([15416](https://github.com/mapbox/mapbox-gl-native/pull/15416))
+* Fixed a rendering issue where non-SDF icons would be treated as SDF icons if they are in the same layer. ([#15456](https://github.com/mapbox/mapbox-gl-native/pull/15456))
+
+### Other changes
+
+* Fixed a bug where glyphs generated through the LocalGlyphRasterizer interface were changing fonts during some zoom changes. ([#15407](https://github.com/mapbox/mapbox-gl-native/pull/15407))
+* Fixed use of objects after moving, potentially causing crashes. ([#15408](https://github.com/mapbox/mapbox-gl-native/pull/15408))
+* Fixed a possible crash that could be caused by invoking the wrong layer implementation casting function. ([#15398](https://github.com/mapbox/mapbox-gl-native/pull/15398))
+* Fixed a rare crash when tile download requests returned “404 Not Found” errors. ([#15313](https://github.com/mapbox/mapbox-gl-native/pull/15313))
+* `MGLLoggingLevel` has been updated to better match core log levels. You can now use `MGLLoggingConfiguration.loggingLevel` to filter logs from core. ([#15120](https://github.com/mapbox/mapbox-gl-native/pull/15120))
+* Fixed an issue where the scale bar could show `0 mm` instead of `0`. ([#15381](https://github.com/mapbox/mapbox-gl-native/pull/15381))
+
+## 4.11.2 - July 30, 2019
+
+* Fixed a map update bug caused by the render tiles and the render passes becoming unsynchronized. ([#15092](https://github.com/mapbox/mapbox-gl-native/pull/15092))
+* Fixed a custom geometry source bug caused by using the outdated tiles after style update. ([#15112](https://github.com/mapbox/mapbox-gl-native/pull/15112))
+
+## 5.0.2 - July 29, 2019
+
+* Fixed an issue where fill extrusion layers would be incorrectly rendered above other layers. ([#15065](https://github.com/mapbox/mapbox-gl-native/pull/15065))
+* Fixed a map update bug caused by the render tiles and the render passes becoming unsynchronized. ([#15092](https://github.com/mapbox/mapbox-gl-native/pull/15092))
+* Fixed a custom geometry source bug caused by using the outdated tiles after style update. ([#15112](https://github.com/mapbox/mapbox-gl-native/pull/15112))
+
+## 5.1.2 - July 25, 2019
+
+* Fixed a crash during network access. ([#15113](https://github.com/mapbox/mapbox-gl-native/pull/15113))		
+
 ## 5.2.0 - July 24, 2019
 
 ### Networking
@@ -22,7 +66,7 @@ Mapbox welcomes participation and contributions from everyone. Please read [CONT
 * Fixed style change transition regression caused by delayed setting of the updated layer properties. ([#15016](https://github.com/mapbox/mapbox-gl-native/pull/15016))
 * Fixed an issue where layers with fill extrusions would be incorrectly rendered above other layers. ([#15065](https://github.com/mapbox/mapbox-gl-native/pull/15065))
 * Improved feature querying performance. ([#14930](https://github.com/mapbox/mapbox-gl-native/pull/14930))
-* Fixed a custom geometry source bug caused by using the outdated tiles after style update [#15112](https://github.com/mapbox/mapbox-gl-native/pull/15112)
+* Fixed a custom geometry source bug caused by using the outdated tiles after style update ([#15112](https://github.com/mapbox/mapbox-gl-native/pull/15112))
 
 ### User interaction
 

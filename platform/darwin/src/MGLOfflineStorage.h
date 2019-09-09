@@ -173,6 +173,11 @@ typedef NS_ENUM(NSUInteger, MGLResourceKind) {
  packs and ambient caching. All of this class’s instance methods are asynchronous,
  reflecting the fact that offline resources are stored in a database. The shared
  object maintains a canonical collection of offline packs in its `packs` property.
+
+ Mapbox resources downloaded via this API are subject to separate Vector Tile and
+ Raster Tile API pricing and are not included in the Maps SDK’s “unlimited” requests.
+ See <a href="https://www.mapbox.com/pricing/">our pricing page</a> for more
+ information.
  
  #### Related examples
  See the <a href="https://docs.mapbox.com/ios/maps/examples/offline-pack/">
@@ -255,6 +260,12 @@ MGL_EXPORT
 /**
  Creates and registers an offline pack that downloads the resources needed to
  use the given region offline.
+ 
+ As of version 5.3 of the Maps SDK for iOS, offline tile requests are no longer
+ exempt from billing on mobile. Developers are subject to separate Vector Tile
+ and Raster Tile API pricing for offline use. See
+ <a href="https://www.mapbox.com/pricing/">our pricing page</a> for more 
+ information.
 
  The resulting pack is added to the shared offline storage object’s `packs`
  property, then the `completion` block is executed with that pack passed in.
@@ -334,15 +345,14 @@ MGL_EXPORT
 
 /**
  Sets the maximum number of Mapbox-hosted tiles that may be downloaded and
- stored on the current device.
+ stored on the current device. By default, the limit is set to 6,000.
 
  Once this limit is reached, an
  `MGLOfflinePackMaximumMapboxTilesReachedNotification` is posted for every
  attempt to download additional tiles until already downloaded tiles are removed
  by calling the `-removePack:withCompletionHandler:` method.
 
- @note The <a href="https://www.mapbox.com/tos/">Mapbox Terms of Service</a>
-    prohibits changing or bypassing this limit without permission from Mapbox.
+ @param maximumCount The maximum number of tiles allowed to be downloaded.
  */
 - (void)setMaximumAllowedMapboxTiles:(uint64_t)maximumCount;
 
@@ -420,7 +430,7 @@ MGL_EXPORT
 
 - (void)resetDatabaseWithCompletionHandler:(void (^)(NSError *_Nullable error))completion;
 
-/*
+/**
  Inserts the provided resource into the ambient cache.
  
  This method mimics the caching that would take place if the equivalent resource

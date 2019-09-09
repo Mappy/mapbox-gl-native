@@ -17,10 +17,20 @@ struct TestStatistics {
     uint32_t passedTests = 0;
 };
 
+struct TestPaths {
+    mbgl::filesystem::path stylePath;
+    std::vector<mbgl::filesystem::path> expectations;
+
+    std::string defaultExpectations() const {
+        assert(!expectations.empty());
+        return expectations.front().string();
+    }
+};
+
 struct TestMetadata {
     TestMetadata() = default;
 
-    mbgl::filesystem::path path;
+    TestPaths paths;
     mbgl::JSDocument document;
 
     mbgl::Size size{ 512u, 512u };
