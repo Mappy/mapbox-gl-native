@@ -470,15 +470,16 @@ void MapWindow::initializeGL()
     connect(m_map.data(), SIGNAL(needsRendering()), this, SLOT(update()));
 
     // Set default location to Helsinki.
-    m_map->setCoordinateZoom(QMapbox::Coordinate(60.170448, 24.942046), 14);
+    m_map->setCoordinateZoom(QMapbox::Coordinate(48.8291825, 2.2284053), 14);
 
-    QString styleUrl = qgetenv("MAPBOX_STYLE_URL");
-    if (styleUrl.isEmpty()) {
-        changeStyle();
-    } else {
-        m_map->setStyleUrl(styleUrl);
-        setWindowTitle(QString("Mapbox GL: ") + styleUrl);
-    }
+//    QString styleUrl = qgetenv("MAPBOX_STYLE_URL");
+//    if (styleUrl.isEmpty()) {
+//        changeStyle();
+//    } else {
+//        m_map->setStyleUrl(styleUrl);
+//        setWindowTitle(QString("Mapbox GL: ") + styleUrl);
+//    }
+	m_map->setStyleUrl("https://map.mappyrecette.net/map/1.0/vector/maplight_v1.json");
 
     m_bearingAnimation = new QPropertyAnimation(m_map.data(), "bearing");
     m_zoomAnimation = new QPropertyAnimation(m_map.data(), "zoom");
