@@ -124,6 +124,10 @@ void OfflineDatabase::handleError(const util::IOException& ex, const char* actio
     Log::Error(Event::Database, ex.code, "Can't %s: %s", action, ex.what());
 }
 
+void OfflineDatabase::handleError(const std::runtime_error& ex, const char* action) {
+    Log::Error(Event::Database, -1, "Can't %s: %s", action, ex.what());
+}
+
 void OfflineDatabase::removeExisting() {
     Log::Warning(Event::Database, "Removing existing incompatible offline database");
 
@@ -877,27 +881,15 @@ std::exception_ptr OfflineDatabase::deleteRegion(OfflineRegion&& region) try {
     return std::current_exception();
 }
 
-optional<std::pair<Response, uint64_t>> OfflineDatabase::getRegionResource(int64_t regionID, const Resource& resource) try {
-    auto response = getInternal(resource);
-
-    if (response) {
-        markUsed(regionID, resource);
-    }
-
-    return response;
+optional<std::pair<Response, uint64_t>> OfflineDatabase::getRegionResource(const Resource& resource) try {
+    return getInternal(resource);
 } catch (const mapbox::sqlite::Exception& ex) {
     handleError(ex, "read region resource");
     return nullopt;
 }
 
-optional<int64_t> OfflineDatabase::hasRegionResource(int64_t regionID, const Resource& resource) try {
-    auto response = hasInternal(resource);
-
-    if (response) {
-        markUsed(regionID, resource);
-    }
-
-    return response;
+optional<int64_t> OfflineDatabase::hasRegionResource(const Resource& resource) try {
+    return hasInternal(resource);
 } catch (const mapbox::sqlite::Exception& ex) {
     handleError(ex, "query region resource");
     return nullopt;
@@ -1069,6 +1061,11 @@ expected<OfflineRegionDefinition, std::exception_ptr> OfflineDatabase::getRegion
 
     return decodeOfflineRegionDefinition(query.get<std::string>(0));
 } catch (const mapbox::sqlite::Exception& ex) {
+    handleError(ex, "load region");
+    return unexpected<std::exception_ptr>(std::current_exception());
+} catch (const std::runtime_error& ex) {
+    // Catch errors from malformed offline region definitions
+    // and skip them (as above).
     handleError(ex, "load region");
     return unexpected<std::exception_ptr>(std::current_exception());
 }
@@ -1276,6 +1273,19 @@ bool OfflineDatabase::exceedsOfflineMapboxTileCountLimit(const Resource& resourc
     return resource.kind == Resource::Kind::Tile
         && util::mapbox::isMapboxURL(resource.url)
         && offlineMapboxTileCountLimitExceeded();
+}
+
+void OfflineDatabase::markUsedResources(int64_t regionID, const std::list<Resource>& resources) try {
+    if (!db) {
+        initialize();
+    }
+    mapbox::sqlite::Transaction transaction(*db);
+    for (const auto& resource : resources) {
+        markUsed(regionID, resource);
+    }
+    transaction.commit();
+} catch (const mapbox::sqlite::Exception& ex) {
+    handleError(ex, "mark resources as used");
 }
 
 std::exception_ptr OfflineDatabase::resetDatabase() try {

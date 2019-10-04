@@ -1,11 +1,13 @@
-#include <mbgl/style/sources/raster_source.hpp>
-#include <mbgl/style/sources/raster_source_impl.hpp>
-#include <mbgl/style/source_observer.hpp>
+#include <mbgl/storage/file_source.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion/tileset.hpp>
-#include <mbgl/storage/file_source.hpp>
-#include <mbgl/util/mapbox.hpp>
+#include <mbgl/style/layer.hpp>
+#include <mbgl/style/source_observer.hpp>
+#include <mbgl/style/sources/raster_source.hpp>
+#include <mbgl/style/sources/raster_source_impl.hpp>
+#include <mbgl/tile/tile.hpp>
 #include <mbgl/util/exception.hpp>
+#include <mbgl/util/mapbox.hpp>
 
 namespace mbgl {
 namespace style {
@@ -41,6 +43,7 @@ void RasterSource::loadDescription(FileSource& fileSource) {
     if (urlOrTileset.is<Tileset>()) {
         baseImpl = makeMutable<Impl>(impl(), urlOrTileset.get<Tileset>());
         loaded = true;
+        observer->onSourceLoaded(*this);
         return;
     }
 
@@ -77,6 +80,10 @@ void RasterSource::loadDescription(FileSource& fileSource) {
             }
         }
     });
+}
+
+bool RasterSource::supportsLayerType(const mbgl::style::LayerTypeInfo* info) const {
+    return mbgl::underlying_type(Tile::Kind::Raster) == mbgl::underlying_type(info->tileKind);
 }
 
 } // namespace style

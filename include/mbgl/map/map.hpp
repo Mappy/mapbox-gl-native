@@ -61,7 +61,7 @@ public:
 	bool isInTransition() const;
 
     // Camera
-    CameraOptions getCameraOptions(const EdgeInsets& = {}) const;
+    CameraOptions getCameraOptions(optional<EdgeInsets> = {}) const;
     void jumpTo(const CameraOptions&);
     void easeTo(const CameraOptions&, const AnimationOptions&);
     void flyTo(const CameraOptions&, const AnimationOptions&);

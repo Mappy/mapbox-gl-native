@@ -52,11 +52,13 @@ public:
     float symbolFadeChange = 0.0f;
     bool needsRepaint = false;
     bool loaded = false;
+    bool placementChanged = false;
 };
 
 class RenderTree {
 public:
     virtual ~RenderTree() = default;
+    virtual void prepare() {}
     // Render items
     virtual RenderItems getLayerRenderItems() const = 0;
     virtual RenderItems getSourceRenderItems() const = 0;

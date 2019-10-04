@@ -1,10 +1,12 @@
 #pragma once
 
-#include <mbgl/util/peer.hpp>
 #include <mbgl/util/immutable.hpp>
 #include <mbgl/util/optional.hpp>
 #include <mbgl/style/types.hpp>
 #include <mbgl/style/conversion.hpp>
+
+#include <mapbox/weak.hpp>
+#include <mapbox/type_wrapper.hpp>
 
 #include <cassert>
 #include <memory>
@@ -55,6 +57,12 @@ struct LayerTypeInfo {
      * requires cross-tile indexing and placement. Contains \c CrossTileIndex::NotRequired otherwise.
      */
     const enum class CrossTileIndex { Required, NotRequired } crossTileIndex;
+
+    /**
+     * @brief contains the Id of the supported tile type. Used for internal checks.
+     * The contained values correspond to \c Tile::Kind enum.
+     */
+    const enum class TileKind : uint8_t { Geometry, Raster, RasterDEM, NotRequired } tileKind;
 };
 
 /**
@@ -119,15 +127,20 @@ public:
     // For use in SDK bindings, which store a reference to a platform-native peer
     // object here, so that separately-obtained references to this object share
     // identical platform-native peers.
-    util::peer peer;
+    mapbox::base::TypeWrapper peer;
     Layer(Immutable<Impl>);
 
     const LayerTypeInfo* getTypeInfo() const noexcept;
+
+    mapbox::base::WeakPtr<Layer> makeWeakPtr() {
+        return weakFactory.makeWeakPtr();
+    }
 
 protected:
     virtual Mutable<Impl> mutableBaseImpl() const = 0;
 
     LayerObserver* observer;
+    mapbox::base::WeakPtrFactory<Layer> weakFactory {this};
 };
 
 } // namespace style

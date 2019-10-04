@@ -52,7 +52,8 @@ TEST(Buckets, CircleBucket) {
     ASSERT_FALSE(bucket.needsUpload());
 
     GeometryCollection point { { { 0, 0 } } };
-    bucket.addFeature(StubGeometryTileFeature { {}, FeatureType::Point, point, properties }, point, {}, PatternLayerMap());
+    bucket.addFeature(StubGeometryTileFeature{{}, FeatureType::Point, point, properties}, point, {}, PatternLayerMap(),
+                      0);
     ASSERT_TRUE(bucket.hasData());
     ASSERT_TRUE(bucket.needsUpload());
 
@@ -74,7 +75,8 @@ TEST(Buckets, FillBucket) {
     ASSERT_FALSE(bucket.needsUpload());
 
     GeometryCollection polygon { { { 0, 0 }, { 0, 1 }, { 1, 1 } } };
-    bucket.addFeature(StubGeometryTileFeature { {}, FeatureType::Polygon, polygon, properties }, polygon, {}, PatternLayerMap());
+    bucket.addFeature(StubGeometryTileFeature{{}, FeatureType::Polygon, polygon, properties}, polygon, {},
+                      PatternLayerMap(), 0);
     ASSERT_TRUE(bucket.hasData());
     ASSERT_TRUE(bucket.needsUpload());
 
@@ -96,11 +98,13 @@ TEST(Buckets, LineBucket) {
 
     // Ignore invalid feature type.
     GeometryCollection point { { { 0, 0 } } };
-    bucket.addFeature(StubGeometryTileFeature { {}, FeatureType::Point, point, properties }, point, {}, PatternLayerMap());
+    bucket.addFeature(StubGeometryTileFeature{{}, FeatureType::Point, point, properties}, point, {}, PatternLayerMap(),
+                      0);
     ASSERT_FALSE(bucket.hasData());
 
     GeometryCollection line { { { 0, 0 }, { 1, 1 } } };
-    bucket.addFeature(StubGeometryTileFeature { {}, FeatureType::LineString, line, properties }, line, {}, PatternLayerMap());
+    bucket.addFeature(StubGeometryTileFeature{{}, FeatureType::LineString, line, properties}, line, {},
+                      PatternLayerMap(), 1);
     ASSERT_TRUE(bucket.hasData());
     ASSERT_TRUE(bucket.needsUpload());
 
@@ -125,13 +129,17 @@ TEST(Buckets, SymbolBucket) {
     ASSERT_FALSE(bucket.hasIconData());
     ASSERT_FALSE(bucket.hasSdfIconData());
     ASSERT_FALSE(bucket.hasTextData());
-    ASSERT_FALSE(bucket.hasCollisionBoxData());
+    ASSERT_FALSE(bucket.hasIconCollisionBoxData());
+    ASSERT_FALSE(bucket.hasTextCollisionBoxData());
+    ASSERT_FALSE(bucket.hasIconCollisionCircleData());
+    ASSERT_FALSE(bucket.hasTextCollisionCircleData());
     ASSERT_FALSE(bucket.hasData());
     ASSERT_FALSE(bucket.needsUpload());
 
     // SymbolBucket::addFeature() is a no-op.
     GeometryCollection point { { { 0, 0 } } };
-    bucket.addFeature(StubGeometryTileFeature { {}, FeatureType::Point, std::move(point), properties }, point, {}, PatternLayerMap());
+    bucket.addFeature(StubGeometryTileFeature{{}, FeatureType::Point, std::move(point), properties}, point, {},
+                      PatternLayerMap(), 0);
     ASSERT_FALSE(bucket.hasData());
     ASSERT_FALSE(bucket.needsUpload());
 

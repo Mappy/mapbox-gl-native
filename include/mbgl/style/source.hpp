@@ -2,9 +2,11 @@
 
 #include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/optional.hpp>
-#include <mbgl/util/peer.hpp>
 #include <mbgl/util/immutable.hpp>
 #include <mbgl/style/types.hpp>
+
+#include <mapbox/weak.hpp>
+#include <mapbox/type_wrapper.hpp>
 
 #include <memory>
 #include <string>
@@ -20,6 +22,7 @@ class RasterSource;
 class RasterDEMSource;
 class GeoJSONSource;
 class SourceObserver;
+struct LayerTypeInfo;
 
 /**
  * The runtime representation of a [source](https://www.mapbox.com/mapbox-gl-style-spec/#sources) from the Mapbox Style
@@ -72,12 +75,16 @@ public:
     virtual void loadDescription(FileSource&) = 0;
     void dumpDebugLogs() const;
 
+    virtual bool supportsLayerType(const mbgl::style::LayerTypeInfo*) const = 0;
+
     bool loaded = false;
 
     // For use in SDK bindings, which store a reference to a platform-native peer
     // object here, so that separately-obtained references to this object share
     // identical platform-native peers.
-    util::peer peer;
+    mapbox::base::TypeWrapper peer;
+
+    virtual mapbox::base::WeakPtr<Source> makeWeakPtr() = 0;
 };
 
 } // namespace style

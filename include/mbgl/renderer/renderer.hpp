@@ -24,7 +24,6 @@ class RendererBackend;
 class Renderer {
 public:
     Renderer(gfx::RendererBackend&, float pixelRatio_,
-             const optional<std::string> programCacheDir = {},
              const optional<std::string> localFontFamily = {});
     ~Renderer();
 
@@ -49,6 +48,15 @@ public:
                                                  const std::string& extension,
                                                  const std::string& extensionField,
                                                  const optional<std::map<std::string, Value>>& args = {}) const;
+
+    void setFeatureState(const std::string& sourceID, const optional<std::string>& sourceLayerID,
+                         const std::string& featureID, const FeatureState& state);
+
+    void getFeatureState(FeatureState& state, const std::string& sourceID, const optional<std::string>& sourceLayerID,
+                         const std::string& featureID) const;
+
+    void removeFeatureState(const std::string& sourceID, const optional<std::string>& sourceLayerID,
+                            const optional<std::string>& featureID, const optional<std::string>& stateKey);
 
     // Debug
     void dumpDebugLogs();

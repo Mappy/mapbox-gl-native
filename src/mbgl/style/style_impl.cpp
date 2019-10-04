@@ -1,26 +1,27 @@
-#include <mbgl/style/style_impl.hpp>
-#include <mbgl/style/observer.hpp>
-#include <mbgl/style/source_impl.hpp>
-#include <mbgl/style/layers/symbol_layer.hpp>
-#include <mbgl/style/layers/custom_layer.hpp>
-#include <mbgl/style/layers/background_layer.hpp>
-#include <mbgl/style/layers/fill_layer.hpp>
-#include <mbgl/style/layers/fill_extrusion_layer.hpp>
-#include <mbgl/style/layers/heatmap_layer.hpp>
-#include <mbgl/style/layers/line_layer.hpp>
-#include <mbgl/style/layers/circle_layer.hpp>
-#include <mbgl/style/layers/raster_layer.hpp>
-#include <mbgl/style/layers/hillshade_layer.hpp>
-#include <mbgl/style/layer_impl.hpp>
-#include <mbgl/style/parser.hpp>
-#include <mbgl/style/transition_options.hpp>
 #include <mbgl/sprite/sprite_loader.hpp>
-#include <mbgl/util/exception.hpp>
-#include <mbgl/util/string.hpp>
-#include <mbgl/util/logging.hpp>
 #include <mbgl/storage/file_source.hpp>
 #include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/response.hpp>
+#include <mbgl/style/layer_impl.hpp>
+#include <mbgl/style/layers/background_layer.hpp>
+#include <mbgl/style/layers/circle_layer.hpp>
+#include <mbgl/style/layers/custom_layer.hpp>
+#include <mbgl/style/layers/fill_extrusion_layer.hpp>
+#include <mbgl/style/layers/fill_layer.hpp>
+#include <mbgl/style/layers/heatmap_layer.hpp>
+#include <mbgl/style/layers/hillshade_layer.hpp>
+#include <mbgl/style/layers/line_layer.hpp>
+#include <mbgl/style/layers/raster_layer.hpp>
+#include <mbgl/style/layers/symbol_layer.hpp>
+#include <mbgl/style/observer.hpp>
+#include <mbgl/style/parser.hpp>
+#include <mbgl/style/source_impl.hpp>
+#include <mbgl/style/style_impl.hpp>
+#include <mbgl/style/transition_options.hpp>
+#include <mbgl/util/exception.hpp>
+#include <mbgl/util/logging.hpp>
+#include <mbgl/util/string.hpp>
+#include <sstream>
 
 namespace mbgl {
 namespace style {
@@ -135,9 +136,8 @@ void Style::Impl::addSource(std::unique_ptr<Source> source) {
     }
 
     source->setObserver(this);
-    source->loadDescription(fileSource);
-
-    sources.add(std::move(source));
+    auto item = sources.add(std::move(source));
+    item->loadDescription(fileSource);
 }
 
 std::unique_ptr<Source> Style::Impl::removeSource(const std::string& id) {
@@ -173,6 +173,15 @@ Layer* Style::Impl::getLayer(const std::string& id) const {
 
 Layer* Style::Impl::addLayer(std::unique_ptr<Layer> layer, optional<std::string> before) {
     // TODO: verify source
+    if (Source* source = sources.get(layer->getSourceID())) {
+        if (!source->supportsLayerType(layer->baseImpl->getTypeInfo())) {
+            std::ostringstream message;
+            message << "Layer '" << layer->getID() << "' is not compatible with source '" << layer->getSourceID()
+                    << "'";
+
+            throw std::runtime_error(message.str());
+        }
+    }
 
     if (layers.get(layer->getID())) {
         throw std::runtime_error(std::string{"Layer "} + layer->getID() + " already exists");

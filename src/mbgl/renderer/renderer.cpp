@@ -10,11 +10,9 @@ namespace mbgl {
 
 Renderer::Renderer(gfx::RendererBackend& backend,
                    float pixelRatio_,
-                   const optional<std::string> programCacheDir_,
                    const optional<std::string> localFontFamily_)
     : impl(std::make_unique<Impl>(backend,
                                   pixelRatio_,
-                                  std::move(programCacheDir_),
                                   std::move(localFontFamily_))) {
 }
 
@@ -34,6 +32,7 @@ void Renderer::setObserver(RendererObserver* observer) {
 
 void Renderer::render(const UpdateParameters& updateParameters) {
     if (auto renderTree = impl->orchestrator.createRenderTree(updateParameters)) {
+        renderTree->prepare();
         impl->render(*renderTree);
     }
 }
@@ -109,6 +108,21 @@ FeatureExtensionValue Renderer::queryFeatureExtensions(const std::string& source
                                                        const std::string& extensionField,
                                                        const optional<std::map<std::string, Value>>& args) const {
     return impl->orchestrator.queryFeatureExtensions(sourceID, feature, extension, extensionField, args);
+}
+
+void Renderer::setFeatureState(const std::string& sourceID, const optional<std::string>& sourceLayerID,
+                               const std::string& featureID, const FeatureState& state) {
+    impl->orchestrator.setFeatureState(sourceID, sourceLayerID, featureID, state);
+}
+
+void Renderer::getFeatureState(FeatureState& state, const std::string& sourceID,
+                               const optional<std::string>& sourceLayerID, const std::string& featureID) const {
+    impl->orchestrator.getFeatureState(state, sourceID, sourceLayerID, featureID);
+}
+
+void Renderer::removeFeatureState(const std::string& sourceID, const optional<std::string>& sourceLayerID,
+                                  const optional<std::string>& featureID, const optional<std::string>& stateKey) {
+    impl->orchestrator.removeFeatureState(sourceID, sourceLayerID, featureID, stateKey);
 }
 
 void Renderer::dumpDebugLogs() {

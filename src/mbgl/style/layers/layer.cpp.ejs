@@ -14,6 +14,7 @@
 #include <mbgl/style/conversion/transition_options.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion_impl.hpp>
+#include <mbgl/util/traits.hpp>
 
 #include <mapbox/eternal.hpp>
 
@@ -26,13 +27,20 @@ let defaults = { caps: { 'Source':   'NotRequired',
                          'Pass3D':   'NotRequired',
                          'Layout':   'NotRequired',
                          'FadingTiles': 'NotRequired',
-                         'CrossTileIndex': 'NotRequired'
+                         'CrossTileIndex': 'NotRequired',
+                         'TileKind' : 'NotRequired'
                  },
                  require: function(cap) {
-                             let copy = Object.assign({}, this);
-                             copy.caps = Object.assign({}, this.caps);
-                             copy.caps[cap] = 'Required';
-                             return copy;
+                            let copy = Object.assign({}, this);
+                            copy.caps = Object.assign({}, this.caps);
+                            copy.caps[cap] = 'Required';
+                            return copy;
+                 },
+                 set: function(cap, value) {
+                            let copy = Object.assign({}, this);
+                            copy.caps = Object.assign({}, this.caps);
+                            copy.caps[cap] = value;
+                            return copy;
                  },
                  finalize: function() {
                     return Object.keys(this.caps).reduce((acc, key) => {
@@ -45,30 +53,35 @@ let defaults = { caps: { 'Source':   'NotRequired',
 layerCapabilities['background']     = defaults.finalize();
 layerCapabilities['fill']           = defaults.require('Source')
                                               .require('Layout')
+                                              .set('TileKind', 'Geometry')
                                               .finalize();
 layerCapabilities['fill-extrusion'] = defaults.require('Source')
                                               .require('Pass3D')
                                               .require('Layout')
+                                              .set('TileKind', 'Geometry')
                                               .finalize();
 layerCapabilities['hillshade']      = defaults.require('Source')
                                               .require('Pass3D')
+                                              .set('TileKind', 'RasterDEM')
                                               .finalize();
 layerCapabilities['symbol']         = defaults.require('Source')
                                               .require('Layout')
                                               .require('FadingTiles')
                                               .require('CrossTileIndex')
+                                              .set('TileKind', 'Geometry')
                                               .finalize();
-layerCapabilities['circle']         = defaults.require('Source').finalize();
+layerCapabilities['circle']         = defaults.require('Source').set('TileKind', 'Geometry').finalize();
 layerCapabilities['line']           = layerCapabilities['fill'];
-layerCapabilities['heatmap']        = layerCapabilities['hillshade'];
-layerCapabilities['raster']         = layerCapabilities['circle'];
+layerCapabilities['heatmap']        = defaults.require('Source')
+                                              .require('Pass3D')
+                                              .set('TileKind', 'Geometry')
+                                              .finalize();
+layerCapabilities['raster']         = defaults.require('Source').set('TileKind', 'Raster').finalize();
 %>
 // static
 const LayerTypeInfo* <%- camelize(type) %>Layer::Impl::staticTypeInfo() noexcept {
-    const static LayerTypeInfo typeInfo
-        {"<%- type %>",
-          <%-`${layerCapabilities[type].map(cap => `LayerTypeInfo::${cap}`).join(',\n          ')}` %>
-        };
+    const static LayerTypeInfo typeInfo{"<%- type %>",
+                                        <%-`${layerCapabilities[type].map(cap => `LayerTypeInfo::${cap}`).join(',\n                                        ')}` %>};
     return &typeInfo;
 }
 
@@ -176,7 +189,7 @@ TransitionOptions <%- camelize(type) %>Layer::get<%- camelize(property.name) %>T
 using namespace conversion;
 
 optional<Error> <%- camelize(type) %>Layer::setPaintProperty(const std::string& name, const Convertible& value) {
-    enum class Property : uint8_t {
+    enum class Property {
 <% for (const property of paintProperties) { -%>
         <%- camelize(property.name) %>,
 <% } -%>
@@ -186,8 +199,8 @@ optional<Error> <%- camelize(type) %>Layer::setPaintProperty(const std::string& 
     };
 
     MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
-        <%- paintProperties.map(p => `{ "${p.name}", static_cast<uint8_t>(Property::${camelize(p.name)}) }`).join(',\n        ') %>,
-        <%- paintProperties.map(p => `{ "${p.name}-transition", static_cast<uint8_t>(Property::${camelize(p.name)}Transition) }`).join(',\n        ') %>
+        <%- paintProperties.map(p => `{ "${p.name}", mbgl::underlying_type(Property::${camelize(p.name)}) }`).join(',\n        ') %>,
+        <%- paintProperties.map(p => `{ "${p.name}-transition", mbgl::underlying_type(Property::${camelize(p.name)}Transition) }`).join(',\n        ') %>
     });
 
     const auto it = properties.find(name.c_str());
@@ -254,7 +267,7 @@ optional<Error> <%- camelize(type) %>Layer::setLayoutProperty(const std::string&
 <% } -%>
     };
     MAPBOX_ETERNAL_CONSTEXPR const auto properties = mapbox::eternal::hash_map<mapbox::eternal::string, uint8_t>({
-        <%- layoutProperties.map(p => `{ "${p.name}", static_cast<uint8_t>(Property::${camelize(p.name)}) }`).join(',\n        ') %>
+        <%- layoutProperties.map(p => `{ "${p.name}", mbgl::underlying_type(Property::${camelize(p.name)}) }`).join(',\n        ') %>
     });
 
     const auto it = properties.find(name.c_str());
