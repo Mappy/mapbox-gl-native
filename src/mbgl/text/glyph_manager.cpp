@@ -50,7 +50,7 @@ void GlyphManager::getGlyphs(GlyphRequestor& requestor, GlyphDependencies glyphD
                 } else {
                     GlyphRequest& request = entry.ranges[range];
                     request.requestors[&requestor] = dependencies;
-                    requestRange(request, fontStack, range);
+	            requestRange(request, fontStack, range, fileSource);
                 }
             }
         }
