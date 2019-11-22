@@ -103,10 +103,6 @@ public:
     void setLineTranslateTransition(const TransitionOptions&);
     TransitionOptions getLineTranslateTransition() const;
 
-    // Mappy path
-    bool getLineIsMappyPath () const;
-    void setLineIsMappyPath(bool);
-
     static PropertyValue<TranslateAnchorType> getDefaultLineTranslateAnchor();
     const PropertyValue<TranslateAnchorType>& getLineTranslateAnchor() const;
     void setLineTranslateAnchor(const PropertyValue<TranslateAnchorType>&);
