@@ -611,6 +611,7 @@ void OfflineDatabase::deleteAllTilesAndStyles(void) {
     db->exec("DELETE FROM tiles");
     db->exec("DELETE FROM resources");
     db->exec("VACUUM");
+    cleanup();
 }
 
 expected<OfflineRegions, std::exception_ptr> OfflineDatabase::listRegions() try {
