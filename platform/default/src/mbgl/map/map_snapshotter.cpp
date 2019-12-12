@@ -42,6 +42,7 @@ public:
 private:
     HeadlessFrontend frontend;
     Map map;
+	EdgeInsets insets;
 };
 
 MapSnapshotter::Impl::Impl(const std::pair<bool, std::string> style,
@@ -64,7 +65,7 @@ MapSnapshotter::Impl::Impl(const std::pair<bool, std::string> style,
     }
 
     if (cameraOptions) {
-        map.jumpTo(*cameraOptions);
+        this->setCameraOptions(*cameraOptions);
     }
 
     // Set region, if specified
@@ -143,16 +144,15 @@ Size MapSnapshotter::Impl::getSize() const {
 }
 
 void MapSnapshotter::Impl::setCameraOptions(CameraOptions cameraOptions) {
+	insets = cameraOptions.padding.value_or(EdgeInsets());
     map.jumpTo(cameraOptions);
 }
 
 CameraOptions MapSnapshotter::Impl::getCameraOptions() const {
-    EdgeInsets insets;
     return map.getCameraOptions(insets);
 }
 
 void MapSnapshotter::Impl::setRegion(LatLngBounds region) {
-    mbgl::EdgeInsets insets = { 0, 0, 0, 0 };
     std::vector<LatLng> latLngs = { region.southwest(), region.northeast() };
     map.jumpTo(map.cameraForLatLngs(latLngs, insets));
 }
