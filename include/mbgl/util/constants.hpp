@@ -54,6 +54,7 @@ constexpr std::size_t DEFAULT_ON_DEMAND_IMAGES_CACHE_SIZE = 100 * 8192;
 
 constexpr Duration DEFAULT_TRANSITION_DURATION = Milliseconds(300);
 constexpr Seconds CLOCK_SKEW_RETRY_TIMEOUT { 30 };
+constexpr Seconds CLOCK_MAPPY_TRAFFIC_RETRY_TIMEOUT { 120 };
 
 constexpr UnitBezier DEFAULT_TRANSITION_EASE = { 0, 0, 0.25, 1 };
 
