@@ -15,6 +15,33 @@ repositories {
     mavenCentral()
 }
 
+task androidJavadocs(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    options.charSet('UTF-8')
+    options.windowTitle("Mappy Mapbox Maps SDK for Android $VERSION_NAME Reference")
+    options.docTitle("Mappy Mapbox Maps SDK for Android $VERSION_NAME")
+    options.header("Mapbox Maps SDK for Android $VERSION_NAME Reference")
+    options.links("http://docs.oracle.com/javase/7/docs/api/")
+    options.linksOffline("http://d.android.com/reference/", "$System.env.ANDROID_HOME/docs/reference")
+    options.overview("src/main/java/overview.html")
+    options.group("Mapbox Android SDK", "com.mapbox.*")
+    exclude '**/*.kt', '**/R.java', '**/BuildConfig.java', '**/*.html', '**/*.ejs'
+    options.showFromPublic()
+    options.memberLevel = JavadocMemberLevel.PUBLIC
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    failOnError = false
+}
+
+task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+    classifier = 'javadoc'
+    from androidJavadocs.destinationDir
+}
+
+task androidSourcesJar(type: Jar) {
+    classifier = 'sources'
+    from android.sourceSets.main.java.srcDirs
+}
+
 afterEvaluate { project ->
     publishing {
         publications {
@@ -23,6 +50,8 @@ afterEvaluate { project ->
                 groupId this.group
                 artifactId project.ext.mapboxArtifactId
                 version this.version
+
+                artifact androidJavadocsJar
             }
         }
         repositories {
