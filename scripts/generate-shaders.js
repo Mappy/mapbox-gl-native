@@ -24,11 +24,6 @@ function basicMinify(src) {
 }
 
 for (const key in shaders) {
-    // Rename a_*_t uniforms to u_*_t. This is a workaround until we can use
-    // https://github.com/mapbox/mapbox-gl-js/pull/8055, which is blocked by
-    // https://github.com/mapbox/mapbox-gl-native/issues/13984
-    shaders[key].vertexSource = shaders[key].vertexSource.replace(/\ba_(\w+)_t\b/mg, 'u_$1_t');
-
     const hash = crypto.createHash('sha1');
 
     const vertex = concatenated.length;
@@ -98,7 +93,7 @@ struct ShaderSource;
 `);
 
 writeIfModified(path.join(outputPath, 'gl', 'shader_source.cpp'), `// NOTE: DO NOT CHANGE THIS FILE. IT IS AUTOMATICALLY GENERATED.
-
+// clang-format off
 #include <mbgl/programs/gl/shader_source.hpp>
 #include <mbgl/util/compression.hpp>
 
@@ -109,8 +104,7 @@ namespace programs {
 namespace gl {
 
 constexpr const uint8_t compressedShaderSource[] = {
-    ${compressed}
-};
+    ${compressed}};
 
 const char* shaderSource() {
     static std::string decompressed = util::decompress(std::string(reinterpret_cast<const char*>(compressedShaderSource), sizeof(compressedShaderSource)));
@@ -120,6 +114,7 @@ const char* shaderSource() {
 } // namespace gl
 } // namespace programs
 } // namespace mbgl
+// clang-format on
 `);
 
 writeIfModified(path.join(outputPath, 'gl', 'preludes.hpp'), `// NOTE: DO NOT CHANGE THIS FILE. IT IS AUTOMATICALLY GENERATED.
@@ -132,7 +127,7 @@ namespace mbgl {
 namespace programs {
 namespace gl {
 
-constexpr const uint8_t preludeHash[8] = { ${offsets['prelude'].hash} };
+constexpr const uint8_t preludeHash[8] = {${offsets['prelude'].hash}};
 constexpr const auto vertexPreludeOffset = ${offsets['prelude'].vertex};
 constexpr const auto fragmentPreludeOffset = ${offsets['prelude'].fragment};
 
@@ -148,7 +143,7 @@ for (const key in offsets) {
     const { shaderName, ShaderName, originalKey } = offsets[key];
 
     writeIfModified(path.join(outputPath, 'gl', `${shaderName}.cpp`), `// NOTE: DO NOT CHANGE THIS FILE. IT IS AUTOMATICALLY GENERATED.
-
+// clang-format off
 #include <mbgl/programs/${shaderName}_program.hpp>
 #include <mbgl/programs/gl/preludes.hpp>
 #include <mbgl/programs/gl/shader_source.hpp>
@@ -164,7 +159,7 @@ struct ShaderSource;
 template <>
 struct ShaderSource<${ShaderName}Program> {
     static constexpr const char* name = "${shaderName}";
-    static constexpr const uint8_t hash[8] = { ${offsets[key].hash} };
+    static constexpr const uint8_t hash[8] = {${offsets[key].hash}};
     static constexpr const auto vertexOffset = ${offsets[key].vertex};
     static constexpr const auto fragmentOffset = ${offsets[key].fragment};
 };
@@ -195,6 +190,6 @@ ${shaders[originalKey].vertexSource}
 /*
 ${shaders[originalKey].fragmentSource}
 */
-
+// clang-format on
 `);
 }

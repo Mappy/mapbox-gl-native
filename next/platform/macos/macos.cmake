@@ -88,6 +88,8 @@ target_sources(
         ${MBGL_ROOT}/platform/darwin/src/run_loop.cpp
         ${MBGL_ROOT}/platform/darwin/src/string_nsstring.mm
         ${MBGL_ROOT}/platform/darwin/src/timer.cpp
+        ${MBGL_ROOT}/platform/darwin/src/native_apple_interface.m
+        ${MBGL_ROOT}/platform/darwin/src/MGLNetworkIntegrationManager.m
         ${MBGL_ROOT}/platform/default/src/mbgl/gfx/headless_backend.cpp
         ${MBGL_ROOT}/platform/default/src/mbgl/gfx/headless_frontend.cpp
         ${MBGL_ROOT}/platform/default/src/mbgl/gl/headless_backend.cpp
@@ -169,7 +171,7 @@ target_compile_definitions(
 
 target_link_libraries(
     mbgl-test-runner
-    PRIVATE mbgl-test
+    PRIVATE mbgl-compiler-options mbgl-test
 )
 
 add_executable(
@@ -179,7 +181,7 @@ add_executable(
 
 target_link_libraries(
     mbgl-benchmark-runner
-    PRIVATE mbgl-benchmark
+    PRIVATE mbgl-compiler-options mbgl-benchmark
 )
 
 add_executable(
@@ -189,7 +191,7 @@ add_executable(
 
 target_link_libraries(
     mbgl-render-test-runner
-    PRIVATE mbgl-render-test
+    PRIVATE mbgl-compiler-options mbgl-render-test
 )
 
 set_property(TARGET mbgl-benchmark-runner PROPERTY FOLDER Executables)

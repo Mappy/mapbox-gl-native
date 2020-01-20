@@ -118,13 +118,11 @@ GeometryTileWorker::~GeometryTileWorker() = default;
 
 void GeometryTileWorker::setData(std::unique_ptr<const GeometryTileData> data_,
                                  std::set<std::string> availableImages_,
-                                 bool resetLayers_,
                                  uint64_t correlationID_) {
     try {
         data = std::move(data_);
         correlationID = correlationID_;
         availableImages = std::move(availableImages_);
-        if (resetLayers_) layers = nullopt;
 
         switch (state) {
         case Idle:
@@ -167,6 +165,22 @@ void GeometryTileWorker::setLayers(std::vector<Immutable<LayerProperties>> layer
         }
     } catch (...) {
         parent.invoke(&GeometryTile::onError, std::current_exception(), correlationID);
+    }
+}
+
+void GeometryTileWorker::reset(uint64_t correlationID_) {
+    layers = nullopt;
+    data = nullopt;
+    correlationID = correlationID_;
+
+    switch (state) {
+        case Idle:
+        case NeedsParse:
+            break;
+        case Coalescing:
+        case NeedsSymbolLayout:
+            state = NeedsParse;
+            break;
     }
 }
 
@@ -446,8 +460,7 @@ void GeometryTileWorker::finalizeLayout() {
                 return;
             }
 
-            layout->prepareSymbols(glyphMap, glyphAtlas.positions,
-                                  imageMap, iconAtlas.iconPositions);
+            layout->prepareSymbols(glyphMap, glyphAtlas.positions, imageMap, iconAtlas.iconPositions);
 
             if (!layout->hasSymbolInstances()) {
                 continue;

@@ -105,7 +105,7 @@ TEST(AsyncTask, RequestCoalescingMultithreaded) {
     unsigned count = 0, numThreads = 25;
     AsyncTask async([&count] { ++count; });
 
-    auto retainer = Scheduler::GetBackground();
+    std::shared_ptr<Scheduler> retainer = Scheduler::GetBackground();
     auto mailbox = std::make_shared<Mailbox>(*retainer);
 
     TestWorker worker(&async);
@@ -134,7 +134,7 @@ TEST(AsyncTask, ThreadSafety) {
 
     AsyncTask async([&count] { ++count; });
 
-    auto retainer = Scheduler::GetBackground();
+    std::shared_ptr<Scheduler> retainer = Scheduler::GetBackground();
     auto mailbox = std::make_shared<Mailbox>(*retainer);
 
     TestWorker worker(&async);
@@ -166,7 +166,50 @@ TEST(AsyncTask, scheduleAndReplyValue) {
         loop.stop();
     };
 
-    auto sheduler = Scheduler::GetBackground();
+    std::shared_ptr<Scheduler> sheduler = Scheduler::GetBackground();
     sheduler->scheduleAndReplyValue(runInBackground, onResult);
     loop.run();
+}
+
+TEST(AsyncTask, SequencedScheduler) {
+    RunLoop loop;
+    std::thread::id caller_id = std::this_thread::get_id();
+    std::thread::id bg_id;
+    int count = 0;
+
+    auto first = [caller_id, &bg_id, &count]() {
+        EXPECT_EQ(0, count);
+        bg_id = std::this_thread::get_id();
+        EXPECT_NE(caller_id, bg_id);
+        count++;
+    };
+    auto second = [&bg_id, &count]() {
+        EXPECT_EQ(1, count);
+        EXPECT_EQ(bg_id, std::this_thread::get_id());
+        count++;
+    };
+    auto third = [&bg_id, &count, &loop]() {
+        EXPECT_EQ(2, count);
+        EXPECT_EQ(bg_id, std::this_thread::get_id());
+        loop.stop();
+    };
+
+    std::shared_ptr<Scheduler> sheduler = Scheduler::GetSequenced();
+
+    sheduler->schedule(first);
+    sheduler->schedule(second);
+    sheduler->schedule(third);
+    loop.run();
+}
+
+TEST(AsyncTask, MultipleSequencedSchedulers) {
+    std::vector<std::shared_ptr<Scheduler>> shedulers;
+
+    for (int i = 0; i < 10; ++i) {
+        std::shared_ptr<Scheduler> scheduler = Scheduler::GetSequenced();
+        EXPECT_TRUE(std::none_of(
+            shedulers.begin(), shedulers.end(), [&scheduler](const auto &item) { return item == scheduler; }));
+        shedulers.emplace_back(std::move(scheduler));
+    }
+    EXPECT_EQ(shedulers.front(), std::shared_ptr<Scheduler>(Scheduler::GetSequenced()));
 }

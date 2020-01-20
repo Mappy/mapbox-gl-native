@@ -583,15 +583,6 @@ QMapboxGL::~QMapboxGL()
 }
 
 /*!
-    Cycles through several debug options like showing the tile borders,
-    tile numbers, expiration time and wireframe.
-*/
-void QMapboxGL::cycleDebugOptions()
-{
-    d_ptr->mapObj->cycleDebugOptions();
-}
-
-/*!
     \property QMapboxGL::styleJson
     \brief the map style JSON.
 
@@ -1011,7 +1002,7 @@ void QMapboxGL::removeAnnotation(QMapbox::AnnotationID id)
 */
 bool QMapboxGL::setLayoutProperty(const QString& layer, const QString& propertyName, const QVariant& value)
 {
-    return d_ptr->setProperty(&mbgl::style::Layer::setLayoutProperty, layer, propertyName, value);
+    return d_ptr->setProperty(&mbgl::style::Layer::setProperty, layer, propertyName, value);
 }
 
 /*!
@@ -1071,7 +1062,7 @@ bool QMapboxGL::setLayoutProperty(const QString& layer, const QString& propertyN
 
 bool QMapboxGL::setPaintProperty(const QString& layer, const QString& propertyName, const QVariant& value)
 {
-    return d_ptr->setProperty(&mbgl::style::Layer::setPaintProperty, layer, propertyName, value);
+    return d_ptr->setProperty(&mbgl::style::Layer::setProperty, layer, propertyName, value);
 }
 
 /*!

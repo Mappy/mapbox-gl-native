@@ -96,7 +96,7 @@ target_compile_definitions(
 
 target_link_libraries(
     mbgl-test-runner
-    PRIVATE mbgl-test
+    PRIVATE mbgl-compiler-options mbgl-test
 )
 
 add_executable(
@@ -106,7 +106,7 @@ add_executable(
 
 target_link_libraries(
     mbgl-benchmark-runner
-    PRIVATE mbgl-benchmark
+    PRIVATE mbgl-compiler-options mbgl-benchmark
 )
 
 add_executable(
@@ -116,7 +116,7 @@ add_executable(
 
 target_link_libraries(
     mbgl-render-test-runner
-    PRIVATE mbgl-render-test
+    PRIVATE mbgl-compiler-options mbgl-render-test
 )
 
 add_test(NAME mbgl-benchmark-runner COMMAND mbgl-benchmark-runner WORKING_DIRECTORY ${MBGL_ROOT})
@@ -136,7 +136,8 @@ add_test(
 )
 
 add_test(
-    NAME mbgl-render-test-probes
+    NAME mbgl-render-test-probe-unit-tests
     COMMAND mbgl-render-test-runner tests --manifestPath=${MBGL_ROOT}/render-test/linux-probe-manifest.json
 )
-add_test(NAME mbgl-query-test COMMAND mbgl-render-test-runner query-tests --manifestPath=${MBGL_ROOT}/render-test/linux-manifest.json)
+
+add_test(NAME mbgl-query-test COMMAND mbgl-render-test-runner query-tests --manifestPath=${MBGL_ROOT}/render-test/linux-query-manifest.json)

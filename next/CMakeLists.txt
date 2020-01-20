@@ -7,16 +7,19 @@ set(MBGL_ROOT ${PROJECT_SOURCE_DIR}/..)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER Core)
 
-enable_testing()
+set(
+    MEMORYCHECK_COMMAND_OPTIONS
+    "--leak-check=full --gen-suppressions=all --error-exitcode=1 --suppressions=${MBGL_ROOT}/scripts/valgrind.sup"
+)
+
+include(CTest)
 
 set(
     CMAKE_CONFIGURATION_TYPES
     Debug
-    DebugCoverage
     MinSizeRel
     RelWithDebInfo
     Release
-    Sanitize
 )
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -24,25 +27,50 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(MBGL_WITH_CORE_ONLY "Build only the core bits, no platform code" OFF)
+option(MBGL_WITH_COVERAGE "Enable code coverage collection" OFF)
 option(MBGL_WITH_QT "Build Mapbox GL Qt bindings" OFF)
-option(MBGL_WITH_SANITIZER "Use [address|thread|memory|undefined] here" OFF)
+option(MBGL_WITH_SANITIZER "Use [address|thread|undefined] here" OFF)
 
-set(CMAKE_CXX_FLAGS_DEBUGCOVERAGE "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
-set(CMAKE_C_FLAGS_DEBUGCOVERAGE "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
+add_library(
+    mbgl-compiler-options INTERFACE
+)
 
-set(CMAKE_CXX_FLAGS_SANITIZE "-DSANITIZE -g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=${MBGL_WITH_SANITIZER}")
-set(CMAKE_C_FLAGS_SANITIZE "-DSANITIZE -g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=${MBGL_WITH_SANITIZER}")
+target_compile_options(
+    mbgl-compiler-options
+    INTERFACE
+        $<$<BOOL:${MBGL_WITH_COVERAGE}>:--coverage>
+        $<$<BOOL:${MBGL_WITH_SANITIZER}>:-DSANITIZE>
+        $<$<BOOL:${MBGL_WITH_SANITIZER}>:-fno-omit-frame-pointer>
+        $<$<BOOL:${MBGL_WITH_SANITIZER}>:-fno-optimize-sibling-calls>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},address>:-fsanitize=address>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},thread>:-fsanitize=thread>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=implicit-conversion>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=undefined>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=unsigned-integer-overflow>
+        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wall>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wshadow>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wextra>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Werror>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<PLATFORM_ID:Android>>:-Wno-error=tautological-constant-compare>
+        $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
+        $<$<CXX_COMPILER_ID:GNU>:-Wno-error=return-type>
+        $<$<CXX_COMPILER_ID:GNU>:-Wno-error=unknown-pragmas>
+        $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=deprecated-declarations>
+        $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=unused-parameter>
+        $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=unused-property-ivar>
+)
 
-if(MBGL_WITH_QT)
-    find_package(Qt5Core REQUIRED)
-    set(CMAKE_AUTOMOC ON)
-    set(CMAKE_AUTORCC ON)
-endif()
+target_link_libraries(
+    mbgl-compiler-options
+    INTERFACE
+        $<$<BOOL:${MBGL_WITH_COVERAGE}>:--coverage>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},address>:-fsanitize=address>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},thread>:-fsanitize=thread>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=undefined>
+)
 
-# Avoid warnings when setting visibility
 cmake_policy(SET CMP0063 NEW)
-
-# Compiler/linker configuration
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +83,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+if(MBGL_WITH_QT)
+    find_package(Qt5Core REQUIRED)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+endif()
 
 add_library(
     mbgl-core STATIC
@@ -425,6 +459,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_sdf_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_sdf_text.cpp
+    ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_text_and_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_program.cpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_texture_program.cpp
@@ -451,6 +486,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/programs/symbol_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/symbol_sdf_icon_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/symbol_sdf_text_program.hpp
+    ${MBGL_ROOT}/src/mbgl/programs/symbol_text_and_icon_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/textures.hpp
     ${MBGL_ROOT}/src/mbgl/programs/uniforms.hpp
     ${MBGL_ROOT}/src/mbgl/renderer/backend_scope.cpp
@@ -907,6 +943,7 @@ target_link_libraries(
     PRIVATE
         Mapbox::Base::Extras::kdbush.hpp
         Mapbox::Base::supercluster.hpp
+        mbgl-compiler-options
         mbgl-vendor-boost
         mbgl-vendor-earcut.hpp
         mbgl-vendor-eternal
@@ -934,6 +971,10 @@ set_property(TARGET mbgl-core PROPERTY FOLDER Core)
 add_library(
     Mapbox::Map ALIAS mbgl-core
 )
+
+if(MBGL_WITH_PLATFORM_EXTRAS)
+    include(${MBGL_WITH_PLATFORM_EXTRAS})
+endif()
 
 if(MBGL_WITH_CORE_ONLY)
     return()

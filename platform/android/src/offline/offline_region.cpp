@@ -101,31 +101,23 @@ void OfflineRegion::getOfflineRegionStatus(jni::JNIEnv& env_, const jni::Object<
     });
 }
 
-namespace {
-// Reattach, the callback comes from a different thread
-void handleException(std::exception_ptr exception,
-                     const jni::Object<OfflineRegion::OfflineRegionDeleteCallback>& callback,
-                     android::UniqueEnv env = android::AttachEnv()) {
-    if (exception) {
-        OfflineRegion::OfflineRegionDeleteCallback::onError(*env, callback, exception);
-    } else {
-        OfflineRegion::OfflineRegionDeleteCallback::onDelete(*env, callback);
-    }
-}
-} // namespace
-
-void OfflineRegion::deleteOfflineRegion(jni::JNIEnv& env_,
-                                        jni::jboolean pack,
-                                        const jni::Object<OfflineRegionDeleteCallback>& callback_) {
+void OfflineRegion::deleteOfflineRegion(jni::JNIEnv& env_, const jni::Object<OfflineRegionDeleteCallback>& callback_) {
     auto globalCallback = jni::NewGlobal<jni::EnvAttachingDeleter>(env_, callback_);
 
-    fileSource->deleteOfflineRegion(
-        std::move(*region),
-        [
-            // Ensure the object is not gc'd in the meanwhile
-            callback = std::make_shared<decltype(globalCallback)>(std::move(globalCallback))](
-            std::exception_ptr error) mutable { handleException(error, *callback); },
-        pack);
+    fileSource->deleteOfflineRegion(std::move(*region),
+                                    [
+                                        // Ensure the object is not gc'd in the meanwhile
+                                        callback = std::make_shared<decltype(globalCallback)>(
+                                            std::move(globalCallback))](std::exception_ptr error) mutable {
+                                        // Reattach, the callback comes from a different thread
+                                        android::UniqueEnv env = android::AttachEnv();
+
+                                        if (error) {
+                                            OfflineRegionDeleteCallback::onError(*env, *callback, error);
+                                        } else {
+                                            OfflineRegionDeleteCallback::onDelete(*env, *callback);
+                                        }
+                                    });
 }
 
 void OfflineRegion::invalidateOfflineRegion(jni::JNIEnv& env_,

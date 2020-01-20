@@ -10,6 +10,7 @@ add_executable(
     ${MBGL_ROOT}/platform/glfw/glfw_gl_backend.cpp
     ${MBGL_ROOT}/platform/glfw/glfw_renderer_frontend.cpp
     ${MBGL_ROOT}/platform/glfw/settings_json.cpp
+    ${MBGL_ROOT}/platform/glfw/test_writer.cpp
 )
 
 target_include_directories(
@@ -30,9 +31,14 @@ target_link_libraries(
     PRIVATE
         ${GLFW_LIBRARIES}
         Mapbox::Base::Extras::args
+        Mapbox::Base::Extras::filesystem
+        Mapbox::Base::Extras::rapidjson
         Mapbox::Map
         OpenGL::GL
+        mbgl-compiler-options
         mbgl-vendor-cheap-ruler-cpp
 )
 
 set_property(TARGET mbgl-glfw PROPERTY FOLDER Executables)
+
+install(TARGETS mbgl-glfw RUNTIME DESTINATION bin)

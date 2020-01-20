@@ -9,14 +9,19 @@
 
 #include "filesystem.hpp"
 
+#include <list>
 #include <map>
 
 namespace mbgl {
+
+class Map;
+class HeadlessFrontend;
 namespace gfx {
 struct RenderingStats;
 }
 } // namespace mbgl
 
+class TestRunnerMapObserver;
 struct TestStatistics {
     TestStatistics() = default;
 
@@ -29,11 +34,16 @@ struct TestStatistics {
 
 struct TestPaths {
     TestPaths() = default;
-    TestPaths(mbgl::filesystem::path stylePath_, std::vector<mbgl::filesystem::path> expectations_)
-        : stylePath(std::move(stylePath_)), expectations(std::move(expectations_)) {}
+    TestPaths(mbgl::filesystem::path stylePath_,
+              std::vector<mbgl::filesystem::path> expectations_,
+              std::vector<mbgl::filesystem::path> expectedMetrics_)
+        : stylePath(std::move(stylePath_)),
+          expectations(std::move(expectations_)),
+          expectedMetrics(std::move(expectedMetrics_)) {}
 
     mbgl::filesystem::path stylePath;
     std::vector<mbgl::filesystem::path> expectations;
+    std::vector<mbgl::filesystem::path> expectedMetrics;
 
     std::string defaultExpectations() const {
         assert(!expectations.empty());
@@ -127,6 +137,7 @@ struct TestMetadata {
     mbgl::JSDocument document;
     bool renderTest = true;
     bool outputsImage = true;
+    bool ignoredTest = false;
 
     mbgl::Size size{ 512u, 512u };
     float pixelRatio = 1.0f;
@@ -162,3 +173,21 @@ struct TestMetadata {
     TestMetrics metrics;
     TestMetrics expectedMetrics;
 };
+
+class TestContext {
+public:
+    virtual mbgl::HeadlessFrontend& getFrontend() = 0;
+    virtual mbgl::Map& getMap() = 0;
+    virtual TestRunnerMapObserver& getObserver() = 0;
+    virtual TestMetadata& getMetadata() = 0;
+
+    GfxProbe activeGfxProbe{};
+    GfxProbe baselineGfxProbe{};
+    bool gfxProbeActive = false;
+
+protected:
+    virtual ~TestContext() = default;
+};
+
+using TestOperation = std::function<bool(TestContext&)>;
+using TestOperations = std::list<TestOperation>;

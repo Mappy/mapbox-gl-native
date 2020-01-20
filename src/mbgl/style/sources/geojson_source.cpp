@@ -12,8 +12,14 @@
 namespace mbgl {
 namespace style {
 
-GeoJSONSource::GeoJSONSource(const std::string& id, optional<GeoJSONOptions> options)
-    : Source(makeMutable<Impl>(id, options)) {}
+// static
+Immutable<GeoJSONOptions> GeoJSONOptions::defaultOptions() {
+    static Immutable<GeoJSONOptions> options = makeMutable<GeoJSONOptions>();
+    return options;
+}
+
+GeoJSONSource::GeoJSONSource(std::string id, Immutable<GeoJSONOptions> options)
+    : Source(makeMutable<Impl>(std::move(id), std::move(options))), threadPool(Scheduler::GetBackground()) {}
 
 GeoJSONSource::~GeoJSONSource() = default;
 
@@ -47,7 +53,7 @@ optional<std::string> GeoJSONSource::getURL() const {
 }
 
 const GeoJSONOptions& GeoJSONSource::getOptions() const {
-    return impl().getOptions();
+    return *impl().getOptions();
 }
 
 void GeoJSONSource::loadDescription(FileSource& fileSource) {
@@ -72,16 +78,16 @@ void GeoJSONSource::loadDescription(FileSource& fileSource) {
         } else {
             auto makeImplInBackground = [currentImpl = baseImpl, data = res.data]() -> Immutable<Source::Impl> {
                 assert(data);
-                auto& impl = static_cast<const Impl&>(*currentImpl);
+                auto& current = static_cast<const Impl&>(*currentImpl);
                 conversion::Error error;
                 std::shared_ptr<GeoJSONData> geoJSONData;
                 if (optional<GeoJSON> geoJSON = conversion::convertJSON<GeoJSON>(*data, error)) {
-                    geoJSONData = GeoJSONData::create(*geoJSON, impl.getOptions());
+                    geoJSONData = GeoJSONData::create(*geoJSON, current.getOptions());
                 } else {
                     // Create an empty GeoJSON VT object to make sure we're not infinitely waiting for tiles to load.
                     Log::Error(Event::ParseStyle, "Failed to parse GeoJSON data: %s", error.message.c_str());
                 }
-                return makeMutable<Impl>(impl, std::move(geoJSONData));
+                return makeMutable<Impl>(current, std::move(geoJSONData));
             };
             auto onImplReady = [this, self = makeWeakPtr(), capturedReq = req.get()](Immutable<Source::Impl> newImpl) {
                 assert(capturedReq);
@@ -92,7 +98,7 @@ void GeoJSONSource::loadDescription(FileSource& fileSource) {
                 loaded = true;
                 observer->onSourceLoaded(*this);
             };
-            Scheduler::GetBackground()->scheduleAndReplyValue(makeImplInBackground, onImplReady);
+            threadPool->scheduleAndReplyValue(makeImplInBackground, onImplReady);
         }
     });
 }

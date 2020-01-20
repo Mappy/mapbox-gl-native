@@ -1,8 +1,9 @@
 #pragma once
 
-#include <mbgl/text/glyph_atlas.hpp>
-#include <mbgl/style/types.hpp>
+#include <mbgl/style/image_impl.hpp>
 #include <mbgl/style/layers/symbol_layer_properties.hpp>
+#include <mbgl/style/types.hpp>
+#include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/tile/geometry_tile_data.hpp>
 
 #include <vector>
@@ -11,6 +12,7 @@ namespace mbgl {
 
 class Anchor;
 class PositionedIcon;
+enum class SymbolContent : uint8_t;
 
 class SymbolQuad {
 public:
@@ -21,6 +23,7 @@ public:
                Rect<uint16_t> tex_,
                WritingModeType writingMode_,
                Point<float> glyphOffset_,
+               bool isSDF_,
                size_t sectionIndex_ = 0)
         : tl(tl_),
           tr(tr_),
@@ -29,6 +32,7 @@ public:
           tex(tex_),
           writingMode(writingMode_),
           glyphOffset(glyphOffset_),
+          isSDF(isSDF_),
           sectionIndex(sectionIndex_) {}
 
     Point<float> tl;
@@ -38,19 +42,19 @@ public:
     Rect<uint16_t> tex;
     WritingModeType writingMode;
     Point<float> glyphOffset;
+    bool isSDF;
     size_t sectionIndex;
 };
 
 using SymbolQuads = std::vector<SymbolQuad>;
 
-SymbolQuad getIconQuad(const PositionedIcon& shapedIcon,
-                       WritingModeType writingMode);
+SymbolQuad getIconQuad(const PositionedIcon& shapedIcon, WritingModeType writingMode, SymbolContent iconType);
 
 SymbolQuads getGlyphQuads(const Shaping& shapedText,
                           const std::array<float, 2> textOffset,
                           const style::SymbolLayoutProperties::Evaluated&,
                           style::SymbolPlacementType placement,
-                          const GlyphPositions& positions,
+                          const ImageMap& imageMap,
                           bool allowVerticalPlacement);
 
 } // namespace mbgl

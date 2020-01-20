@@ -40,8 +40,16 @@ void operator delete(void* ptr, size_t) noexcept {
 #endif
 
 namespace {
-using ArgumentsTuple = std::tuple<bool, bool, uint32_t, std::string, std::vector<std::string>, std::string>;
+
+using ArgumentsTuple =
+    std::tuple<bool, bool, uint32_t, std::string, TestRunner::UpdateResults, std::vector<std::string>, std::string>;
 ArgumentsTuple parseArguments(int argc, char** argv) {
+    const static std::unordered_map<std::string, TestRunner::UpdateResults> updateResultsFlags = {
+        {"default", TestRunner::UpdateResults::DEFAULT},
+        {"platform", TestRunner::UpdateResults::PLATFORM},
+        {"metrics", TestRunner::UpdateResults::METRICS},
+        {"rebaseline", TestRunner::UpdateResults::REBASELINE}};
+
     args::ArgumentParser argumentParser("Mapbox GL Test Runner");
 
     args::HelpFlag helpFlag(argumentParser, "help", "Display this help menu", {'h', "help"});
@@ -52,6 +60,16 @@ ArgumentsTuple parseArguments(int argc, char** argv) {
     args::ValueFlag<std::string> testPathValue(
         argumentParser, "manifestPath", "Test manifest file path", {'p', "manifestPath"});
     args::ValueFlag<std::string> testFilterValue(argumentParser, "filter", "Test filter regex", {'f', "filter"});
+    args::MapFlag<std::string, TestRunner::UpdateResults> testUpdateResultsValue(
+        argumentParser,
+        "update",
+        "Test results update mode. Supported values are: \n\"default\" Updates generic render test expectations. \
+                                                         \n\"platform\" Updates platform specific render test expectations. \
+                                                         \n\"metrics\" Updates expected metrics for configuration defined by a manifest.\
+                                                         \n\"rebaseline\" Updates or creates expected metrics for configuration defined by a manifest.",
+        {'u', "update"},
+        updateResultsFlags);
+
     args::PositionalList<std::string> testNameValues(argumentParser, "URL", "Test name(s)");
 
     try {
@@ -73,9 +91,6 @@ ArgumentsTuple parseArguments(int argc, char** argv) {
         mbgl::Log::Info(mbgl::Event::General, stream.str());
         mbgl::Log::Error(mbgl::Event::General, e.what());
         exit(2);
-    } catch (const std::regex_error& e) {
-        mbgl::Log::Error(mbgl::Event::General, "Invalid filter regular expression: %s", e.what());
-        exit(3);
     }
 
     mbgl::filesystem::path manifestPath{testPathValue ? args::get(testPathValue) : std::string{TEST_RUNNER_ROOT_PATH}};
@@ -83,38 +98,43 @@ ArgumentsTuple parseArguments(int argc, char** argv) {
         mbgl::Log::Error(mbgl::Event::General,
                          "Provided test manifest file path '%s' does not exist",
                          manifestPath.string().c_str());
-        exit(4);
+        exit(3);
     }
 
     auto testNames = testNameValues ? args::get(testNameValues) : std::vector<std::string>{};
     auto testFilter = testFilterValue ? args::get(testFilterValue) : std::string{};
     const auto shuffle = shuffleFlag ? args::get(shuffleFlag) : false;
     const auto seed = seedValue ? args::get(seedValue) : 1u;
+    TestRunner::UpdateResults updateResults =
+        testUpdateResultsValue ? args::get(testUpdateResultsValue) : TestRunner::UpdateResults::NO;
     return ArgumentsTuple{recycleMapFlag ? args::get(recycleMapFlag) : false,
                           shuffle,
                           seed,
                           manifestPath.string(),
+                          updateResults,
                           std::move(testNames),
                           std::move(testFilter)};
 }
 } // namespace
 namespace mbgl {
 
-int runRenderTests(int argc, char** argv) {
+int runRenderTests(int argc, char** argv, std::function<void()> testStatus) {
     bool recycleMap;
     bool shuffle;
     uint32_t seed;
     std::string manifestPath;
     std::vector<std::string> testNames;
     std::string testFilter;
+    TestRunner::UpdateResults updateResults;
 
-    std::tie(recycleMap, shuffle, seed, manifestPath, testNames, testFilter) = parseArguments(argc, argv);
+    std::tie(recycleMap, shuffle, seed, manifestPath, updateResults, testNames, testFilter) =
+        parseArguments(argc, argv);
     auto manifestData = ManifestParser::parseManifest(manifestPath, testNames, testFilter);
     if (!manifestData) {
         exit(5);
     }
     mbgl::util::RunLoop runLoop;
-    TestRunner runner(std::move(*manifestData));
+    TestRunner runner(std::move(*manifestData), updateResults);
     if (shuffle) {
         printf(ANSI_COLOR_YELLOW "Shuffle seed: %d" ANSI_COLOR_RESET "\n", seed);
         runner.doShuffle(seed);
@@ -149,7 +169,7 @@ int runRenderTests(int argc, char** argv) {
         const std::string ignoreName = id;
         const auto it = std::find_if(ignores.cbegin(), ignores.cend(), [&ignoreName](auto pair) { return pair.first == ignoreName; });
         if (it != ignores.end()) {
-            shouldIgnore = true;
+            metadata.ignoredTest = shouldIgnore = true;
             ignoreReason = it->second;
             if (ignoreReason.rfind("skip", 0) == 0) {
                 printf(ANSI_COLOR_GRAY "* skipped %s (%s)" ANSI_COLOR_RESET "\n", id.c_str(), ignoreReason.c_str());
@@ -157,11 +177,7 @@ int runRenderTests(int argc, char** argv) {
             }
         }
 
-        bool errored = !metadata.errorMessage.empty();
-        if (!errored) {
-            errored = !runner.run(metadata) || !metadata.errorMessage.empty();
-        }
-
+        bool errored = !metadata.errorMessage.empty() || !runner.run(metadata);
         bool passed =
             !errored && (!metadata.outputsImage || !metadata.diff.empty()) && metadata.difference <= metadata.allowed;
 
@@ -198,10 +214,14 @@ int runRenderTests(int argc, char** argv) {
         }
 
         metadatas.push_back(std::move(metadata));
+        if (testStatus) {
+            testStatus();
+        }
     }
-    const auto& testRootPath = manifest.getManifestPath();
-    const auto resultPath =
-        testRootPath + "/" + (testNames.empty() ? "render-tests" : testNames.front()) + "_index.html";
+
+    const auto manifestName = std::string("_").append(mbgl::filesystem::path(manifestPath).stem());
+    const auto resultPath = manifest.getResultPath() + "/" + (testNames.empty() ? "render-tests" : testNames.front()) +
+                            manifestName + "_index.html";
     std::string resultsHTML = createResultPage(stats, metadatas, shuffle, seed);
     mbgl::util::write_file(resultPath, resultsHTML);
 
@@ -224,7 +244,7 @@ int runRenderTests(int argc, char** argv) {
         printf(ANSI_COLOR_RED "%u errored (%.1lf%%)" ANSI_COLOR_RESET "\n", stats.erroredTests, 100.0 * stats.erroredTests / count);
     }
 
-    printf("Results at: %s\n", resultPath.c_str());
+    printf("Results at: %s\n", mbgl::filesystem::canonical(resultPath).c_str());
 
     return stats.failedTests + stats.erroredTests == 0 ? 0 : 1;
 }

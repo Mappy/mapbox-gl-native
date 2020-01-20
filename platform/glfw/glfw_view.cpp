@@ -2,6 +2,7 @@
 #include "glfw_backend.hpp"
 #include "glfw_renderer_frontend.hpp"
 #include "ny_route.hpp"
+#include "test_writer.hpp"
 
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/gfx/backend.hpp>
@@ -36,6 +37,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <iostream>
 
 void glfwError(int error, const char *description) {
     mbgl::Log::Error(mbgl::Event::OpenGL, "GLFW error (%i): %s", error, description);
@@ -124,8 +126,8 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- Press `E` to insert an example building extrusion layer\n");
     printf("- Press `O` to toggle online connectivity\n");
     printf("- Press `Z` to cycle through north orientations\n");
-    printf("- Prezz `X` to cycle through the viewport modes\n");
-    printf("- Press `I` to Delete existing database and re-initialize\n");
+    printf("- Press `X` to cycle through the viewport modes\n");
+    printf("- Press `I` to delete existing database and re-initialize\n");
     printf("- Press `A` to cycle through Mapbox offices in the world + dateline monument\n");
     printf("- Press `B` to cycle through the color, stencil, and depth buffer\n");
     printf("- Press `D` to cycle through camera bounds: inside, crossing IDL at left, crossing IDL at right, and disabled\n");
@@ -138,10 +140,12 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_)
     printf("- Press `K` to add a random custom runtime imagery annotation\n");
     printf("- Press `L` to add a random line annotation\n");
     printf("- Press `W` to pop the last-added annotation off\n");
-    printf("\n");
     printf("- Press `P` to pause tile requests\n");
-    printf("- `Control` + mouse drag to rotate\n");
-    printf("- `Shift` + mouse drag to tilt\n");
+    printf("\n");
+    printf("- Hold `Control` + mouse drag to rotate\n");
+    printf("- Hold `Shift` + mouse drag to tilt\n");
+    printf("\n");
+    printf("- Press `F1` to generate a render test for the current view\n");
     printf("\n");
     printf("- Press `Tab` to cycle through the map debug options\n");
     printf("- Press `Esc` to quit\n");
@@ -180,7 +184,7 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
             glfwSetWindowShouldClose(window, true);
             break;
         case GLFW_KEY_TAB:
-            view->map->cycleDebugOptions();
+            view->cycleDebugOptions();
             break;
         case GLFW_KEY_X:
             if (!mods)
@@ -370,6 +374,20 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
                                          : mbgl::style::VisibilityType::Visible);
             }
         } break;
+        case GLFW_KEY_F1: {
+            bool success = TestWriter()
+                               .withInitialSize(mbgl::Size(view->width, view->height))
+                               .withStyle(view->map->getStyle())
+                               .withCameraOptions(view->map->getCameraOptions())
+                               .write(view->testDirectory);
+
+            if (success) {
+                mbgl::Log::Info(mbgl::Event::General, "Render test created!");
+            } else {
+                mbgl::Log::Error(mbgl::Event::General,
+                                 "Fail to create render test! Base directory does not exist or permission denied.");
+            }
+        } break;
         }
     }
 
@@ -494,6 +512,30 @@ void GLFWView::updateAnimatedAnnotations() {
         const double y = std::sin(dt/ period * M_PI * 2.0) * 80;
         map->updateAnnotation(animatedAnnotationIDs[i], mbgl::SymbolAnnotation { {x, y }, "default_marker" });
     }
+}
+
+void GLFWView::cycleDebugOptions() {
+    auto debug = map->getDebug();
+#if not MBGL_USE_GLES2
+    if (debug & mbgl::MapDebugOptions::StencilClip)
+        debug = mbgl::MapDebugOptions::NoDebug;
+    else if (debug & mbgl::MapDebugOptions::Overdraw)
+        debug = mbgl::MapDebugOptions::StencilClip;
+#else
+    if (debug & mbgl::MapDebugOptions::Overdraw) debug = mbgl::MapDebugOptions::NoDebug;
+#endif // MBGL_USE_GLES2
+    else if (debug & mbgl::MapDebugOptions::Collision)
+        debug = mbgl::MapDebugOptions::Overdraw;
+    else if (debug & mbgl::MapDebugOptions::Timestamps)
+        debug = debug | mbgl::MapDebugOptions::Collision;
+    else if (debug & mbgl::MapDebugOptions::ParseStatus)
+        debug = debug | mbgl::MapDebugOptions::Timestamps;
+    else if (debug & mbgl::MapDebugOptions::TileBorders)
+        debug = debug | mbgl::MapDebugOptions::ParseStatus;
+    else
+        debug = mbgl::MapDebugOptions::TileBorders;
+
+    map->setDebug(debug);
 }
 
 void GLFWView::clearAnnotations() {

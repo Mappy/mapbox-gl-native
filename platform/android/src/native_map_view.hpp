@@ -151,8 +151,6 @@ public:
 
     void setDebug(JNIEnv&, jni::jboolean);
 
-    void cycleDebugOptions(JNIEnv&);
-
     jni::jboolean getDebug(JNIEnv&);
 
     jni::jboolean isFullyLoaded(JNIEnv&);
@@ -163,9 +161,13 @@ public:
 
     jni::Local<jni::Object<PointF>> pixelForLatLng(JNIEnv&, jdouble, jdouble);
 
+    void pixelsForLatLngs(JNIEnv&, const jni::Array<jdouble>&, jni::Array<jdouble>&, jfloat);
+
     jni::Local<jni::Object<LatLng>> latLngForProjectedMeters(JNIEnv&, jdouble, jdouble);
 
     jni::Local<jni::Object<LatLng>> latLngForPixel(JNIEnv&, jfloat, jfloat);
+
+    void latLngsForPixels(JNIEnv&, const jni::Array<jdouble>&, jni::Array<jdouble>&, jfloat);
 
     jni::Local<jni::Array<jlong>> addPolylines(JNIEnv&, const jni::Array<jni::Object<Polyline>>&);
 

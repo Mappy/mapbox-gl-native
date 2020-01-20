@@ -8,13 +8,35 @@
 #include <memory>
 #include <string>
 
-struct RunContext;
 class TestRunnerMapObserver;
 struct TestMetadata;
 
+class TestRunnerMapObserver : public mbgl::MapObserver {
+public:
+    TestRunnerMapObserver() = default;
+    void onDidFailLoadingMap(mbgl::MapLoadError, const std::string&) override { mapLoadFailure = true; }
+
+    void onDidFinishRenderingMap(RenderMode mode) override final {
+        if (!finishRenderingMap) finishRenderingMap = mode == RenderMode::Full;
+    }
+
+    void onDidBecomeIdle() override final { idle = true; }
+
+    void reset() {
+        mapLoadFailure = false;
+        finishRenderingMap = false;
+        idle = false;
+    }
+
+    bool mapLoadFailure;
+    bool finishRenderingMap;
+    bool idle;
+};
+
 class TestRunner {
 public:
-    explicit TestRunner(Manifest);
+    enum class UpdateResults { NO, DEFAULT, PLATFORM, METRICS, REBASELINE };
+    TestRunner(Manifest, UpdateResults);
     bool run(TestMetadata&);
     void reset();
 
@@ -23,11 +45,11 @@ public:
     void doShuffle(uint32_t seed);
 
 private:
-    bool runOperations(const std::string& key, TestMetadata&, RunContext&);
     bool checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
                                std::vector<mbgl::Feature>&& features,
                                TestMetadata&);
     bool checkRenderTestResults(mbgl::PremultipliedImage&& image, TestMetadata&);
+    bool checkProbingResults(TestMetadata&);
 
     struct Impl {
         Impl(const TestMetadata&);
@@ -39,4 +61,5 @@ private:
     };
     std::unordered_map<std::string, std::unique_ptr<Impl>> maps;
     Manifest manifest;
+    UpdateResults updateResults;
 };
