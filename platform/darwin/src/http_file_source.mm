@@ -109,6 +109,10 @@ private:
 };
 
 NSString *HTTPFileSource::Impl::getUserAgent() const {
+	if ([NSString respondsToSelector:@selector(userAgentWithBundle:)]) {
+		return [NSString performSelector:@selector(userAgentWithBundle:) withObject:[NSBundle mainBundle]];
+	}
+	
     NSMutableArray *userAgentComponents = [NSMutableArray array];
 
     NSBundle *appBundle = [NSBundle mainBundle];
