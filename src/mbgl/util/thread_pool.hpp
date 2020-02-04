@@ -48,6 +48,7 @@ public:
     ~ThreadedScheduler() override {
         terminate();
         for (auto& thread : threads) {
+            assert(std::this_thread::get_id() != thread.get_id());
             thread.join();
         }
     }
@@ -60,11 +61,11 @@ private:
     static_assert(N > 0, "Thread count must be more than zero.");
 };
 
-using SequencedScheduler = ThreadedScheduler<1>;
+class SequencedScheduler : public ThreadedScheduler<1> {};
 
 template <std::size_t extra>
 using ParallelScheduler = ThreadedScheduler<1 + extra>;
 
-using ThreadPool = ParallelScheduler<3>;
+class ThreadPool : public ParallelScheduler<3> {};
 
 } // namespace mbgl

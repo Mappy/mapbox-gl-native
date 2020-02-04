@@ -93,7 +93,7 @@ TransitionOptions HeatmapLayer::getHeatmapColorTransition() const {
 }
 
 PropertyValue<float> HeatmapLayer::getDefaultHeatmapIntensity() {
-    return { 1 };
+    return {1};
 }
 
 const PropertyValue<float>& HeatmapLayer::getHeatmapIntensity() const {
@@ -120,7 +120,7 @@ TransitionOptions HeatmapLayer::getHeatmapIntensityTransition() const {
 }
 
 PropertyValue<float> HeatmapLayer::getDefaultHeatmapOpacity() {
-    return { 1 };
+    return {1};
 }
 
 const PropertyValue<float>& HeatmapLayer::getHeatmapOpacity() const {
@@ -147,7 +147,7 @@ TransitionOptions HeatmapLayer::getHeatmapOpacityTransition() const {
 }
 
 PropertyValue<float> HeatmapLayer::getDefaultHeatmapRadius() {
-    return { 30 };
+    return {30};
 }
 
 const PropertyValue<float>& HeatmapLayer::getHeatmapRadius() const {
@@ -174,7 +174,7 @@ TransitionOptions HeatmapLayer::getHeatmapRadiusTransition() const {
 }
 
 PropertyValue<float> HeatmapLayer::getDefaultHeatmapWeight() {
-    return { 1 };
+    return {1};
 }
 
 const PropertyValue<float>& HeatmapLayer::getHeatmapWeight() const {
@@ -233,69 +233,61 @@ MAPBOX_ETERNAL_CONSTEXPR const auto layerProperties = mapbox::eternal::hash_map<
      {"heatmap-opacity-transition", toUint8(Property::HeatmapOpacityTransition)},
      {"heatmap-radius-transition", toUint8(Property::HeatmapRadiusTransition)},
      {"heatmap-weight-transition", toUint8(Property::HeatmapWeightTransition)}});
-
-constexpr uint8_t lastPaintPropertyIndex = toUint8(Property::HeatmapWeightTransition);
 } // namespace
 
-optional<Error> HeatmapLayer::setPaintProperty(const std::string& name, const Convertible& value) {
+optional<Error> HeatmapLayer::setProperty(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end() || it->second > lastPaintPropertyIndex) {
+    if (it == layerProperties.end()) {
+        if (name == "visibility") return setVisibility(value);
         return Error{"layer doesn't support this property"};
     }
 
     auto property = static_cast<Property>(it->second);
 
-        
     if (property == Property::HeatmapColor) {
         Error error;
-        optional<ColorRampPropertyValue> typedValue = convert<ColorRampPropertyValue>(value, error, false, false);
+        const auto& typedValue = convert<ColorRampPropertyValue>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setHeatmapColor(*typedValue);
         return nullopt;
-        
     }
-    
     if (property == Property::HeatmapIntensity || property == Property::HeatmapOpacity) {
         Error error;
-        optional<PropertyValue<float>> typedValue = convert<PropertyValue<float>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<float>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         if (property == Property::HeatmapIntensity) {
             setHeatmapIntensity(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::HeatmapOpacity) {
             setHeatmapOpacity(*typedValue);
             return nullopt;
         }
-        
     }
-    
     if (property == Property::HeatmapRadius || property == Property::HeatmapWeight) {
         Error error;
-        optional<PropertyValue<float>> typedValue = convert<PropertyValue<float>>(value, error, true, false);
+        const auto& typedValue = convert<PropertyValue<float>>(value, error, true, false);
         if (!typedValue) {
             return error;
         }
-        
+
         if (property == Property::HeatmapRadius) {
             setHeatmapRadius(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::HeatmapWeight) {
             setHeatmapWeight(*typedValue);
             return nullopt;
         }
-        
     }
-    
 
     Error error;
     optional<TransitionOptions> transition = convert<TransitionOptions>(value, error);
@@ -360,14 +352,6 @@ StyleProperty HeatmapLayer::getProperty(const std::string& name) const {
             return makeStyleProperty(getHeatmapWeightTransition());
     }
     return {};
-}
-
-optional<Error> HeatmapLayer::setLayoutProperty(const std::string& name, const Convertible& value) {
-    if (name == "visibility") {
-        return Layer::setVisibility(value);
-    }
-
-    return Error { "layer doesn't support this property" };
 }
 
 Mutable<Layer::Impl> HeatmapLayer::mutableBaseImpl() const {

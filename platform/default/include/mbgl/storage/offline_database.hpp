@@ -93,12 +93,15 @@ public:
     uint64_t getOfflineMapboxTileCount();
     bool exceedsOfflineMapboxTileCountLimit(const Resource&);
     void markUsedResources(int64_t regionID, const std::list<Resource>&);
+    std::exception_ptr pack();
+    void runPackDatabaseAutomatically(bool autopack_) { autopack = autopack_; }
 
 private:
     void initialize();
     void handleError(const mapbox::sqlite::Exception&, const char* action);
     void handleError(const util::IOException&, const char* action);
     void handleError(const std::runtime_error& ex, const char* action);
+    void handleError(const char* action);
 
     void removeExisting();
     void removeOldCacheTable();
@@ -147,6 +150,7 @@ private:
     optional<uint64_t> offlineMapboxTileCount;
 
     bool evict(uint64_t neededFreeSize);
+    bool autopack = true;
 };
 
 } // namespace mbgl

@@ -338,17 +338,55 @@ target_link_libraries(
         mbgl-render-test
 )
 
+add_custom_command(
+    TARGET mbgl-render-test-runner PRE_BUILD
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        copy
+        ${MBGL_ROOT}/render-test/android-manifest-probe-memory.json
+        ${MBGL_ROOT}/android-manifest-probe-memory.json
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        copy
+        ${MBGL_ROOT}/render-test/android-manifest-probe-network-gfx.json
+        ${MBGL_ROOT}/android-manifest-probe-network-gfx.json
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        copy
+        ${MBGL_ROOT}/platform/node/test/ignores.json
+        ${MBGL_ROOT}/render-test/ignores/ignores.json
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        tar
+        "chf"
+        "render-test/android/app/src/main/assets/data.zip"
+        --format=zip
+        --files-from=render-test/android/app/src/main/assets/to_zip.txt
+    COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        remove
+        ${MBGL_ROOT}/android-manifest*
+    WORKING_DIRECTORY ${MBGL_ROOT}
+)
+
 # Android has no concept of MinSizeRel on android.toolchain.cmake and provides configurations tuned for binary size. We can push it a bit
 # more with code folding and LTO.
-set_target_properties(example-custom-layer PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=safe")
-set_target_properties(mapbox-gl PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=safe")
-set_target_properties(mbgl-benchmark-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=safe")
-set_target_properties(mbgl-render-test-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=safe")
-set_target_properties(mbgl-test-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=safe")
+set_target_properties(example-custom-layer PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=all")
+set_target_properties(mapbox-gl PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=all")
+set_target_properties(mbgl-benchmark-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=all")
+set_target_properties(mbgl-render-test-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=all")
+set_target_properties(mbgl-test-runner PROPERTIES LINK_FLAGS_RELEASE "-fuse-ld=gold -O2 -flto -Wl,--icf=all")
 
-target_compile_options(example-custom-layer PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
-target_compile_options(mapbox-gl PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
-target_compile_options(mbgl-core PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
-target_compile_options(mbgl-render-test-runner PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
-target_compile_options(mbgl-vendor-icu PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
-target_compile_options(mbgl-vendor-sqlite PRIVATE $<$<CONFIG:Release>:-Qunused-arguments -flto>)
+target_compile_options(example-custom-layer PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+target_compile_options(mapbox-gl PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+target_compile_options(mbgl-core PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+target_compile_options(mbgl-render-test-runner PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+target_compile_options(mbgl-vendor-icu PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+target_compile_options(mbgl-vendor-sqlite PRIVATE $<$<CONFIG:Release>:-Oz -Qunused-arguments -flto>)
+
+install(TARGETS mapbox-gl LIBRARY DESTINATION lib)

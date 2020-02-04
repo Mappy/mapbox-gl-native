@@ -64,7 +64,10 @@ add_library(
     ${MBGL_ROOT}/test/style/style_layer.test.cpp
     ${MBGL_ROOT}/test/style/style_parser.test.cpp
     ${MBGL_ROOT}/test/text/bidi.test.cpp
+    ${MBGL_ROOT}/test/text/calculate_tile_distances.test.cpp
     ${MBGL_ROOT}/test/text/cross_tile_symbol_index.test.cpp
+    ${MBGL_ROOT}/test/text/formatted.test.cpp
+    ${MBGL_ROOT}/test/text/get_anchors.test.cpp
     ${MBGL_ROOT}/test/text/glyph_manager.test.cpp
     ${MBGL_ROOT}/test/text/glyph_pbf.test.cpp
     ${MBGL_ROOT}/test/text/language_tag.test.cpp
@@ -77,6 +80,7 @@ add_library(
     ${MBGL_ROOT}/test/tile/geometry_tile_data.test.cpp
     ${MBGL_ROOT}/test/tile/raster_dem_tile.test.cpp
     ${MBGL_ROOT}/test/tile/raster_tile.test.cpp
+    ${MBGL_ROOT}/test/tile/tile_cache.test.cpp
     ${MBGL_ROOT}/test/tile/tile_coordinate.test.cpp
     ${MBGL_ROOT}/test/tile/tile_id.test.cpp
     ${MBGL_ROOT}/test/tile/vector_tile.test.cpp

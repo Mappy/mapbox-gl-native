@@ -64,7 +64,7 @@ void HillshadeLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBu
 // Paint properties
 
 PropertyValue<Color> HillshadeLayer::getDefaultHillshadeAccentColor() {
-    return { Color::black() };
+    return {Color::black()};
 }
 
 const PropertyValue<Color>& HillshadeLayer::getHillshadeAccentColor() const {
@@ -91,7 +91,7 @@ TransitionOptions HillshadeLayer::getHillshadeAccentColorTransition() const {
 }
 
 PropertyValue<float> HillshadeLayer::getDefaultHillshadeExaggeration() {
-    return { 0.5 };
+    return {0.5};
 }
 
 const PropertyValue<float>& HillshadeLayer::getHillshadeExaggeration() const {
@@ -118,7 +118,7 @@ TransitionOptions HillshadeLayer::getHillshadeExaggerationTransition() const {
 }
 
 PropertyValue<Color> HillshadeLayer::getDefaultHillshadeHighlightColor() {
-    return { Color::white() };
+    return {Color::white()};
 }
 
 const PropertyValue<Color>& HillshadeLayer::getHillshadeHighlightColor() const {
@@ -145,7 +145,7 @@ TransitionOptions HillshadeLayer::getHillshadeHighlightColorTransition() const {
 }
 
 PropertyValue<HillshadeIlluminationAnchorType> HillshadeLayer::getDefaultHillshadeIlluminationAnchor() {
-    return { HillshadeIlluminationAnchorType::Viewport };
+    return {HillshadeIlluminationAnchorType::Viewport};
 }
 
 const PropertyValue<HillshadeIlluminationAnchorType>& HillshadeLayer::getHillshadeIlluminationAnchor() const {
@@ -172,7 +172,7 @@ TransitionOptions HillshadeLayer::getHillshadeIlluminationAnchorTransition() con
 }
 
 PropertyValue<float> HillshadeLayer::getDefaultHillshadeIlluminationDirection() {
-    return { 335 };
+    return {335};
 }
 
 const PropertyValue<float>& HillshadeLayer::getHillshadeIlluminationDirection() const {
@@ -199,7 +199,7 @@ TransitionOptions HillshadeLayer::getHillshadeIlluminationDirectionTransition() 
 }
 
 PropertyValue<Color> HillshadeLayer::getDefaultHillshadeShadowColor() {
-    return { Color::black() };
+    return {Color::black()};
 }
 
 const PropertyValue<Color>& HillshadeLayer::getHillshadeShadowColor() const {
@@ -262,74 +262,67 @@ MAPBOX_ETERNAL_CONSTEXPR const auto layerProperties = mapbox::eternal::hash_map<
      {"hillshade-illumination-anchor-transition", toUint8(Property::HillshadeIlluminationAnchorTransition)},
      {"hillshade-illumination-direction-transition", toUint8(Property::HillshadeIlluminationDirectionTransition)},
      {"hillshade-shadow-color-transition", toUint8(Property::HillshadeShadowColorTransition)}});
-
-constexpr uint8_t lastPaintPropertyIndex = toUint8(Property::HillshadeShadowColorTransition);
 } // namespace
 
-optional<Error> HillshadeLayer::setPaintProperty(const std::string& name, const Convertible& value) {
+optional<Error> HillshadeLayer::setProperty(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end() || it->second > lastPaintPropertyIndex) {
+    if (it == layerProperties.end()) {
+        if (name == "visibility") return setVisibility(value);
         return Error{"layer doesn't support this property"};
     }
 
     auto property = static_cast<Property>(it->second);
 
-        
-    if (property == Property::HillshadeAccentColor || property == Property::HillshadeHighlightColor || property == Property::HillshadeShadowColor) {
+    if (property == Property::HillshadeAccentColor || property == Property::HillshadeHighlightColor ||
+        property == Property::HillshadeShadowColor) {
         Error error;
-        optional<PropertyValue<Color>> typedValue = convert<PropertyValue<Color>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<Color>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         if (property == Property::HillshadeAccentColor) {
             setHillshadeAccentColor(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::HillshadeHighlightColor) {
             setHillshadeHighlightColor(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::HillshadeShadowColor) {
             setHillshadeShadowColor(*typedValue);
             return nullopt;
         }
-        
     }
-    
     if (property == Property::HillshadeExaggeration || property == Property::HillshadeIlluminationDirection) {
         Error error;
-        optional<PropertyValue<float>> typedValue = convert<PropertyValue<float>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<float>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         if (property == Property::HillshadeExaggeration) {
             setHillshadeExaggeration(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::HillshadeIlluminationDirection) {
             setHillshadeIlluminationDirection(*typedValue);
             return nullopt;
         }
-        
     }
-    
     if (property == Property::HillshadeIlluminationAnchor) {
         Error error;
-        optional<PropertyValue<HillshadeIlluminationAnchorType>> typedValue = convert<PropertyValue<HillshadeIlluminationAnchorType>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<HillshadeIlluminationAnchorType>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setHillshadeIlluminationAnchor(*typedValue);
         return nullopt;
-        
     }
-    
 
     Error error;
     optional<TransitionOptions> transition = convert<TransitionOptions>(value, error);
@@ -403,14 +396,6 @@ StyleProperty HillshadeLayer::getProperty(const std::string& name) const {
             return makeStyleProperty(getHillshadeShadowColorTransition());
     }
     return {};
-}
-
-optional<Error> HillshadeLayer::setLayoutProperty(const std::string& name, const Convertible& value) {
-    if (name == "visibility") {
-        return Layer::setVisibility(value);
-    }
-
-    return Error { "layer doesn't support this property" };
 }
 
 Mutable<Layer::Impl> HillshadeLayer::mutableBaseImpl() const {

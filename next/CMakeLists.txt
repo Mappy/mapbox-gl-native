@@ -7,7 +7,12 @@ set(MBGL_ROOT ${PROJECT_SOURCE_DIR}/..)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER Core)
 
-enable_testing()
+set(
+    MEMORYCHECK_COMMAND_OPTIONS
+    "--leak-check=full --gen-suppressions=all --error-exitcode=1 --suppressions=${MBGL_ROOT}/scripts/valgrind.sup"
+)
+
+include(CTest)
 
 set(
     CMAKE_CONFIGURATION_TYPES
@@ -28,21 +33,26 @@ option(MBGL_WITH_QT "Build Mapbox GL Qt bindings" OFF)
 option(MBGL_WITH_SANITIZER "Use [address|thread|memory|undefined] here" OFF)
 
 set(CMAKE_CXX_FLAGS_DEBUGCOVERAGE "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
-set(CMAKE_C_FLAGS_DEBUGCOVERAGE "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
+set(CMAKE_C_FLAGS_DEBUGCOVERAGE "${CMAKE_C_FLAGS_DEBUG} --coverage")
 
 set(CMAKE_CXX_FLAGS_SANITIZE "-DSANITIZE -g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=${MBGL_WITH_SANITIZER}")
 set(CMAKE_C_FLAGS_SANITIZE "-DSANITIZE -g -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=${MBGL_WITH_SANITIZER}")
 
-if(MBGL_WITH_QT)
-    find_package(Qt5Core REQUIRED)
-    set(CMAKE_AUTOMOC ON)
-    set(CMAKE_AUTORCC ON)
-endif()
+add_compile_options(
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wall>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wextra>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Werror>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<PLATFORM_ID:Android>>:-Wno-error=tautological-constant-compare>
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-error=return-type>
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-error=unknown-pragmas>
+    $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=deprecated-declarations>
+    $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=unused-parameter>
+    $<$<CXX_COMPILER_ID:AppleClang>:-Wno-error=unused-property-ivar>
+)
 
-# Avoid warnings when setting visibility
 cmake_policy(SET CMP0063 NEW)
-
-# Compiler/linker configuration
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +65,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+if(MBGL_WITH_QT)
+    find_package(Qt5Core REQUIRED)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+endif()
 
 add_library(
     mbgl-core STATIC
@@ -70,6 +86,7 @@ add_library(
     ${MBGL_ROOT}/include/mbgl/gfx/backend_scope.hpp
     ${MBGL_ROOT}/include/mbgl/gfx/renderable.hpp
     ${MBGL_ROOT}/include/mbgl/gfx/renderer_backend.hpp
+    ${MBGL_ROOT}/include/mbgl/gfx/rendering_stats.hpp
     ${MBGL_ROOT}/include/mbgl/gl/renderable_resource.hpp
     ${MBGL_ROOT}/include/mbgl/gl/renderer_backend.hpp
     ${MBGL_ROOT}/include/mbgl/layermanager/background_layer_factory.hpp
@@ -150,6 +167,8 @@ add_library(
     ${MBGL_ROOT}/include/mbgl/style/expression/format_section_override.hpp
     ${MBGL_ROOT}/include/mbgl/style/expression/formatted.hpp
     ${MBGL_ROOT}/include/mbgl/style/expression/get_covering_stops.hpp
+    ${MBGL_ROOT}/include/mbgl/style/expression/image.hpp
+    ${MBGL_ROOT}/include/mbgl/style/expression/image_expression.hpp
     ${MBGL_ROOT}/include/mbgl/style/expression/interpolate.hpp
     ${MBGL_ROOT}/include/mbgl/style/expression/interpolator.hpp
     ${MBGL_ROOT}/include/mbgl/style/expression/is_constant.hpp
@@ -285,6 +304,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/gfx/render_pass.hpp
     ${MBGL_ROOT}/src/mbgl/gfx/renderbuffer.hpp
     ${MBGL_ROOT}/src/mbgl/gfx/renderer_backend.cpp
+    ${MBGL_ROOT}/src/mbgl/gfx/rendering_stats.cpp
     ${MBGL_ROOT}/src/mbgl/gfx/stencil_mode.hpp
     ${MBGL_ROOT}/src/mbgl/gfx/texture.hpp
     ${MBGL_ROOT}/src/mbgl/gfx/types.hpp
@@ -306,6 +326,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/gl/enum.hpp
     ${MBGL_ROOT}/src/mbgl/gl/extension.hpp
     ${MBGL_ROOT}/src/mbgl/gl/framebuffer.hpp
+    ${MBGL_ROOT}/src/mbgl/gl/index_buffer_resource.cpp
     ${MBGL_ROOT}/src/mbgl/gl/index_buffer_resource.hpp
     ${MBGL_ROOT}/src/mbgl/gl/object.cpp
     ${MBGL_ROOT}/src/mbgl/gl/object.hpp
@@ -319,6 +340,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/gl/state.hpp
     ${MBGL_ROOT}/src/mbgl/gl/texture.cpp
     ${MBGL_ROOT}/src/mbgl/gl/texture.hpp
+    ${MBGL_ROOT}/src/mbgl/gl/texture_resource.cpp
     ${MBGL_ROOT}/src/mbgl/gl/texture_resource.hpp
     ${MBGL_ROOT}/src/mbgl/gl/types.hpp
     ${MBGL_ROOT}/src/mbgl/gl/uniform.cpp
@@ -330,6 +352,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/gl/vertex_array.cpp
     ${MBGL_ROOT}/src/mbgl/gl/vertex_array.hpp
     ${MBGL_ROOT}/src/mbgl/gl/vertex_array_extension.hpp
+    ${MBGL_ROOT}/src/mbgl/gl/vertex_buffer_resource.cpp
     ${MBGL_ROOT}/src/mbgl/gl/vertex_buffer_resource.hpp
     ${MBGL_ROOT}/src/mbgl/layermanager/background_layer_factory.cpp
     ${MBGL_ROOT}/src/mbgl/layermanager/circle_layer_factory.cpp
@@ -418,6 +441,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_sdf_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_sdf_text.cpp
+    ${MBGL_ROOT}/src/mbgl/programs/gl/symbol_text_and_icon.cpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_program.cpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/heatmap_texture_program.cpp
@@ -444,6 +468,7 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/programs/symbol_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/symbol_sdf_icon_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/symbol_sdf_text_program.hpp
+    ${MBGL_ROOT}/src/mbgl/programs/symbol_text_and_icon_program.hpp
     ${MBGL_ROOT}/src/mbgl/programs/textures.hpp
     ${MBGL_ROOT}/src/mbgl/programs/uniforms.hpp
     ${MBGL_ROOT}/src/mbgl/renderer/backend_scope.cpp
@@ -608,6 +633,8 @@ add_library(
     ${MBGL_ROOT}/src/mbgl/style/expression/format_expression.cpp
     ${MBGL_ROOT}/src/mbgl/style/expression/formatted.cpp
     ${MBGL_ROOT}/src/mbgl/style/expression/get_covering_stops.cpp
+    ${MBGL_ROOT}/src/mbgl/style/expression/image.cpp
+    ${MBGL_ROOT}/src/mbgl/style/expression/image_expression.cpp
     ${MBGL_ROOT}/src/mbgl/style/expression/interpolate.cpp
     ${MBGL_ROOT}/src/mbgl/style/expression/is_constant.cpp
     ${MBGL_ROOT}/src/mbgl/style/expression/is_expression.cpp
@@ -885,7 +912,6 @@ endif(NOT TARGET mapbox-base)
 include(${PROJECT_SOURCE_DIR}/vendor/boost.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/earcut.hpp.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/eternal.cmake)
-include(${PROJECT_SOURCE_DIR}/vendor/expected.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/geojson-vt-cpp.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/polylabel.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/protozero.cmake)
@@ -910,6 +936,7 @@ target_link_libraries(
         mbgl-vendor-vector-tile
         mbgl-vendor-wagyu
     PUBLIC
+        Mapbox::Base::Extras::expected-lite
         Mapbox::Base::Extras::rapidjson
         Mapbox::Base::geojson.hpp
         Mapbox::Base::geometry.hpp
@@ -918,7 +945,6 @@ target_link_libraries(
         Mapbox::Base::value
         Mapbox::Base::variant
         Mapbox::Base::weak
-        mbgl-vendor-expected
 )
 
 set_property(TARGET mbgl-core PROPERTY FOLDER Core)
@@ -926,6 +952,10 @@ set_property(TARGET mbgl-core PROPERTY FOLDER Core)
 add_library(
     Mapbox::Map ALIAS mbgl-core
 )
+
+if(MBGL_WITH_PLATFORM_EXTRAS)
+    include(${MBGL_WITH_PLATFORM_EXTRAS})
+endif()
 
 if(MBGL_WITH_CORE_ONLY)
     return()

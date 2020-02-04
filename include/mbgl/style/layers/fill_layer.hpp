@@ -21,8 +21,7 @@ public:
     ~FillLayer() final;
 
     // Dynamic properties
-    optional<conversion::Error> setLayoutProperty(const std::string& name, const conversion::Convertible& value) final;
-    optional<conversion::Error> setPaintProperty(const std::string& name, const conversion::Convertible& value) final;
+    optional<conversion::Error> setProperty(const std::string& name, const conversion::Convertible& value) final;
 
     StyleProperty getProperty(const std::string& name) const final;
 
@@ -52,9 +51,9 @@ public:
     void setFillOutlineColorTransition(const TransitionOptions&);
     TransitionOptions getFillOutlineColorTransition() const;
 
-    static PropertyValue<std::string> getDefaultFillPattern();
-    const PropertyValue<std::string>& getFillPattern() const;
-    void setFillPattern(const PropertyValue<std::string>&);
+    static PropertyValue<expression::Image> getDefaultFillPattern();
+    const PropertyValue<expression::Image>& getFillPattern() const;
+    void setFillPattern(const PropertyValue<expression::Image>&);
     void setFillPatternTransition(const TransitionOptions&);
     TransitionOptions getFillPatternTransition() const;
 

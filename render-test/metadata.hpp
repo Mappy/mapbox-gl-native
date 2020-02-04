@@ -11,6 +11,12 @@
 
 #include <map>
 
+namespace mbgl {
+namespace gfx {
+struct RenderingStats;
+}
+} // namespace mbgl
+
 struct TestStatistics {
     TestStatistics() = default;
 
@@ -23,11 +29,16 @@ struct TestStatistics {
 
 struct TestPaths {
     TestPaths() = default;
-    TestPaths(mbgl::filesystem::path stylePath_, std::vector<mbgl::filesystem::path> expectations_)
-        : stylePath(std::move(stylePath_)), expectations(std::move(expectations_)) {}
+    TestPaths(mbgl::filesystem::path stylePath_,
+              std::vector<mbgl::filesystem::path> expectations_,
+              std::vector<mbgl::filesystem::path> expectedMetrics_)
+        : stylePath(std::move(stylePath_)),
+          expectations(std::move(expectations_)),
+          expectedMetrics(std::move(expectedMetrics_)) {}
 
     mbgl::filesystem::path stylePath;
     std::vector<mbgl::filesystem::path> expectations;
+    std::vector<mbgl::filesystem::path> expectedMetrics;
 
     std::string defaultExpectations() const {
         assert(!expectations.empty());
@@ -82,13 +93,36 @@ struct NetworkProbe {
     size_t transferred;
 };
 
+struct GfxProbe {
+    struct Memory {
+        Memory() = default;
+        Memory(int allocated_, int peak_) : allocated(allocated_), peak(peak_) {}
+
+        int allocated;
+        int peak;
+    };
+
+    GfxProbe() = default;
+    GfxProbe(const mbgl::gfx::RenderingStats&, const GfxProbe&);
+
+    int numBuffers;
+    int numDrawCalls;
+    int numFrameBuffers;
+    int numTextures;
+
+    Memory memIndexBuffers;
+    Memory memVertexBuffers;
+    Memory memTextures;
+};
+
 class TestMetrics {
 public:
-    bool isEmpty() const { return fileSize.empty() && memory.empty() && network.empty() && fps.empty(); }
+    bool isEmpty() const { return fileSize.empty() && memory.empty() && network.empty() && fps.empty() && gfx.empty(); }
     std::map<std::string, FileSizeProbe> fileSize;
     std::map<std::string, MemoryProbe> memory;
     std::map<std::string, NetworkProbe> network;
     std::map<std::string, FpsProbe> fps;
+    std::map<std::string, GfxProbe> gfx;
 };
 
 struct TestMetadata {

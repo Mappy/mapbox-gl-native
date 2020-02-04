@@ -64,7 +64,7 @@ void FillLayer::Impl::stringifyLayout(rapidjson::Writer<rapidjson::StringBuffer>
 // Paint properties
 
 PropertyValue<bool> FillLayer::getDefaultFillAntialias() {
-    return { true };
+    return {true};
 }
 
 const PropertyValue<bool>& FillLayer::getFillAntialias() const {
@@ -91,7 +91,7 @@ TransitionOptions FillLayer::getFillAntialiasTransition() const {
 }
 
 PropertyValue<Color> FillLayer::getDefaultFillColor() {
-    return { Color::black() };
+    return {Color::black()};
 }
 
 const PropertyValue<Color>& FillLayer::getFillColor() const {
@@ -118,7 +118,7 @@ TransitionOptions FillLayer::getFillColorTransition() const {
 }
 
 PropertyValue<float> FillLayer::getDefaultFillOpacity() {
-    return { 1 };
+    return {1};
 }
 
 const PropertyValue<float>& FillLayer::getFillOpacity() const {
@@ -145,7 +145,7 @@ TransitionOptions FillLayer::getFillOpacityTransition() const {
 }
 
 PropertyValue<Color> FillLayer::getDefaultFillOutlineColor() {
-    return { {} };
+    return {{}};
 }
 
 const PropertyValue<Color>& FillLayer::getFillOutlineColor() const {
@@ -171,15 +171,15 @@ TransitionOptions FillLayer::getFillOutlineColorTransition() const {
     return impl().paint.template get<FillOutlineColor>().options;
 }
 
-PropertyValue<std::string> FillLayer::getDefaultFillPattern() {
-    return { "" };
+PropertyValue<expression::Image> FillLayer::getDefaultFillPattern() {
+    return {{}};
 }
 
-const PropertyValue<std::string>& FillLayer::getFillPattern() const {
+const PropertyValue<expression::Image>& FillLayer::getFillPattern() const {
     return impl().paint.template get<FillPattern>().value;
 }
 
-void FillLayer::setFillPattern(const PropertyValue<std::string>& value) {
+void FillLayer::setFillPattern(const PropertyValue<expression::Image>& value) {
     if (value == getFillPattern())
         return;
     auto impl_ = mutableImpl();
@@ -199,7 +199,7 @@ TransitionOptions FillLayer::getFillPatternTransition() const {
 }
 
 PropertyValue<std::array<float, 2>> FillLayer::getDefaultFillTranslate() {
-    return { {{ 0, 0 }} };
+    return {{{0, 0}}};
 }
 
 const PropertyValue<std::array<float, 2>>& FillLayer::getFillTranslate() const {
@@ -226,7 +226,7 @@ TransitionOptions FillLayer::getFillTranslateTransition() const {
 }
 
 PropertyValue<TranslateAnchorType> FillLayer::getDefaultFillTranslateAnchor() {
-    return { TranslateAnchorType::Map };
+    return {TranslateAnchorType::Map};
 }
 
 const PropertyValue<TranslateAnchorType>& FillLayer::getFillTranslateAnchor() const {
@@ -293,98 +293,84 @@ MAPBOX_ETERNAL_CONSTEXPR const auto layerProperties = mapbox::eternal::hash_map<
      {"fill-pattern-transition", toUint8(Property::FillPatternTransition)},
      {"fill-translate-transition", toUint8(Property::FillTranslateTransition)},
      {"fill-translate-anchor-transition", toUint8(Property::FillTranslateAnchorTransition)}});
-
-constexpr uint8_t lastPaintPropertyIndex = toUint8(Property::FillTranslateAnchorTransition);
 } // namespace
 
-optional<Error> FillLayer::setPaintProperty(const std::string& name, const Convertible& value) {
+optional<Error> FillLayer::setProperty(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end() || it->second > lastPaintPropertyIndex) {
+    if (it == layerProperties.end()) {
+        if (name == "visibility") return setVisibility(value);
         return Error{"layer doesn't support this property"};
     }
 
     auto property = static_cast<Property>(it->second);
 
-        
     if (property == Property::FillAntialias) {
         Error error;
-        optional<PropertyValue<bool>> typedValue = convert<PropertyValue<bool>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<bool>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setFillAntialias(*typedValue);
         return nullopt;
-        
     }
-    
     if (property == Property::FillColor || property == Property::FillOutlineColor) {
         Error error;
-        optional<PropertyValue<Color>> typedValue = convert<PropertyValue<Color>>(value, error, true, false);
+        const auto& typedValue = convert<PropertyValue<Color>>(value, error, true, false);
         if (!typedValue) {
             return error;
         }
-        
+
         if (property == Property::FillColor) {
             setFillColor(*typedValue);
             return nullopt;
         }
-        
+
         if (property == Property::FillOutlineColor) {
             setFillOutlineColor(*typedValue);
             return nullopt;
         }
-        
     }
-    
     if (property == Property::FillOpacity) {
         Error error;
-        optional<PropertyValue<float>> typedValue = convert<PropertyValue<float>>(value, error, true, false);
+        const auto& typedValue = convert<PropertyValue<float>>(value, error, true, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setFillOpacity(*typedValue);
         return nullopt;
-        
     }
-    
     if (property == Property::FillPattern) {
         Error error;
-        optional<PropertyValue<std::string>> typedValue = convert<PropertyValue<std::string>>(value, error, true, false);
+        const auto& typedValue = convert<PropertyValue<expression::Image>>(value, error, true, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setFillPattern(*typedValue);
         return nullopt;
-        
     }
-    
     if (property == Property::FillTranslate) {
         Error error;
-        optional<PropertyValue<std::array<float, 2>>> typedValue = convert<PropertyValue<std::array<float, 2>>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<std::array<float, 2>>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setFillTranslate(*typedValue);
         return nullopt;
-        
     }
-    
     if (property == Property::FillTranslateAnchor) {
         Error error;
-        optional<PropertyValue<TranslateAnchorType>> typedValue = convert<PropertyValue<TranslateAnchorType>>(value, error, false, false);
+        const auto& typedValue = convert<PropertyValue<TranslateAnchorType>>(value, error, false, false);
         if (!typedValue) {
             return error;
         }
-        
+
         setFillTranslateAnchor(*typedValue);
         return nullopt;
-        
     }
-    
 
     Error error;
     optional<TransitionOptions> transition = convert<TransitionOptions>(value, error);
@@ -467,14 +453,6 @@ StyleProperty FillLayer::getProperty(const std::string& name) const {
             return makeStyleProperty(getFillTranslateAnchorTransition());
     }
     return {};
-}
-
-optional<Error> FillLayer::setLayoutProperty(const std::string& name, const Convertible& value) {
-    if (name == "visibility") {
-        return Layer::setVisibility(value);
-    }
-
-    return Error { "layer doesn't support this property" };
 }
 
 Mutable<Layer::Impl> FillLayer::mutableBaseImpl() const {

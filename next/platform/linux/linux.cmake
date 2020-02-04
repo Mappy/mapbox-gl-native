@@ -79,19 +79,6 @@ target_link_libraries(
         mbgl-vendor-sqlite
 )
 
-add_custom_target(mbgl-ca-bundle)
-add_dependencies(mbgl-core mbgl-ca-bundle)
-
-add_custom_command(
-    TARGET mbgl-ca-bundle PRE_BUILD
-    COMMAND
-        ${CMAKE_COMMAND}
-        -E
-        copy
-        ${MBGL_ROOT}/misc/ca-bundle.crt
-        ${CMAKE_BINARY_DIR}
-)
-
 add_subdirectory(${PROJECT_SOURCE_DIR}/bin)
 add_subdirectory(${PROJECT_SOURCE_DIR}/expression-test)
 add_subdirectory(${PROJECT_SOURCE_DIR}/platform/glfw)
@@ -144,14 +131,24 @@ add_test(
         render-tests
         --recycle-map
         --shuffle
-        --expectationsPath=render-test/expected/render-tests
+        --manifestPath=${MBGL_ROOT}/render-test/linux-manifest.json
         --seed=${MBGL_RENDER_TEST_SEED}
-    WORKING_DIRECTORY ${MBGL_ROOT}
 )
 
-add_test(
-    NAME mbgl-render-test-probes
-    COMMAND mbgl-render-test-runner tests --rootPath=${MBGL_ROOT}/render-test
-    WORKING_DIRECTORY ${MBGL_ROOT}
-)
-add_test(NAME mbgl-query-test COMMAND mbgl-render-test-runner query-tests WORKING_DIRECTORY ${MBGL_ROOT})
+if(CMAKE_C_COMPILER MATCHES clang OR CMAKE_BUILD_TYPE MATCHES Debug)
+    add_test(
+        NAME mbgl-render-test-probe-unit-tests
+        COMMAND mbgl-render-test-runner tests --manifestPath=${MBGL_ROOT}/render-test/linux-probe-manifest.json
+    )
+else()
+    add_test(
+        NAME mbgl-render-test-probe-gfx-network
+        COMMAND mbgl-render-test-runner render-tests --manifestPath=${MBGL_ROOT}/render-test/linux-manifest-probe-gfx-network.json
+    )
+    add_test(
+        NAME mbgl-render-test-probe-memory
+        COMMAND mbgl-render-test-runner render-tests --manifestPath=${MBGL_ROOT}/render-test/linux-manifest-probe-memory.json
+    )
+endif()
+
+add_test(NAME mbgl-query-test COMMAND mbgl-render-test-runner query-tests --manifestPath=${MBGL_ROOT}/render-test/linux-query-manifest.json)

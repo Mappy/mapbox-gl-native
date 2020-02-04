@@ -3,11 +3,15 @@ add_executable(
     expression-test/test_runner_common.cpp
     expression-test/test_runner_common.hpp
     platform/default/src/mbgl/render-test/main.cpp
+    render-test/file_source.cpp
+    render-test/file_source.hpp
     render-test/allocation_index.cpp
     render-test/allocation_index.hpp
     render-test/filesystem.hpp
     render-test/filesystem.hpp
     render-test/include/mbgl/render_test.hpp
+    render-test/manifest_parser.cpp
+    render-test/manifest_parser.hpp
     render-test/metadata.hpp
     render-test/parser.cpp
     render-test/parser.hpp
@@ -47,7 +51,7 @@ target_link_libraries(
         mbgl-core
         mbgl-filesource
         Mapbox::Base::Extras::args
-        mbgl-vendor-expected
+        Mapbox::Base::Extras::expected-lite
         Mapbox::Base::Extras::filesystem
         Mapbox::Base::pixelmatch-cpp
         Mapbox::Base::Extras::rapidjson
