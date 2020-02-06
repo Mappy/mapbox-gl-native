@@ -34,6 +34,7 @@ jni::Local<jni::Object<CameraPosition>> CameraPosition::New(jni::JNIEnv &env, mb
     paddingVect.push_back(insets.bottom() * pixelRatio);
     padding.SetRegion<std::vector<jni::jdouble>>(env, 0, paddingVect);
 
+    printf("!!!!!!!! Tilt %f", tilt_degrees);
     return javaClass.New(env, constructor, LatLng::New(env, center), options.zoom.value_or(0), tilt_degrees, bearing_degrees, padding);
 }
 

@@ -125,6 +125,8 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     zoom = util::clamp(zoom, state.getMinZoom(), state.getMaxZoom());
     pitch = util::clamp(pitch, util::PITCH_MIN, util::PITCH_MAX);
 
+    printf("!!!!!! Pintch : %f ; min %f max %f", pitch, util::PITCH_MIN, util::PITCH_MAX);
+
     // Minimize rotation by taking the shorter path around the circle.
     bearing = _normalizeAngle(bearing, state.getBearing());
     state.setBearing(_normalizeAngle(state.getBearing(), bearing));
@@ -158,6 +160,7 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
                                      util::interpolate(startEdgeInsets.right(), padding.right(), t)});
             }
             double maxPitch = getMaxPitchForEdgeInsets(state.getEdgeInsets());
+            printf("!!!!!!!! Start Pitch %f , max = %f", startPitch, maxPitch);
             if (pitch != startPitch || maxPitch < startPitch) {
                 state.setPitch(std::min(maxPitch, util::interpolate(startPitch, pitch, t)));
             }
@@ -623,6 +626,7 @@ LatLng Transform::screenCoordinateToLatLng(const ScreenCoordinate& point, LatLng
 double Transform::getMaxPitchForEdgeInsets(const EdgeInsets& insets) const {
     double centerOffsetY = 0.5 * (insets.top() - insets.bottom()); // See TransformState::getCenterOffset.
 
+    printf("!!!!!!!!! EDGE OFFSET, center Y = %f", centerOffsetY);
     const auto height = state.getSize().height;
     assert(height);
     // For details, see description at https://github.com/mapbox/mapbox-gl-native/pull/15195
