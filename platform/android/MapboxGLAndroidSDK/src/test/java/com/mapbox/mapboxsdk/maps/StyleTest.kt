@@ -8,10 +8,7 @@ import com.mapbox.mapboxsdk.style.layers.SymbolLayer
 import com.mapbox.mapboxsdk.style.layers.TransitionOptions
 import com.mapbox.mapboxsdk.style.sources.CannotAddSourceException
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.spyk
-import io.mockk.verify
+import io.mockk.*
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
@@ -28,7 +25,7 @@ class StyleTest {
     @Before
     fun setup() {
         nativeMapView = mockk(relaxed = true)
-        mapboxMap = MapboxMap(nativeMapView, null, null, null, null, null)
+        mapboxMap = MapboxMap(nativeMapView, null, null, null, null, null, null)
         every { nativeMapView.isDestroyed } returns false
         mapboxMap.injectLocationComponent(spyk())
     }
@@ -37,7 +34,7 @@ class StyleTest {
     fun testFromUrl() {
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
     }
 
     @Test
@@ -51,7 +48,7 @@ class StyleTest {
     fun testEmptyBuilder() {
         val builder = Style.Builder()
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleJson = "{}" }
+        verify(exactly = 1) { nativeMapView.styleJson = Style.EMPTY_JSON }
     }
 
     @Test
@@ -119,7 +116,7 @@ class StyleTest {
         every { source.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withSource(source)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addSource(source) }
     }
@@ -130,7 +127,7 @@ class StyleTest {
         every { layer.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withLayer(layer)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addLayerBelow(layer, MapboxConstants.LAYER_ID_ANNOTATIONS) }
     }
@@ -141,7 +138,7 @@ class StyleTest {
         every { layer.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withLayerAt(layer, 1)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addLayerAt(layer, 1) }
     }
@@ -152,7 +149,7 @@ class StyleTest {
         every { layer.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withLayerBelow(layer, "below")
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addLayerBelow(layer, "below") }
     }
@@ -163,7 +160,7 @@ class StyleTest {
         every { layer.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withLayerBelow(layer, "below")
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addLayerBelow(layer, "below") }
     }
@@ -173,7 +170,7 @@ class StyleTest {
         val transitionOptions = TransitionOptions(100, 200)
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withTransition(transitionOptions)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.transitionOptions = transitionOptions }
     }
@@ -184,7 +181,7 @@ class StyleTest {
         every { callback.onStyleLoaded(any()) } answers {}
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS)
         mapboxMap.setStyle(builder, callback)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { callback.onStyleLoaded(any()) }
     }
@@ -239,7 +236,7 @@ class StyleTest {
         every { source.id } returns "1"
         val builder = Style.Builder().fromUrl(Style.MAPBOX_STREETS).withSource(source)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.MAPBOX_STREETS }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.MAPBOX_STREETS }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addSource(source) }
         verify(exactly = 1) { callback.onStyleLoaded(any()) }
@@ -287,10 +284,10 @@ class StyleTest {
 
     @Test
     fun testAddImage() {
-        val bitmap = Bitmap.createBitmap(1, 1,  Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         val builder = Style.Builder().fromUrl(Style.SATELLITE).withImage("id", bitmap)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.SATELLITE }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.SATELLITE }
         verify(exactly = 0) { nativeMapView.addImages(any()) }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addImages(any()) }
@@ -303,7 +300,7 @@ class StyleTest {
         drawable.intrinsicWidth = 10
         val builder = Style.Builder().fromUrl(Style.SATELLITE).withImage("id", drawable)
         mapboxMap.setStyle(builder)
-        verify(exactly = 1) { nativeMapView.styleUrl = Style.SATELLITE }
+        verify(exactly = 1) { nativeMapView.styleUri = Style.SATELLITE }
         verify(exactly = 0) { nativeMapView.addImages(any()) }
         mapboxMap.notifyStyleLoaded()
         verify(exactly = 1) { nativeMapView.addImages(any()) }

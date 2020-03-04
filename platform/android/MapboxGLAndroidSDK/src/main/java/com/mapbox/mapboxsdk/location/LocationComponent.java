@@ -1157,7 +1157,6 @@ public final class LocationComponent {
     }
 
     isLayerReady = false;
-    locationLayerController.hide();
     staleStateManager.onStop();
     if (compassEngine != null) {
       updateCompassListenerState(false);
@@ -1264,6 +1263,7 @@ public final class LocationComponent {
 
   private void disableLocationComponent() {
     isEnabled = false;
+    locationLayerController.hide();
     onLocationLayerStop();
   }
 
