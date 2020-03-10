@@ -126,8 +126,6 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
     zoom = util::clamp(zoom, state.getMinZoom(), state.getMaxZoom());
     pitch = util::clamp(pitch, util::PITCH_MIN, util::PITCH_MAX);
 
-    __android_log_print(ANDROID_LOG_INFO, "TRANSFORM", "!!!!!! Pintch : %f ; min %f max %f", pitch, util::PITCH_MIN, util::PITCH_MAX);
-
     // Minimize rotation by taking the shorter path around the circle.
     bearing = _normalizeAngle(bearing, state.getBearing());
     state.setBearing(_normalizeAngle(state.getBearing(), bearing));
@@ -160,8 +158,7 @@ void Transform::easeTo(const CameraOptions& camera, const AnimationOptions& anim
                                      util::interpolate(startEdgeInsets.bottom(), padding.bottom(), t),
                                      util::interpolate(startEdgeInsets.right(), padding.right(), t)});
             }
-            double maxPitch = /*util::PITCH_MAX;//*/getMaxPitchForEdgeInsets(state.getEdgeInsets());
-            __android_log_print(ANDROID_LOG_INFO, "TRANSFORM", "!!!!!!!! Start Pitch %f , max = %f", startPitch, maxPitch);
+            double maxPitch = getMaxPitchForEdgeInsets(state.getEdgeInsets());
             if (pitch != startPitch || maxPitch < startPitch) {
                 state.setPitch(std::min(maxPitch, util::interpolate(startPitch, pitch, t)));
             }
@@ -345,7 +342,6 @@ void Transform::flyTo(const CameraOptions& camera, const AnimationOptions& anima
             double maxPitch = getMaxPitchForEdgeInsets(state.getEdgeInsets());
 
             if (pitch != startPitch || maxPitch < startPitch) {
-                __android_log_print(ANDROID_LOG_INFO, "TRANSFORM", "!!!!!!!!! Pitch : %f / %f - max %f", pitch, startPitch, maxPitch);
                 state.setPitch(std::min(maxPitch, util::interpolate(startPitch, pitch, k)));
             }
         },
@@ -629,14 +625,13 @@ double Transform::getMaxPitchForEdgeInsets(const EdgeInsets& insets) const {
     double centerOffsetY = 0.5 * (insets.top() - insets.bottom()); // See TransformState::getCenterOffset.
 
     const auto height = state.getSize().height;
-    __android_log_print(ANDROID_LOG_INFO, "TRANSFORM", "!!!!!!!!! EDGE OFFSET, center Y = %f, height = %d", centerOffsetY, height);
     assert(height);
     // For details, see description at https://github.com/mapbox/mapbox-gl-native/pull/15195
     // The definition of half of TransformState::fov with no inset, is: fov = arctan((height / 2) / (height * 1.5)).
     // We use half of fov, as it is field of view above perspective center.
     // With inset, this angle changes and tangentOfFovAboveCenterAngle = (h/2 + centerOffsetY) / (height * 1.5).
     // 1.03 is a bit extra added to prevent parallel ground to viewport clipping plane.
-    const double tangentOfFovAboveCenterAngle = 1.23 * (height / 2.0 + centerOffsetY) / (1.5 * height);
+    const double tangentOfFovAboveCenterAngle = 1.03 * (height / 2.0 + centerOffsetY * 2) / (1.5 * height);
     const double fovAboveCenter = std::atan(tangentOfFovAboveCenterAngle);
     return M_PI * 0.5 - fovAboveCenter;
     // e.g. Maximum pitch of 60 degrees is when perspective center's offset from the top is 84% of screen height.
