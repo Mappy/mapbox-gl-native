@@ -13,7 +13,6 @@
 
 #include <cstdio>
 #include <cmath>
-#include <android/log.h>
 
 namespace mbgl {
 
