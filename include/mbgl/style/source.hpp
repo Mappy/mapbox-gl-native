@@ -5,8 +5,8 @@
 #include <mbgl/util/immutable.hpp>
 #include <mbgl/style/types.hpp>
 
-#include <mapbox/weak.hpp>
-#include <mapbox/type_wrapper.hpp>
+#include <mapbox/std/weak.hpp>
+#include <mapbox/util/type_wrapper.hpp>
 
 #include <memory>
 #include <string>
@@ -73,6 +73,22 @@ public:
     SourceObserver* observer = nullptr;
 
     virtual void loadDescription(FileSource&) = 0;
+    void setPrefetchZoomDelta(optional<uint8_t> delta) noexcept;
+    optional<uint8_t> getPrefetchZoomDelta() const noexcept;
+
+    // Sets a limit for how much a parent tile can be overscaled.
+    //
+    // When a set of tiles for a current zoom level is being rendered and some of the
+    // ideal tiles that cover the screen are not yet loaded, parent tile could be
+    // used instead. This might introduce unwanted rendering side-effects, especially
+    // for raster tiles that are overscaled multiple times.
+    //
+    // For example, an overscale factor of 3 would mean that on zoom level 3, the
+    // minimum zoom level of a parent tile that could be used in place of an ideal
+    // tile during rendering would be zoom 0. By default, no limit is set, so any
+    // parent tile may be used.
+    void setMaxOverscaleFactorForParentTiles(optional<uint8_t> overscaleFactor) noexcept;
+    optional<uint8_t> getMaxOverscaleFactorForParentTiles() const noexcept;
     void dumpDebugLogs() const;
 
     virtual bool supportsLayerType(const mbgl::style::LayerTypeInfo*) const = 0;
@@ -85,6 +101,9 @@ public:
     mapbox::base::TypeWrapper peer;
 
     virtual mapbox::base::WeakPtr<Source> makeWeakPtr() = 0;
+
+protected:
+    virtual Mutable<Impl> createMutable() const noexcept = 0;
 };
 
 } // namespace style

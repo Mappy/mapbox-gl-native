@@ -87,13 +87,13 @@ public:
     std::string getKey() const { return key; }
     optional<type::Type> getExpected() const { return expected; }
     const std::vector<ParsingError>& getErrors() const { return *errors; }
-    const std::string getCombinedErrors() const;
+    std::string getCombinedErrors() const;
 
     /*
         Parse the given style-spec JSON value as an expression.
     */
     ParseResult parseExpression(const mbgl::style::conversion::Convertible& value,
-                                optional<TypeAnnotationOption> = {});
+                                const optional<TypeAnnotationOption>& = {});
 
     /*
         Parse the given style-spec JSON value as an expression intended to be used
@@ -108,8 +108,8 @@ public:
     ParseResult parse(const mbgl::style::conversion::Convertible&,
                       std::size_t,
                       optional<type::Type> = {},
-                      optional<TypeAnnotationOption> = {});
-    
+                      const optional<TypeAnnotationOption>& = {});
+
     /*
         Parse a child expression.  For use by individual Expression::parse() methods.
     */
@@ -168,9 +168,8 @@ private:
         type (either Literal, or the one named in value[0]) and dispatching to the
         appropriate ParseXxxx::parse(const V&, ParsingContext) method.
     */
-    ParseResult parse(const mbgl::style::conversion::Convertible& value,
-                      optional<TypeAnnotationOption> = {});
-    
+    ParseResult parse(const mbgl::style::conversion::Convertible& value, const optional<TypeAnnotationOption>& = {});
+
     std::string key;
     optional<type::Type> expected;
     std::shared_ptr<detail::Scope> scope;

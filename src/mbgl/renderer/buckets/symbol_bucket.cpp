@@ -1,10 +1,13 @@
+#include <mbgl/renderer/bucket_parameters.hpp>
 #include <mbgl/renderer/buckets/symbol_bucket.hpp>
 #include <mbgl/renderer/layers/render_symbol_layer.hpp>
-#include <mbgl/renderer/bucket_parameters.hpp>
+#include <mbgl/renderer/render_tile.hpp>
 #include <mbgl/style/layers/symbol_layer_impl.hpp>
 #include <mbgl/text/cross_tile_symbol_index.hpp>
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/text/placement.hpp>
+
+#include <utility>
 
 namespace mbgl {
 
@@ -20,14 +23,15 @@ SymbolBucket::SymbolBucket(Immutable<style::SymbolLayoutProperties::PossiblyEval
                            float zoom,
                            bool iconsNeedLinear_,
                            bool sortFeaturesByY_,
-                           const std::string bucketName_,
+                           std::string bucketName_,
                            const std::vector<SymbolInstance>&& symbolInstances_,
+                           const std::vector<SortKeyRange>&& sortKeyRanges_,
                            float tilePixelRatio_,
                            bool allowVerticalPlacement_,
                            std::vector<style::TextWritingModeType> placementModes_,
                            bool iconsInText_)
     : layout(std::move(layout_)),
-      bucketLeaderID(bucketName_),
+      bucketLeaderID(std::move(bucketName_)),
       iconsNeedLinear(iconsNeedLinear_ || iconSize.isDataDriven() || !iconSize.isZoomConstant()),
       sortFeaturesByY(sortFeaturesByY_),
       staticUploaded(false),
@@ -37,7 +41,9 @@ SymbolBucket::SymbolBucket(Immutable<style::SymbolLayoutProperties::PossiblyEval
       iconsInText(iconsInText_),
       justReloaded(false),
       hasVariablePlacement(false),
+      hasUninitializedSymbols(false),
       symbolInstances(symbolInstances_),
+      sortKeyRanges(sortKeyRanges_),
       textSizeBinder(SymbolSizeBinder::create(zoom, textSize, TextSize::defaultValue())),
       iconSizeBinder(SymbolSizeBinder::create(zoom, iconSize, IconSize::defaultValue())),
       tilePixelRatio(tilePixelRatio_),
@@ -271,14 +277,14 @@ void SymbolBucket::sortFeatures(const float angle) {
     featureSortOrder = std::move(symbolsSortOrder);
 }
 
-std::vector<std::reference_wrapper<const SymbolInstance>> SymbolBucket::getSortedSymbols(const float angle) const {
-    std::vector<std::reference_wrapper<const SymbolInstance>> result(symbolInstances.begin(), symbolInstances.end());
+SymbolInstanceReferences SymbolBucket::getSortedSymbols(const float angle) const {
+    SymbolInstanceReferences result(symbolInstances.begin(), symbolInstances.end());
     const float sin = std::sin(angle);
     const float cos = std::cos(angle);
 
     std::sort(result.begin(), result.end(), [sin, cos](const SymbolInstance& a, const SymbolInstance& b) {
-        const auto aRotated = ::lround(sin * a.anchor.point.x + cos * a.anchor.point.y);
-        const auto bRotated = ::lround(sin * b.anchor.point.x + cos * b.anchor.point.y);
+        const auto aRotated = std::lround(sin * a.anchor.point.x + cos * a.anchor.point.y);
+        const auto bRotated = std::lround(sin * b.anchor.point.x + cos * b.anchor.point.y);
         if (aRotated != bRotated) {
             return aRotated < bRotated;
         }
@@ -288,6 +294,15 @@ std::vector<std::reference_wrapper<const SymbolInstance>> SymbolBucket::getSorte
     return result;
 }
 
+SymbolInstanceReferences SymbolBucket::getSymbols(const optional<SortKeyRange>& range) const {
+    if (!range) return SymbolInstanceReferences(symbolInstances.begin(), symbolInstances.end());
+    assert(range->start < range->end);
+    assert(range->end <= symbolInstances.size());
+    auto begin = symbolInstances.begin() + range->start;
+    auto end = symbolInstances.begin() + range->end;
+    return SymbolInstanceReferences(begin, end);
+}
+
 bool SymbolBucket::hasFormatSectionOverrides() const {
     if (!hasFormatSectionOverrides_) {
         hasFormatSectionOverrides_= SymbolLayerPaintPropertyOverrides::hasOverrides(layout->get<TextField>());
@@ -295,13 +310,14 @@ bool SymbolBucket::hasFormatSectionOverrides() const {
     return *hasFormatSectionOverrides_;
 }
 
-std::pair<uint32_t, bool> SymbolBucket::registerAtCrossTileIndex(CrossTileSymbolLayerIndex& index, const OverscaledTileID& tileID, uint32_t& maxCrossTileID) {
-    bool firstTimeAdded = index.addBucket(tileID, *this, maxCrossTileID);
+std::pair<uint32_t, bool> SymbolBucket::registerAtCrossTileIndex(CrossTileSymbolLayerIndex& index,
+                                                                 const RenderTile& renderTile) {
+    bool firstTimeAdded = index.addBucket(renderTile.getOverscaledTileID(), renderTile.matrix, *this);
     return std::make_pair(bucketInstanceId, firstTimeAdded);
 }
 
-void SymbolBucket::place(Placement& placement, const BucketPlacementParameters& params, std::set<uint32_t>& seenIds) {
-    placement.placeBucket(*this, params, seenIds);
+void SymbolBucket::place(Placement& placement, const BucketPlacementData& data, std::set<uint32_t>& seenIds) {
+    placement.placeSymbolBucket(data, seenIds);
 }
 
 void SymbolBucket::updateVertices(const Placement& placement,

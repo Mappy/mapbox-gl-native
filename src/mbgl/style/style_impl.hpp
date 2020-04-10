@@ -37,7 +37,7 @@ class Style::Impl : public SpriteLoaderObserver,
                     public LightObserver,
                     public util::noncopyable {
 public:
-    Impl(FileSource&, float pixelRatio);
+    Impl(std::shared_ptr<FileSource>, float pixelRatio);
     ~Impl() override;
 
     void loadJSON(const std::string&);
@@ -65,8 +65,7 @@ public:
     std::vector<const Layer*> getLayers() const;
     Layer* getLayer(const std::string& id) const;
 
-    Layer* addLayer(std::unique_ptr<Layer>,
-                    optional<std::string> beforeLayerID = {});
+    Layer* addLayer(std::unique_ptr<Layer>, const optional<std::string>& beforeLayerID = {});
     std::unique_ptr<Layer> removeLayer(const std::string& layerID);
 
     std::string getName() const;
@@ -78,13 +77,14 @@ public:
     void setLight(std::unique_ptr<Light>);
     Light* getLight() const;
 
-    const style::Image* getImage(const std::string&) const;
+    optional<Immutable<style::Image::Impl>> getImage(const std::string&) const;
     void addImage(std::unique_ptr<style::Image>);
     void removeImage(const std::string&);
 
     const std::string& getGlyphURL() const;
 
-    Immutable<std::vector<Immutable<Image::Impl>>> getImageImpls() const;
+    using ImageImpls = std::vector<Immutable<Image::Impl>>;
+    Immutable<ImageImpls> getImageImpls() const;
     Immutable<std::vector<Immutable<Source::Impl>>> getSourceImpls() const;
     Immutable<std::vector<Immutable<Layer::Impl>>> getLayerImpls() const;
 
@@ -97,7 +97,7 @@ public:
 private:
     void parse(const std::string&);
 
-    FileSource& fileSource;
+    std::shared_ptr<FileSource> fileSource;
 
     std::string url;
     std::string json;
@@ -106,7 +106,7 @@ private:
     std::unique_ptr<SpriteLoader> spriteLoader;
 
     std::string glyphURL;
-    CollectionWithPersistentOrder<style::Image> images;
+    Immutable<ImageImpls> images = makeMutable<ImageImpls>();
     CollectionWithPersistentOrder<Source> sources;
     Collection<Layer> layers;
     TransitionOptions transitionOptions;
@@ -117,7 +117,7 @@ private:
     CameraOptions defaultCamera;
 
     // SpriteLoaderObserver implementation.
-    void onSpriteLoaded(std::vector<std::unique_ptr<Image>>&&) override;
+    void onSpriteLoaded(std::vector<Immutable<style::Image::Impl>>) override;
     void onSpriteError(std::exception_ptr) override;
 
     // SourceObserver implementation.

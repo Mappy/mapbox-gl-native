@@ -46,9 +46,7 @@ void setTempPath(const std::string& path) {
 
 class DatabaseImpl {
 public:
-    DatabaseImpl(sqlite3* db_)
-        : db(db_)
-    {
+    explicit DatabaseImpl(sqlite3* db_) : db(db_) {
         const int error = sqlite3_extended_result_codes(db, true);
         if (error != SQLITE_OK) {
             mbgl::Log::Warning(mbgl::Event::Database, error, "Failed to enable extended result codes: %s", sqlite3_errmsg(db));
@@ -134,7 +132,7 @@ mapbox::util::variant<Database, Exception> Database::tryOpen(const std::string &
 Database Database::open(const std::string &filename, int flags) {
     auto result = tryOpen(filename, flags);
     if (result.is<Exception>()) {
-        throw result.get<Exception>();
+        throw std::move(result.get<Exception>());
     } else {
         return std::move(result.get<Database>());
     }
@@ -144,10 +142,9 @@ Database::Database(std::unique_ptr<DatabaseImpl> impl_)
     : impl(std::move(impl_))
 {}
 
-Database::Database(Database &&other)
-    : impl(std::move(other.impl)) {}
+Database::Database(Database&& other) noexcept : impl(std::move(other.impl)) {}
 
-Database &Database::operator=(Database &&other) {
+Database& Database::operator=(Database&& other) noexcept {
     std::swap(impl, other.impl);
     return *this;
 }
@@ -188,6 +185,7 @@ Statement::Statement(Database& db, const char* sql)
     : impl(std::make_unique<StatementImpl>(db.impl->db, sql)) {
 }
 
+// NOLINTNEXTLINE(modernize-use-equals-default)
 Statement::~Statement() {
 #ifndef NDEBUG
     // Crash if we're destructing this object while we know a Query object references this.

@@ -130,6 +130,16 @@ TEST(Transform, PerspectiveProjection) {
     point = transform.getState().latLngToScreenCoordinate({37.692872969426375, -76.75823239205641});
     ASSERT_NEAR(point.x, 1000.0, 1e-5);
     ASSERT_NEAR(point.y, 0.0, 1e-4);
+
+    mbgl::vec4 p;
+    point = transform.getState().latLngToScreenCoordinate({37.692872969426375, -76.75823239205641}, p);
+    ASSERT_NEAR(point.x, 1000.0, 1e-5);
+    ASSERT_NEAR(point.y, 0.0, 1e-4);
+    ASSERT_GT(p[3], 0.0);
+
+    transform.jumpTo(CameraOptions().withCenter(LatLng{38.0, -77.0}).withZoom(18.0).withPitch(51.56620156));
+    point = transform.getState().latLngToScreenCoordinate({7.692872969426375, -76.75823239205641}, p);
+    ASSERT_LT(p[3], 0.0);
 }
 
 TEST(Transform, UnwrappedLatLng) {
@@ -621,7 +631,8 @@ TEST(Transform, LatLngBounds) {
     }
 
     transform.jumpTo(CameraOptions().withCenter(sanFrancisco));
-    ASSERT_EQ(transform.getLatLng(), sanFrancisco);
+    ASSERT_NEAR(transform.getLatLng().latitude(), sanFrancisco.latitude(), 1e-8);
+    ASSERT_NEAR(transform.getLatLng().longitude(), sanFrancisco.longitude(), 1e-8);
 
     // Single location.
     transform.setLatLngBounds(LatLngBounds::singleton(sanFrancisco));
@@ -655,7 +666,7 @@ TEST(Transform, LatLngBounds) {
     // └───┴───┸───┴───┸───┴───┘
     transform.setLatLngBounds(LatLngBounds::hull({ -90.0, 0.0 }, { 90.0, 180.0 }));
     transform.jumpTo(CameraOptions().withCenter(sanFrancisco));
-    ASSERT_EQ(transform.getLatLng().latitude(), sanFrancisco.latitude());
+    ASSERT_NEAR(transform.getLatLng().latitude(), sanFrancisco.latitude(), 1e-8);
     ASSERT_EQ(transform.getLatLng().longitude(), 0.0);
 
     //    -1   |   0   |  +1
@@ -786,4 +797,76 @@ TEST(Transform, LatLngBounds) {
 
     transform.moveBy(ScreenCoordinate { 500, 0 });
     ASSERT_DOUBLE_EQ(transform.getLatLng().longitude(), 120.0);
+}
+
+TEST(Transform, InvalidPitch) {
+    Transform transform;
+    transform.resize({1, 1});
+
+    ASSERT_DOUBLE_EQ(0, transform.getLatLng().latitude());
+    ASSERT_DOUBLE_EQ(0, transform.getLatLng().longitude());
+    ASSERT_DOUBLE_EQ(0, transform.getZoom());
+    ASSERT_DOUBLE_EQ(0, transform.getPitch());
+
+    transform.jumpTo(CameraOptions().withZoom(1.0).withPitch(45));
+    ASSERT_DOUBLE_EQ(1, transform.getZoom());
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getPitch());
+
+    const double invalid = NAN;
+
+    transform.jumpTo(CameraOptions().withPitch(invalid));
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getPitch());
+
+    transform.jumpTo(CameraOptions().withPitch(60));
+    ASSERT_DOUBLE_EQ(60 * util::DEG2RAD, transform.getPitch());
+}
+
+TEST(Transform, MinMaxPitch) {
+    Transform transform;
+    transform.resize({1, 1});
+
+    ASSERT_DOUBLE_EQ(0, transform.getLatLng().latitude());
+    ASSERT_DOUBLE_EQ(0, transform.getLatLng().longitude());
+    ASSERT_DOUBLE_EQ(0, transform.getZoom());
+    ASSERT_DOUBLE_EQ(0, transform.getPitch());
+
+    transform.jumpTo(CameraOptions().withZoom(1.0).withPitch(60));
+    ASSERT_DOUBLE_EQ(1, transform.getZoom());
+    ASSERT_DOUBLE_EQ(transform.getState().getMaxPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(60 * util::DEG2RAD, transform.getPitch());
+
+    transform.setMaxPitch(70);
+    transform.jumpTo(CameraOptions().withPitch(70));
+    ASSERT_DOUBLE_EQ(transform.getState().getMaxPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(60 * util::DEG2RAD, transform.getPitch());
+
+    transform.setMaxPitch(45);
+    transform.jumpTo(CameraOptions().withPitch(60));
+    ASSERT_DOUBLE_EQ(transform.getState().getMaxPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getPitch());
+
+    transform.jumpTo(CameraOptions().withPitch(0));
+    ASSERT_DOUBLE_EQ(transform.getState().getMinPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(0, transform.getPitch());
+
+    transform.setMinPitch(-10);
+    transform.jumpTo(CameraOptions().withPitch(-10));
+    ASSERT_DOUBLE_EQ(transform.getState().getMinPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(0, transform.getPitch());
+
+    transform.setMinPitch(15);
+    transform.jumpTo(CameraOptions().withPitch(0));
+    ASSERT_DOUBLE_EQ(transform.getState().getMinPitch(), transform.getPitch());
+    ASSERT_DOUBLE_EQ(15 * util::DEG2RAD, transform.getPitch());
+
+    transform.setMinPitch(45);
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getState().getMinPitch());
+    transform.setMaxPitch(45);
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getState().getMaxPitch());
+
+    transform.setMaxPitch(10);
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getState().getMaxPitch());
+
+    transform.setMinPitch(60);
+    ASSERT_DOUBLE_EQ(45 * util::DEG2RAD, transform.getState().getMinPitch());
 }

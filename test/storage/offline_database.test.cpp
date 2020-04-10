@@ -714,19 +714,22 @@ TEST(OfflineDatabase, TEST_REQUIRES_WRITE(DeleteRegion)) {
         EXPECT_LT(sizeWithOneRegion, sizeWithTwoRegions);
         db.runPackDatabaseAutomatically(true);
         db.deleteRegion(std::move(*region2));
-        // The size of the database has shrunk right away.
+
+        // After clearing the cache, the size of the database
+        // should get back to the original size.
+        db.clearAmbientCache();
+
+        // The size of the database has shrunk right away after deleted region
+        // is evicted from an ambient cache.
         const size_t sizeWithoutRegions = util::read_file(filename).size();
-        ASSERT_EQ(0u, db.listRegions().value().size());
-        EXPECT_LT(sizeWithoutRegions, sizeWithOneRegion);
 
         // The tiles from the offline region will migrate to the
         // ambient cache and shrink the database to the maximum
         // size defined by default.
         EXPECT_LE(sizeWithoutRegions, util::DEFAULT_MAX_CACHE_SIZE);
 
-        // After clearing the cache, the size of the database
-        // should get back to the original size.
-        db.clearAmbientCache();
+        ASSERT_EQ(0u, db.listRegions().value().size());
+        EXPECT_LT(sizeWithoutRegions, sizeWithOneRegion);
     }
 
     EXPECT_EQ(initialSize, util::read_file(filename).size());
@@ -779,7 +782,7 @@ TEST(OfflineDatabase, MapboxTileLimitExceeded) {
         db.put(ambientTile, response);
     };
 
-    auto insertRegionTile = [&](int64_t regionID, unsigned i) {
+    auto insertRegionTile = [&](int64_t regionID, uint64_t i) {
         const Resource tile = Resource::tile("mapbox://region_tile_" + std::to_string(i), 1, 0, 0, 0, Tileset::Scheme::XYZ);
         db.putRegionResource(regionID, tile, response);
     };
@@ -801,14 +804,14 @@ TEST(OfflineDatabase, MapboxTileLimitExceeded) {
     ASSERT_EQ(db.getOfflineMapboxTileCount(), 0);
 
     // Fine because this region is under the tile limit.
-    for (unsigned i = 0; i < limit - 10; ++i) {
+    for (uint64_t i = 0; i < limit - 10; ++i) {
         insertRegionTile(region1->getID(), i);
     }
 
     ASSERT_EQ(db.getOfflineMapboxTileCount(), limit - 10);
 
     // Fine because this region + the previous is at the limit.
-    for (unsigned i = limit; i < limit + 10; ++i) {
+    for (uint64_t i = limit; i < limit + 10; ++i) {
         insertRegionTile(region2->getID(), i);
     }
 
@@ -848,7 +851,7 @@ TEST(OfflineDatabase, MapboxTileLimitExceeded) {
     // 10, which would blow up the limit if it wasn't
     // for the fact that tile 60 is already on the
     // database and will not count.
-    for (unsigned i = limit; i < limit + 10; ++i) {
+    for (uint64_t i = limit; i < limit + 10; ++i) {
         insertRegionTile(region1->getID(), i);
     }
 
@@ -1059,7 +1062,8 @@ TEST(OfflineDatabase, PutEvictsLeastRecentlyUsedResources) {
     Response response;
     response.data = randomString(1024);
 
-    for (uint32_t i = 1; i <= 100; i++) {
+    // Add 101 resource to ambient cache, 1 over defined limit.
+    for (uint32_t i = 1; i <= 101; ++i) {
         Resource resource = Resource::style("http://example.com/"s + util::toString(i));
         db.put(resource, response);
         EXPECT_TRUE(bool(db.get(resource))) << i;
@@ -1067,6 +1071,45 @@ TEST(OfflineDatabase, PutEvictsLeastRecentlyUsedResources) {
 
     EXPECT_FALSE(bool(db.get(Resource::style("http://example.com/1"))));
 
+    EXPECT_EQ(0u, log.uncheckedCount());
+}
+
+TEST(OfflineDatabase, OfflineRegionDoesNotAffectAmbientCacheSize) {
+    FixtureLog log;
+    OfflineDatabase db(":memory:");
+    unsigned dataSize = 1024u * 100u;
+    unsigned numberOfCachedResources = 2u;
+    unsigned databasePage = 4096u;
+    unsigned pageOverhead = numberOfCachedResources * databasePage;
+
+    // 200KB ambient cache limit + database page overhead.
+    db.setMaximumAmbientCacheSize(dataSize * numberOfCachedResources + pageOverhead);
+
+    Response response;
+    response.data = randomString(dataSize);
+
+    // First 100KB ambient cache resource.
+    db.put(Resource::style("http://example.com/ambient1.json"s), response);
+
+    OfflineTilePyramidRegionDefinition definition(
+        "http://example.com/style.json", LatLngBounds::world(), 0.0, 0.0, 1.0, false);
+    auto region = db.createRegion(definition, OfflineRegionMetadata());
+
+    // 1MB of offline region data.
+    for (std::size_t i = 0; i < 5; ++i) {
+        const Resource tile = Resource::tile("mapbox://tile_" + std::to_string(i), 1, 0, 0, 0, Tileset::Scheme::XYZ);
+        db.putRegionResource(region->getID(), tile, response);
+
+        const Resource style = Resource::style("mapbox://style_" + std::to_string(i));
+        db.putRegionResource(region->getID(), style, response);
+    }
+
+    // Second 100KB ambient cache resource.
+    db.put(Resource::style("http://example.com/ambient2.json"s), response);
+
+    // Offline region resources should not affect ambient cache size.
+    EXPECT_TRUE(bool(db.get(Resource::style("http://example.com/ambient1.json"s))));
+    EXPECT_TRUE(bool(db.get(Resource::style("http://example.com/ambient2.json"s))));
     EXPECT_EQ(0u, log.uncheckedCount());
 }
 
@@ -1098,7 +1141,8 @@ TEST(OfflineDatabase, PutFailsWhenEvictionInsuffices) {
     db.setMaximumAmbientCacheSize(1024 * 100);
 
     Response big;
-    big.data = randomString(1024 * 100);
+    // One page over the cache size.
+    big.data = randomString(1024 * 100 + 4096);
 
     EXPECT_FALSE(db.put(Resource::style("http://example.com/big"), big).first);
 
@@ -1873,5 +1917,48 @@ TEST(OfflineDatabase, ResetDatabase) {
     auto regions = db.listRegions().value();
     EXPECT_EQ(0u, regions.size());
     EXPECT_EQ(1u, log.count({ EventSeverity::Warning, Event::Database, -1, "Removing existing incompatible offline database" }));
+    EXPECT_EQ(0u, log.uncheckedCount());
+}
+
+TEST(OfflineDatabase, PutResourceReadOnlyMode) {
+    FixtureLog log;
+    OfflineDatabase db(":memory:");
+
+    Resource resource{Resource::Style, "http://example.com/"};
+    Response response;
+    response.data = std::make_shared<std::string>("success");
+
+    // In read-only mode put() is a no-op
+    db.reopenDatabaseReadOnly(true /*readOnly*/);
+    auto failedPutResult = db.put(resource, response);
+    EXPECT_FALSE(failedPutResult.first);
+    EXPECT_EQ(0u, failedPutResult.second);
+
+    // put() works, if read-only mode is disabled
+    db.reopenDatabaseReadOnly(false /*readOnly*/);
+    auto succeededPutResult = db.put(resource, response);
+    EXPECT_TRUE(succeededPutResult.first);
+    EXPECT_EQ(7u, succeededPutResult.second);
+
+    auto getResult = db.get(resource);
+    EXPECT_EQ(nullptr, getResult->error);
+    EXPECT_EQ("success", *getResult->data);
+
+    EXPECT_EQ(0u, log.uncheckedCount());
+}
+
+TEST(OfflineDatabase, TEST_REQUIRES_WRITE(UpdateDatabaseReadOnlyMode)) {
+    FixtureLog log;
+    deleteDatabaseFiles();
+
+    OfflineDatabase db(filename);
+    db.reopenDatabaseReadOnly(true /*readOnly*/);
+    db.clearAmbientCache();
+    EXPECT_EQ(1u,
+              log.count({EventSeverity::Error,
+                         Event::Database,
+                         -1,
+                         "Can't clear ambient cache: Cannot modify database in read-only mode"}));
+
     EXPECT_EQ(0u, log.uncheckedCount());
 }

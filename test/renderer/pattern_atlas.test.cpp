@@ -21,8 +21,8 @@ TEST(PatternAtlas, Basic) {
     auto images = parseSprite(util::read_file("test/fixtures/annotations/emerald.png"),
                               util::read_file("test/fixtures/annotations/emerald.json"));
     for (auto& image : images) {
-        if (image->getID() == "metro") {
-            ASSERT_TRUE(patternAtlas.addPattern(*image->baseImpl));
+        if (image->id == "metro") {
+            ASSERT_TRUE(patternAtlas.addPattern(*image));
         }
     }
     auto found = patternAtlas.getPattern("metro");
@@ -51,7 +51,7 @@ TEST(PatternAtlas, Updates) {
     ASSERT_TRUE(added);
     auto found = patternAtlas.getPattern("one");
     ASSERT_TRUE(found);
-    EXPECT_EQ(added->textureRect, found->textureRect);
+    EXPECT_EQ(added->paddedRect, found->paddedRect);
 
     auto a = *found;
     EXPECT_EQ(1, a.tl()[0]);

@@ -37,27 +37,4 @@ std::unique_ptr<Layout> LayerFactory::createLayout(const LayoutParameters&,
     return nullptr;
 }
 
-bool LayerFactory::initSourceLayerAndFilter(style::Layer* layer, const style::conversion::Convertible& value) const noexcept {
-    auto sourceLayerValue = objectMember(value, "source-layer");
-    if (sourceLayerValue) {
-        optional<std::string> sourceLayer = toString(*sourceLayerValue);
-        if (!sourceLayer) {
-            return false;
-        }
-        layer->setSourceLayer(*sourceLayer);
-    }
-
-    auto filterValue = objectMember(value, "filter");
-    if (filterValue) {
-        style::conversion::Error error;
-        optional<style::Filter> filter = style::conversion::convert<style::Filter>(*filterValue, error);
-        if (!filter) {
-            return false;
-        }
-        layer->setFilter(*filter);
-    }
-
-    return true;
-}
-
 } // namespace mbgl

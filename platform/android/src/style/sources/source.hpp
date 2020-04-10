@@ -19,12 +19,13 @@ public:
 
     static void registerNative(jni::JNIEnv&);
 
+    static const jni::Object<Source>& peerForCoreSource(jni::JNIEnv&, mbgl::style::Source&);
     static const jni::Object<Source>& peerForCoreSource(jni::JNIEnv&, mbgl::style::Source&, AndroidRendererFrontend&);
 
     /*
      * Called when a Java object is created for a core source that belongs to a map.
      */
-    Source(jni::JNIEnv&, mbgl::style::Source&, const jni::Object<Source>&, AndroidRendererFrontend&);
+    Source(jni::JNIEnv&, mbgl::style::Source&, const jni::Object<Source>&, AndroidRendererFrontend*);
 
     /*
      * Called when a Java object is created for a new core source that does not belong to a map.
@@ -42,6 +43,16 @@ public:
     jni::Local<jni::String> getId(jni::JNIEnv&);
 
     jni::Local<jni::String> getAttribution(jni::JNIEnv&);
+
+    void setPrefetchZoomDelta(jni::JNIEnv& env, jni::Integer& delta);
+
+    jni::Local<jni::Integer> getPrefetchZoomDelta(jni::JNIEnv&);
+
+    void setMaxOverscaleFactorForParentTiles(jni::JNIEnv& env, jni::Integer& delta);
+
+    jni::Local<jni::Integer> getMaxOverscaleFactorForParentTiles(jni::JNIEnv&);
+
+    void addToStyle(JNIEnv& env, const jni::Object<Source>& obj, mbgl::style::Style& style);
 
 protected:
     // Set on newly created sources until added to the map.

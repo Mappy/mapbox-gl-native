@@ -17,7 +17,7 @@ using namespace style;
 
 namespace {
 
-inline const style::CircleLayer::Impl& impl(const Immutable<style::Layer::Impl>& impl) {
+inline const style::CircleLayer::Impl& impl_cast(const Immutable<style::Layer::Impl>& impl) {
     assert(impl->getTypeInfo() == CircleLayer::Impl::staticTypeInfo());
     return static_cast<const style::CircleLayer::Impl&>(*impl);
 }
@@ -26,11 +26,10 @@ inline const style::CircleLayer::Impl& impl(const Immutable<style::Layer::Impl>&
 
 RenderCircleLayer::RenderCircleLayer(Immutable<style::CircleLayer::Impl> _impl)
     : RenderLayer(makeMutable<CircleLayerProperties>(std::move(_impl))),
-      unevaluated(impl(baseImpl).paint.untransitioned()) {
-}
+      unevaluated(impl_cast(baseImpl).paint.untransitioned()) {}
 
 void RenderCircleLayer::transition(const TransitionParameters& parameters) {
-    unevaluated = impl(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
+    unevaluated = impl_cast(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
 }
 
 void RenderCircleLayer::evaluate(const PropertyEvaluationParameters& parameters) {
@@ -76,35 +75,26 @@ void RenderCircleLayer::render(PaintParameters& parameters) {
         const auto& paintPropertyBinders = bucket.paintPropertyBinders.at(getID());
 
         auto& programInstance = parameters.programs.getCircleLayerPrograms().circle;
-   
-        const auto allUniformValues = programInstance.computeAllUniformValues(
-            CircleProgram::LayoutUniformValues {
-                uniforms::matrix::Value(
-                    tile.translatedMatrix(evaluated.get<CircleTranslate>(),
-                                          evaluated.get<CircleTranslateAnchor>(),
-                                          parameters.state)
-                ),
-                uniforms::scale_with_map::Value( scaleWithMap ),
-                uniforms::extrude_scale::Value( pitchWithMap
-                    ? std::array<float, 2> {{
-                        tile.id.pixelsToTileUnits(1, parameters.state.getZoom()),
-                        tile.id.pixelsToTileUnits(1, parameters.state.getZoom()) }}
-                    : parameters.pixelsToGLUnits ),
-                uniforms::device_pixel_ratio::Value( parameters.pixelRatio ),
-                uniforms::camera_to_center_distance::Value( parameters.state.getCameraToCenterDistance() ),
-                uniforms::pitch_with_map::Value( pitchWithMap )
-            },
+
+        const auto allUniformValues = CircleProgram::computeAllUniformValues(
+            CircleProgram::LayoutUniformValues{
+                uniforms::matrix::Value(tile.translatedMatrix(
+                    evaluated.get<CircleTranslate>(), evaluated.get<CircleTranslateAnchor>(), parameters.state)),
+                uniforms::scale_with_map::Value(scaleWithMap),
+                uniforms::extrude_scale::Value(
+                    pitchWithMap ? std::array<float, 2>{{tile.id.pixelsToTileUnits(1, parameters.state.getZoom()),
+                                                         tile.id.pixelsToTileUnits(1, parameters.state.getZoom())}}
+                                 : parameters.pixelsToGLUnits),
+                uniforms::device_pixel_ratio::Value(parameters.pixelRatio),
+                uniforms::camera_to_center_distance::Value(parameters.state.getCameraToCenterDistance()),
+                uniforms::pitch_with_map::Value(pitchWithMap)},
             paintPropertyBinders,
             evaluated,
-            parameters.state.getZoom()
-        );
-        const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
-            *bucket.vertexBuffer,
-            paintPropertyBinders,
-            evaluated
-        );
+            parameters.state.getZoom());
+        const auto allAttributeBindings =
+            CircleProgram::computeAllAttributeBindings(*bucket.vertexBuffer, paintPropertyBinders, evaluated);
 
-        checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
+        checkRenderability(parameters, CircleProgram::activeBindingCount(allAttributeBindings));
 
         programInstance.draw(
             parameters.context,

@@ -4,7 +4,6 @@
 #include <mbgl/renderer/paint_parameters.hpp>
 #include <mbgl/renderer/render_static_data.hpp>
 #include <mbgl/programs/programs.hpp>
-#include <mbgl/programs/heatmap_program.hpp>
 #include <mbgl/tile/tile.hpp>
 #include <mbgl/style/layers/heatmap_layer.hpp>
 #include <mbgl/style/layers/heatmap_layer_impl.hpp>
@@ -21,7 +20,7 @@ using namespace style;
 
 namespace {
 
-inline const HeatmapLayer::Impl& impl(const Immutable<Layer::Impl>& impl) {
+inline const HeatmapLayer::Impl& impl_cast(const Immutable<Layer::Impl>& impl) {
     assert(impl->getTypeInfo() == HeatmapLayer::Impl::staticTypeInfo());
     return static_cast<const HeatmapLayer::Impl&>(*impl);
 }
@@ -30,13 +29,13 @@ inline const HeatmapLayer::Impl& impl(const Immutable<Layer::Impl>& impl) {
 
 RenderHeatmapLayer::RenderHeatmapLayer(Immutable<HeatmapLayer::Impl> _impl)
     : RenderLayer(makeMutable<HeatmapLayerProperties>(std::move(_impl))),
-    unevaluated(impl(baseImpl).paint.untransitioned()), colorRamp({256, 1}) {
-}
+      unevaluated(impl_cast(baseImpl).paint.untransitioned()),
+      colorRamp({256, 1}) {}
 
 RenderHeatmapLayer::~RenderHeatmapLayer() = default;
 
 void RenderHeatmapLayer::transition(const TransitionParameters& parameters) {
-    unevaluated = impl(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
+    unevaluated = impl_cast(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
     updateColorRamp();
 }
 
@@ -113,39 +112,32 @@ void RenderHeatmapLayer::render(PaintParameters& parameters) {
 
             auto& programInstance = parameters.programs.getHeatmapLayerPrograms().heatmap;
 
-            const auto allUniformValues = programInstance.computeAllUniformValues(
-                HeatmapProgram::LayoutUniformValues {
-                    uniforms::intensity::Value( evaluated.get<style::HeatmapIntensity>() ),
-                    uniforms::matrix::Value( tile.matrix ),
-                    uniforms::heatmap::extrude_scale::Value( extrudeScale )
-                },
+            const auto allUniformValues = HeatmapProgram::computeAllUniformValues(
+                HeatmapProgram::LayoutUniformValues{
+                    uniforms::intensity::Value(evaluated.get<style::HeatmapIntensity>()),
+                    uniforms::matrix::Value(tile.matrix),
+                    uniforms::heatmap::extrude_scale::Value(extrudeScale)},
                 paintPropertyBinders,
                 evaluated,
-                parameters.state.getZoom()
-            );
-            const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
-                *bucket.vertexBuffer,
-                paintPropertyBinders,
-                evaluated
-            );
+                parameters.state.getZoom());
+            const auto allAttributeBindings =
+                HeatmapProgram::computeAllAttributeBindings(*bucket.vertexBuffer, paintPropertyBinders, evaluated);
 
-            checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
+            checkRenderability(parameters, HeatmapProgram::activeBindingCount(allAttributeBindings));
 
-            programInstance.draw(
-                parameters.context,
-                *renderPass,
-                gfx::Triangles(),
-                parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
-                gfx::StencilMode::disabled(),
-                gfx::ColorMode::additive(),
-                gfx::CullFaceMode::disabled(),
-                *bucket.indexBuffer,
-                bucket.segments,
-                allUniformValues,
-                allAttributeBindings,
-                HeatmapProgram::TextureBindings{},
-                getID()
-            );
+            programInstance.draw(parameters.context,
+                                 *renderPass,
+                                 gfx::Triangles(),
+                                 gfx::DepthMode::disabled(),
+                                 gfx::StencilMode::disabled(),
+                                 gfx::ColorMode::additive(),
+                                 gfx::CullFaceMode::disabled(),
+                                 *bucket.indexBuffer,
+                                 bucket.segments,
+                                 allUniformValues,
+                                 allAttributeBindings,
+                                 HeatmapProgram::TextureBindings{},
+                                 getID());
         }
 
     } else if (parameters.pass == RenderPass::Translucent) {
@@ -159,24 +151,24 @@ void RenderHeatmapLayer::render(PaintParameters& parameters) {
 
         auto& programInstance = parameters.programs.getHeatmapLayerPrograms().heatmapTexture;
 
-        const auto allUniformValues = programInstance.computeAllUniformValues(
+        const auto allUniformValues = HeatmapTextureProgram::computeAllUniformValues(
             HeatmapTextureProgram::LayoutUniformValues{
-                uniforms::matrix::Value( viewportMat ),
-                uniforms::world::Value( size ),
-                uniforms::opacity::Value( getEvaluated<HeatmapLayerProperties>(evaluatedProperties).get<HeatmapOpacity>() )
-            },
+                uniforms::matrix::Value(viewportMat),
+                uniforms::world::Value(size),
+                uniforms::opacity::Value(
+                    getEvaluated<HeatmapLayerProperties>(evaluatedProperties).get<HeatmapOpacity>())},
             paintAttributeData,
             properties,
-            parameters.state.getZoom()
-        );
-        const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
-            *parameters.staticData.heatmapTextureVertexBuffer,
-            paintAttributeData,
-            properties
-        );
+            parameters.state.getZoom());
+        const auto allAttributeBindings = HeatmapTextureProgram::computeAllAttributeBindings(
+            *parameters.staticData.heatmapTextureVertexBuffer, paintAttributeData, properties);
 
-        checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
+        checkRenderability(parameters, HeatmapTextureProgram::activeBindingCount(allAttributeBindings));
 
+        if (segments.empty()) {
+            // Copy over the segments so that we can create our own DrawScopes.
+            segments = RenderStaticData::heatmapTextureSegments();
+        }
         programInstance.draw(
             parameters.context,
             *parameters.renderPass,
@@ -186,15 +178,14 @@ void RenderHeatmapLayer::render(PaintParameters& parameters) {
             parameters.colorModeForRenderPass(),
             gfx::CullFaceMode::disabled(),
             *parameters.staticData.quadTriangleIndexBuffer,
-            parameters.staticData.heatmapTextureSegments,
+            segments,
             allUniformValues,
             allAttributeBindings,
             HeatmapTextureProgram::TextureBindings{
-                textures::image::Value{ renderTexture->getTexture().getResource(), gfx::TextureFilterType::Linear },
-                textures::color_ramp::Value{ colorRampTexture->getResource(), gfx::TextureFilterType::Linear },
+                textures::image::Value{renderTexture->getTexture().getResource(), gfx::TextureFilterType::Linear},
+                textures::color_ramp::Value{colorRampTexture->getResource(), gfx::TextureFilterType::Linear},
             },
-            getID()
-        );
+            getID());
     }
 }
 

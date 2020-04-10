@@ -1,11 +1,11 @@
 #pragma once
 
+#include <mbgl/map/mode.hpp>
+#include <mbgl/renderer/query.hpp>
+#include <mbgl/storage/file_source.hpp>
 #include <mbgl/util/geo.hpp>
 #include <mbgl/util/rapidjson.hpp>
 #include <mbgl/util/size.hpp>
-
-#include <mbgl/map/mode.hpp>
-#include <mbgl/renderer/query.hpp>
 
 #include "filesystem.hpp"
 
@@ -167,17 +167,25 @@ struct TestMetadata {
     std::string expected;
     std::string diff;
 
+    TestMetrics metrics;
+    TestMetrics expectedMetrics;
+
+    // Results
+    unsigned metricsErrored = 0;
+    unsigned metricsFailed = 0;
+    unsigned renderErrored = 0;
+    unsigned renderFailed = 0;
+
     std::string errorMessage;
     double difference = 0.0;
 
-    TestMetrics metrics;
-    TestMetrics expectedMetrics;
 };
 
 class TestContext {
 public:
     virtual mbgl::HeadlessFrontend& getFrontend() = 0;
     virtual mbgl::Map& getMap() = 0;
+    virtual mbgl::FileSource& getFileSource() = 0;
     virtual TestRunnerMapObserver& getObserver() = 0;
     virtual TestMetadata& getMetadata() = 0;
 

@@ -25,12 +25,14 @@ using FeatureExtensionGetterPtr = FeatureExtensionValue (*)(std::shared_ptr<styl
                                                             std::uint32_t,
                                                             const optional<std::map<std::string, Value>>&);
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getChildren(std::shared_ptr<style::GeoJSONData> clusterData,
                                   std::uint32_t clusterID,
                                   const optional<std::map<std::string, Value>>&) {
     return clusterData->getChildren(clusterID);
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getLeaves(std::shared_ptr<style::GeoJSONData> clusterData,
                                 std::uint32_t clusterID,
                                 const optional<std::map<std::string, Value>>& args) {
@@ -51,6 +53,7 @@ FeatureExtensionValue getLeaves(std::shared_ptr<style::GeoJSONData> clusterData,
     return clusterData->getLeaves(clusterID);
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getClusterExpansionZoom(std::shared_ptr<style::GeoJSONData> clusterData,
                                               std::uint32_t clusterID,
                                               const optional<std::map<std::string, Value>>&) {
@@ -103,17 +106,20 @@ void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
 
     if (!data_) return;
 
-    tilePyramid.update(layers,
-                       needsRendering,
-                       needsRelayout,
-                       parameters,
-                       SourceType::GeoJSON,
-                       util::tileSize,
-                       impl().getZoomRange(),
-                       optional<LatLngBounds>{},
-                       [&, data_](const OverscaledTileID& tileID) {
-                           return std::make_unique<GeoJSONTile>(tileID, impl().id, parameters, data_);
-                       });
+    tilePyramid.update(
+        layers,
+        needsRendering,
+        needsRelayout,
+        parameters,
+        SourceType::GeoJSON,
+        util::tileSize,
+        impl().getZoomRange(),
+        optional<LatLngBounds>{},
+        [&, data_](const OverscaledTileID& tileID) {
+            return std::make_unique<GeoJSONTile>(tileID, impl().id, parameters, data_);
+        },
+        baseImpl->getPrefetchZoomDelta(),
+        baseImpl->getMaxOverscaleFactorForParentTiles());
 }
 
 mapbox::util::variant<Value, FeatureCollection>

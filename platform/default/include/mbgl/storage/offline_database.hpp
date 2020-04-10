@@ -3,16 +3,15 @@
 #include <mbgl/storage/resource.hpp>
 #include <mbgl/storage/offline.hpp>
 #include <mbgl/util/exception.hpp>
-#include <mbgl/util/noncopyable.hpp>
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/mapbox.hpp>
 #include <mbgl/util/expected.hpp>
 
-#include <unordered_map>
+#include <list>
+#include <map>
 #include <memory>
 #include <string>
-#include <list>
 
 namespace mapbox {
 namespace sqlite {
@@ -36,10 +35,8 @@ struct MapboxTileLimitExceededException :  util::Exception {
     MapboxTileLimitExceededException() : util::Exception("Mapbox tile limit exceeded") {}
 };
 
-class OfflineDatabase : private util::noncopyable {
+class OfflineDatabase {
 public:
-    // Limits affect ambient caching (put) only; resources required by offline
-    // regions are exempt.
     OfflineDatabase(std::string path);
     ~OfflineDatabase();
 
@@ -96,7 +93,11 @@ public:
     std::exception_ptr pack();
     void runPackDatabaseAutomatically(bool autopack_) { autopack = autopack_; }
 
+    void reopenDatabaseReadOnly(bool readOnly);
+
 private:
+    class DatabaseSizeChangeStats;
+
     void initialize();
     void handleError(const mapbox::sqlite::Exception&, const char* action);
     void handleError(const util::IOException&, const char* action);
@@ -112,6 +113,7 @@ private:
     void cleanup();
     bool disabled();
     void vacuum();
+    void checkFlags();
 
     mapbox::sqlite::Statement& getStatement(const char *);
 
@@ -139,7 +141,7 @@ private:
 
     std::string path;
     std::unique_ptr<mapbox::sqlite::Database> db;
-    std::unordered_map<const char *, const std::unique_ptr<mapbox::sqlite::Statement>> statements;
+    std::map<const char*, const std::unique_ptr<mapbox::sqlite::Statement>> statements;
 
     template <class T>
     T getPragma(const char *);
@@ -149,8 +151,39 @@ private:
 
     optional<uint64_t> offlineMapboxTileCount;
 
-    bool evict(uint64_t neededFreeSize);
+    bool evict(uint64_t neededFreeSize, DatabaseSizeChangeStats& stats);
+
+    class DatabaseSizeChangeStats {
+    public:
+        explicit DatabaseSizeChangeStats(OfflineDatabase*);
+
+        // Returns difference between current database size and
+        // database size at the time of creation of this object.
+        int64_t diff() const;
+
+        // Returns how many bytes were released comparing to a database
+        // size at the time of creation of this object.
+        uint64_t bytesReleased() const;
+
+        // Returns page size for the database.
+        uint64_t pageSize() const;
+
+    private:
+        uint64_t pageSize_ = 0u;
+        uint64_t pageCount_ = 0u;
+        uint64_t initialSize_ = 0u;
+        OfflineDatabase* db = nullptr;
+    };
+
+    friend class DatabaseSizeChangeStats;
+
+    // Lazily initializes currentAmbientCacheSize.
+    std::exception_ptr initAmbientCacheSize();
+    optional<uint64_t> currentAmbientCacheSize;
+    void updateAmbientCacheSize(DatabaseSizeChangeStats&);
+
     bool autopack = true;
+    bool readOnly = false;
 };
 
 } // namespace mbgl

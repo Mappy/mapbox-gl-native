@@ -8,6 +8,7 @@
 
 #include <mbgl/map/map.hpp>
 #include <mbgl/renderer/renderer.hpp>
+#include <mbgl/storage/resource.hpp>
 #include <mbgl/style/conversion/filter.hpp>
 #include <mbgl/style/conversion/json.hpp>
 #include <mbgl/style/conversion/layer.hpp>
@@ -441,7 +442,7 @@ TestMetrics readExpectedMetrics(const mbgl::filesystem::path& path) {
     return result;
 }
 
-TestMetadata parseTestMetadata(const TestPaths& paths, const Manifest& manifest) {
+TestMetadata parseTestMetadata(const TestPaths& paths) {
     TestMetadata metadata;
     metadata.paths = paths;
 
@@ -452,8 +453,6 @@ TestMetadata parseTestMetadata(const TestPaths& paths, const Manifest& manifest)
     }
 
     metadata.document = std::move(maybeJson.get<mbgl::JSDocument>());
-    manifest.localizeStyleURLs(metadata.document, metadata.document);
-
     if (!metadata.document.HasMember("metadata")) {
         mbgl::Log::Warning(mbgl::Event::ParseStyle, "Style has no 'metadata': %s", paths.stylePath.c_str());
         return metadata;
@@ -467,14 +466,42 @@ TestMetadata parseTestMetadata(const TestPaths& paths, const Manifest& manifest)
 
     const mbgl::JSValue& testValue = metadataValue["test"];
 
+    if (testValue.HasMember("mapMode")) {
+        metadata.outputsImage = true;
+        assert(testValue["mapMode"].IsString());
+        std::string mapModeStr = testValue["mapMode"].GetString();
+        if (mapModeStr == "tile") {
+            metadata.mapMode = mbgl::MapMode::Tile;
+            // In the tile mode, map is showing exactly one tile.
+            metadata.size = {uint32_t(mbgl::util::tileSize), uint32_t(mbgl::util::tileSize)};
+        } else if (mapModeStr == "continuous") {
+            metadata.mapMode = mbgl::MapMode::Continuous;
+            metadata.outputsImage = false;
+        } else if (mapModeStr == "static")
+            metadata.mapMode = mbgl::MapMode::Static;
+        else {
+            mbgl::Log::Warning(
+                mbgl::Event::ParseStyle, "Unknown map mode: %s. Falling back to static mode", mapModeStr.c_str());
+            metadata.mapMode = mbgl::MapMode::Static;
+        }
+    }
+
     if (testValue.HasMember("width")) {
         assert(testValue["width"].IsNumber());
-        metadata.size.width = testValue["width"].GetInt();
+        if (metadata.mapMode == mbgl::MapMode::Tile) {
+            mbgl::Log::Warning(mbgl::Event::ParseStyle, "The 'width' metadata field is ignored in tile map mode");
+        } else {
+            metadata.size.width = testValue["width"].GetInt();
+        }
     }
 
     if (testValue.HasMember("height")) {
         assert(testValue["height"].IsNumber());
-        metadata.size.height = testValue["height"].GetInt();
+        if (metadata.mapMode == mbgl::MapMode::Tile) {
+            mbgl::Log::Warning(mbgl::Event::ParseStyle, "The 'height' metadata field is ignored in tile map mode");
+        } else {
+            metadata.size.height = testValue["height"].GetInt();
+        }
     }
 
     if (testValue.HasMember("pixelRatio")) {
@@ -491,24 +518,6 @@ TestMetadata parseTestMetadata(const TestPaths& paths, const Manifest& manifest)
         assert(testValue["description"].IsString());
         metadata.description =
             std::string{testValue["description"].GetString(), testValue["description"].GetStringLength()};
-    }
-
-    if (testValue.HasMember("mapMode")) {
-        metadata.outputsImage = true;
-        assert(testValue["mapMode"].IsString());
-        std::string mapModeStr = testValue["mapMode"].GetString();
-        if (mapModeStr == "tile")
-            metadata.mapMode = mbgl::MapMode::Tile;
-        else if (mapModeStr == "continuous") {
-            metadata.mapMode = mbgl::MapMode::Continuous;
-            metadata.outputsImage = false;
-        } else if (mapModeStr == "static")
-            metadata.mapMode = mbgl::MapMode::Static;
-        else {
-            mbgl::Log::Warning(
-                mbgl::Event::ParseStyle, "Unknown map mode: %s. Falling back to static mode", mapModeStr.c_str());
-            metadata.mapMode = mbgl::MapMode::Static;
-        }
     }
 
     // Test operations handled in runner.cpp.
@@ -624,7 +633,7 @@ const std::string gfxProbeEndOp("probeGFXEnd");
 
 using namespace TestOperationNames;
 
-TestOperations parseTestOperations(TestMetadata& metadata, const Manifest& manifest) {
+TestOperations parseTestOperations(TestMetadata& metadata) {
     TestOperations result;
     if (!metadata.document.HasMember("metadata") || !metadata.document["metadata"].HasMember("test") ||
         !metadata.document["metadata"]["test"].HasMember("operations")) {
@@ -689,14 +698,26 @@ TestOperations parseTestOperations(TestMetadata& metadata, const Manifest& manif
             imageName.erase(std::remove(imageName.begin(), imageName.end(), '"'), imageName.end());
 
             std::string imagePath = operationArray[2].GetString();
-            imagePath.erase(std::remove(imagePath.begin(), imagePath.end(), '"'), imagePath.end());
 
-            const mbgl::filesystem::path filePath = (mbgl::filesystem::path(manifest.getAssetPath()) / imagePath);
+            result.emplace_back([imageName, imagePath, sdf, pixelRatio](TestContext& ctx) {
+                mbgl::optional<std::string> maybeImage;
+                bool requestCompleted = false;
 
-            result.emplace_back([filePath = filePath.string(), imageName, sdf, pixelRatio](TestContext& ctx) {
-                mbgl::optional<std::string> maybeImage = mbgl::util::readFile(filePath);
+                auto req = ctx.getFileSource().request(mbgl::Resource::image("mapbox://render-tests/" + imagePath),
+                                                       [&](mbgl::Response response) {
+                                                           if (response.data) {
+                                                               maybeImage = *response.data;
+                                                           }
+
+                                                           requestCompleted = true;
+                                                       });
+
+                while (!requestCompleted) {
+                    mbgl::util::RunLoop::Get()->runOnce();
+                }
+
                 if (!maybeImage) {
-                    ctx.getMetadata().errorMessage = std::string("Failed to load expected image ") + filePath;
+                    ctx.getMetadata().errorMessage += std::string("Failed to load expected image ") + imagePath;
                     return false;
                 }
 
@@ -718,23 +739,21 @@ TestOperations parseTestOperations(TestMetadata& metadata, const Manifest& manif
         } else if (operationArray[0].GetString() == setStyleOp) {
             // setStyle
             assert(operationArray.Size() >= 2u);
-            std::string json;
             if (operationArray[1].IsString()) {
-                std::string stylePath = manifest.localizeURL(operationArray[1].GetString());
-                auto maybeStyle = readJson(stylePath);
-                if (maybeStyle.is<mbgl::JSDocument>()) {
-                    auto& style = maybeStyle.get<mbgl::JSDocument>();
-                    manifest.localizeStyleURLs(static_cast<mbgl::JSValue&>(style), style);
-                    json = serializeJsonValue(style);
-                }
+                std::string url = operationArray[1].GetString();
+
+                result.emplace_back([url](TestContext& ctx) {
+                    ctx.getMap().getStyle().loadURL(url);
+                    return true;
+                });
             } else {
-                manifest.localizeStyleURLs(operationArray[1], metadata.document);
-                json = serializeJsonValue(operationArray[1]);
+                std::string json = serializeJsonValue(operationArray[1]);
+
+                result.emplace_back([json](TestContext& ctx) {
+                    ctx.getMap().getStyle().loadJSON(json);
+                    return true;
+                });
             }
-            result.emplace_back([json](TestContext& ctx) {
-                ctx.getMap().getStyle().loadJSON(json);
-                return true;
-            });
         } else if (operationArray[0].GetString() == setCenterOp) {
             // setCenter
             assert(operationArray.Size() >= 2u);
@@ -858,7 +877,6 @@ TestOperations parseTestOperations(TestMetadata& metadata, const Manifest& manif
             assert(operationArray[2].IsObject());
             std::string sourceName = operationArray[1].GetString();
 
-            manifest.localizeSourceURLs(operationArray[2], metadata.document);
             result.emplace_back([sourceName, json = serializeJsonValue(operationArray[2])](TestContext& ctx) {
                 mbgl::style::conversion::Error error;
                 auto converted =
@@ -1294,7 +1312,8 @@ std::string createResultItem(const TestMetadata& metadata, bool hasFailedTests) 
     std::string html;
     html.append("<div class=\"test " + metadata.status + (shouldHide ? " hide" : "") + "\">\n");
     html.append(R"(<h2><span class="label" style="background: )" + metadata.color + "\">" + metadata.status + "</span> " + metadata.id + "</h2>\n");
-    if (metadata.status != "errored") {
+
+    if (!metadata.renderErrored) {
         if (metadata.outputsImage) {
             if (metadata.renderTest) {
                 html.append("<img width=" + mbgl::util::toString(metadata.size.width));
@@ -1316,6 +1335,11 @@ std::string createResultItem(const TestMetadata& metadata, bool hasFailedTests) 
         // comment out assert(!metadata.errorMessage.empty());
         html.append("<p style=\"color: red\"><strong>Error:</strong> " + metadata.errorMessage + "</p>\n");
     }
+
+    if (metadata.metricsFailed || metadata.metricsErrored) {
+        html.append("<p style=\"color: red\"><strong>Error:</strong> " + metadata.errorMessage + "</p>\n");
+    }
+
     if (metadata.difference != 0.0) {
         if (metadata.renderTest) {
             html.append("<p class=\"diff\"><strong>Diff:</strong> " + mbgl::util::toString(metadata.difference) +

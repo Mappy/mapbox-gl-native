@@ -23,46 +23,45 @@ void ImageSourceRenderData::upload(gfx::UploadPass& uploadPass) const {
     if (bucket && bucket->needsUpload()) {
         bucket->upload(uploadPass);
     }
+
+    if (!debugTexture) {
+        std::array<uint8_t, 4> data{{0, 0, 0, 0}};
+        static const PremultipliedImage emptyImage{Size(1, 1), data.data(), data.size()};
+        debugTexture = uploadPass.createTexture(emptyImage);
+    }
 }
 
 void ImageSourceRenderData::render(PaintParameters& parameters) const {
     if (!bucket || !(parameters.debugOptions & MapDebugOptions::TileBorders)) {
         return;
     }
-
+    assert(debugTexture);
     static const style::Properties<>::PossiblyEvaluated properties {};
     static const DebugProgram::Binders paintAttributeData(properties, 0);
 
     auto& programInstance = parameters.programs.debug;
 
     for (auto matrix : matrices) {
-        programInstance.draw(
-            parameters.context,
-            *parameters.renderPass,
-            gfx::LineStrip { 4.0f * parameters.pixelRatio },
-            gfx::DepthMode::disabled(),
-            gfx::StencilMode::disabled(),
-            gfx::ColorMode::unblended(),
-            gfx::CullFaceMode::disabled(),
-            *parameters.staticData.tileBorderIndexBuffer,
-            parameters.staticData.tileBorderSegments,
-            programInstance.computeAllUniformValues(
-                DebugProgram::LayoutUniformValues {
-                    uniforms::matrix::Value( matrix ),
-                    uniforms::color::Value( Color::red() )
-                },
-                paintAttributeData,
-                properties,
-                parameters.state.getZoom()
-            ),
-            programInstance.computeAllAttributeBindings(
-                *parameters.staticData.tileVertexBuffer,
-                paintAttributeData,
-                properties
-            ),
-            DebugProgram::TextureBindings{},
-            "image"
-        );
+        programInstance.draw(parameters.context,
+                             *parameters.renderPass,
+                             gfx::LineStrip{4.0f * parameters.pixelRatio},
+                             gfx::DepthMode::disabled(),
+                             gfx::StencilMode::disabled(),
+                             gfx::ColorMode::unblended(),
+                             gfx::CullFaceMode::disabled(),
+                             *parameters.staticData.tileBorderIndexBuffer,
+                             RenderStaticData::tileBorderSegments(),
+                             DebugProgram::computeAllUniformValues(
+                                 DebugProgram::LayoutUniformValues{uniforms::matrix::Value(matrix),
+                                                                   uniforms::color::Value(Color::red()),
+                                                                   uniforms::overlay_scale::Value(1.0f)},
+                                 paintAttributeData,
+                                 properties,
+                                 parameters.state.getZoom()),
+                             DebugProgram::computeAllAttributeBindings(
+                                 *parameters.staticData.tileVertexBuffer, paintAttributeData, properties),
+                             DebugProgram::TextureBindings{textures::image::Value{debugTexture->getResource()}},
+                             "image");
     }
 }
 

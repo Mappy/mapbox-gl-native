@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mbgl/map/map.hpp>
+#include <mbgl/map/map_snapshotter.hpp>
 #include <mbgl/util/geometry.hpp>
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/run_loop.hpp>
@@ -9,6 +10,7 @@
 struct GLFWwindow;
 class GLFWBackend;
 class GLFWRendererFrontend;
+class SnapshotObserver;
 
 namespace mbgl {
 namespace gfx {
@@ -18,7 +20,7 @@ class RendererBackend;
 
 class GLFWView : public mbgl::MapObserver {
 public:
-    GLFWView(bool fullscreen, bool benchmark);
+    GLFWView(bool fullscreen, bool benchmark, const mbgl::ResourceOptions &options);
     ~GLFWView() override;
 
     float getPixelRatio() const;
@@ -94,6 +96,8 @@ private:
     void clearAnnotations();
     void popAnnotation();
 
+    void makeSnapshot(bool withOverlay = false);
+
     mbgl::AnnotationIDs annotationIDs;
     std::vector<std::string> spriteIDs;
 
@@ -141,4 +145,7 @@ private:
     GLFWwindow *window = nullptr;
     bool dirty = false;
     mbgl::optional<std::string> featureID;
+    std::unique_ptr<mbgl::MapSnapshotter> snapshotter;
+    std::unique_ptr<SnapshotObserver> snapshotterObserver;
+    mbgl::ResourceOptions mapResourceOptions;
 };

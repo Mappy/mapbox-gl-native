@@ -23,7 +23,7 @@ using namespace style;
 
 namespace {
 
-inline const LineLayer::Impl& impl(const Immutable<style::Layer::Impl>& impl) {
+inline const LineLayer::Impl& impl_cast(const Immutable<style::Layer::Impl>& impl) {
     assert(impl->getTypeInfo() == LineLayer::Impl::staticTypeInfo());
     return static_cast<const LineLayer::Impl&>(*impl);
 }
@@ -32,14 +32,13 @@ inline const LineLayer::Impl& impl(const Immutable<style::Layer::Impl>& impl) {
 
 RenderLineLayer::RenderLineLayer(Immutable<style::LineLayer::Impl> _impl)
     : RenderLayer(makeMutable<LineLayerProperties>(std::move(_impl))),
-      unevaluated(impl(baseImpl).paint.untransitioned()),
-      colorRamp({256, 1}) {
-}
+      unevaluated(impl_cast(baseImpl).paint.untransitioned()),
+      colorRamp({256, 1}) {}
 
 RenderLineLayer::~RenderLineLayer() = default;
 
 void RenderLineLayer::transition(const TransitionParameters& parameters) {
-    unevaluated = impl(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
+    unevaluated = impl_cast(baseImpl).paint.transitioned(parameters, std::move(unevaluated));
     updateColorRamp();
 }
 
@@ -115,12 +114,11 @@ void RenderLineLayer::render(PaintParameters& parameters) {
 
             paintPropertyBinders.setPatternParameters(patternPositionA, patternPositionB, crossfade);
 
-            const auto allUniformValues = programInstance.computeAllUniformValues(
-                std::move(uniformValues),
-                paintPropertyBinders,
-                evaluated,
-                parameters.state.getZoom()
-            );
+            const auto allUniformValues =
+                programInstance.computeAllUniformValues(std::forward<decltype(uniformValues)>(uniformValues),
+                                                        paintPropertyBinders,
+                                                        evaluated,
+                                                        parameters.state.getZoom());
             const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
                 *bucket.vertexBuffer,
                 paintPropertyBinders,
@@ -129,21 +127,19 @@ void RenderLineLayer::render(PaintParameters& parameters) {
 
             checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
 
-            programInstance.draw(
-                parameters.context,
-                *parameters.renderPass,
-                gfx::Triangles(),
-                parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
-                parameters.stencilModeForClipping(tile.id),
-                parameters.colorModeForRenderPass(),
-                gfx::CullFaceMode::disabled(),
-                *bucket.indexBuffer,
-                bucket.segments,
-                allUniformValues,
-                allAttributeBindings,
-                std::move(textureBindings),
-                getID()
-            );
+            programInstance.draw(parameters.context,
+                                 *parameters.renderPass,
+                                 gfx::Triangles(),
+                                 parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
+                                 parameters.stencilModeForClipping(tile.id),
+                                 parameters.colorModeForRenderPass(),
+                                 gfx::CullFaceMode::disabled(),
+                                 *bucket.indexBuffer,
+                                 bucket.segments,
+                                 allUniformValues,
+                                 allAttributeBindings,
+                                 std::forward<decltype(textureBindings)>(textureBindings),
+                                 getID());
         };
 
         if (!evaluated.get<LineDasharray>().from.empty()) {

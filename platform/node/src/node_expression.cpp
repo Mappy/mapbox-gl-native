@@ -94,7 +94,7 @@ void NodeExpression::Parse(const Nan::FunctionCallbackInfo<v8::Value>& info) {
             Nan::Set(err,
                     Nan::New("error").ToLocalChecked(),
                     Nan::New(error.message.c_str()).ToLocalChecked());
-            Nan::Set(result, Nan::New((uint32_t)i), err);
+            Nan::Set(result, Nan::New(static_cast<uint32_t>(i)), err);
         }
         info.GetReturnValue().Set(result);
     };
@@ -157,7 +157,7 @@ struct ToValue {
     v8::Local<v8::Value> operator()(const std::vector<Value>& array) {
         Nan::EscapableHandleScope scope;
         v8::Local<v8::Array> result = Nan::New<v8::Array>();
-        for (unsigned int i = 0; i < array.size(); i++) {
+        for (std::size_t i = 0; i < array.size(); i++) {
             result->Set(i, toJS(array[i]));
         }
         return scope.Escape(result);

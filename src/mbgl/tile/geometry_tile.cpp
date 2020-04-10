@@ -1,27 +1,28 @@
 #include <mbgl/tile/geometry_tile.hpp>
 
-#include <mbgl/tile/geometry_tile_worker.hpp>
-#include <mbgl/tile/geometry_tile_data.hpp>
-#include <mbgl/tile/tile_observer.hpp>
-#include <mbgl/style/layer_impl.hpp>
-#include <mbgl/style/layers/background_layer.hpp>
-#include <mbgl/style/layers/custom_layer.hpp>
+#include <mbgl/actor/scheduler.hpp>
+#include <mbgl/geometry/feature_index.hpp>
+#include <mbgl/gl/custom_layer.hpp>
+#include <mbgl/gl/render_custom_layer.hpp>
+#include <mbgl/map/transform_state.hpp>
+#include <mbgl/renderer/buckets/symbol_bucket.hpp>
+#include <mbgl/renderer/image_atlas.hpp>
+#include <mbgl/renderer/layers/render_background_layer.hpp>
+#include <mbgl/renderer/layers/render_symbol_layer.hpp>
+#include <mbgl/renderer/query.hpp>
 #include <mbgl/renderer/render_source.hpp>
 #include <mbgl/renderer/tile_parameters.hpp>
-#include <mbgl/renderer/layers/render_background_layer.hpp>
-#include <mbgl/renderer/layers/render_custom_layer.hpp>
-#include <mbgl/renderer/layers/render_symbol_layer.hpp>
-#include <mbgl/renderer/buckets/symbol_bucket.hpp>
-#include <mbgl/renderer/query.hpp>
-#include <mbgl/text/glyph_atlas.hpp>
-#include <mbgl/renderer/image_atlas.hpp>
-#include <mbgl/geometry/feature_index.hpp>
-#include <mbgl/map/transform_state.hpp>
-#include <mbgl/util/logging.hpp>
-#include <mbgl/actor/scheduler.hpp>
 #include <mbgl/renderer/tile_render_data.hpp>
+#include <mbgl/style/layer_impl.hpp>
+#include <mbgl/style/layers/background_layer.hpp>
+#include <mbgl/text/glyph_atlas.hpp>
+#include <mbgl/tile/geometry_tile_data.hpp>
+#include <mbgl/tile/geometry_tile_worker.hpp>
+#include <mbgl/tile/tile_observer.hpp>
+#include <mbgl/util/logging.hpp>
 
 #include <mbgl/gfx/upload_pass.hpp>
+#include <utility>
 
 namespace mbgl {
 
@@ -99,7 +100,10 @@ void GeometryTileRenderData::upload(gfx::UploadPass& uploadPass) {
 
     if (atlasTextures->icon && !imagePatches.empty()) {
         for (const auto& imagePatch : imagePatches) { // patch updated images.
-            uploadPass.updateTextureSub(*atlasTextures->icon, imagePatch.image->image, imagePatch.textureRect.x, imagePatch.textureRect.y);
+            uploadPass.updateTextureSub(*atlasTextures->icon,
+                                        imagePatch.image->image,
+                                        imagePatch.paddedRect.x + ImagePosition::padding,
+                                        imagePatch.paddedRect.y + ImagePosition::padding);
         }
         imagePatches.clear();
     }
@@ -173,7 +177,7 @@ void GeometryTile::markObsolete() {
 
 void GeometryTile::setError(std::exception_ptr err) {
     loaded = true;
-    observer->onTileError(*this, err);
+    observer->onTileError(*this, std::move(err));
 }
 
 void GeometryTile::setData(std::unique_ptr<const GeometryTileData> data_) {
@@ -254,7 +258,7 @@ void GeometryTile::onError(std::exception_ptr err, const uint64_t resultCorrelat
     if (resultCorrelationID == correlationID) {
         pending = false;
     }
-    observer->onTileError(*this, err);
+    observer->onTileError(*this, std::move(err));
 }
     
 void GeometryTile::onGlyphsAvailable(GlyphMap glyphs) {
@@ -262,7 +266,9 @@ void GeometryTile::onGlyphsAvailable(GlyphMap glyphs) {
 }
 
 void GeometryTile::getGlyphs(GlyphDependencies glyphDependencies) {
-    glyphManager.getGlyphs(*this, std::move(glyphDependencies), *fileSource);
+    if (fileSource) {
+        glyphManager.getGlyphs(*this, std::move(glyphDependencies), *fileSource);
+    }
 }
 
 void GeometryTile::onImagesAvailable(ImageMap images, ImageMap patterns, ImageVersionMap versionMap, uint64_t imageCorrelationID) {
@@ -273,7 +279,7 @@ void GeometryTile::getImages(ImageRequestPair pair) {
     imageManager.getImages(*this, std::move(pair));
 }
 
-const std::shared_ptr<FeatureIndex> GeometryTile::getFeatureIndex() const {
+std::shared_ptr<FeatureIndex> GeometryTile::getFeatureIndex() const {
     return layoutResult ? layoutResult->featureIndex : nullptr;
 }
 
@@ -347,7 +353,7 @@ void GeometryTile::querySourceFeatures(
         return;
     }
 
-    for (auto sourceLayer : *options.sourceLayers) {
+    for (const auto& sourceLayer : *options.sourceLayers) {
         // Go throught all sourceLayers, if any
         // to gather all the features
         auto layer = getData()->getLayer(sourceLayer);

@@ -35,8 +35,7 @@ TEST(Expression, IsExpression) {
 
         // TODO: "interpolate-hcl": https://github.com/mapbox/mapbox-gl-native/issues/8720
         // TODO: "interpolate-lab": https://github.com/mapbox/mapbox-gl-native/issues/8720
-        // TODO: "in": https://github.com/mapbox/mapbox-gl-native/issues/15893
-        if (name == "interpolate-hcl" || name == "interpolate-lab" || name == "in") {
+        if (name == "interpolate-hcl" || name == "interpolate-lab") {
             if (expression::isExpression(conversion::Convertible(expression))) {
                 ASSERT_TRUE(false) << "Expression name" << name << "is implemented - please update Expression.IsExpression test.";
             }
@@ -89,6 +88,12 @@ INSTANTIATE_TEST_CASE_P(Expression, ExpressionEqualityTest, ::testing::ValuesIn(
     if (dir != nullptr) {
         for (dirent *dp = nullptr; (dp = readdir(dir)) != nullptr;) {
             const std::string name = dp->d_name;
+#if ANDROID
+            // Android unit test uses number-format stub implementation so skip the tests
+            if (name.find("number-format") != std::string::npos) {
+                continue;
+            }
+#endif
             if (name.length() >= ending.length() && name.compare(name.length() - ending.length(), ending.length(), ending) == 0) {
                 names.push_back(name.substr(0, name.length() - ending.length()));
             }

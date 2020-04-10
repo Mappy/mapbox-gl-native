@@ -6,6 +6,7 @@
 #include <mbgl/style/sources/geojson_source.hpp>
 #include <mbgl/style/sources/geojson_source_impl.hpp>
 #include <mbgl/tile/tile.hpp>
+#include <mbgl/util/async_request.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/thread_pool.hpp>
 
@@ -38,8 +39,20 @@ void GeoJSONSource::setURL(const std::string& url_) {
     }
 }
 
+namespace {
+
+inline std::shared_ptr<GeoJSONData> createGeoJSONData(const mapbox::geojson::geojson& geoJSON,
+                                                      const GeoJSONSource::Impl& impl) {
+    if (auto data = impl.getData().lock()) {
+        return GeoJSONData::create(geoJSON, impl.getOptions(), data->getScheduler());
+    }
+    return GeoJSONData::create(geoJSON, impl.getOptions());
+}
+
+} // namespace
+
 void GeoJSONSource::setGeoJSON(const mapbox::geojson::geojson& geoJSON) {
-    setGeoJSONData(GeoJSONData::create(geoJSON, impl().getOptions()));
+    setGeoJSONData(createGeoJSONData(geoJSON, impl()));
 }
 
 void GeoJSONSource::setGeoJSONData(std::shared_ptr<GeoJSONData> geoJSONData) {
@@ -66,7 +79,7 @@ void GeoJSONSource::loadDescription(FileSource& fileSource) {
         return;
     }
 
-    req = fileSource.request(Resource::source(*url), [this](Response res) {
+    req = fileSource.request(Resource::source(*url), [this](const Response& res) {
         if (res.error) {
             observer->onSourceError(
                 *this, std::make_exception_ptr(std::runtime_error(res.error->message)));
@@ -82,7 +95,7 @@ void GeoJSONSource::loadDescription(FileSource& fileSource) {
                 conversion::Error error;
                 std::shared_ptr<GeoJSONData> geoJSONData;
                 if (optional<GeoJSON> geoJSON = conversion::convertJSON<GeoJSON>(*data, error)) {
-                    geoJSONData = GeoJSONData::create(*geoJSON, current.getOptions());
+                    geoJSONData = createGeoJSONData(*geoJSON, current);
                 } else {
                     // Create an empty GeoJSON VT object to make sure we're not infinitely waiting for tiles to load.
                     Log::Error(Event::ParseStyle, "Failed to parse GeoJSON data: %s", error.message.c_str());
@@ -105,6 +118,10 @@ void GeoJSONSource::loadDescription(FileSource& fileSource) {
 
 bool GeoJSONSource::supportsLayerType(const mbgl::style::LayerTypeInfo* info) const {
     return mbgl::underlying_type(Tile::Kind::Geometry) == mbgl::underlying_type(info->tileKind);
+}
+
+Mutable<Source::Impl> GeoJSONSource::createMutable() const noexcept {
+    return staticMutableCast<Source::Impl>(makeMutable<Impl>(impl()));
 }
 
 } // namespace style

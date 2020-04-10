@@ -21,7 +21,8 @@
 namespace {
 std::string unaccent(const std::string& str) {
     std::stringstream output;
-    char const *itr = str.c_str(), *nitr;
+    char const* itr = str.c_str();
+    char const* nitr;
     char const* end = itr + str.length();
     char lo[5] = {0};
 
@@ -50,10 +51,8 @@ namespace platform {
 
 class Collator::Impl {
 public:
-    Impl(bool caseSensitive_, bool diacriticSensitive_, optional<std::string>)
-        : caseSensitive(caseSensitive_)
-        , diacriticSensitive(diacriticSensitive_)
-    {}
+    Impl(bool caseSensitive_, bool diacriticSensitive_, const optional<std::string>&)
+        : caseSensitive(caseSensitive_), diacriticSensitive(diacriticSensitive_) {}
 
     bool operator==(const Impl& other) const {
         return caseSensitive == other.caseSensitive && diacriticSensitive == other.diacriticSensitive;
@@ -94,8 +93,8 @@ std::string Collator::resolvedLocale() const {
     return impl->resolvedLocale();
 }
 
-Collator::Collator(bool caseSensitive, bool diacriticSensitive, optional<std::string> locale)
-    : impl(std::make_shared<Impl>(caseSensitive, diacriticSensitive, std::move(locale))) {}
+Collator::Collator(bool caseSensitive, bool diacriticSensitive, const optional<std::string>& locale)
+    : impl(std::make_shared<Impl>(caseSensitive, diacriticSensitive, locale)) {}
 
 } // namespace platform
 } // namespace mbgl

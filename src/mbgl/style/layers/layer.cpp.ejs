@@ -4,6 +4,8 @@
   const paintProperties = locals.paintProperties;
   const allProperties = paintProperties.concat(layoutProperties);
 -%>
+// clang-format off
+
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
 #include <mbgl/style/layers/<%- type.replace('-', '_') %>_layer.hpp>
@@ -149,8 +151,7 @@ const <%- propertyValueType(property) %>& <%- camelize(type) %>Layer::get<%- cam
 }
 
 void <%- camelize(type) %>Layer::set<%- camelize(property.name) %>(const <%- propertyValueType(property) %>& value) {
-    if (value == get<%- camelize(property.name) %>())
-        return;
+    if (value == get<%- camelize(property.name) %>()) return;
     auto impl_ = mutableImpl();
     impl_->layout.get<<%- camelize(property.name) %>>() = value;
     baseImpl = std::move(impl_);
@@ -201,6 +202,8 @@ using namespace conversion;
 
 namespace {
 
+constexpr uint8_t kPaintPropertyCount = <%- paintProperties.length * 2 -%>u;
+
 enum class Property : uint8_t {
 <% for (const property of paintProperties) { -%>
     <%- camelize(property.name) %>,
@@ -208,8 +211,12 @@ enum class Property : uint8_t {
 <% for (const property of paintProperties) { -%>
     <%- camelize(property.name) %>Transition,
 <% } -%>
-<% for (const property of layoutProperties) { -%>
-    <%- camelize(property.name) %>,
+<% for (let i = 0; i < layoutProperties.length; ++i) { -%>
+<% if (i===0) { -%>
+    <%- camelize(layoutProperties[i].name) %> = kPaintPropertyCount,
+<% } else { -%>
+    <%- camelize(layoutProperties[i].name) %>,
+<% } -%>
 <% } -%>
 };
 
@@ -226,14 +233,49 @@ MAPBOX_ETERNAL_CONSTEXPR const auto layerProperties = mapbox::eternal::hash_map<
      <%- paintProperties.map(p => `{"${p.name}-transition", toUint8(Property::${camelize(p.name)}Transition)}`).join(',\n     ') %>,
      <%- layoutProperties.map(p => `{"${p.name}", toUint8(Property::${camelize(p.name)})}`).join(',\n     ') %>});
 <% } -%>
-} // namespace
 
-optional<Error> <%- camelize(type) %>Layer::setProperty(const std::string& name, const Convertible& value) {
+StyleProperty getLayerProperty(const <%- camelize(type) %>Layer& layer, Property property) {
+    switch (property) {
+<% for (const property of paintProperties) { -%>
+        case Property::<%- camelize(property.name) %>:
+            return makeStyleProperty(layer.get<%- camelize(property.name) %>());
+<% } -%>
+<% for (const property of paintProperties) { -%>
+        case Property::<%- camelize(property.name) %>Transition:
+            return makeStyleProperty(layer.get<%- camelize(property.name) %>Transition());
+<% } -%>
+<% for (const property of layoutProperties) { -%>
+        case Property::<%- camelize(property.name) %>:
+            return makeStyleProperty(layer.get<%- camelize(property.name) %>());
+<% } -%>
+    }
+    return {};
+}
+
+StyleProperty getLayerProperty(const <%- camelize(type) -%>Layer& layer, const std::string& name) {
     const auto it = layerProperties.find(name.c_str());
     if (it == layerProperties.end()) {
-        if (name == "visibility") return setVisibility(value);
-        return Error{"layer doesn't support this property"};
+        return {};
     }
+    return getLayerProperty(layer, static_cast<Property>(it->second));
+}
+
+} // namespace
+
+Value <%- camelize(type) %>Layer::serialize() const {
+    auto result = Layer::serialize();
+    assert(result.getObject());
+    for (const auto& property : layerProperties) {
+        auto styleProperty = getLayerProperty(*this, static_cast<Property>(property.second));
+        if (styleProperty.getKind() == StyleProperty::Kind::Undefined) continue;
+        serializeProperty(result, styleProperty, property.first.c_str(), property.second < kPaintPropertyCount);
+    }
+    return result;
+}
+
+optional<Error> <%- camelize(type) %>Layer::setPropertyInternal(const std::string& name, const Convertible& value) {
+    const auto it = layerProperties.find(name.c_str());
+    if (it == layerProperties.end()) return Error{"layer doesn't support this property"};
 
     auto property = static_cast<Property>(it->second);
 
@@ -290,26 +332,7 @@ optional<Error> <%- camelize(type) %>Layer::setProperty(const std::string& name,
 }
 
 StyleProperty <%- camelize(type) %>Layer::getProperty(const std::string& name) const {
-    const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end()) {
-        return {};
-    }
-
-    switch (static_cast<Property>(it->second)) {
-<% for (const property of paintProperties) { -%>
-        case Property::<%- camelize(property.name) %>:
-            return makeStyleProperty(get<%- camelize(property.name) %>());
-<% } -%>
-<% for (const property of paintProperties) { -%>
-        case Property::<%- camelize(property.name) %>Transition:
-            return makeStyleProperty(get<%- camelize(property.name) %>Transition());
-<% } -%>
-<% for (const property of layoutProperties) { -%>
-        case Property::<%- camelize(property.name) %>:
-            return makeStyleProperty(get<%- camelize(property.name) %>());
-<% } -%>
-    }
-    return {};
+    return getLayerProperty(*this, name);
 }
 
 Mutable<Layer::Impl> <%- camelize(type) %>Layer::mutableBaseImpl() const {
@@ -318,3 +341,5 @@ Mutable<Layer::Impl> <%- camelize(type) %>Layer::mutableBaseImpl() const {
 
 } // namespace style
 } // namespace mbgl
+
+// clang-format on

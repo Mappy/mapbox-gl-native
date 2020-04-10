@@ -27,11 +27,10 @@ using namespace style;
 
 struct GeometryTooLongException : std::exception {};
 
-FillBucket::FillBucket(const FillBucket::PossiblyEvaluatedLayoutProperties,
+FillBucket::FillBucket(const FillBucket::PossiblyEvaluatedLayoutProperties&,
                        const std::map<std::string, Immutable<style::LayerProperties>>& layerPaintProperties,
                        const float zoom,
                        const uint32_t) {
-
     for (const auto& pair : layerPaintProperties) {
         paintPropertyBinders.emplace(
             std::piecewise_construct,
@@ -44,9 +43,12 @@ FillBucket::FillBucket(const FillBucket::PossiblyEvaluatedLayoutProperties,
 
 FillBucket::~FillBucket() = default;
 
-void FillBucket::addFeature(const GeometryTileFeature& feature, const GeometryCollection& geometry,
-                            const ImagePositions& patternPositions, const PatternLayerMap& patternDependencies,
-                            std::size_t index) {
+void FillBucket::addFeature(const GeometryTileFeature& feature,
+                            const GeometryCollection& geometry,
+                            const ImagePositions& patternPositions,
+                            const PatternLayerMap& patternDependencies,
+                            std::size_t index,
+                            const CanonicalTileID& canonical) {
     for (auto& polygon : classifyRings(geometry)) {
         // Optimize polygons with many interior rings for earcut tesselation.
         limitHoles(polygon, 500);
@@ -78,7 +80,7 @@ void FillBucket::addFeature(const GeometryTileFeature& feature, const GeometryCo
             vertices.emplace_back(FillProgram::layoutVertex(ring[0]));
             lines.emplace_back(lineIndex + nVertices - 1, lineIndex);
 
-            for (uint32_t i = 1; i < nVertices; i++) {
+            for (std::size_t i = 1; i < nVertices; i++) {
                 vertices.emplace_back(FillProgram::layoutVertex(ring[i]));
                 lines.emplace_back(lineIndex + i - 1, lineIndex + i);
             }
@@ -100,7 +102,7 @@ void FillBucket::addFeature(const GeometryTileFeature& feature, const GeometryCo
         assert(triangleSegment.vertexLength <= std::numeric_limits<uint16_t>::max());
         uint16_t triangleIndex = triangleSegment.vertexLength;
 
-        for (uint32_t i = 0; i < nIndicies; i += 3) {
+        for (std::size_t i = 0; i < nIndicies; i += 3) {
             triangles.emplace_back(triangleIndex + indices[i],
                                    triangleIndex + indices[i + 1],
                                    triangleIndex + indices[i + 2]);
@@ -112,10 +114,11 @@ void FillBucket::addFeature(const GeometryTileFeature& feature, const GeometryCo
 
     for (auto& pair : paintPropertyBinders) {
         const auto it = patternDependencies.find(pair.first);
-        if (it != patternDependencies.end()){
-            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, it->second);
+        if (it != patternDependencies.end()) {
+            pair.second.populateVertexVectors(
+                feature, vertices.elements(), index, patternPositions, it->second, canonical);
         } else {
-            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, {});
+            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, {}, canonical);
         }
     }
 }

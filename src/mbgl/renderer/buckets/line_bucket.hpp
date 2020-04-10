@@ -17,17 +17,20 @@ class RenderLineLayer;
 
 class LineBucket final : public Bucket {
 public:
-    using PossiblyEvaluatedPaintProperties = style::LinePaintProperties::PossiblyEvaluated;
     using PossiblyEvaluatedLayoutProperties = style::LineLayoutProperties::PossiblyEvaluated;
 
-    LineBucket(const PossiblyEvaluatedLayoutProperties layout,
+    LineBucket(PossiblyEvaluatedLayoutProperties layout,
                const std::map<std::string, Immutable<style::LayerProperties>>& layerPaintProperties,
                const float zoom,
                const uint32_t overscaling);
     ~LineBucket() override;
 
-    void addFeature(const GeometryTileFeature&, const GeometryCollection&, const mbgl::ImagePositions& patternPositions,
-                    const PatternLayerMap&, std::size_t) override;
+    void addFeature(const GeometryTileFeature&,
+                    const GeometryCollection&,
+                    const mbgl::ImagePositions& patternPositions,
+                    const PatternLayerMap&,
+                    std::size_t,
+                    const CanonicalTileID&) override;
 
     bool hasData() const override;
 
@@ -49,7 +52,7 @@ public:
     std::map<std::string, LineProgram::Binders> paintPropertyBinders;
 
 private:
-    void addGeometry(const GeometryCoordinates&, const GeometryTileFeature&);
+    void addGeometry(const GeometryCoordinates&, const GeometryTileFeature&, const CanonicalTileID&);
 
     struct TriangleElement {
         TriangleElement(uint16_t a_, uint16_t b_, uint16_t c_) : a(a_), b(b_), c(c_) {}
@@ -57,10 +60,15 @@ private:
     };
 
     class Distances;
-    void addCurrentVertex(const GeometryCoordinate& currentVertex, double& distance,
-            const Point<double>& normal, double endLeft, double endRight, bool round,
-            std::size_t startVertex, std::vector<LineBucket::TriangleElement>& triangleStore,
-            optional<Distances> distances);
+    void addCurrentVertex(const GeometryCoordinate& currentCoordinate,
+                          double& distance,
+                          const Point<double>& normal,
+                          double endLeft,
+                          double endRight,
+                          bool round,
+                          std::size_t startVertex,
+                          std::vector<LineBucket::TriangleElement>& triangleStore,
+                          optional<Distances> distances);
 
     void addPieSliceVertex(const GeometryCoordinate& currentVertex, double distance,
             const Point<double>& extrude, bool lineTurnsLeft, std::size_t startVertex,

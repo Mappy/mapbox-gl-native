@@ -24,14 +24,14 @@ public:
     };
 
     HeadlessFrontend(float pixelRatio_,
-                     gfx::HeadlessBackend::SwapBehaviour swapBehviour = gfx::HeadlessBackend::SwapBehaviour::NoFlush,
+                     gfx::HeadlessBackend::SwapBehaviour swapBehavior = gfx::HeadlessBackend::SwapBehaviour::NoFlush,
                      gfx::ContextMode mode = gfx::ContextMode::Unique,
-                     const optional<std::string> localFontFamily = {});
+                     const optional<std::string>& localFontFamily = {});
     HeadlessFrontend(Size,
                      float pixelRatio_,
-                     gfx::HeadlessBackend::SwapBehaviour swapBehviour = gfx::HeadlessBackend::SwapBehaviour::NoFlush,
+                     gfx::HeadlessBackend::SwapBehaviour swapBehavior = gfx::HeadlessBackend::SwapBehaviour::NoFlush,
                      gfx::ContextMode mode = gfx::ContextMode::Unique,
-                     const optional<std::string> localFontFamily = {});
+                     const optional<std::string>& localFontFamily = {});
     ~HeadlessFrontend() override;
 
     void reset() override;

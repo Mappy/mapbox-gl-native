@@ -2,6 +2,7 @@
 
 #include <mbgl/gfx/headless_frontend.hpp>
 #include <mbgl/map/map.hpp>
+#include <mbgl/storage/file_source.hpp>
 
 #include "manifest_parser.hpp"
 
@@ -36,8 +37,9 @@ public:
 class TestRunner {
 public:
     enum class UpdateResults { NO, DEFAULT, PLATFORM, METRICS, REBASELINE };
+
     TestRunner(Manifest, UpdateResults);
-    bool run(TestMetadata&);
+    void run(TestMetadata&);
     void reset();
 
     // Manifest
@@ -45,18 +47,21 @@ public:
     void doShuffle(uint32_t seed);
 
 private:
-    bool checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
+    mbgl::HeadlessFrontend::RenderResult runTest(TestMetadata& metadata, TestContext& ctx);
+    void checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
                                std::vector<mbgl::Feature>&& features,
                                TestMetadata&);
-    bool checkRenderTestResults(mbgl::PremultipliedImage&& image, TestMetadata&);
-    bool checkProbingResults(TestMetadata&);
+    void checkRenderTestResults(mbgl::PremultipliedImage&& image, TestMetadata&);
+    void checkProbingResults(TestMetadata&);
+    void registerProxyFileSource();
 
     struct Impl {
-        Impl(const TestMetadata&);
+        Impl(const TestMetadata&, const mbgl::ResourceOptions&);
         ~Impl();
 
         std::unique_ptr<TestRunnerMapObserver> observer;
         mbgl::HeadlessFrontend frontend;
+        std::shared_ptr<mbgl::FileSource> fileSource;
         mbgl::Map map;
     };
     std::unordered_map<std::string, std::unique_ptr<Impl>> maps;

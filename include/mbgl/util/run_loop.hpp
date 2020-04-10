@@ -48,6 +48,13 @@ public:
     void runOnce();
     void stop();
 
+    // Platform integration callback for platforms that do not have full
+    // run loop integration or don't want to block at the Mapbox GL Native
+    // loop. It will be called from any thread and is up to the platform
+    // to, after receiving the callback, call RunLoop::runOnce() from the
+    // same thread as the Map object lives.
+    void setPlatformCallback(std::function<void()> callback) { platformCallback = std::move(callback); }
+
     // So far only needed by the libcurl backend.
     void addWatch(int fd, Event, std::function<void(int, Event)>&& callback);
     void removeWatch(int fd);
@@ -95,6 +102,10 @@ private:
             defaultQueue.emplace(std::move(task));
         }
         wake();
+
+        if (platformCallback) {
+            platformCallback();
+        }
     }
 
     void process() {
@@ -116,6 +127,8 @@ private:
             lock.lock();
         }
     }
+
+    std::function<void()> platformCallback;
 
     Queue defaultQueue;
     Queue highPriorityQueue;

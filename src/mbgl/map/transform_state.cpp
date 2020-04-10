@@ -1,11 +1,12 @@
 #include <mbgl/map/transform_state.hpp>
+#include <mbgl/math/clamp.hpp>
+#include <mbgl/math/log2.hpp>
 #include <mbgl/tile/tile_id.hpp>
 #include <mbgl/util/constants.hpp>
 #include <mbgl/util/interpolate.hpp>
+#include <mbgl/util/logging.hpp>
 #include <mbgl/util/projection.hpp>
 #include <mbgl/util/tile_coordinate.hpp>
-#include <mbgl/math/log2.hpp>
-#include <mbgl/math/clamp.hpp>
 
 namespace mbgl {
 TransformState::TransformState(ConstrainMode constrainMode_, ViewportMode viewportMode_)
@@ -80,7 +81,7 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
     }
 
     const double cameraToCenterDistance = getCameraToCenterDistance();
-    auto offset = getCenterOffset();
+    const ScreenCoordinate offset = getCenterOffset();
 
     // Find the Z distance from the viewport center point
     // [width/2 + offset.x, height/2 + offset.y] to the top edge; to point
@@ -130,7 +131,8 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
 
     matrix::rotate_z(projMatrix, projMatrix, getBearing() + getNorthOrientationAngle());
 
-    const double dx = pixel_x() - size.width / 2.0f, dy = pixel_y() - size.height / 2.0f;
+    const double dx = pixel_x() - size.width / 2.0f;
+    const double dy = pixel_y() - size.height / 2.0f;
     matrix::translate(projMatrix, projMatrix, dx, dy, 0);
 
     if (axonometric) {
@@ -152,8 +154,10 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
     // of the transformation so that 0°, 90°, 180°, and 270° rasters are crisp, and adjust the shift so that
     // it is always <= 0.5 pixels.
     if (aligned) {
-        const float xShift = float(size.width % 2) / 2, yShift = float(size.height % 2) / 2;
-        const double bearingCos = std::cos(bearing), bearingSin = std::sin(bearing);
+        const float xShift = float(size.width % 2) / 2;
+        const float yShift = float(size.height % 2) / 2;
+        const double bearingCos = std::cos(bearing);
+        const double bearingSin = std::sin(bearing);
         double devNull;
         const float dxa = -std::modf(dx, &devNull) + bearingCos * xShift + bearingSin * yShift;
         const float dya = -std::modf(dy, &devNull) + bearingCos * yShift + bearingSin * xShift;
@@ -254,7 +258,7 @@ void TransformState::setViewportMode(ViewportMode val) {
 
 #pragma mark - Camera options
 
-CameraOptions TransformState::getCameraOptions(optional<EdgeInsets> padding) const {
+CameraOptions TransformState::getCameraOptions(const optional<EdgeInsets>& padding) const {
     return CameraOptions()
         .withCenter(getLatLng())
         .withPadding(padding ? padding : edgeInsets)
@@ -338,6 +342,30 @@ void TransformState::setMaxZoom(const double maxZoom) {
 
 double TransformState::getMaxZoom() const {
     return scaleZoom(max_scale);
+}
+
+void TransformState::setMinPitch(const double pitch_) {
+    if (pitch_ <= maxPitch) {
+        minPitch = util::clamp(pitch_, util::PITCH_MIN, maxPitch);
+    } else {
+        Log::Warning(Event::General, "Trying to set minimum pitch to larger than maximum pitch, no changes made.");
+    }
+}
+
+double TransformState::getMinPitch() const {
+    return minPitch;
+}
+
+void TransformState::setMaxPitch(const double pitch_) {
+    if (pitch_ >= minPitch) {
+        maxPitch = util::clamp(pitch_, minPitch, util::PITCH_MAX);
+    } else {
+        Log::Warning(Event::General, "Trying to set maximum pitch to smaller than minimum pitch, no changes made.");
+    }
+}
+
+double TransformState::getMaxPitch() const {
+    return maxPitch;
 }
 
 #pragma mark - Scale
@@ -473,11 +501,15 @@ double TransformState::scaleZoom(double s) const {
 }
 
 ScreenCoordinate TransformState::latLngToScreenCoordinate(const LatLng& latLng) const {
+    vec4 p;
+    return latLngToScreenCoordinate(latLng, p);
+}
+
+ScreenCoordinate TransformState::latLngToScreenCoordinate(const LatLng& latLng, vec4& p) const {
     if (size.isEmpty()) {
         return {};
     }
 
-    vec4 p;
     Point<double> pt = Projection::project(latLng, scale) / util::tileSize;
     vec4 c = {{pt.x, pt.y, 0, 1}};
     matrix::transformMat4(p, c, getCoordMatrix());

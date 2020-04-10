@@ -50,9 +50,12 @@ FillExtrusionBucket::FillExtrusionBucket(const FillExtrusionBucket::PossiblyEval
 
 FillExtrusionBucket::~FillExtrusionBucket() = default;
 
-void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature, const GeometryCollection& geometry,
-                                     const ImagePositions& patternPositions, const PatternLayerMap& patternDependencies,
-                                     std::size_t index) {
+void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature,
+                                     const GeometryCollection& geometry,
+                                     const ImagePositions& patternPositions,
+                                     const PatternLayerMap& patternDependencies,
+                                     std::size_t index,
+                                     const CanonicalTileID& canonical) {
     for (auto& polygon : classifyRings(geometry)) {
         // Optimize polygons with many interior rings for earcut tesselation.
         limitHoles(polygon, 500);
@@ -93,7 +96,7 @@ void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature, const G
 
             std::size_t edgeDistance = 0;
 
-            for (uint32_t i = 0; i < nVertices; i++) {
+            for (std::size_t i = 0; i < nVertices; i++) {
                 const auto& p1 = ring[i];
 
                 vertices.emplace_back(
@@ -144,7 +147,7 @@ void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature, const G
         std::size_t nIndices = indices.size();
         assert(nIndices % 3 == 0);
 
-        for (uint32_t i = 0; i < nIndices; i += 3) {
+        for (std::size_t i = 0; i < nIndices; i += 3) {
             // Counter-Clockwise winding order.
             triangles.emplace_back(flatIndices[indices[i]], flatIndices[indices[i + 2]],
                                    flatIndices[indices[i + 1]]);
@@ -157,9 +160,10 @@ void FillExtrusionBucket::addFeature(const GeometryTileFeature& feature, const G
     for (auto& pair : paintPropertyBinders) {
         const auto it = patternDependencies.find(pair.first);
         if (it != patternDependencies.end()){
-            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, it->second);
+            pair.second.populateVertexVectors(
+                feature, vertices.elements(), index, patternPositions, it->second, canonical);
         } else {
-            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, {});
+            pair.second.populateVertexVectors(feature, vertices.elements(), index, patternPositions, {}, canonical);
         }
     }
 }

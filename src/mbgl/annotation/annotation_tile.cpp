@@ -11,11 +11,17 @@ AnnotationTile::AnnotationTile(const OverscaledTileID& overscaledTileID,
                                const TileParameters& parameters)
     : GeometryTile(overscaledTileID, AnnotationManager::SourceID, parameters),
       annotationManager(parameters.annotationManager) {
-    annotationManager.addTile(*this);
+    auto guard = annotationManager.lock();
+    if (annotationManager) {
+        annotationManager->addTile(*this);
+    }
 }
 
 AnnotationTile::~AnnotationTile() {
-    annotationManager.removeTile(*this);
+    auto guard = annotationManager.lock();
+    if (annotationManager) {
+        annotationManager->removeTile(*this);
+    }
 }
 
 class AnnotationTileFeatureData {
@@ -64,8 +70,7 @@ const GeometryCollection& AnnotationTileFeature::getGeometries() const {
 
 class AnnotationTileLayerData {
 public:
-    AnnotationTileLayerData(std::string name_) : name(std::move(name_)) {
-    }
+    explicit AnnotationTileLayerData(std::string name_) : name(std::move(name_)) {}
 
     const std::string name;
     std::vector<std::shared_ptr<const AnnotationTileFeatureData>> features;

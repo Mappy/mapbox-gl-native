@@ -34,32 +34,41 @@
 namespace mbgl {
 namespace android {
 
-    static std::unique_ptr<Source> createSourcePeer(jni::JNIEnv& env, mbgl::style::Source& coreSource, AndroidRendererFrontend& frontend) {
-        if (coreSource.is<mbgl::style::VectorSource>()) {
-            return std::make_unique<VectorSource>(env, *coreSource.as<mbgl::style::VectorSource>(), frontend);
-        } else if (coreSource.is<mbgl::style::RasterSource>()) {
-            return std::make_unique<RasterSource>(env, *coreSource.as<mbgl::style::RasterSource>(), frontend);
-        } else if (coreSource.is<mbgl::style::GeoJSONSource>()) {
-            return std::make_unique<GeoJSONSource>(env, *coreSource.as<mbgl::style::GeoJSONSource>(), frontend);
-        } else if (coreSource.is<mbgl::style::ImageSource>()) {
-            return std::make_unique<ImageSource>(env, *coreSource.as<mbgl::style::ImageSource>(), frontend);
-        } else {
-            return std::make_unique<UnknownSource>(env, coreSource, frontend);
-        }
+static std::unique_ptr<Source> createSourcePeer(jni::JNIEnv& env,
+                                                mbgl::style::Source& coreSource,
+                                                AndroidRendererFrontend* frontend) {
+    if (coreSource.is<mbgl::style::VectorSource>()) {
+        return std::make_unique<VectorSource>(env, *coreSource.as<mbgl::style::VectorSource>(), frontend);
+    } else if (coreSource.is<mbgl::style::RasterSource>()) {
+        return std::make_unique<RasterSource>(env, *coreSource.as<mbgl::style::RasterSource>(), frontend);
+    } else if (coreSource.is<mbgl::style::GeoJSONSource>()) {
+        return std::make_unique<GeoJSONSource>(env, *coreSource.as<mbgl::style::GeoJSONSource>(), frontend);
+    } else if (coreSource.is<mbgl::style::ImageSource>()) {
+        return std::make_unique<ImageSource>(env, *coreSource.as<mbgl::style::ImageSource>(), frontend);
+    } else {
+        return std::make_unique<UnknownSource>(env, coreSource, frontend);
     }
+}
 
     const jni::Object<Source>& Source::peerForCoreSource(jni::JNIEnv& env, mbgl::style::Source& coreSource, AndroidRendererFrontend& frontend) {
         if (!coreSource.peer.has_value()) {
-            coreSource.peer = createSourcePeer(env, coreSource, frontend);
+            coreSource.peer = createSourcePeer(env, coreSource, &frontend);
         }
         return coreSource.peer.get<std::unique_ptr<Source>>()->javaPeer;
     }
 
-    Source::Source(jni::JNIEnv& env, mbgl::style::Source& coreSource, const jni::Object<Source>& obj, AndroidRendererFrontend& frontend)
-        : source(coreSource)
-        , javaPeer(jni::NewGlobal(env, obj))
-        , rendererFrontend(&frontend) {
+    const jni::Object<Source>& Source::peerForCoreSource(jni::JNIEnv& env, mbgl::style::Source& coreSource) {
+        if (!coreSource.peer.has_value()) {
+            coreSource.peer = createSourcePeer(env, coreSource, nullptr);
+        }
+        return coreSource.peer.get<std::unique_ptr<Source>>()->javaPeer;
     }
+
+    Source::Source(jni::JNIEnv& env,
+                   mbgl::style::Source& coreSource,
+                   const jni::Object<Source>& obj,
+                   AndroidRendererFrontend* frontend)
+        : source(coreSource), javaPeer(jni::NewGlobal(env, obj)), rendererFrontend(frontend) {}
 
     Source::Source(jni::JNIEnv&, std::unique_ptr<mbgl::style::Source> coreSource)
         : ownedSource(std::move(coreSource))
@@ -91,6 +100,53 @@ namespace android {
     jni::Local<jni::String> Source::getAttribution(jni::JNIEnv& env) {
         auto attribution = source.getAttribution();
         return attribution ? jni::Make<jni::String>(env, attribution.value()) : jni::Make<jni::String>(env,"");
+    }
+
+    void Source::setPrefetchZoomDelta(jni::JNIEnv& env, jni::Integer& delta) {
+        if (!delta) {
+            source.setPrefetchZoomDelta(nullopt);
+        } else {
+            source.setPrefetchZoomDelta(jni::Unbox(env, delta));
+        }
+    }
+
+    jni::Local<jni::Integer> Source::getPrefetchZoomDelta(jni::JNIEnv& env) {
+        auto delta = source.getPrefetchZoomDelta();
+        if (delta.has_value()) {
+            return jni::Box(env, jni::jint(delta.value()));
+        }
+        return jni::Local<jni::Integer>(env, nullptr);
+    }
+
+    void Source::setMaxOverscaleFactorForParentTiles(jni::JNIEnv& env, jni::Integer& maxOverscaleFactor) {
+        if (!maxOverscaleFactor) {
+            source.setMaxOverscaleFactorForParentTiles(nullopt);
+        } else {
+            source.setMaxOverscaleFactorForParentTiles(jni::Unbox(env, maxOverscaleFactor));
+        }
+    }
+
+    jni::Local<jni::Integer> Source::getMaxOverscaleFactorForParentTiles(jni::JNIEnv& env) {
+        auto maxOverscaleFactor = source.getMaxOverscaleFactorForParentTiles();
+        if (maxOverscaleFactor) {
+            return jni::Box(env, jni::jint(*maxOverscaleFactor));
+        }
+        return jni::Local<jni::Integer>(env, nullptr);
+    }
+
+    void Source::addToStyle(JNIEnv& env, const jni::Object<Source>& obj, mbgl::style::Style& style) {
+        if (!ownedSource) {
+            throw std::runtime_error("Cannot add source twice");
+        }
+
+        // Add source to style and release ownership
+        style.addSource(std::move(ownedSource));
+
+        // Add peer to core source
+        source.peer = std::unique_ptr<Source>(this);
+
+        // Add strong reference to java source
+        javaPeer = jni::NewGlobal(env, obj);
     }
 
     void Source::addToMap(JNIEnv& env, const jni::Object<Source>& obj, mbgl::Map& map, AndroidRendererFrontend& frontend) {
@@ -149,10 +205,16 @@ namespace android {
         #define METHOD(MethodPtr, name) jni::MakeNativePeerMethod<decltype(MethodPtr), (MethodPtr)>(name)
 
         // Register the peer
-        jni::RegisterNativePeer<Source>(env, javaClass, "nativePtr",
+        jni::RegisterNativePeer<Source>(
+            env,
+            javaClass,
+            "nativePtr",
             METHOD(&Source::getId, "nativeGetId"),
-            METHOD(&Source::getAttribution, "nativeGetAttribution")
-        );
+            METHOD(&Source::getAttribution, "nativeGetAttribution"),
+            METHOD(&Source::setPrefetchZoomDelta, "nativeSetPrefetchZoomDelta"),
+            METHOD(&Source::getPrefetchZoomDelta, "nativeGetPrefetchZoomDelta"),
+            METHOD(&Source::setMaxOverscaleFactorForParentTiles, "nativeSetMaxOverscaleFactorForParentTiles"),
+            METHOD(&Source::getMaxOverscaleFactorForParentTiles, "nativeGetMaxOverscaleFactorForParentTiles"));
 
         // Register subclasses
         GeoJSONSource::registerNative(env);

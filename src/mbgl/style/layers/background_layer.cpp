@@ -1,3 +1,5 @@
+// clang-format off
+
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
 #include <mbgl/style/layers/background_layer.hpp>
@@ -148,6 +150,8 @@ using namespace conversion;
 
 namespace {
 
+constexpr uint8_t kPaintPropertyCount = 6u;
+
 enum class Property : uint8_t {
     BackgroundColor,
     BackgroundOpacity,
@@ -169,14 +173,49 @@ MAPBOX_ETERNAL_CONSTEXPR const auto layerProperties = mapbox::eternal::hash_map<
      {"background-color-transition", toUint8(Property::BackgroundColorTransition)},
      {"background-opacity-transition", toUint8(Property::BackgroundOpacityTransition)},
      {"background-pattern-transition", toUint8(Property::BackgroundPatternTransition)}});
-} // namespace
 
-optional<Error> BackgroundLayer::setProperty(const std::string& name, const Convertible& value) {
+StyleProperty getLayerProperty(const BackgroundLayer& layer, Property property) {
+    switch (property) {
+        case Property::BackgroundColor:
+            return makeStyleProperty(layer.getBackgroundColor());
+        case Property::BackgroundOpacity:
+            return makeStyleProperty(layer.getBackgroundOpacity());
+        case Property::BackgroundPattern:
+            return makeStyleProperty(layer.getBackgroundPattern());
+        case Property::BackgroundColorTransition:
+            return makeStyleProperty(layer.getBackgroundColorTransition());
+        case Property::BackgroundOpacityTransition:
+            return makeStyleProperty(layer.getBackgroundOpacityTransition());
+        case Property::BackgroundPatternTransition:
+            return makeStyleProperty(layer.getBackgroundPatternTransition());
+    }
+    return {};
+}
+
+StyleProperty getLayerProperty(const BackgroundLayer& layer, const std::string& name) {
     const auto it = layerProperties.find(name.c_str());
     if (it == layerProperties.end()) {
-        if (name == "visibility") return setVisibility(value);
-        return Error{"layer doesn't support this property"};
+        return {};
     }
+    return getLayerProperty(layer, static_cast<Property>(it->second));
+}
+
+} // namespace
+
+Value BackgroundLayer::serialize() const {
+    auto result = Layer::serialize();
+    assert(result.getObject());
+    for (const auto& property : layerProperties) {
+        auto styleProperty = getLayerProperty(*this, static_cast<Property>(property.second));
+        if (styleProperty.getKind() == StyleProperty::Kind::Undefined) continue;
+        serializeProperty(result, styleProperty, property.first.c_str(), property.second < kPaintPropertyCount);
+    }
+    return result;
+}
+
+optional<Error> BackgroundLayer::setPropertyInternal(const std::string& name, const Convertible& value) {
+    const auto it = layerProperties.find(name.c_str());
+    if (it == layerProperties.end()) return Error{"layer doesn't support this property"};
 
     auto property = static_cast<Property>(it->second);
 
@@ -236,26 +275,7 @@ optional<Error> BackgroundLayer::setProperty(const std::string& name, const Conv
 }
 
 StyleProperty BackgroundLayer::getProperty(const std::string& name) const {
-    const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end()) {
-        return {};
-    }
-
-    switch (static_cast<Property>(it->second)) {
-        case Property::BackgroundColor:
-            return makeStyleProperty(getBackgroundColor());
-        case Property::BackgroundOpacity:
-            return makeStyleProperty(getBackgroundOpacity());
-        case Property::BackgroundPattern:
-            return makeStyleProperty(getBackgroundPattern());
-        case Property::BackgroundColorTransition:
-            return makeStyleProperty(getBackgroundColorTransition());
-        case Property::BackgroundOpacityTransition:
-            return makeStyleProperty(getBackgroundOpacityTransition());
-        case Property::BackgroundPatternTransition:
-            return makeStyleProperty(getBackgroundPatternTransition());
-    }
-    return {};
+    return getLayerProperty(*this, name);
 }
 
 Mutable<Layer::Impl> BackgroundLayer::mutableBaseImpl() const {
@@ -264,3 +284,5 @@ Mutable<Layer::Impl> BackgroundLayer::mutableBaseImpl() const {
 
 } // namespace style
 } // namespace mbgl
+
+// clang-format on

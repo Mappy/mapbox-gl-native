@@ -11,15 +11,15 @@ Map::Impl::Impl(RendererFrontend& frontend_,
                 MapObserver& observer_,
                 std::shared_ptr<FileSource> fileSource_,
                 const MapOptions& mapOptions)
-        : observer(observer_),
-          rendererFrontend(frontend_),
-          transform(observer, mapOptions.constrainMode(), mapOptions.viewportMode()),
-          mode(mapOptions.mapMode()),
-          pixelRatio(mapOptions.pixelRatio()),
-          crossSourceCollisions(mapOptions.crossSourceCollisions()),
-          fileSource(std::move(fileSource_)),
-          style(std::make_unique<style::Style>(*fileSource, pixelRatio)),
-          annotationManager(*style) {
+    : observer(observer_),
+      rendererFrontend(frontend_),
+      transform(observer, mapOptions.constrainMode(), mapOptions.viewportMode()),
+      mode(mapOptions.mapMode()),
+      pixelRatio(mapOptions.pixelRatio()),
+      crossSourceCollisions(mapOptions.crossSourceCollisions()),
+      fileSource(std::move(fileSource_)),
+      style(std::make_unique<style::Style>(fileSource, pixelRatio)),
+      annotationManager(*style) {
     transform.setNorthOrientation(mapOptions.northOrientation());
     style->impl->setObserver(this);
     rendererFrontend.setObserver(*this);
@@ -48,26 +48,24 @@ void Map::Impl::onUpdate() {
 
     transform.updateTransitions(timePoint);
 
-    UpdateParameters params = {
-        style->impl->isLoaded(),
-        mode,
-        pixelRatio,
-        debugOptions,
-        timePoint,
-        transform.getState(),
-        style->impl->getGlyphURL(),
-        style->impl->spriteLoaded,
-        style->impl->getTransitionOptions(),
-        style->impl->getLight()->impl,
-        style->impl->getImageImpls(),
-        style->impl->getSourceImpls(),
-        style->impl->getLayerImpls(),
-        annotationManager,
-        fileSource,
-        prefetchZoomDelta,
-        bool(stillImageRequest),
-        crossSourceCollisions
-    };
+    UpdateParameters params = {style->impl->isLoaded(),
+                               mode,
+                               pixelRatio,
+                               debugOptions,
+                               timePoint,
+                               transform.getState(),
+                               style->impl->getGlyphURL(),
+                               style->impl->spriteLoaded,
+                               style->impl->getTransitionOptions(),
+                               style->impl->getLight()->impl,
+                               style->impl->getImageImpls(),
+                               style->impl->getSourceImpls(),
+                               style->impl->getLayerImpls(),
+                               annotationManager.makeWeakPtr(),
+                               fileSource,
+                               prefetchZoomDelta,
+                               bool(stillImageRequest),
+                               crossSourceCollisions};
 
     rendererFrontend.update(std::make_shared<UpdateParameters>(std::move(params)));
 }
@@ -170,10 +168,7 @@ void Map::Impl::jumpTo(const CameraOptions& camera) {
 }
 
 void Map::Impl::onStyleImageMissing(const std::string& id, std::function<void()> done) {
-
-    if (style->getImage(id) == nullptr) {
-        observer.onStyleImageMissing(id);
-    }
+    if (!style->getImage(id)) observer.onStyleImageMissing(id);
 
     done();
     onUpdate();

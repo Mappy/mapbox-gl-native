@@ -8,7 +8,7 @@
 
 namespace mbgl {
 
-Renderer::Renderer(gfx::RendererBackend& backend, float pixelRatio_, const optional<std::string> localFontFamily_)
+Renderer::Renderer(gfx::RendererBackend& backend, float pixelRatio_, const optional<std::string>& localFontFamily_)
     : impl(std::make_unique<Impl>(backend, pixelRatio_, localFontFamily_)) {}
 
 Renderer::~Renderer() {
@@ -25,7 +25,8 @@ void Renderer::setObserver(RendererObserver* observer) {
     impl->orchestrator.setObserver(observer);
 }
 
-void Renderer::render(const UpdateParameters& updateParameters) {
+void Renderer::render(const std::shared_ptr<UpdateParameters>& updateParameters) {
+    assert(updateParameters);
     if (auto renderTree = impl->orchestrator.createRenderTree(updateParameters)) {
         renderTree->prepare();
         impl->render(*renderTree);
@@ -124,10 +125,22 @@ void Renderer::dumpDebugLogs() {
     impl->orchestrator.dumpDebugLogs();
 }
 
+void Renderer::collectPlacedSymbolData(bool enable) {
+    impl->orchestrator.collectPlacedSymbolData(enable);
+}
+
+const std::vector<PlacedSymbolData>& Renderer::getPlacedSymbolsData() const {
+    return impl->orchestrator.getPlacedSymbolsData();
+}
+
 void Renderer::reduceMemoryUse() {
     gfx::BackendScope guard { impl->backend };
     impl->reduceMemoryUse();
     impl->orchestrator.reduceMemoryUse();
+}
+
+void Renderer::clearData() {
+    impl->orchestrator.clearData();
 }
 
 } // namespace mbgl

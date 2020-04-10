@@ -1,16 +1,17 @@
 #pragma once
 
-#include <mbgl/renderer/bucket.hpp>
-#include <mbgl/map/mode.hpp>
-#include <mbgl/gfx/vertex_buffer.hpp>
 #include <mbgl/gfx/index_buffer.hpp>
-#include <mbgl/programs/segment.hpp>
-#include <mbgl/programs/symbol_program.hpp>
-#include <mbgl/programs/collision_box_program.hpp>
-#include <mbgl/text/glyph_range.hpp>
-#include <mbgl/style/layers/symbol_layer_properties.hpp>
+#include <mbgl/gfx/vertex_buffer.hpp>
 #include <mbgl/layout/symbol_feature.hpp>
 #include <mbgl/layout/symbol_instance.hpp>
+#include <mbgl/map/mode.hpp>
+#include <mbgl/programs/collision_box_program.hpp>
+#include <mbgl/programs/segment.hpp>
+#include <mbgl/programs/symbol_program.hpp>
+#include <mbgl/renderer/bucket.hpp>
+#include <mbgl/style/layers/symbol_layer_properties.hpp>
+#include <mbgl/text/glyph_range.hpp>
+#include <mbgl/text/placement.hpp>
 
 #include <vector>
 
@@ -71,8 +72,9 @@ public:
                  float zoom,
                  bool iconsNeedLinear,
                  bool sortFeaturesByY,
-                 const std::string bucketLeaderID,
+                 std::string bucketName_,
                  const std::vector<SymbolInstance>&&,
+                 const std::vector<SortKeyRange>&&,
                  const float tilePixelRatio,
                  bool allowVerticalPlacement,
                  std::vector<style::TextWritingModeType> placementModes,
@@ -81,8 +83,8 @@ public:
 
     void upload(gfx::UploadPass&) override;
     bool hasData() const override;
-    std::pair<uint32_t, bool> registerAtCrossTileIndex(CrossTileSymbolLayerIndex&, const OverscaledTileID&, uint32_t& maxCrossTileID) override;
-    void place(Placement&, const BucketPlacementParameters&, std::set<uint32_t>&) override;
+    std::pair<uint32_t, bool> registerAtCrossTileIndex(CrossTileSymbolLayerIndex&, const RenderTile&) override;
+    void place(Placement&, const BucketPlacementData&, std::set<uint32_t>&) override;
     void updateVertices(
         const Placement&, bool updateOpacities, const TransformState&, const RenderTile&, std::set<uint32_t>&) override;
     bool hasTextData() const;
@@ -96,8 +98,11 @@ public:
 
 
     void sortFeatures(const float angle);
-    // The result contains references to the `symbolInstances` items, sorted by viewport Y.
-    std::vector<std::reference_wrapper<const SymbolInstance>> getSortedSymbols(const float angle) const;
+    // Returns references to the `symbolInstances` items, sorted by viewport Y.
+    SymbolInstanceReferences getSortedSymbols(const float angle) const;
+    // Returns references to the `symbolInstances` items, which belong to the `sortKeyRange` range;
+    // returns references to all the symbols if |sortKeyRange| is `nullopt`.
+    SymbolInstanceReferences getSymbols(const optional<SortKeyRange>& sortKeyRange = nullopt) const;
 
     Immutable<style::SymbolLayoutProperties::PossiblyEvaluated> layout;
     const std::string bucketLeaderID;
@@ -114,8 +119,10 @@ public:
     // Set and used by placement.
     mutable bool justReloaded : 1;
     bool hasVariablePlacement : 1;
+    bool hasUninitializedSymbols : 1;
 
     std::vector<SymbolInstance> symbolInstances;
+    const std::vector<SortKeyRange> sortKeyRanges;
 
     struct PaintProperties {
         SymbolIconProgram::Binders iconBinders;

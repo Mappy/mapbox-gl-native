@@ -1,21 +1,31 @@
 # Mapbox GL Native
 
-A library for embedding interactive, customizable vector maps into native applications on multiple platforms. It takes stylesheets that conform to the [Mapbox Style Specification](https://github.com/mapbox/mapbox-gl-style-spec/), applies them to vector tiles that conform to the [Mapbox Vector Tile Specification](https://github.com/mapbox/vector-tile-spec), and renders them using OpenGL. [Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js) is the WebGL-based counterpart, designed for use on the Web.
+[![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) [![Coverage Status](https://codecov.io/gh/mapbox/mapbox-gl-native/branch/master/graph/badge.svg)](https://codecov.io/gh/mapbox/mapbox-gl-native)
 
-## The Mapbox GL ecosystem
+A C++ library that powers customizable vector maps in native applications on multiple platforms by taking stylesheets that conform to the [Mapbox Style Specification](https://docs.mapbox.com/mapbox-gl-js/style-spec/), applying them to vector tiles that conform to the [Mapbox Vector Tile Specification](https://github.com/mapbox/vector-tile-spec/), and rendering them using OpenGL or Metal.
 
-This repository hosts the cross-platform Mapbox GL Native library, plus convenient SDKs for several platforms. The cross-platform library comes with a [GLFW](https://github.com/glfw/glfw)-based demo application for Ubuntu Linux and macOS. The SDKs target the usual languages on their respective platforms:
+To embed interactive maps into a native application using a platform-specific language, install the Mapbox Maps SDK:
 
-| SDK                                     | Languages                          | Build status                             |
-| --------------------------------------- | ---------------------------------- | ---------------------------------------- |
-| [Mapbox GL Native](INSTALL.md)          | C++14                              | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) [![Coverage Status](https://codecov.io/gh/mapbox/mapbox-gl-native/branch/master/graph/badge.svg)](https://codecov.io/gh/mapbox/mapbox-gl-native) |
-| [Mapbox Maps SDK for Android](https://github.com/mapbox/mapbox-gl-native-android) | Java | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native-android.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native-android/tree/master) |
-| [Mapbox Maps SDK for iOS](platform/ios/)         | Objective-C or Swift               | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) |
-| [Mapbox Maps SDK for macOS](platform/macos/)     | Objective-C, Swift, or AppleScript | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) |
-| [node-mapbox-gl-native](platform/node/) | Node.js                            | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) |
-| [Mapbox Maps SDK for Qt](platform/qt)            | C++03                              | [![Circle CI build status](https://circleci.com/gh/mapbox/mapbox-gl-native.svg?style=shield)](https://circleci.com/gh/mapbox/workflows/mapbox-gl-native/tree/master) [![AppVeyor CI build status](https://ci.appveyor.com/api/projects/status/3q12kbcooc6df8uc?svg=true)](https://ci.appveyor.com/project/Mapbox/mapbox-gl-native) |
+* [Mapbox Maps SDK for Android](https://github.com/mapbox/mapbox-gl-native-android/) (Java, Kotlin)
+* [Mapbox Maps SDK for iOS](https://github.com/mapbox/mapbox-gl-native-ios/blob/master/platform/ios/) (Objective-C, Swift, Interface Builder)
+* [Mapbox Maps SDK for macOS](https://github.com/mapbox/mapbox-gl-native-ios/tree/master/platform/macos/) (Objective-C, Swift, Interface Builder, AppleScript)
 
-[Additional Mapbox GL Native–based libraries](https://wiki.openstreetmap.org/wiki/Mapbox_GL#Libraries) for **hybrid applications** are developed outside of this repository. If your platform or hybrid application framework isn’t listed there, consider embedding [Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js) using the standard Web capabilities on your platform.
+[Mapbox GL JS](https://github.com/mapbox/mapbox-gl-js) is the WebGL-based counterpart to Mapbox GL Native that is designed for use on the Web.
+
+## [Developing](DEVELOPING.md)
+
+We use [CMake](https://cmake.org/cmake/help/latest/) to build Mapbox GL Native
+for various platforms, including Linux, Android, iOS, macOS and Windows. The
+following command, executed from the root of this repository tree, will build
+Mapbox GL Native targeting your host architecture given that you have all the
+dependencies installed and run the example app.
+
+```
+$ git submodule update --init --recursive
+$ cmake . -B build
+$ cmake --build build
+$ MAPBOX_ACCESS_TOKEN=my_access_token_here ./build/platform/glfw/mbgl-glfw
+```
 
 ## License
 

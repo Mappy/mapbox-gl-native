@@ -9,14 +9,11 @@ static constexpr uint32_t padding = 1;
 
 ImagePosition::ImagePosition(const mapbox::Bin& bin, const style::Image::Impl& image, uint32_t version_)
     : pixelRatio(image.pixelRatio),
-      textureRect(
-        bin.x + padding,
-        bin.y + padding,
-        bin.w - padding * 2,
-        bin.h - padding * 2
-      ),
-      version(version_) {
-}
+      paddedRect(bin.x, bin.y, bin.w, bin.h),
+      version(version_),
+      stretchX(image.stretchX),
+      stretchY(image.stretchY),
+      content(image.content) {}
 
 const mapbox::Bin& _packImage(mapbox::ShelfPack& pack, const style::Image::Impl& image, ImageAtlas& resultImage, ImageType imageType) {
     const mapbox::Bin& bin = *pack.packOne(-1,
@@ -36,10 +33,10 @@ const mapbox::Bin& _packImage(mapbox::ShelfPack& pack, const style::Image::Impl&
                                 bin.y + padding
                              },
                              image.image.size);
-    uint32_t x = bin.x + padding,
-            y = bin.y + padding,
-            w = image.image.size.width,
-            h = image.image.size.height;
+    uint32_t x = bin.x + padding;
+    uint32_t y = bin.y + padding;
+    uint32_t w = image.image.size.width;
+    uint32_t h = image.image.size.height;
 
     if (imageType == ImageType::Pattern) {
             // Add 1 pixel wrapped padding on each side of the image.
@@ -68,7 +65,7 @@ void populateImagePatches(
             auto updatedImage = imageManager.getSharedImage(name);
             if (updatedImage == nullptr) continue;
 
-            patches.emplace_back(*updatedImage, position.textureRect);
+            patches.emplace_back(*updatedImage, position.paddedRect);
             position.version = version;
         }
     }

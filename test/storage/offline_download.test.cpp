@@ -6,7 +6,6 @@
 #include <mbgl/test/sqlite3_test_fs.hpp>
 
 #include <mbgl/gfx/headless_frontend.hpp>
-#include <mbgl/storage/default_file_source.hpp>
 #include <mbgl/storage/offline.hpp>
 #include <mbgl/storage/offline_database.hpp>
 #include <mbgl/storage/offline_download.hpp>
@@ -64,7 +63,7 @@ public:
     }
 
     util::RunLoop loop;
-    StubOnlineFileSource fileSource;
+    StubFileSource fileSource;
     OfflineDatabase db;
     std::size_t size = 0;
 
@@ -386,7 +385,7 @@ TEST(OfflineDownload, DoesNotFloodTheFileSourceWithRequests) {
     fileSource.respond(Resource::Kind::Style, test.response("style.json"));
     test.loop.runOnce();
 
-    EXPECT_EQ(fileSource.getMaximumConcurrentRequests(), fileSource.requests.size());
+    EXPECT_EQ(*fileSource.getProperty(MAX_CONCURRENT_REQUESTS_KEY).getUint(), fileSource.requests.size());
 }
 
 TEST(OfflineDownload, GetStatusNoResources) {
@@ -757,7 +756,6 @@ TEST(OfflineDownload, Deactivate) {
     test.loop.run();
 }
 
-
 TEST(OfflineDownload, AllOfflineRequestsHaveLowPriorityAndOfflineUsage) {
     OfflineTest test;
     auto region = test.createRegion();
@@ -822,7 +820,6 @@ TEST(OfflineDownload, AllOfflineRequestsHaveLowPriorityAndOfflineUsage) {
 
     test.loop.run();
 }
-
 
 #ifndef __QT__ // Qt doesn't expose the ability to register virtual file system handlers.
 TEST(OfflineDownload, DiskFull) {
@@ -947,3 +944,190 @@ TEST(OfflineDownload, ResourceOfflineUsageUnset) {
     test.loop.run();
 }
 #endif // __QT__
+
+// Test verifies that resource batch buffer is cleared at loading interrupt.
+TEST(OfflineDownload, InterruptAndResume) {
+    OfflineTest test;
+    auto region = test.createRegion();
+    ASSERT_TRUE(region);
+    OfflineDownload download(region->getID(),
+                             OfflineTilePyramidRegionDefinition(
+                                 "http://127.0.0.1:3000/style.json", LatLngBounds::world(), 0.0, 0.0, 1.0, true),
+                             test.db,
+                             test.fileSource);
+
+    test.fileSource.styleResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/style.json", resource.url);
+        return test.response("style.json");
+    };
+
+    test.fileSource.spriteImageResponse = [&](const Resource& resource) {
+        EXPECT_TRUE(resource.url == "http://127.0.0.1:3000/sprite.png" ||
+                    resource.url == "http://127.0.0.1:3000/sprite@2x.png");
+        return test.response("sprite.png");
+    };
+
+    test.fileSource.imageResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/radar.gif", resource.url);
+        return test.response("radar.gif");
+    };
+
+    test.fileSource.spriteJSONResponse = [&](const Resource& resource) {
+        EXPECT_TRUE(resource.url == "http://127.0.0.1:3000/sprite.json" ||
+                    resource.url == "http://127.0.0.1:3000/sprite@2x.json");
+        return test.response("sprite.json");
+    };
+
+    test.fileSource.glyphsResponse = [&](const Resource&) { return test.response("glyph.pbf"); };
+
+    test.fileSource.sourceResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/streets.json", resource.url);
+        return test.response("streets.json");
+    };
+
+    test.fileSource.tileResponse = [&](const Resource& resource) {
+        const Resource::TileData& tile = *resource.tileData;
+        EXPECT_EQ("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", tile.urlTemplate);
+        EXPECT_EQ(1, tile.pixelRatio);
+        EXPECT_EQ(0, tile.x);
+        EXPECT_EQ(0, tile.y);
+        EXPECT_EQ(0, tile.z);
+        return test.response("0-0-0.vector.pbf");
+    };
+
+    auto observer = std::make_unique<MockObserver>();
+    bool interrupted = false;
+    observer->statusChangedFn = [&](OfflineRegionStatus status) {
+        if (!interrupted && status.completedResourceCount > 0) {
+            interrupted = true;
+            assert(!status.complete());
+            test.loop.schedule([&]() {
+                download.setState(OfflineRegionDownloadState::Inactive);
+                test.loop.stop();
+            });
+        }
+    };
+
+    download.setObserver(std::move(observer));
+    download.setState(OfflineRegionDownloadState::Active);
+    test.loop.run();
+
+    auto newObserver = std::make_unique<MockObserver>();
+    newObserver->statusChangedFn = [&](OfflineRegionStatus status) {
+        if (status.complete()) {
+            EXPECT_EQ(status.completedTileCount, status.requiredTileCount);
+            EXPECT_EQ(264u, status.completedResourceCount); // 256 glyphs, 2 sprite images, 2 sprite jsons, 1 tile, 1
+                                                            // style, source, image
+            test.loop.stop();
+        }
+    };
+
+    download.setObserver(std::move(newObserver));
+    download.setState(OfflineRegionDownloadState::Active);
+    test.loop.run();
+}
+
+TEST(OfflineDownload, NoFreezingOnCachedTilesAndNewStyle) {
+    OfflineTest test;
+    auto region = test.createRegion();
+    ASSERT_TRUE(region);
+    OfflineDownload download(region->getID(),
+                             OfflineTilePyramidRegionDefinition(
+                                 "http://127.0.0.1:3000/style.json", LatLngBounds::world(), 1.0, 1.0, 1.0, true),
+                             test.db,
+                             test.fileSource);
+
+    test.fileSource.setProperty(MAX_CONCURRENT_REQUESTS_KEY, 2u);
+    test.fileSource.styleResponse = [&](const Resource&) { return test.response("inline_source.style.json"); };
+    // Number of resources must exceed MAX_CONCURRENT_REQUESTS_KEY
+    test.db.put(Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 0, 1, Tileset::Scheme::XYZ),
+                test.response("0-0-0.vector.pbf"));
+    test.db.put(Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 0, 1, 1, Tileset::Scheme::XYZ),
+                test.response("0-0-0.vector.pbf"));
+    test.db.put(Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 1, 0, 1, Tileset::Scheme::XYZ),
+                test.response("0-0-0.vector.pbf"));
+    test.db.put(Resource::tile("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", 1, 1, 1, 1, Tileset::Scheme::XYZ),
+                test.response("0-0-0.vector.pbf"));
+
+    auto observer = std::make_unique<MockObserver>();
+    observer->statusChangedFn = [&](OfflineRegionStatus status) {
+        if (status.complete()) {
+            test.loop.stop();
+        }
+    };
+
+    download.setObserver(std::move(observer));
+    download.setState(OfflineRegionDownloadState::Active);
+
+    test.loop.run();
+    // Passes if does not freeze.
+}
+
+TEST(OfflineDownload, NoFreezingOnNotFoundError) {
+    OfflineTest test;
+    auto region = test.createRegion();
+    ASSERT_TRUE(region);
+    OfflineDownload download(region->getID(),
+                             OfflineTilePyramidRegionDefinition(
+                                 "http://127.0.0.1:3000/style.json", LatLngBounds::world(), 0.0, 0.0, 1.0, true),
+                             test.db,
+                             test.fileSource);
+
+    test.fileSource.styleResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/style.json", resource.url);
+        return test.response("style.json");
+    };
+
+    test.fileSource.spriteImageResponse = [&](const Resource& resource) {
+        EXPECT_TRUE(resource.url == "http://127.0.0.1:3000/sprite.png" ||
+                    resource.url == "http://127.0.0.1:3000/sprite@2x.png");
+        return test.response("sprite.png");
+    };
+
+    test.fileSource.imageResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/radar.gif", resource.url);
+        return test.response("radar.gif");
+    };
+
+    test.fileSource.spriteJSONResponse = [&](const Resource&) {
+        Response response;
+        response.error = std::make_unique<Response::Error>(Response::Error::Reason::NotFound);
+        return response;
+    };
+
+    test.fileSource.glyphsResponse = [&](const Resource&) { return test.response("glyph.pbf"); };
+
+    test.fileSource.sourceResponse = [&](const Resource& resource) {
+        EXPECT_EQ("http://127.0.0.1:3000/streets.json", resource.url);
+        return test.response("streets.json");
+    };
+
+    test.fileSource.tileResponse = [&](const Resource& resource) {
+        const Resource::TileData& tile = *resource.tileData;
+        EXPECT_EQ("http://127.0.0.1:3000/{z}-{x}-{y}.vector.pbf", tile.urlTemplate);
+        EXPECT_EQ(1, tile.pixelRatio);
+        EXPECT_EQ(0, tile.x);
+        EXPECT_EQ(0, tile.y);
+        EXPECT_EQ(0, tile.z);
+        return test.response("0-0-0.vector.pbf");
+    };
+
+    auto observer = std::make_unique<MockObserver>();
+    bool errorReported = false;
+    observer->responseErrorFn = [&](Response::Error error) {
+        EXPECT_EQ(Response::Error::Reason::NotFound, error.reason);
+        errorReported = true;
+    };
+    observer->statusChangedFn = [&](OfflineRegionStatus status) {
+        if (status.complete()) {
+            EXPECT_TRUE(errorReported);
+            test.loop.stop();
+        }
+    };
+
+    download.setObserver(std::move(observer));
+    download.setState(OfflineRegionDownloadState::Active);
+
+    test.loop.run();
+    // Passes if does not freeze.
+}

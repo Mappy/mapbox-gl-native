@@ -2,6 +2,7 @@
 #include <mbgl/map/map_observer.hpp>
 #include <mbgl/renderer/renderer.hpp>
 #include <mbgl/renderer/renderer_observer.hpp>
+#include <mbgl/storage/file_source_manager.hpp>
 #include <mbgl/style/image.hpp>
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/light.hpp>
@@ -10,8 +11,10 @@
 #include <mbgl/util/chrono.hpp>
 #include <mbgl/util/image.hpp>
 #include <mbgl/util/io.hpp>
+#include <mbgl/util/projection.hpp>
 #include <mbgl/util/run_loop.hpp>
 #include <mbgl/util/string.hpp>
+#include <mbgl/util/tile_cover.hpp>
 
 #include <mapbox/pixelmatch.hpp>
 
@@ -84,7 +87,26 @@ std::string simpleDiff(const Value& result, const Value& expected) {
 }
 
 TestRunner::TestRunner(Manifest manifest_, UpdateResults updateResults_)
-    : manifest(std::move(manifest_)), updateResults(updateResults_) {}
+    : manifest(std::move(manifest_)), updateResults(updateResults_) {
+    registerProxyFileSource();
+}
+
+void TestRunner::registerProxyFileSource() {
+    static std::once_flag registerProxyFlag;
+    std::call_once(registerProxyFlag, [] {
+        auto* fileSourceManager = mbgl::FileSourceManager::get();
+
+        auto resourceLoaderFactory =
+            fileSourceManager->unRegisterFileSourceFactory(mbgl::FileSourceType::ResourceLoader);
+        auto factory = [defaultFactory = std::move(resourceLoaderFactory)](const mbgl::ResourceOptions& options) {
+            assert(defaultFactory);
+            std::shared_ptr<FileSource> fileSource = defaultFactory(options);
+            return std::make_unique<ProxyFileSource>(std::move(fileSource), options);
+        };
+
+        fileSourceManager->registerFileSourceFactory(mbgl::FileSourceType::ResourceLoader, std::move(factory));
+    });
+}
 
 const Manifest& TestRunner::getManifest() const {
     return manifest;
@@ -94,7 +116,7 @@ void TestRunner::doShuffle(uint32_t seed) {
     manifest.doShuffle(seed);
 }
 
-bool TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
+void TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
                                        std::vector<mbgl::Feature>&& features,
                                        TestMetadata& metadata) {
     const std::string& base = metadata.paths.defaultExpectations();
@@ -104,23 +126,27 @@ bool TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
 
     if (actualImage.size.isEmpty()) {
         metadata.errorMessage = "Invalid size for actual image";
-        return false;
+        metadata.renderErrored++;
+        return;
     }
 
     metadata.actualJson = toJSON(features, 2, false);
 
     if (metadata.actualJson.empty()) {
         metadata.errorMessage = "Invalid size for actual JSON";
-        return false;
+        metadata.renderErrored++;
+        return;
     }
 
     if (updateResults == UpdateResults::PLATFORM) {
         mbgl::filesystem::create_directories(expectations.back());
         mbgl::util::write_file(expectations.back().string() + "/expected.json", metadata.actualJson);
-        return true;
+        metadata.renderErrored++;
+        return;
     } else if (updateResults == UpdateResults::DEFAULT) {
         mbgl::util::write_file(base + "/expected.json", metadata.actualJson);
-        return true;
+        metadata.renderErrored++;
+        return;
     }
 
     mbgl::util::write_file(base + "/actual.json", metadata.actualJson);
@@ -136,7 +162,8 @@ bool TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
 
     if (expectedJsonPaths.empty()) {
         metadata.errorMessage = "Failed to find expectations for: " + metadata.paths.stylePath.string();
-        return false;
+        metadata.renderErrored++;
+        return;
     }
 
     for (const auto& entry : expectedJsonPaths) {
@@ -148,7 +175,8 @@ bool TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
             actual.Parse<0>(metadata.actualJson);
             if (actual.HasParseError()) {
                 metadata.errorMessage = "Error parsing actual JSON for: " + metadata.paths.stylePath.string();
-                return false;
+                metadata.renderErrored++;
+                return;
             }
 
             auto actualVal = mapbox::geojson::convert<mapbox::geojson::value>(actual);
@@ -160,17 +188,17 @@ bool TestRunner::checkQueryTestResults(mbgl::PremultipliedImage&& actualImage,
                 metadata.diff = "Match";
             } else {
                 metadata.diff = simpleDiff(actualVal, expectedVal);
+                metadata.renderFailed++;
             }
         } else {
             metadata.errorMessage = "Failed to load expected JSON " + entry;
-            return false;
+            metadata.renderErrored++;
+            return;
         }
     }
-
-    return true;
 }
 
-bool TestRunner::checkRenderTestResults(mbgl::PremultipliedImage&& actualImage, TestMetadata& metadata) {
+void TestRunner::checkRenderTestResults(mbgl::PremultipliedImage&& actualImage, TestMetadata& metadata) {
     const std::string& base = metadata.paths.defaultExpectations();
     const std::vector<mbgl::filesystem::path>& expectations = metadata.paths.expectations;
 
@@ -179,16 +207,19 @@ bool TestRunner::checkRenderTestResults(mbgl::PremultipliedImage&& actualImage, 
 
         if (actualImage.size.isEmpty()) {
             metadata.errorMessage = "Invalid size for actual image";
-            return false;
+            metadata.renderErrored++;
+            return;
         }
 
         if (updateResults == UpdateResults::PLATFORM) {
             mbgl::filesystem::create_directories(expectations.back());
             mbgl::util::write_file(expectations.back().string() + "/expected.png", mbgl::encodePNG(actualImage));
-            return true;
+            metadata.renderErrored++;
+            return;
         } else if (updateResults == UpdateResults::DEFAULT) {
             mbgl::util::write_file(base + "/expected.png", mbgl::encodePNG(actualImage));
-            return true;
+            metadata.renderErrored++;
+            return;
         }
 
         mbgl::util::write_file(base + "/actual.png", metadata.actual);
@@ -207,14 +238,16 @@ bool TestRunner::checkRenderTestResults(mbgl::PremultipliedImage&& actualImage, 
 
         if (expectedImagesPaths.empty()) {
             metadata.errorMessage = "Failed to find expectations for: " + metadata.paths.stylePath.string();
-            return false;
+            metadata.renderErrored++;
+            return;
         }
 
         for (const auto& entry : expectedImagesPaths) {
             mbgl::optional<std::string> maybeExpectedImage = mbgl::util::readFile(entry);
             if (!maybeExpectedImage) {
                 metadata.errorMessage = "Failed to load expected image " + entry;
-                return false;
+                metadata.renderErrored++;
+                return;
             }
 
             metadata.expected = *maybeExpectedImage;
@@ -238,12 +271,15 @@ bool TestRunner::checkRenderTestResults(mbgl::PremultipliedImage&& actualImage, 
                 break;
             }
         }
+
+        if (metadata.difference > metadata.allowed) {
+            metadata.renderFailed++;
+        }
     }
-    return true;
 }
 
-bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
-    if (resultMetadata.metrics.isEmpty() || resultMetadata.ignoredTest) return true;
+void TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
+    if (resultMetadata.metrics.isEmpty()) return;
     const auto writeMetrics = [&resultMetadata](const mbgl::filesystem::path& path,
                                                 const std::string& message = std::string()) {
         mbgl::filesystem::create_directories(path);
@@ -254,7 +290,8 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
     const std::vector<mbgl::filesystem::path>& expectedMetrics = resultMetadata.paths.expectedMetrics;
     if (updateResults == UpdateResults::METRICS) {
         writeMetrics(expectedMetrics.back(), " Updated expected metrics.");
-        return false;
+        resultMetadata.metricsErrored++;
+        return;
     }
 
     // Check the possible paths in reverse order, so that the default path with the test style will only be checked in
@@ -273,7 +310,8 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
         auto maybeExpectedMetrics = readExpectedMetrics(entry);
         if (maybeExpectedMetrics.isEmpty()) {
             resultMetadata.errorMessage = "Failed to load expected metrics " + entry;
-            return false;
+            resultMetadata.metricsErrored++;
+            return;
         }
         resultMetadata.expectedMetrics = maybeExpectedMetrics;
         break;
@@ -282,29 +320,30 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
     if (resultMetadata.expectedMetrics.isEmpty()) {
         resultMetadata.errorMessage =
             "Failed to find metric expectations for: " + resultMetadata.paths.stylePath.string();
-        if (updateResults == UpdateResults::REBASELINE) {
+        if (updateResults == UpdateResults::REBASELINE && !resultMetadata.ignoredTest) {
             writeMetrics(expectedMetrics.back(), ". Created baseline for missing metrics.");
         }
-        return false;
+        resultMetadata.metricsErrored++;
+        return;
     }
 
     // Check file size metrics.
-    auto checkFileSize = [](TestMetadata& metadata) -> bool {
-        if (metadata.metrics.fileSize.empty()) return true;
-        bool passed = true;
+    auto checkFileSize = [](TestMetadata& metadata) {
+        if (metadata.metrics.fileSize.empty()) return;
         for (const auto& expected : metadata.expectedMetrics.fileSize) {
             auto actual = metadata.metrics.fileSize.find(expected.first);
             if (actual == metadata.metrics.fileSize.end()) {
                 metadata.errorMessage = "Failed to find fileSize probe: " + expected.first;
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
             if (actual->second.path != expected.second.path) {
                 std::stringstream ss;
                 ss << "Comparing different files at probe \"" << expected.first << "\": " << actual->second.path
                    << ", expected is " << expected.second.path << ".";
                 metadata.errorMessage = ss.str();
-
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
 
             auto result = checkValue(expected.second.size, actual->second.size, actual->second.tolerance);
@@ -315,21 +354,20 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
                    << ".";
 
                 metadata.errorMessage += metadata.errorMessage.empty() ? ss.str() : "\n" + ss.str();
-                passed = false;
-                continue;
+                metadata.metricsFailed++;
             }
         }
-        return passed;
     };
-    auto checkMemory = [](TestMetadata& metadata) -> bool {
-        if (metadata.metrics.memory.empty()) return true;
+    auto checkMemory = [](TestMetadata& metadata) {
+        if (metadata.metrics.memory.empty()) return;
 #if !defined(SANITIZE)
         // Check memory metrics.
         for (const auto& expected : metadata.expectedMetrics.memory) {
             auto actual = metadata.metrics.memory.find(expected.first);
             if (actual == metadata.metrics.memory.end()) {
                 metadata.errorMessage = "Failed to find memory probe: " + expected.first;
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
             bool passed{false};
             float delta{0.0f};
@@ -339,6 +377,8 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
                 errorStream << "Allocated memory peak size at probe \"" << expected.first << "\" is "
                             << actual->second.peak << " bytes, expected is " << expected.second.peak << "±" << delta
                             << " bytes.";
+
+                metadata.metricsFailed++;
             }
 
             std::tie(passed, delta) = MemoryProbe::checkAllocations(expected.second, actual->second);
@@ -346,174 +386,154 @@ bool TestRunner::checkProbingResults(TestMetadata& resultMetadata) {
                 errorStream << "Number of allocations at probe \"" << expected.first << "\" is "
                             << actual->second.allocations << ", expected is " << expected.second.allocations << "±"
                             << std::round(delta) << " allocations.";
+
+                metadata.metricsFailed++;
             }
 
-            metadata.errorMessage = errorStream.str();
-            if (!metadata.errorMessage.empty()) return false;
+            metadata.errorMessage += metadata.errorMessage.empty() ? errorStream.str() : "\n" + errorStream.str();
         }
-
 #endif // !defined(SANITIZE)
-        return true;
     };
 
     // Check network metrics.
-    auto checkNetwork = [](TestMetadata& metadata) -> bool {
-        if (metadata.metrics.network.empty()) return true;
+    auto checkNetwork = [](TestMetadata& metadata) {
+        if (metadata.metrics.network.empty()) return;
 #if !defined(SANITIZE)
         for (const auto& expected : metadata.expectedMetrics.network) {
             auto actual = metadata.metrics.network.find(expected.first);
             if (actual == metadata.metrics.network.end()) {
                 metadata.errorMessage = "Failed to find network probe: " + expected.first;
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
-            bool failed = false;
+            std::stringstream ss;
             if (actual->second.requests != expected.second.requests) {
-                std::stringstream ss;
                 ss << "Number of requests at probe \"" << expected.first << "\" is " << actual->second.requests
                    << ", expected is " << expected.second.requests << ". ";
-
-                metadata.errorMessage = ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
             if (actual->second.transferred != expected.second.transferred) {
-                std::stringstream ss;
                 ss << "Transferred data at probe \"" << expected.first << "\" is " << actual->second.transferred
                    << " bytes, expected is " << expected.second.transferred << " bytes.";
-
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
-            if (failed) {
-                return false;
-            }
+            metadata.errorMessage += metadata.errorMessage.empty() ? ss.str() : "\n" + ss.str();
         }
 #endif // !defined(SANITIZE)
-        return true;
     };
     // Check fps metrics
-    auto checkFps = [](TestMetadata& metadata) -> bool {
-        if (metadata.metrics.fps.empty()) return true;
+    auto checkFps = [](TestMetadata& metadata) {
+        if (metadata.metrics.fps.empty()) return;
         for (const auto& expected : metadata.expectedMetrics.fps) {
             auto actual = metadata.metrics.fps.find(expected.first);
             if (actual == metadata.metrics.fps.end()) {
                 metadata.errorMessage = "Failed to find fps probe: " + expected.first;
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
             auto result = checkValue(expected.second.average, actual->second.average, expected.second.tolerance);
+            std::stringstream ss;
             if (!std::get<bool>(result)) {
-                std::stringstream ss;
                 ss << "Average fps at probe \"" << expected.first << "\" is " << actual->second.average
                    << ", expected to be " << expected.second.average << " with tolerance of "
                    << expected.second.tolerance;
-                metadata.errorMessage = ss.str();
-                return false;
+                metadata.metricsFailed++;
             }
             result = checkValue(expected.second.minOnePc, actual->second.minOnePc, expected.second.tolerance);
             if (!std::get<bool>(result)) {
-                std::stringstream ss;
                 ss << "Minimum(1%) fps at probe \"" << expected.first << "\" is " << actual->second.minOnePc
                    << ", expected to be " << expected.second.minOnePc << " with tolerance of "
                    << expected.second.tolerance;
-                metadata.errorMessage = ss.str();
-                return false;
+                metadata.metricsFailed++;
             }
+            metadata.errorMessage += metadata.errorMessage.empty() ? ss.str() : "\n" + ss.str();
         }
-        return true;
     };
     // Check gfx metrics
-    auto checkGfx = [](TestMetadata& metadata) -> bool {
-        if (metadata.metrics.gfx.empty()) return true;
+    auto checkGfx = [](TestMetadata& metadata) {
+        if (metadata.metrics.gfx.empty()) return;
         for (const auto& expected : metadata.expectedMetrics.gfx) {
             auto actual = metadata.metrics.gfx.find(expected.first);
             if (actual == metadata.metrics.gfx.end()) {
                 metadata.errorMessage = "Failed to find gfx probe: " + expected.first;
-                return false;
+                metadata.metricsErrored++;
+                return;
             }
 
             const auto& probeName = expected.first;
             const auto& expectedValue = expected.second;
             const auto& actualValue = actual->second;
-            bool failed = false;
+            std::stringstream ss;
 
             if (expectedValue.numDrawCalls != actualValue.numDrawCalls) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Number of draw calls at probe\"" << probeName << "\" is " << actualValue.numDrawCalls
                    << ", expected is " << expectedValue.numDrawCalls;
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.numTextures != actualValue.numTextures) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Number of textures at probe \"" << probeName << "\" is " << actualValue.numTextures
                    << ", expected is " << expectedValue.numTextures;
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.numBuffers != actualValue.numBuffers) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Number of vertex and index buffers at probe \"" << probeName << "\" is "
                    << actualValue.numBuffers << ", expected is " << expectedValue.numBuffers;
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.numFrameBuffers != actualValue.numFrameBuffers) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Number of frame buffers at probe \"" << probeName << "\" is " << actualValue.numFrameBuffers
                    << ", expected is " << expectedValue.numFrameBuffers;
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.memTextures.peak != actualValue.memTextures.peak) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Allocated texture memory peak size at probe \"" << probeName << "\" is "
                    << actualValue.memTextures.peak << " bytes, expected is " << expectedValue.memTextures.peak
                    << " bytes";
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.memIndexBuffers.peak != actualValue.memIndexBuffers.peak) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Allocated index buffer memory peak size at probe \"" << probeName << "\" is "
                    << actualValue.memIndexBuffers.peak << " bytes, expected is " << expectedValue.memIndexBuffers.peak
                    << " bytes";
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
             if (expectedValue.memVertexBuffers.peak != actualValue.memVertexBuffers.peak) {
-                std::stringstream ss;
                 if (!metadata.errorMessage.empty()) ss << std::endl;
                 ss << "Allocated vertex buffer memory peak size at probe \"" << probeName << "\" is "
                    << actualValue.memVertexBuffers.peak << " bytes, expected is " << expectedValue.memVertexBuffers.peak
                    << " bytes";
-                metadata.errorMessage += ss.str();
-                failed = true;
+                metadata.metricsFailed++;
             }
 
-            if (failed) return false;
+            metadata.errorMessage += metadata.errorMessage.empty() ? ss.str() : "\n" + ss.str();
         }
-        return true;
     };
 
-    bool checkResult = checkFileSize(resultMetadata) && checkMemory(resultMetadata) && checkNetwork(resultMetadata) &&
-                       checkFps(resultMetadata) && checkGfx(resultMetadata);
+    checkFileSize(resultMetadata);
+    checkMemory(resultMetadata);
+    checkNetwork(resultMetadata);
+    checkFps(resultMetadata);
+    checkGfx(resultMetadata);
 
-    if (!checkResult && updateResults == UpdateResults::REBASELINE) {
-        writeMetrics(expectedMetrics.back(), " Rebaselined expected metric for failed test.");
+    if (resultMetadata.ignoredTest) {
+        return;
     }
 
-    return checkResult;
+    if ((resultMetadata.metricsErrored || resultMetadata.metricsFailed) && updateResults == UpdateResults::REBASELINE) {
+        writeMetrics(expectedMetrics.back(), " Rebaselined expected metric for failed test.");
+    }
 }
 
 namespace {
@@ -621,6 +641,7 @@ TestOperations getAfterOperations(const Manifest& manifest) {
 }
 
 void resetContext(const TestMetadata& metadata, TestContext& ctx) {
+    ctx.getFrontend().getRenderer()->clearData();
     ctx.getFrontend().setSize(metadata.size);
     auto& map = ctx.getMap();
     map.setSize(metadata.size);
@@ -630,14 +651,33 @@ void resetContext(const TestMetadata& metadata, TestContext& ctx) {
                               .withYSkew(metadata.ySkew));
     map.setDebug(metadata.debug);
     map.getStyle().loadJSON(serializeJsonValue(metadata.document));
-    map.jumpTo(map.getStyle().getDefaultCamera());
+}
+
+LatLng getTileCenterCoordinates(const UnwrappedTileID& tileId) {
+    double scale = (1 << tileId.canonical.z);
+    Point<double> tileCenter{(tileId.canonical.x + 0.5) * util::tileSize, (tileId.canonical.y + 0.5) * util::tileSize};
+    return Projection::unproject(tileCenter, scale);
+}
+
+uint32_t getTileScreenPixelSize(float pixelRatio) {
+    return util::tileSize * pixelRatio;
+}
+
+uint32_t getImageTileOffset(const std::set<uint32_t>& dims, uint32_t dim, float pixelRatio) {
+    auto it = dims.find(dim);
+    if (it == dims.end()) {
+        assert(false);
+        return 0;
+    }
+    return static_cast<uint32_t>(std::distance(dims.begin(), it)) * getTileScreenPixelSize(pixelRatio);
 }
 
 } // namespace
 
-TestRunner::Impl::Impl(const TestMetadata& metadata)
+TestRunner::Impl::Impl(const TestMetadata& metadata, const mbgl::ResourceOptions& resourceOptions)
     : observer(std::make_unique<TestRunnerMapObserver>()),
       frontend(metadata.size, metadata.pixelRatio, swapBehavior(metadata.mapMode)),
+      fileSource(mbgl::FileSourceManager::get()->getFileSource(mbgl::FileSourceType::ResourceLoader, resourceOptions)),
       map(frontend,
           *observer.get(),
           mbgl::MapOptions()
@@ -645,11 +685,11 @@ TestRunner::Impl::Impl(const TestMetadata& metadata)
               .withSize(metadata.size)
               .withPixelRatio(metadata.pixelRatio)
               .withCrossSourceCollisions(metadata.crossSourceCollisions),
-          mbgl::ResourceOptions().withCacheOnlyRequestsSupport(false)) {}
+          resourceOptions) {}
 
 TestRunner::Impl::~Impl() {}
 
-bool TestRunner::run(TestMetadata& metadata) {
+void TestRunner::run(TestMetadata& metadata) {
     AllocationIndex::setActive(false);
     AllocationIndex::reset();
     ProxyFileSource::setTrackingActive(false);
@@ -664,6 +704,12 @@ bool TestRunner::run(TestMetadata& metadata) {
             assert(runnerImpl);
             return runnerImpl->map;
         }
+
+        FileSource& getFileSource() override {
+            assert(runnerImpl);
+            return *runnerImpl->fileSource;
+        }
+
         TestRunnerMapObserver& getObserver() override {
             assert(runnerImpl);
             return *runnerImpl->observer;
@@ -678,7 +724,7 @@ bool TestRunner::run(TestMetadata& metadata) {
 
     if (!metadata.ignoredTest) {
         for (const auto& operation : getBeforeOperations(manifest)) {
-            if (!operation(ctx)) return false;
+            if (!operation(ctx)) return;
         }
     }
 
@@ -687,35 +733,70 @@ bool TestRunner::run(TestMetadata& metadata) {
                       mbgl::util::toString(uint32_t(metadata.crossSourceCollisions));
 
     if (maps.find(key) == maps.end()) {
-        maps[key] = std::make_unique<TestRunner::Impl>(metadata);
+        maps[key] = std::make_unique<TestRunner::Impl>(
+            metadata,
+            mbgl::ResourceOptions().withCachePath(manifest.getCachePath()).withAccessToken(manifest.getAccessToken()));
     }
 
     ctx.runnerImpl = maps[key].get();
     auto& frontend = ctx.getFrontend();
+    auto& map = ctx.getMap();
 
     resetContext(metadata, ctx);
+    auto camera = map.getStyle().getDefaultCamera();
 
-    for (const auto& operation : parseTestOperations(metadata, manifest)) {
-        if (!operation(ctx)) return false;
-    }
+    HeadlessFrontend::RenderResult result{};
 
-    HeadlessFrontend::RenderResult result;
-    try {
-        if (metadata.outputsImage) result = frontend.render(ctx.getMap());
-    } catch (const std::exception&) {
-        return false;
+    if (metadata.mapMode == MapMode::Tile) {
+        assert(camera.zoom);
+        assert(camera.center);
+        auto tileIds = util::tileCover(map.latLngBoundsForCamera(camera), *camera.zoom);
+        assert(!tileIds.empty());
+        std::set<uint32_t> xDims;
+        std::set<uint32_t> yDims;
+
+        for (const auto& tileId : tileIds) {
+            xDims.insert(tileId.canonical.x);
+            yDims.insert(tileId.canonical.y);
+            assert(tileId.canonical.z == uint8_t(*camera.zoom));
+        }
+        auto tileScreenSize = getTileScreenPixelSize(metadata.pixelRatio);
+
+        result.image =
+            PremultipliedImage({uint32_t(xDims.size()) * tileScreenSize, uint32_t(yDims.size()) * tileScreenSize});
+        for (const auto& tileId : tileIds) {
+            resetContext(metadata, ctx);
+            auto cameraForTile{camera};
+            cameraForTile.withCenter(getTileCenterCoordinates(tileId));
+            map.jumpTo(cameraForTile);
+
+            auto resultForTile = runTest(metadata, ctx);
+            if (!resultForTile.image.valid()) {
+                metadata.errorMessage = "Failed rendering tile: " + util::toString(tileId);
+                return;
+            }
+
+            auto xOffset = getImageTileOffset(xDims, tileId.canonical.x, metadata.pixelRatio);
+            auto yOffset = getImageTileOffset(yDims, tileId.canonical.y, metadata.pixelRatio);
+            PremultipliedImage::copy(
+                resultForTile.image, result.image, {0, 0}, {xOffset, yOffset}, resultForTile.image.size);
+            result.stats += resultForTile.stats;
+        }
+    } else {
+        map.jumpTo(camera);
+        result = runTest(metadata, ctx);
     }
 
     if (!metadata.ignoredTest) {
         ctx.activeGfxProbe = GfxProbe(result.stats, ctx.activeGfxProbe);
         for (const auto& operation : getAfterOperations(manifest)) {
-            if (!operation(ctx)) return false;
+            if (!operation(ctx)) return;
         }
     }
 
     if (metadata.renderTest) {
-        (void)checkProbingResults(metadata);
-        return checkRenderTestResults(std::move(result.image), metadata);
+        checkProbingResults(metadata);
+        checkRenderTestResults(std::move(result.image), metadata);
     } else {
         std::vector<mbgl::Feature> features;
         assert(metadata.document["metadata"]["test"]["queryGeometry"].IsArray());
@@ -725,8 +806,22 @@ bool TestRunner::run(TestMetadata& metadata) {
         } else {
             features = frontend.getRenderer()->queryRenderedFeatures(metadata.queryGeometryBox, metadata.queryOptions);
         }
-        return checkQueryTestResults(std::move(result.image), std::move(features), metadata);
+        checkQueryTestResults(std::move(result.image), std::move(features), metadata);
     }
+}
+
+mbgl::HeadlessFrontend::RenderResult TestRunner::runTest(TestMetadata& metadata, TestContext& ctx) {
+    HeadlessFrontend::RenderResult result{};
+    for (const auto& operation : parseTestOperations(metadata)) {
+        if (!operation(ctx)) return result;
+    }
+
+    try {
+        if (metadata.outputsImage) result = ctx.getFrontend().render(ctx.getMap());
+    } catch (const std::exception& e) {
+        ctx.getMetadata().errorMessage = std::string("Renering raised an exception: ") + e.what();
+    }
+    return result;
 }
 
 void TestRunner::reset() {

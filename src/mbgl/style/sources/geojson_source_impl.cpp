@@ -13,19 +13,11 @@
 namespace mbgl {
 namespace style {
 
-class GeoJSONVTData : public GeoJSONData, public std::enable_shared_from_this<GeoJSONVTData> {
-public:
+class GeoJSONVTData final : public GeoJSONData {
     void getTile(const CanonicalTileID& id, const std::function<void(TileFeatures)>& fn) final {
         assert(fn);
-        std::weak_ptr<GeoJSONVTData> weak = shared_from_this();
         scheduler->scheduleAndReplyValue(
-            [id, weak, this]() -> TileFeatures {
-                if (auto self = weak.lock()) {
-                    return impl.getTile(id.z, id.x, id.y).features;
-                }
-                return {};
-            },
-            fn);
+            [id, impl = this->impl]() -> TileFeatures { return impl->getTile(id.z, id.x, id.y).features; }, fn);
     }
 
     Features getChildren(const std::uint32_t) final { return {}; }
@@ -36,16 +28,21 @@ public:
         return 0;
     }
 
-private:
+    std::shared_ptr<Scheduler> getScheduler() final { return scheduler; }
+
     friend GeoJSONData;
-    GeoJSONVTData(const GeoJSON& geoJSON, const mapbox::geojsonvt::Options& options)
-        : impl(geoJSON, options), scheduler(Scheduler::GetSequenced()) {}
-    mapbox::geojsonvt::GeoJSONVT impl;
+    GeoJSONVTData(const GeoJSON& geoJSON,
+                  const mapbox::geojsonvt::Options& options,
+                  std::shared_ptr<Scheduler> scheduler_)
+        : impl(std::make_shared<mapbox::geojsonvt::GeoJSONVT>(geoJSON, options)), scheduler(std::move(scheduler_)) {
+        assert(scheduler);
+    }
+
+    std::shared_ptr<mapbox::geojsonvt::GeoJSONVT> impl; // Accessed on worker thread.
     std::shared_ptr<Scheduler> scheduler;
 };
 
-class SuperclusterData : public GeoJSONData {
-public:
+class SuperclusterData final : public GeoJSONData {
     void getTile(const CanonicalTileID& id, const std::function<void(TileFeatures)>& fn) final {
         assert(fn);
         fn(impl.getTile(id.z, id.x, id.y));
@@ -61,7 +58,6 @@ public:
         return impl.getClusterExpansionZoom(cluster_id);
     }
 
-private:
     friend GeoJSONData;
     SuperclusterData(const Features& features, const mapbox::supercluster::Options& options)
         : impl(features, options) {}
@@ -83,7 +79,9 @@ T evaluateFeature(const mapbox::feature::feature<double>& f,
 }
 
 // static
-std::shared_ptr<GeoJSONData> GeoJSONData::create(const GeoJSON& geoJSON, Immutable<GeoJSONOptions> options) {
+std::shared_ptr<GeoJSONData> GeoJSONData::create(const GeoJSON& geoJSON,
+                                                 const Immutable<GeoJSONOptions>& options,
+                                                 std::shared_ptr<Scheduler> scheduler) {
     constexpr double scale = util::EXTENT / util::tileSize;
     if (options->cluster && geoJSON.is<Features>() && !geoJSON.get<Features>().empty()) {
         mapbox::supercluster::Options clusterOptions;
@@ -119,7 +117,8 @@ std::shared_ptr<GeoJSONData> GeoJSONData::create(const GeoJSON& geoJSON, Immutab
     vtOptions.buffer = ::round(scale * options->buffer);
     vtOptions.tolerance = scale * options->tolerance;
     vtOptions.lineMetrics = options->lineMetrics;
-    return std::shared_ptr<GeoJSONData>(new GeoJSONVTData(geoJSON, vtOptions));
+    if (!scheduler) scheduler = Scheduler::GetSequenced();
+    return std::shared_ptr<GeoJSONData>(new GeoJSONVTData(geoJSON, vtOptions, std::move(scheduler)));
 }
 
 GeoJSONSource::Impl::Impl(std::string id_, Immutable<GeoJSONOptions> options_)

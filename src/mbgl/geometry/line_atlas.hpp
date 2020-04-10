@@ -27,6 +27,13 @@ enum class LinePatternCap : bool {
     Round = true,
 };
 
+struct DashRange {
+    float left;
+    float right;
+    bool isDash;
+    bool isZeroLength;
+};
+
 class DashPatternTexture {
 public:
     DashPatternTexture(const std::vector<float>& from, const std::vector<float>& to, LinePatternCap);
@@ -61,6 +68,8 @@ public:
 
     // Uploads the textures to the GPU to be available when we need it.
     void upload(gfx::UploadPass&);
+
+    bool isEmpty() const { return textures.empty(); }
 
 private:
     std::map<size_t, DashPatternTexture> textures;

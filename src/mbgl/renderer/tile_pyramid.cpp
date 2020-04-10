@@ -57,7 +57,9 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
                          const uint16_t tileSize,
                          const Range<uint8_t> zoomRange,
                          optional<LatLngBounds> bounds,
-                         std::function<std::unique_ptr<Tile> (const OverscaledTileID&)> createTile) {
+                         std::function<std::unique_ptr<Tile>(const OverscaledTileID&)> createTile,
+                         const optional<uint8_t>& sourcePrefetchZoomDelta,
+                         const optional<uint8_t>& maxParentTileOverscaleFactor) {
     // If we need a relayout, abandon any cached tiles; they're now stale.
     if (needsRelayout) {
         cache.clear();
@@ -105,8 +107,10 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
         if (parameters.mode == MapMode::Continuous && type != style::SourceType::GeoJSON && type != style::SourceType::Annotations) {
             // Request lower zoom level tiles (if configured to do so) in an attempt
             // to show something on the screen faster at the cost of a little of bandwidth.
-            if (parameters.prefetchZoomDelta) {
-                panZoom = std::max<int32_t>(tileZoom - parameters.prefetchZoomDelta, zoomRange.min);
+            const uint8_t prefetchZoomDelta =
+                sourcePrefetchZoomDelta ? *sourcePrefetchZoomDelta : parameters.prefetchZoomDelta;
+            if (prefetchZoomDelta) {
+                panZoom = std::max<int32_t>(tileZoom - prefetchZoomDelta, zoomRange.min);
             }
 
             if (panZoom < idealZoom) {
@@ -142,7 +146,8 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
     // tiles are used from the cache, but not created.
     optional<util::TileRange> tileRange = {};
     if (bounds) {
-        tileRange = util::TileRange::fromLatLngBounds(*bounds, zoomRange.min, std::min(tileZoom, (int32_t)zoomRange.max));
+        tileRange = util::TileRange::fromLatLngBounds(
+            *bounds, zoomRange.min, std::min(tileZoom, static_cast<int32_t>(zoomRange.max)));
     }
     auto createTileFn = [&](const OverscaledTileID& tileID) -> Tile* {
         if (tileRange && !tileRange->contains(tileID.canonical)) {
@@ -173,13 +178,26 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
     renderedTiles.clear();
 
     if (!panTiles.empty()) {
-        algorithm::updateRenderables(getTileFn, createTileFn, retainTileFn,
-                [](const UnwrappedTileID&, Tile&) {}, panTiles, zoomRange, panZoom);
+        algorithm::updateRenderables(
+            getTileFn,
+            createTileFn,
+            retainTileFn,
+            [](const UnwrappedTileID&, Tile&) {},
+            panTiles,
+            zoomRange,
+            panZoom,
+            maxParentTileOverscaleFactor);
     }
 
-    algorithm::updateRenderables(getTileFn, createTileFn, retainTileFn, renderTileFn,
-                                 idealTiles, zoomRange, tileZoom);
-    
+    algorithm::updateRenderables(getTileFn,
+                                 createTileFn,
+                                 retainTileFn,
+                                 renderTileFn,
+                                 idealTiles,
+                                 zoomRange,
+                                 tileZoom,
+                                 maxParentTileOverscaleFactor);
+
     for (auto previouslyRenderedTile : previouslyRenderedTiles) {
         Tile& tile = previouslyRenderedTile.second;
         tile.markRenderedPreviously();
@@ -193,10 +211,9 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
 
     if (type != SourceType::Annotations) {
         size_t conservativeCacheSize =
-            std::max((float)parameters.transformState.getSize().width / tileSize, 1.0f) *
-            std::max((float)parameters.transformState.getSize().height / tileSize, 1.0f) *
-            (parameters.transformState.getMaxZoom() - parameters.transformState.getMinZoom() + 1) *
-            0.5;
+            std::max(static_cast<float>(parameters.transformState.getSize().width) / tileSize, 1.0f) *
+            std::max(static_cast<float>(parameters.transformState.getSize().height) / tileSize, 1.0f) *
+            (parameters.transformState.getMaxZoom() - parameters.transformState.getMinZoom() + 1) * 0.5;
         cache.setSize(conservativeCacheSize);
     }
 
@@ -261,7 +278,7 @@ void TilePyramid::handleWrapJump(float lng) {
 
     const float lngDifference = lng - prevLng;
     const float worldDifference = lngDifference / 360;
-    const int wrapDelta = ::round(worldDifference);
+    const int wrapDelta = std::round(worldDifference);
     prevLng = lng;
 
     if (wrapDelta) {

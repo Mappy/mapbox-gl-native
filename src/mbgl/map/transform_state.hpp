@@ -130,7 +130,7 @@ public:
     ViewportMode getViewportMode() const;
     void setViewportMode(ViewportMode val);
 
-    CameraOptions getCameraOptions(optional<EdgeInsets>) const;
+    CameraOptions getCameraOptions(const optional<EdgeInsets>&) const;
 
     // EdgeInsects
     EdgeInsets getEdgeInsets() const { return edgeInsets; }
@@ -163,6 +163,10 @@ public:
     double getMinZoom() const;
     void setMaxZoom(double);
     double getMaxZoom() const;
+    void setMinPitch(double);
+    double getMinPitch() const;
+    void setMaxPitch(double);
+    double getMaxPitch() const;
 
     // Rotation
     double getBearing() const;
@@ -192,6 +196,7 @@ public:
 
     // Conversion
     ScreenCoordinate latLngToScreenCoordinate(const LatLng&) const;
+    ScreenCoordinate latLngToScreenCoordinate(const LatLng&, vec4&) const;
     LatLng screenCoordinateToLatLng(const ScreenCoordinate&, LatLng::WrapMode = LatLng::Unwrapped) const;
     // Implements mapbox-gl-js pointCoordinate() : MercatorCoordinate.
     TileCoordinate screenCoordinateToTileCoordinate(const ScreenCoordinate&, uint8_t atZoom) const;
@@ -210,6 +215,7 @@ public:
     void setLatLngZoom(const LatLng& latLng, double zoom);
 
     void constrain(double& scale, double& x, double& y) const;
+    const mat4& getProjectionMatrix() const;
 
 private:
     bool rotatedNorth() const;
@@ -224,6 +230,10 @@ private:
     double min_scale = std::pow(2, 0);
     double max_scale = std::pow(2, util::DEFAULT_MAX_ZOOM);
 
+    // Limit the amount of pitch
+    double minPitch = util::PITCH_MIN;
+    double maxPitch = util::PITCH_MAX;
+
     NorthOrientation orientation = NorthOrientation::Upwards;
 
     // logical dimensions
@@ -236,7 +246,7 @@ private:
 
     void updateMatricesIfNeeded() const;
     bool needsMatricesUpdate() const { return requestMatricesUpdate; }
-    const mat4& getProjectionMatrix() const;
+
     const mat4& getCoordMatrix() const;
     const mat4& getInvertedMatrix() const;
 

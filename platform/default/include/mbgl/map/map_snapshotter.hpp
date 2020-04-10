@@ -1,7 +1,6 @@
 #pragma once
 
 #include <mbgl/util/image.hpp>
-#include <mbgl/util/thread.hpp>
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/geo.hpp>
 
@@ -10,13 +9,9 @@
 #include <string>
 #include <vector>
 #include <functional>
-
 namespace mbgl {
 
-template<class> class ActorRef;
 struct CameraOptions;
-class FileSource;
-class Size;
 class LatLngBounds;
 class ResourceOptions;
 
@@ -24,15 +19,25 @@ namespace style {
 class Style;
 } // namespace style
 
+class MapSnapshotterObserver {
+public:
+    virtual ~MapSnapshotterObserver() = default;
+
+    static MapSnapshotterObserver& nullObserver();
+    virtual void onDidFailLoadingStyle(const std::string&) {}
+    virtual void onDidFinishLoadingStyle() {}
+    virtual void onStyleImageMissing(const std::string&) {}
+};
+
 class MapSnapshotter {
 public:
-    MapSnapshotter(const std::pair<bool, std::string> style,
-                   const Size&,
-                   const float pixelRatio,
-                   const optional<CameraOptions> cameraOptions,
-                   const optional<LatLngBounds> region,
-                   const optional<std::string> localFontFamily,
-                   const ResourceOptions&);
+    MapSnapshotter(Size size,
+                   float pixelRatio,
+                   const ResourceOptions&,
+                   MapSnapshotterObserver&,
+                   optional<std::string> localFontFamily = nullopt);
+
+    MapSnapshotter(Size size, float pixelRatio, const ResourceOptions&);
 
     ~MapSnapshotter();
 
@@ -51,15 +56,19 @@ public:
     void setRegion(const LatLngBounds&);
     LatLngBounds getRegion() const;
 
+    style::Style& getStyle();
+    const style::Style& getStyle() const;
+
     using PointForFn = std::function<ScreenCoordinate (const LatLng&)>;
     using LatLngForFn = std::function<LatLng (const ScreenCoordinate&)>;
     using Attributions = std::vector<std::string>;
     using Callback = std::function<void (std::exception_ptr, PremultipliedImage, Attributions, PointForFn, LatLngForFn)>;
-    void snapshot(ActorRef<Callback>);
+    void snapshot(Callback);
+    void cancel();
 
 private:
     class Impl;
-    std::unique_ptr<util::Thread<Impl>> impl;
+    std::unique_ptr<Impl> impl;
 };
 
 } // namespace mbgl

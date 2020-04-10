@@ -6,7 +6,6 @@
 *~
 **/actual.png
 **/diff.png
-render-test/index.html
 offline.db
 new_offline.db
 xcuserdata
@@ -27,7 +26,6 @@ xcuserdata
 /platform/ios/benchmark/assets/glyphs/DIN*
 /platform/ios/benchmark/assets/tiles/mapbox.mapbox-terrain-v2,mapbox.mapbox-streets-v6
 /platform/darwin/developer.xcconfig
-**/token
 /platform/macos/macos.xcworkspace/xcshareddata/macos.xcscmblueprint
 /platform/ios/ios.xcworkspace/xcshareddata/ios.xcscmblueprint
 /documentation
@@ -38,6 +36,9 @@ test/fixtures/storage/assets.zip
 buck-out
 .buckd
 
+# Generated metrics results
+metrics/*.html
+
 # Android RenderTestRunner
 render-test/android/.*
 render-test/android/app/build/
@@ -47,6 +48,11 @@ render-test/android/app/.*
 render-test/android/package.json
 render-test/android/app/app.iml
 render-test/android/android.iml
+
+# IOS RenderTestRunner
+render-test/ios/codesigning/*.xcent
+render-test/ios/fastlane/README.md
+test-data/
 
 # Generated file from npm/yarn
 package-lock.json

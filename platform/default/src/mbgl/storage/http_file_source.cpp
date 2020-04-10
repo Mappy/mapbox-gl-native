@@ -71,8 +71,8 @@ public:
     void handleResult(CURLcode code);
 
 private:
-    static size_t headerCallback(char *const buffer, const size_t size, const size_t nmemb, void *userp);
-    static size_t writeCallback(void *const contents, const size_t size, const size_t nmemb, void *userp);
+    static size_t headerCallback(char *buffer, size_t size, size_t nmemb, void *userp);
+    static size_t writeCallback(void *contents, size_t size, size_t nmemb, void *userp);
 
     HTTPFileSource::Impl* context = nullptr;
     Resource resource;
@@ -266,7 +266,10 @@ HTTPRequest::HTTPRequest(HTTPFileSource::Impl* context_, Resource resource_, Fil
 }
 
 HTTPRequest::~HTTPRequest() {
-    handleError(curl_multi_remove_handle(context->multi, handle));
+    if (curl_multi_remove_handle(context->multi, handle) != CURLM_OK) {
+        mbgl::Log::Error(mbgl::Event::HttpRequest, "Error removing curl multi handle");
+    }
+
     context->returnHandle(handle);
     handle = nullptr;
 
@@ -286,7 +289,7 @@ size_t HTTPRequest::writeCallback(void *const contents, const size_t size, const
         impl->data = std::make_shared<std::string>();
     }
 
-    impl->data->append((char *)contents, size * nmemb);
+    impl->data->append(static_cast<char *>(contents), size * nmemb);
     return size * nmemb;
 }
 
@@ -325,7 +328,7 @@ size_t HTTPRequest::headerCallback(char *const buffer, const size_t size, const 
         baton->response->etag = std::string(buffer + begin, length - begin - 2); // remove \r\n
     } else if ((begin = headerMatches("cache-control: ", buffer, length)) != std::string::npos) {
         const std::string value { buffer + begin, length - begin - 2 }; // remove \r\n
-        const auto cc = http::CacheControl::parse(value.c_str());
+        const auto cc = http::CacheControl::parse(value);
         baton->response->expires = cc.toTimePoint();
         baton->response->mustRevalidate = cc.mustRevalidate;
     } else if ((begin = headerMatches("expires: ", buffer, length)) != std::string::npos) {

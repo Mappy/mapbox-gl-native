@@ -21,7 +21,6 @@ namespace mbgl {
 
 class RendererObserver;
 class RenderSource;
-class RenderLayer;
 class UpdateParameters;
 class RenderStaticData;
 class RenderedQueryOptions;
@@ -41,9 +40,7 @@ class RenderOrchestrator final : public GlyphManagerObserver,
                                  public ImageManagerObserver,
                                  public RenderSourceObserver {
 public:
-    RenderOrchestrator(
-        bool backgroundLayerAsColor_,
-        optional<std::string> localFontFamily_);
+    RenderOrchestrator(bool backgroundLayerAsColor_, const optional<std::string>& localFontFamily_);
     ~RenderOrchestrator() override;
 
     void markContextLost() {
@@ -52,7 +49,7 @@ public:
     // TODO: Introduce RenderOrchestratorObserver.
     void setObserver(RendererObserver*);
 
-    std::unique_ptr<RenderTree> createRenderTree(const UpdateParameters&);
+    std::unique_ptr<RenderTree> createRenderTree(const std::shared_ptr<UpdateParameters>&);
 
     std::vector<Feature> queryRenderedFeatures(const ScreenLineString&, const RenderedQueryOptions&) const;
     std::vector<Feature> querySourceFeatures(const std::string& sourceID, const SourceQueryOptions&) const;
@@ -75,6 +72,9 @@ public:
 
     void reduceMemoryUse();
     void dumpDebugLogs();
+    void collectPlacedSymbolData(bool);
+    const std::vector<PlacedSymbolData>& getPlacedSymbolsData() const;
+    void clearData();
 
 private:
     bool isLoaded() const;
@@ -126,12 +126,13 @@ private:
 
     const bool backgroundLayerAsColor;
     bool contextLost = false;
+    bool placedSymbolDataCollected = false;
 
     // Vectors with reserved capacity of layerImpls->size() to avoid reallocation
     // on each frame.
     std::vector<Immutable<style::LayerProperties>> filteredLayersForSource;
-    std::vector<std::reference_wrapper<RenderLayer>> orderedLayers;
-    std::vector<std::reference_wrapper<RenderLayer>> layersNeedPlacement;
+    RenderLayerReferences orderedLayers;
+    RenderLayerReferences layersNeedPlacement;
 };
 
 } // namespace mbgl

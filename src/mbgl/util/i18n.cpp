@@ -12,10 +12,8 @@ namespace {
     @param first The first codepoint in the block, inclusive.
     @param last The last codepoint in the block, inclusive.
  */
-#define DEFINE_IS_IN_UNICODE_BLOCK(name, first, last)                                              \
-    inline bool isIn##name(char16_t codepoint) {                                                   \
-        return codepoint >= first && codepoint <= last;                                            \
-    }
+#define DEFINE_IS_IN_UNICODE_BLOCK(name, first, last) \
+    inline bool isIn##name(char16_t codepoint) { return codepoint >= (first) && codepoint <= (last); }
 
 // The following table comes from <http://www.unicode.org/Public/12.0.0/ucd/Blocks.txt>.
 // Keep it synchronized with <http://www.unicode.org/Public/UCD/latest/ucd/Blocks.txt>.
@@ -616,21 +614,19 @@ bool charInSupportedScript(char16_t chr) {
     // actually depends on the properties of the font being used
     // and whether differences from the ideal rendering are considered
     // semantically significant.
-    
+
     // Even in Latin script, we "can't render" combinations such as the fi
     // ligature, but we don't consider that semantically significant.n false;
-    if ((chr >= 0x0900 && chr <= 0x0DFF) ||
-        // Main blocks for Indic scripts and Sinhala
-        (chr >= 0x0F00 && chr <= 0x109F) ||
-        // Main blocks for Tibetan and Myanmar
-        isInKhmer(chr)) {
-        // These blocks cover common scripts that require
-        // complex text shaping, based on unicode script metadata:
-        // http://www.unicode.org/repos/cldr/trunk/common/properties/scriptMetadata.txt
-        // where "Web Rank <= 32" "Shaping Required = YES"
-        return false;
-    }
-    return true;
+
+    // These blocks cover common scripts that require
+    // complex text shaping, based on unicode script metadata:
+    // http://www.unicode.org/repos/cldr/trunk/common/properties/scriptMetadata.txt
+    // where "Web Rank <= 32" "Shaping Required = YES"
+    return !((chr >= 0x0900 && chr <= 0x0DFF) ||
+             // Main blocks for Indic scripts and Sinhala
+             (chr >= 0x0F00 && chr <= 0x109F) ||
+             // Main blocks for Tibetan and Myanmar
+             isInKhmer(chr));
 }
     
 bool isStringInSupportedScript(const std::string& input) {

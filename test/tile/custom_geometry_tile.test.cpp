@@ -25,22 +25,20 @@ public:
     std::shared_ptr<FileSource> fileSource = std::make_shared<FakeFileSource>();
     TransformState transformState;
     util::RunLoop loop;
-    style::Style style { *fileSource, 1 };
+    style::Style style{fileSource, 1};
     AnnotationManager annotationManager { style };
     ImageManager imageManager;
     GlyphManager glyphManager;
 
-    TileParameters tileParameters {
-        1.0,
-        MapDebugOptions(),
-        transformState,
-        fileSource,
-        MapMode::Continuous,
-        annotationManager,
-        imageManager,
-        glyphManager,
-        0
-    };
+    TileParameters tileParameters{1.0,
+                                  MapDebugOptions(),
+                                  transformState,
+                                  fileSource,
+                                  MapMode::Continuous,
+                                  annotationManager.makeWeakPtr(),
+                                  imageManager,
+                                  glyphManager,
+                                  0};
 };
 
 TEST(CustomGeometryTile, InvokeFetchTile) {
@@ -61,8 +59,11 @@ TEST(CustomGeometryTile, InvokeFetchTile) {
     auto mb =std::make_shared<Mailbox>(*Scheduler::GetCurrent());
     ActorRef<CustomTileLoader> loaderActor(loader, mb);
 
-    CustomGeometryTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, CustomGeometrySource::TileOptions(),
-    loaderActor);
+    CustomGeometryTile tile(OverscaledTileID(0, 0, 0),
+                            "source",
+                            test.tileParameters,
+                            makeMutable<CustomGeometrySource::TileOptions>(),
+                            loaderActor);
 
     tile.setNecessity(TileNecessity::Required);
 
@@ -86,8 +87,11 @@ TEST(CustomGeometryTile, InvokeCancelTile) {
     auto mb =std::make_shared<Mailbox>(*Scheduler::GetCurrent());
     ActorRef<CustomTileLoader> loaderActor(loader, mb);
 
-    CustomGeometryTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, CustomGeometrySource::TileOptions(),
-    loaderActor);
+    CustomGeometryTile tile(OverscaledTileID(0, 0, 0),
+                            "source",
+                            test.tileParameters,
+                            makeMutable<CustomGeometrySource::TileOptions>(),
+                            loaderActor);
 
     tile.setNecessity(TileNecessity::Required);
     tile.setNecessity(TileNecessity::Optional);
@@ -108,8 +112,11 @@ TEST(CustomGeometryTile, InvokeTileChanged) {
     auto mb =std::make_shared<Mailbox>(*Scheduler::GetCurrent());
     ActorRef<CustomTileLoader> loaderActor(loader, mb);
 
-    CustomGeometryTile tile(OverscaledTileID(0, 0, 0), "source", test.tileParameters, CustomGeometrySource::TileOptions(),
-    loaderActor);
+    CustomGeometryTile tile(OverscaledTileID(0, 0, 0),
+                            "source",
+                            test.tileParameters,
+                            makeMutable<CustomGeometrySource::TileOptions>(),
+                            loaderActor);
 
     Immutable<LayerProperties> layerProperties = makeMutable<CircleLayerProperties>(staticImmutableCast<CircleLayer::Impl>(layer.baseImpl));
     StubTileObserver observer;

@@ -70,8 +70,7 @@ style::TextJustifyType getAnchorJustification(style::SymbolAnchorType anchor) {
 
 PositionedIcon PositionedIcon::shapeIcon(const ImagePosition& image,
                                          const std::array<float, 2>& iconOffset,
-                                         style::SymbolAnchorType iconAnchor,
-                                         const float iconRotation) {
+                                         style::SymbolAnchorType iconAnchor) {
     AnchorAlignment anchorAlign = AnchorAlignment::getAnchorAlignment(iconAnchor);
     float dx = iconOffset[0];
     float dy = iconOffset[1];
@@ -80,7 +79,17 @@ PositionedIcon PositionedIcon::shapeIcon(const ImagePosition& image,
     float top = dy - image.displaySize()[1] * anchorAlign.verticalAlign;
     float bottom = top + image.displaySize()[1];
 
-    return PositionedIcon { image, top, bottom, left, right, iconRotation };
+    Padding collisionPadding;
+    if (image.content) {
+        auto& content = *image.content;
+        const auto pixelRatio = image.pixelRatio;
+        collisionPadding.left = content.left / pixelRatio;
+        collisionPadding.top = content.top / pixelRatio;
+        collisionPadding.right = image.displaySize()[0] - content.right / pixelRatio;
+        collisionPadding.bottom = image.displaySize()[1] - content.bottom / pixelRatio;
+    }
+
+    return PositionedIcon{image, top, bottom, left, right, collisionPadding};
 }
 
 void PositionedIcon::fitIconToText(const Shaping& shapedText,
@@ -276,8 +285,8 @@ PotentialBreak evaluateBreak(const std::size_t breakIndex, const float breakX, c
             bestBreakBadness = breakBadness;
         }
     }
-    
-    return PotentialBreak(breakIndex, breakX, bestPriorBreak, bestBreakBadness);
+
+    return {breakIndex, breakX, bestPriorBreak, bestBreakBadness};
 }
 
 std::set<std::size_t> leastBadBreaks(const PotentialBreak& lastLineBreak) {
@@ -436,7 +445,7 @@ void shapeLines(Shaping& shaping,
                 metrics.left = ImagePosition::padding;
                 metrics.top = -Glyph::borderSize;
                 metrics.advance = vertical ? displaySize[1] : displaySize[0];
-                rect = image->second.paddedTextureRect();
+                rect = image->second.paddedRect;
 
                 // If needed, allow to set scale factor for an image using
                 // alias "image-scale" that could be alias for "font-scale"
@@ -487,7 +496,7 @@ void shapeLines(Shaping& shaping,
         }
 
         // Only justify if we placed at least one glyph
-        if (positionedGlyphs.size() != 0) {
+        if (!positionedGlyphs.empty()) {
             float lineLength = x - spacing; // Don't count trailing spacing
             maxLineLength = util::max(lineLength, maxLineLength);
             justifyLine(positionedGlyphs, justify, lineOffset);
@@ -519,21 +528,21 @@ void shapeLines(Shaping& shaping,
     shaping.right = shaping.left + maxLineLength;
 }
 
-const Shaping getShaping(const TaggedString& formattedString,
-                         const float maxWidth,
-                         const float lineHeight,
-                         const style::SymbolAnchorType textAnchor,
-                         const style::TextJustifyType textJustify,
-                         const float spacing,
-                         const std::array<float, 2>& translate,
-                         const WritingModeType writingMode,
-                         BiDi& bidi,
-                         const GlyphMap& glyphMap,
-                         const GlyphPositions& glyphPositions,
-                         const ImagePositions& imagePositions,
-                         float layoutTextSize,
-                         float layoutTextSizeAtBucketZoomLevel,
-                         bool allowVerticalPlacement) {
+Shaping getShaping(const TaggedString& formattedString,
+                   const float maxWidth,
+                   const float lineHeight,
+                   const style::SymbolAnchorType textAnchor,
+                   const style::TextJustifyType textJustify,
+                   const float spacing,
+                   const std::array<float, 2>& translate,
+                   const WritingModeType writingMode,
+                   BiDi& bidi,
+                   const GlyphMap& glyphMap,
+                   const GlyphPositions& glyphPositions,
+                   const ImagePositions& imagePositions,
+                   float layoutTextSize,
+                   float layoutTextSizeAtBucketZoomLevel,
+                   bool allowVerticalPlacement) {
     assert(layoutTextSize);
     std::vector<TaggedString> reorderedLines;
     if (formattedString.sectionCount() == 1) {
