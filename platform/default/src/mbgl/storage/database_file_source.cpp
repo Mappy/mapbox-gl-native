@@ -21,7 +21,8 @@ public:
         : db(std::make_unique<OfflineDatabase>(cachePath)), onlineFileSource(std::move(onlineFileSource_)) {}
 
     void request(const Resource& resource, const ActorRef<FileSourceRequest>& req) {
-        auto offlineResponse = db->get(resource);
+        optional<Response> offlineResponse =
+            (resource.storagePolicy != Resource::StoragePolicy::Volatile) ? db->get(resource) : nullopt;
         if (!offlineResponse) {
             offlineResponse.emplace();
             offlineResponse->noContent = true;
@@ -175,10 +176,12 @@ DatabaseFileSource::~DatabaseFileSource() = default;
 std::unique_ptr<AsyncRequest> DatabaseFileSource::request(const Resource& resource, Callback callback) {
     auto req = std::make_unique<FileSourceRequest>(std::move(callback));
     impl->actor().invoke(&DatabaseFileSourceThread::request, resource, req->actor());
-    return std::move(req);
+    return req;
 }
 
 void DatabaseFileSource::forward(const Resource& res, const Response& response, std::function<void()> callback) {
+    if (res.storagePolicy == Resource::StoragePolicy::Volatile) return;
+
     std::function<void()> wrapper;
     if (callback) {
         wrapper = Scheduler::GetCurrent()->bindOnce(std::move(callback));

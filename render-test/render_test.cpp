@@ -127,6 +127,8 @@ int runRenderTests(int argc, char** argv, std::function<void()> testStatus) {
     uint32_t seed;
     std::string manifestPath;
     std::string testFilter;
+
+    Log::useLogThread(false);
     TestRunner::UpdateResults updateResults;
 
     std::tie(recycleMap, shuffle, online, seed, manifestPath, updateResults, testFilter) = parseArguments(argc, argv);
@@ -190,7 +192,7 @@ int runRenderTests(int argc, char** argv, std::function<void()> testStatus) {
             runner.run(metadata);
         }
 
-        bool errored = metadata.metricsErrored || metadata.renderErrored;
+        bool errored = metadata.metricsErrored || metadata.renderErrored || metadata.labelCutOffFound;
         bool passed = !errored && !metadata.metricsFailed && !metadata.renderFailed;
 
         if (shouldIgnore) {

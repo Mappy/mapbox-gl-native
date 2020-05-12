@@ -82,14 +82,10 @@ public:
 class LatLngBounds {
 public:
     // Return a bounds covering the entire (unwrapped) world.
-    static LatLngBounds world() {
-        return LatLngBounds({-90, -180}, {90, 180});
-    }
+    static LatLngBounds world() { return {{-90, -180}, {90, 180}}; }
 
     // Return the bounds consisting of the single point.
-    static LatLngBounds singleton(const LatLng& a) {
-        return LatLngBounds(a, a);
-    }
+    static LatLngBounds singleton(const LatLng& a) { return {a, a}; }
 
     // Return the convex hull of two points; the smallest bounds that contains both.
     static LatLngBounds hull(const LatLng& a, const LatLng& b) {
@@ -126,13 +122,10 @@ public:
 
     LatLng southwest() const { return sw; }
     LatLng northeast() const { return ne; }
-    LatLng southeast() const { return LatLng(south(), east()); }
-    LatLng northwest() const { return LatLng(north(), west()); }
+    LatLng southeast() const { return {south(), east()}; }
+    LatLng northwest() const { return {north(), west()}; }
 
-    LatLng center() const {
-        return LatLng((sw.latitude() + ne.latitude()) / 2,
-                      (sw.longitude() + ne.longitude()) / 2);
-    }
+    LatLng center() const { return {(sw.latitude() + ne.latitude()) / 2, (sw.longitude() + ne.longitude()) / 2}; }
 
     LatLng constrain(const LatLng& p) const;
 
@@ -161,7 +154,7 @@ public:
     bool contains(const LatLng& point, LatLng::WrapMode wrap = LatLng::Unwrapped) const;
     bool contains(const LatLngBounds& area, LatLng::WrapMode wrap = LatLng::Unwrapped) const;
 
-    bool intersects(const LatLngBounds area, LatLng::WrapMode wrap = LatLng::Unwrapped) const;
+    bool intersects(LatLngBounds area, LatLng::WrapMode wrap = LatLng::Unwrapped) const;
 
 private:
     LatLng sw;
@@ -246,6 +239,11 @@ public:
     friend bool operator!=(const EdgeInsets& a, const EdgeInsets& b) {
         return !(a == b);
     }
+};
+
+struct LatLngAltitude {
+    LatLng location = {0.0, 0.0};
+    double altitude = 0.0;
 };
 
 } // namespace mbgl

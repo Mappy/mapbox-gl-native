@@ -1,6 +1,14 @@
 Checks: >
     -*,
+    android-*,
+    boost-*,
     bugprone-*,
+    clang-analyzer-core*
+    clang-analyzer-cplusplus*,
+    clang-analyzer-deadcode*,
+    clang-analyzer-optin.cplusplus*,
+    clang-analyzer-optin.performance.Padding,
+    clang-analyzer-security*,
     clang-diagnostic-*,
     google-*,
     misc-*,
@@ -8,8 +16,10 @@ Checks: >
     performance-*,
     portability-*,
     readability-*,
+    -bugprone-macro-parentheses,
     -bugprone-narrowing-conversions,
     -google-build-using-namespace,
+    -google-explicit-constructor,
     -google-readability-braces-around-statements,
     -google-readability-todo,
     -google-runtime-int,
@@ -26,3 +36,7 @@ Checks: >
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 FormatStyle: file
+
+CheckOptions:
+  - key:   performance-unnecessary-value-param.AllowedTypes
+    value: 'exception_ptr'

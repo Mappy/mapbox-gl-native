@@ -40,7 +40,7 @@ public:
             MBGL_TIMING_START(watch);
             return onlineFileSource->request(res, [=, ptr = parentKeepAlive](const Response& response) {
                 if (databaseFileSource) {
-                    databaseFileSource->forward(res, response);
+                    databaseFileSource->forward(res, response, nullptr);
                 }
                 if (res.kind == Resource::Kind::Tile) {
                     // onlineResponse.data will be null if data not modified
@@ -151,7 +151,7 @@ public:
             actorRef.invoke(&MainResourceLoaderThread::cancel, req);
         });
         thread->actor().invoke(&MainResourceLoaderThread::request, req.get(), resource, req->actor());
-        return std::move(req);
+        return req;
     }
 
     bool canRequest(const Resource& resource) const {

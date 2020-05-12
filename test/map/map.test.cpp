@@ -350,12 +350,13 @@ TEST(Map, Offline) {
     const std::string prefix = "http://127.0.0.1:3000/";
     std::shared_ptr<FileSource> dbfs =
         FileSourceManager::get()->getFileSource(FileSourceType::Database, ResourceOptions{});
-    dbfs->forward(Resource::style(prefix + "style.json"), expiredItem("style.json"));
-    dbfs->forward(Resource::source(prefix + "streets.json"), expiredItem("streets.json"));
-    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), expiredItem("sprite.json"));
-    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), expiredItem("sprite.png"));
+    dbfs->forward(Resource::style(prefix + "style.json"), expiredItem("style.json"), [] {});
+    dbfs->forward(Resource::source(prefix + "streets.json"), expiredItem("streets.json"), [] {});
+    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), expiredItem("sprite.json"), [] {});
+    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), expiredItem("sprite.png"), [] {});
     dbfs->forward(Resource::tile(prefix + "{z}-{x}-{y}.vector.pbf", 1.0, 0, 0, 0, Tileset::Scheme::XYZ),
-                  expiredItem("0-0-0.vector.pbf"));
+                  expiredItem("0-0-0.vector.pbf"),
+                  [] {});
     dbfs->forward(Resource::glyphs(prefix + "{fontstack}/{range}.pbf", {{"Helvetica"}}, {0, 255}),
                   expiredItem("glyph.pbf"),
                   [&] { test.map.getStyle().loadURL(prefix + "style.json"); });
@@ -1337,15 +1338,72 @@ TEST(Map, TEST_REQUIRES_SERVER(ExpiredSpriteSheet)) {
     const std::string prefix = "http://127.0.0.1:3000/online/";
     std::shared_ptr<FileSource> dbfs =
         FileSourceManager::get()->getFileSource(FileSourceType::Database, ResourceOptions{});
-    dbfs->forward(Resource::style(prefix + "style.json"), makeResponse("style.json"));
-    dbfs->forward(Resource::source(prefix + "streets.json"), makeResponse("streets.json"));
-    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), makeResponse("sprite.json", true));
-    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), makeResponse("sprite.png", true));
+    dbfs->forward(Resource::style(prefix + "style.json"), makeResponse("style.json"), [] {});
+    dbfs->forward(Resource::source(prefix + "streets.json"), makeResponse("streets.json"), [] {});
+    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), makeResponse("sprite.json", true), [] {});
+    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), makeResponse("sprite.png", true), [] {});
     dbfs->forward(Resource::tile(prefix + "{z}-{x}-{y}.vector.pbf", 1.0, 0, 0, 0, Tileset::Scheme::XYZ),
                   makeResponse("0-0-0.vector.pbf"),
                   [&] { test.map.getStyle().loadURL(prefix + "style.json"); });
 
     test.runLoop.run();
+}
+
+TEST(Map, SourceMinimumUpdateIntervalOverride) {
+    MapTest<> test{1, MapMode::Continuous};
+
+    test.map.getStyle().loadJSON(
+        R"STYLE({
+                "layers": [{
+                    "id": "a",
+                    "type": "fill",
+                    "source": "source-a",
+                    "minzoom": 0,
+                    "maxzoom": 24
+                },
+                {
+                    "id": "b",
+                    "type": "fill",
+                    "source": "source-b",
+                    "minzoom": 0,
+                    "maxzoom": 24
+                }]
+                })STYLE");
+
+    // Vector source
+    auto vectorSourceA = std::make_unique<VectorSource>("source-a", Tileset{{"a/{z}/{x}/{y}"}});
+    vectorSourceA->setMinimumTileUpdateInterval(Seconds(1));
+    test.map.getStyle().addSource(std::move(vectorSourceA));
+
+    auto vectorSourceB = std::make_unique<VectorSource>("source-b", Tileset{{"b/{z}/{x}/{y}"}});
+    test.map.getStyle().addSource(std::move(vectorSourceB));
+
+    std::atomic_int requestedTilesA(0);
+    std::atomic_int requestedTilesB(0);
+    test.fileSource->tileResponse = [&](const Resource& resource) -> Response {
+        assert(!resource.url.empty());
+        char firstSymbol = resource.url[0];
+        if (firstSymbol == 'a') {
+            EXPECT_EQ(Seconds(1), resource.minimumUpdateInterval);
+            ++requestedTilesA;
+        } else if (firstSymbol == 'b') {
+            EXPECT_EQ(Duration::zero(), resource.minimumUpdateInterval);
+            ++requestedTilesB;
+        } else {
+            EXPECT_FALSE(true) << "Never reached";
+        }
+
+        Response res;
+        res.noContent = true;
+        return res;
+    };
+
+    test.map.jumpTo(CameraOptions().withZoom(double(16)));
+    test.observer.didFinishLoadingMapCallback = [&] { test.runLoop.stop(); };
+    test.runLoop.run();
+
+    EXPECT_EQ(8, requestedTilesA);
+    EXPECT_EQ(8, requestedTilesB);
 }
 
 namespace {
@@ -1431,7 +1489,18 @@ TEST(Map, PlacedSymbolData) {
 
     int placedTotal = 0;
 
+    const std::set<std::string> symbolLayers{"place-city-lg-s",
+                                             "place-neighbourhood",
+                                             "place-suburb",
+                                             "poi-scalerank2",
+                                             "poi-scalerank3",
+                                             "poi-parks-scalerank1",
+                                             "poi-parks-scalerank2",
+                                             "poi-parks-scalerank3",
+                                             "rail-label"};
+
     for (const auto& placedSymbol : placedSymbols) {
+        EXPECT_NE(0u, symbolLayers.count(placedSymbol.layer));
         if (placedSymbol.textPlaced && placedSymbol.textCollisionBox) {
             if (isInsideTile(*placedSymbol.textCollisionBox, placedSymbol.viewportPadding, viewportSize)) {
                 EXPECT_FALSE(placedSymbol.intersectsTileBorder);
@@ -1459,4 +1528,37 @@ TEST(Map, PlacedSymbolData) {
     test.frontend.render(test.map);
 
     EXPECT_TRUE(test.frontend.getRenderer()->getPlacedSymbolsData().empty());
+}
+
+TEST(Map, VolatileSource) {
+    MapTest<> test{1, MapMode::Continuous};
+
+    std::atomic_int requestedTiles(0);
+    bool isVolatile = true;
+    test.fileSource->tileResponse = [&](const Resource& resource) {
+        auto expectedPolicy = isVolatile ? Resource::StoragePolicy::Volatile : Resource::StoragePolicy::Permanent;
+        EXPECT_EQ(expectedPolicy, resource.storagePolicy);
+        ++requestedTiles;
+        Response res;
+        res.noContent = true;
+        return res;
+    };
+
+    test.map.getStyle().loadJSON(R"STYLE({
+      "version": 8,
+      "layers": [{
+        "id": "water",
+        "type": "fill",
+        "source": "vector",
+        "source-layer": "water"
+      }]
+    })STYLE");
+    auto source = std::make_unique<VectorSource>("vector", Tileset{{"a/{z}/{x}/{y}"}});
+    source->setVolatile(isVolatile);
+    test.map.getStyle().addSource(std::move(source));
+
+    test.map.jumpTo(CameraOptions().withZoom(16.0));
+    test.observer.didFinishLoadingMapCallback = [&] { test.runLoop.stop(); };
+    test.runLoop.run();
+    EXPECT_EQ(8, requestedTiles);
 }

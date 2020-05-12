@@ -6,9 +6,6 @@ const ejs = require('ejs');
 const spec = require('./style-spec');
 const colorParser = require('csscolorparser');
 
-// FIXME: https://github.com/mapbox/mapbox-gl-native/issues/15008
-delete spec.layout_circle["circle-sort-key"]
-
 require('./style-code');
 
 function parseCSSColor(str) {
@@ -64,7 +61,14 @@ global.evaluatedType = function (property) {
   case 'boolean':
     return 'bool';
   case 'number':
-    return 'float';
+    // TODO: Check if 'Rotation' should be used for other properties,
+    // such as icon-rotate
+    if (/bearing$/.test(property.name) &&
+        property.period == 360 &&
+        property.units =='degrees') {
+      return 'Rotation';
+    }
+    return /location$/.test(property.name) ? 'double' : 'float';
   case 'resolvedImage':
       return 'expression::Image';
   case 'formatted':
@@ -77,7 +81,7 @@ global.evaluatedType = function (property) {
     return `Color`;
   case 'array':
     if (property.length) {
-      return `std::array<${evaluatedType({type: property.value})}, ${property.length}>`;
+      return `std::array<${evaluatedType({type: property.value, name: property.name})}, ${property.length}>`;
     } else {
       return `std::vector<${evaluatedType({type: property.value, name: property.name})}>`;
     }

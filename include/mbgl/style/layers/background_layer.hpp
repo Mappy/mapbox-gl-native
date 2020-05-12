@@ -7,7 +7,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/expression/formatted.hpp>
 #include <mbgl/util/color.hpp>
 
 namespace mbgl {
@@ -15,10 +14,10 @@ namespace style {
 
 class TransitionOptions;
 
-class BackgroundLayer : public Layer {
+class BackgroundLayer final : public Layer {
 public:
     BackgroundLayer(const std::string& layerID);
-    ~BackgroundLayer() final;
+    ~BackgroundLayer() override;
 
     // Paint properties
 

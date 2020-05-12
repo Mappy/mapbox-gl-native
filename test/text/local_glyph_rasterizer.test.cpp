@@ -55,7 +55,7 @@ public:
 #if defined(__APPLE__)
 
 TEST(LocalGlyphRasterizer, PingFang) {
-    LocalGlyphRasterizerTest test(std::string("PingFang"));
+    LocalGlyphRasterizerTest test(std::string("PingFang TC"));
 
     test.fileSource->glyphsResponse = [&] (const Resource& resource) {
         EXPECT_EQ(Resource::Kind::Glyphs, resource.kind);
@@ -65,11 +65,26 @@ TEST(LocalGlyphRasterizer, PingFang) {
     };
     test.map.getStyle().loadJSON(util::read_file("test/fixtures/local_glyphs/mixed.json"));
 #if defined(__APPLE__) && !defined(__QT__)
-    test.checkRendering("ping_fang");
+    test.checkRendering("ping_fang", 0.0161);
 #elif defined(__QT__)
     test.checkRendering("ping_fang_qt");
 #endif // defined(__APPLE__)
 }
+
+#if !defined(__QT__)
+TEST(LocalGlyphRasterizer, PingFangSemibold) {
+    LocalGlyphRasterizerTest test(std::string("PingFang TC Semibold"));
+
+    test.fileSource->glyphsResponse = [&](const Resource& resource) {
+        EXPECT_EQ(Resource::Kind::Glyphs, resource.kind);
+        Response response;
+        response.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/glyphs.pbf"));
+        return response;
+    };
+    test.map.getStyle().loadJSON(util::read_file("test/fixtures/local_glyphs/mixed.json"));
+    test.checkRendering("ping_fang_semibold", 0.0161);
+}
+#endif // !defined(__QT__)
 
 #endif // defined(__APPLE__)
 

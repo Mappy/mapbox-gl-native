@@ -7,6 +7,8 @@
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/text/tagged_string.hpp>
 
+#include <utility>
+
 namespace mbgl {
 
 struct AnchorAlignment {
@@ -44,7 +46,7 @@ class PositionedIcon {
 private:
     PositionedIcon(
         ImagePosition image_, float top_, float bottom_, float left_, float right_, const Padding& collisionPadding_)
-        : _image(image_),
+        : _image(std::move(image_)),
           _top(top_),
           _bottom(bottom_),
           _left(left_),
@@ -66,10 +68,10 @@ public:
     // Updates shaped icon's bounds based on shaped text's bounds and provided
     // layout properties.
     void fitIconToText(const Shaping& shapedText,
-                       const style::IconTextFitType textFit,
+                       style::IconTextFitType textFit,
                        const std::array<float, 4>& padding,
                        const std::array<float, 2>& iconOffset,
-                       const float fontScale);
+                       float fontScale);
 
     const ImagePosition& image() const { return _image; }
     float top() const { return _top; }
@@ -86,7 +88,7 @@ Shaping getShaping(const TaggedString& string,
                    style::TextJustifyType textJustify,
                    float spacing,
                    const std::array<float, 2>& translate,
-                   const WritingModeType,
+                   WritingModeType,
                    BiDi& bidi,
                    const GlyphMap& glyphMap,
                    const GlyphPositions& glyphPositions,

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <mbgl/util/noncopyable.hpp>
-#include <mbgl/util/optional.hpp>
-#include <mbgl/util/immutable.hpp>
 #include <mbgl/style/types.hpp>
+#include <mbgl/util/chrono.hpp>
+#include <mbgl/util/immutable.hpp>
+#include <mbgl/util/optional.hpp>
 
 #include <mapbox/std/weak.hpp>
 #include <mapbox/util/type_wrapper.hpp>
@@ -40,8 +40,11 @@ struct LayerTypeInfo;
  *
  *     auto vectorSource = std::make_unique<VectorSource>("my-vector-source");
  */
-class Source : public mbgl::util::noncopyable {
+class Source {
 public:
+    Source(const Source&) = delete;
+    Source& operator=(const Source&) = delete;
+
     virtual ~Source();
 
     // Check whether this source is of the given subtype.
@@ -63,11 +66,13 @@ public:
     std::string getID() const;
     optional<std::string> getAttribution() const;
 
+    // The data from the volatile sources are not stored in a persistent storage.
+    bool isVolatile() const noexcept;
+    void setVolatile(bool) noexcept;
+
     // Private implementation
     class Impl;
     Immutable<Impl> baseImpl;
-
-    Source(Immutable<Impl>);
 
     void setObserver(SourceObserver*);
     SourceObserver* observer = nullptr;
@@ -75,6 +80,15 @@ public:
     virtual void loadDescription(FileSource&) = 0;
     void setPrefetchZoomDelta(optional<uint8_t> delta) noexcept;
     optional<uint8_t> getPrefetchZoomDelta() const noexcept;
+
+    // If the given source supports loading tiles from a server,
+    // sets the minimum tile update interval.
+    // Update network requests that are more frequent than the
+    // minimum tile update interval are suppressed.
+    //
+    // Default value is `Duration::zero()`.
+    void setMinimumTileUpdateInterval(Duration) noexcept;
+    Duration getMinimumTileUpdateInterval() const noexcept;
 
     // Sets a limit for how much a parent tile can be overscaled.
     //
@@ -103,6 +117,7 @@ public:
     virtual mapbox::base::WeakPtr<Source> makeWeakPtr() = 0;
 
 protected:
+    explicit Source(Immutable<Impl>);
     virtual Mutable<Impl> createMutable() const noexcept = 0;
 };
 

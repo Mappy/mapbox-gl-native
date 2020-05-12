@@ -30,6 +30,9 @@
 #include <utility>
 #include <sstream>
 
+#include <codecvt>
+#include <locale>
+
 using namespace mbgl;
 using namespace TestOperationNames;
 
@@ -746,6 +749,8 @@ void TestRunner::run(TestMetadata& metadata) {
     auto camera = map.getStyle().getDefaultCamera();
 
     HeadlessFrontend::RenderResult result{};
+    std::string cutOffLabelsReport;
+    std::string duplicationsReport;
 
     if (metadata.mapMode == MapMode::Tile) {
         assert(camera.zoom);
@@ -754,6 +759,13 @@ void TestRunner::run(TestMetadata& metadata) {
         assert(!tileIds.empty());
         std::set<uint32_t> xDims;
         std::set<uint32_t> yDims;
+        struct SymbolLocationAndStatus {
+            UnwrappedTileID tileId;
+            mapbox::geometry::box<float> location;
+            bool placed;
+            bool isIcon;
+        };
+        std::map<std::u16string, std::vector<SymbolLocationAndStatus>> symbolIndex;
 
         for (const auto& tileId : tileIds) {
             xDims.insert(tileId.canonical.x);
@@ -766,6 +778,7 @@ void TestRunner::run(TestMetadata& metadata) {
             PremultipliedImage({uint32_t(xDims.size()) * tileScreenSize, uint32_t(yDims.size()) * tileScreenSize});
         for (const auto& tileId : tileIds) {
             resetContext(metadata, ctx);
+            ctx.getFrontend().getRenderer()->collectPlacedSymbolData(true);
             auto cameraForTile{camera};
             cameraForTile.withCenter(getTileCenterCoordinates(tileId));
             map.jumpTo(cameraForTile);
@@ -775,9 +788,62 @@ void TestRunner::run(TestMetadata& metadata) {
                 metadata.errorMessage = "Failed rendering tile: " + util::toString(tileId);
                 return;
             }
-
             auto xOffset = getImageTileOffset(xDims, tileId.canonical.x, metadata.pixelRatio);
             auto yOffset = getImageTileOffset(yDims, tileId.canonical.y, metadata.pixelRatio);
+
+            const auto& placedSymbols = ctx.getFrontend().getRenderer()->getPlacedSymbolsData();
+
+            auto findCutOffs =
+                [&](const PlacedSymbolData& placedSymbol, mapbox::geometry::box<float> box, bool placed, bool isIcon) {
+                    box.min.x += xOffset - placedSymbol.viewportPadding;
+                    box.max.x += xOffset - placedSymbol.viewportPadding;
+                    box.min.y += yOffset - placedSymbol.viewportPadding;
+                    box.max.y += yOffset - placedSymbol.viewportPadding;
+
+                    auto& symbols = symbolIndex[placedSymbol.key];
+                    auto it = std::find_if(symbols.begin(), symbols.end(), [isIcon, box](const auto& a) {
+                        return a.isIcon == isIcon && a.location.min == box.min && a.location.max == box.max;
+                    });
+                    static std::wstring_convert<std::codecvt_utf8<char16_t>, char16_t> cv;
+                    if (it == symbols.end()) {
+                        symbols.push_back({tileId, box, placed, isIcon});
+                        return;
+                    }
+                    if (tileId == it->tileId && isIcon == it->isIcon) {
+                        std::stringstream ss;
+                        ss << std::endl
+                           << ++metadata.duplicationsCount << ". \"" << cv.to_bytes(placedSymbol.key) << "\" "
+                           << (isIcon ? "icon" : "text") << " ((" << box.min.x << ", " << box.min.y << "), ("
+                           << box.max.x << ", " << box.max.y << ")) from layer: " << placedSymbol.layer << " at "
+                           << util::toString(tileId);
+                        duplicationsReport += ss.str();
+                        return;
+                    }
+                    if (it->placed != placed && isIcon == it->isIcon) {
+                        std::stringstream ss;
+                        ss << std::endl
+                           << ++metadata.labelCutOffFound << ". \"" << cv.to_bytes(placedSymbol.key) << "\" "
+                           << (isIcon ? "icon" : "text") << " ((" << box.min.x << ", " << box.min.y << "), ("
+                           << box.max.x << ", " << box.max.y << ")) from layer: " << placedSymbol.layer
+                           << (placed ? " is placed at " : " is not placed at ") << util::toString(tileId) << " and"
+                           << (it->placed ? " placed at " : " not placed at ") << util::toString(it->tileId);
+                        cutOffLabelsReport += ss.str();
+                    }
+                };
+
+            for (const auto& placedSymbol : placedSymbols) {
+                if (placedSymbol.intersectsTileBorder) {
+                    if (placedSymbol.textCollisionBox) {
+                        findCutOffs(
+                            placedSymbol, *placedSymbol.textCollisionBox, placedSymbol.textPlaced, false /*isIcon*/);
+                    }
+                    if (placedSymbol.iconCollisionBox) {
+                        findCutOffs(
+                            placedSymbol, *placedSymbol.iconCollisionBox, placedSymbol.iconPlaced, true /*isIcon*/);
+                    }
+                }
+            }
+
             PremultipliedImage::copy(
                 resultForTile.image, result.image, {0, 0}, {xOffset, yOffset}, resultForTile.image.size);
             result.stats += resultForTile.stats;
@@ -796,6 +862,7 @@ void TestRunner::run(TestMetadata& metadata) {
 
     if (metadata.renderTest) {
         checkProbingResults(metadata);
+        appendLabelCutOffResults(metadata, cutOffLabelsReport, duplicationsReport);
         checkRenderTestResults(std::move(result.image), metadata);
     } else {
         std::vector<mbgl::Feature> features;
@@ -807,6 +874,19 @@ void TestRunner::run(TestMetadata& metadata) {
             features = frontend.getRenderer()->queryRenderedFeatures(metadata.queryGeometryBox, metadata.queryOptions);
         }
         checkQueryTestResults(std::move(result.image), std::move(features), metadata);
+    }
+}
+
+void TestRunner::appendLabelCutOffResults(TestMetadata& resultMetadata,
+                                          const std::string& cutOffLabelsReport,
+                                          const std::string& duplicationsReport) {
+    if (resultMetadata.labelCutOffFound) { // Append label cut-off statistics.
+        resultMetadata.errorMessage += "\n Label cut-offs:";
+        resultMetadata.errorMessage += cutOffLabelsReport;
+        if (resultMetadata.duplicationsCount) {
+            resultMetadata.errorMessage += "\n\n Label duplications:";
+            resultMetadata.errorMessage += duplicationsReport;
+        }
     }
 }
 

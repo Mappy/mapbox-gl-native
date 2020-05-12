@@ -50,6 +50,7 @@ target_sources(
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/gfx/headless_frontend.cpp
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/gl/headless_backend.cpp
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/map/map_snapshotter.cpp
+        ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/platform/time.cpp
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/storage/asset_file_source.cpp
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/storage/database_file_source.cpp
         ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/storage/file_source_manager.cpp
@@ -145,7 +146,7 @@ if(ANDROID_NATIVE_API_LEVEL VERSION_LESS 24)
 else()
     target_sources(
         mbgl-test-runner
-        PRIVATE ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/storage/http_file_source.cpp
+        PRIVATE $<$<BOOL:${MBGL_PUBLIC_BUILD}>:${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/storage/http_file_source.cpp>
     )
 
     include(${PROJECT_SOURCE_DIR}/vendor/curl.cmake)

@@ -27,6 +27,18 @@ optional<std::string> Source::getAttribution() const {
     return baseImpl->getAttribution();
 }
 
+bool Source::isVolatile() const noexcept {
+    return baseImpl->isVolatile();
+}
+
+void Source::setVolatile(bool set) noexcept {
+    if (isVolatile() == set) return;
+    auto newImpl = createMutable();
+    newImpl->setVolatile(set);
+    baseImpl = std::move(newImpl);
+    observer->onSourceChanged(*this);
+}
+
 void Source::setObserver(SourceObserver* observer_) {
     observer = observer_ ? observer_ : &nullObserver;
 }
@@ -41,6 +53,18 @@ void Source::setPrefetchZoomDelta(optional<uint8_t> delta) noexcept {
 
 optional<uint8_t> Source::getPrefetchZoomDelta() const noexcept {
     return baseImpl->getPrefetchZoomDelta();
+}
+
+void Source::setMinimumTileUpdateInterval(Duration interval) noexcept {
+    if (getMinimumTileUpdateInterval() == interval) return;
+    auto newImpl = createMutable();
+    newImpl->setMinimumTileUpdateInterval(interval);
+    baseImpl = std::move(newImpl);
+    observer->onSourceChanged(*this);
+}
+
+Duration Source::getMinimumTileUpdateInterval() const noexcept {
+    return baseImpl->getMinimumTileUpdateInterval();
 }
 
 void Source::setMaxOverscaleFactorForParentTiles(optional<uint8_t> overscaleFactor) noexcept {

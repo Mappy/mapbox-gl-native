@@ -91,14 +91,14 @@ private:
 };
 
 class Placement;
-
+class PlacementContext;
 class PlacementController {
 public:
     PlacementController();
     void setPlacement(Immutable<Placement>);
     const Immutable<Placement>& getPlacement() const { return placement; }
     void setPlacementStale() { stale = true; }
-    bool placementIsRecent(TimePoint now, const float zoom, optional<Duration> periodOverride = nullopt) const;
+    bool placementIsRecent(TimePoint now, float zoom, optional<Duration> periodOverride = nullopt) const;
     bool hasTransitions(TimePoint now) const;
 
 private:
@@ -128,9 +128,9 @@ public:
 
     const CollisionIndex& getCollisionIndex() const;
     TimePoint getCommitTime() const { return commitTime; }
-    Duration getUpdatePeriod(const float zoom) const;
+    Duration getUpdatePeriod(float zoom) const;
 
-    float zoomAdjustment(const float zoom) const;
+    float zoomAdjustment(float zoom) const;
     const JointPlacement* getSymbolPlacement(const SymbolInstance&) const;
 
     const RetainedQueryData& getQueryData(uint32_t bucketInstanceId) const;
@@ -141,10 +141,12 @@ public:
 
 protected:
     friend SymbolBucket;
-    void placeSymbolBucket(const BucketPlacementData&, std::set<uint32_t>& seenCrossTileIDs);
+    virtual void placeSymbolBucket(const BucketPlacementData&, std::set<uint32_t>& seenCrossTileIDs);
+    JointPlacement placeSymbol(const SymbolInstance& symbolInstance, const PlacementContext&);
     void placeLayer(const RenderLayer&, std::set<uint32_t>&);
     virtual void commit();
     virtual void newSymbolPlaced(const SymbolInstance&,
+                                 const PlacementContext&,
                                  const JointPlacement&,
                                  style::SymbolPlacementType,
                                  const std::vector<ProjectedCollisionBox>& /*textBoxes*/,
@@ -153,12 +155,14 @@ protected:
     virtual optional<CollisionBoundaries> getAvoidEdges(const SymbolBucket&, const mat4& /*posMatrix*/) {
         return nullopt;
     }
-    virtual SymbolInstanceReferences getSortedSymbols(const BucketPlacementData&, float pixelRatio);
-    virtual bool stickToFirstVariableAnchor(const CollisionBox&,
-                                            Point<float> /*shift*/,
-                                            const mat4& /*posMatrix*/,
-                                            float /*textPixelRatio*/) {
-        return false;
+    SymbolInstanceReferences getSortedSymbols(const BucketPlacementData&, float pixelRatio);
+    virtual bool canPlaceAtVariableAnchor(const CollisionBox&,
+                                          style::TextVariableAnchorType,
+                                          Point<float> /*shift*/,
+                                          std::vector<style::TextVariableAnchorType>&,
+                                          const mat4& /*posMatrix*/,
+                                          float /*textPixelRatio*/) {
+        return true;
     }
 
     // Returns `true` if bucket vertices were updated; returns `false` otherwise.
@@ -191,6 +195,10 @@ protected:
     CollisionGroups collisionGroups;
     mutable optional<Immutable<Placement>> prevPlacement;
     bool showCollisionBoxes = false;
+
+    // Cache being used by placeSymbol()
+    std::vector<ProjectedCollisionBox> textBoxes;
+    std::vector<ProjectedCollisionBox> iconBoxes;
     // Used for debug purposes.
     std::unordered_map<const CollisionFeature*, std::vector<ProjectedCollisionBox>> collisionCircles;
 };

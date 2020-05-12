@@ -39,8 +39,8 @@ public:
         delegate.invoke(&RendererObserver::onDidFinishRenderingFrame, mode, repaintNeeded, placementChanged);
     }
 
-    void onStyleImageMissing(const std::string& image, StyleImageMissingCallback cb) override {
-        delegate.invoke(&RendererObserver::onStyleImageMissing, image, std::move(cb));
+    void onStyleImageMissing(const std::string& image, const StyleImageMissingCallback& cb) override {
+        delegate.invoke(&RendererObserver::onStyleImageMissing, image, cb);
     }
 
 private:
@@ -74,6 +74,10 @@ public:
             stillImage = frontend.readStillImage();
         }
         rendererObserver->onDidFinishRenderingFrame(mode, repaintNeeded, placementChanged);
+    }
+
+    void onStyleImageMissing(const std::string& id, const StyleImageMissingCallback& done) override {
+        rendererObserver->onStyleImageMissing(id, done);
     }
 
     void setObserver(std::shared_ptr<RendererObserver> observer) {

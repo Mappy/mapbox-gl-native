@@ -17,6 +17,24 @@ using namespace style;
 
 namespace {
 
+struct RenderableSegment {
+    RenderableSegment(const Segment<CircleAttributes>& segment_,
+                      const RenderTile& tile_,
+                      const LayerRenderData* renderData_,
+                      float sortKey_)
+        : segment(segment_), tile(tile_), renderData(renderData_), sortKey(sortKey_) {}
+
+    const Segment<CircleAttributes>& segment;
+    const RenderTile& tile;
+    const LayerRenderData* renderData;
+    const float sortKey;
+
+    friend bool operator<(const RenderableSegment& lhs, const RenderableSegment& rhs) {
+        if (lhs.sortKey == rhs.sortKey) return lhs.tile.id < rhs.tile.id;
+        return lhs.sortKey < rhs.sortKey;
+    }
+};
+
 inline const style::CircleLayer::Impl& impl_cast(const Immutable<style::Layer::Impl>& impl) {
     assert(impl->getTypeInfo() == CircleLayer::Impl::staticTypeInfo());
     return static_cast<const style::CircleLayer::Impl&>(*impl);
@@ -62,24 +80,20 @@ void RenderCircleLayer::render(PaintParameters& parameters) {
     if (parameters.pass == RenderPass::Opaque) {
         return;
     }
-
-    for (const RenderTile& tile : *renderTiles) {
-        const LayerRenderData* renderData = getRenderDataForPass(tile, parameters.pass);
-        if (!renderData) {
-            continue;
-        }
-        auto& bucket = static_cast<CircleBucket&>(*renderData->bucket);
-        const auto& evaluated = getEvaluated<CircleLayerProperties>(renderData->layerProperties);
-        const bool scaleWithMap = evaluated.get<CirclePitchScale>() == CirclePitchScaleType::Map;
-        const bool pitchWithMap = evaluated.get<CirclePitchAlignment>() == AlignmentType::Map;
-        const auto& paintPropertyBinders = bucket.paintPropertyBinders.at(getID());
+    const auto drawTile = [&](const RenderTile& tile, const LayerRenderData* data, const auto& segments) {
+        auto& circleBucket = static_cast<CircleBucket&>(*data->bucket);
+        const auto& evaluated = getEvaluated<CircleLayerProperties>(data->layerProperties);
+        const bool scaleWithMap = evaluated.template get<CirclePitchScale>() == CirclePitchScaleType::Map;
+        const bool pitchWithMap = evaluated.template get<CirclePitchAlignment>() == AlignmentType::Map;
+        const auto& paintPropertyBinders = circleBucket.paintPropertyBinders.at(getID());
 
         auto& programInstance = parameters.programs.getCircleLayerPrograms().circle;
-
-        const auto allUniformValues = CircleProgram::computeAllUniformValues(
-            CircleProgram::LayoutUniformValues{
-                uniforms::matrix::Value(tile.translatedMatrix(
-                    evaluated.get<CircleTranslate>(), evaluated.get<CircleTranslateAnchor>(), parameters.state)),
+        using LayoutUniformValues = CircleProgram::LayoutUniformValues;
+        const auto& allUniformValues = CircleProgram::computeAllUniformValues(
+            LayoutUniformValues(
+                uniforms::matrix::Value(tile.translatedMatrix(evaluated.template get<CircleTranslate>(),
+                                                              evaluated.template get<CircleTranslateAnchor>(),
+                                                              parameters.state)),
                 uniforms::scale_with_map::Value(scaleWithMap),
                 uniforms::extrude_scale::Value(
                     pitchWithMap ? std::array<float, 2>{{tile.id.pixelsToTileUnits(1, parameters.state.getZoom()),
@@ -87,30 +101,52 @@ void RenderCircleLayer::render(PaintParameters& parameters) {
                                  : parameters.pixelsToGLUnits),
                 uniforms::device_pixel_ratio::Value(parameters.pixelRatio),
                 uniforms::camera_to_center_distance::Value(parameters.state.getCameraToCenterDistance()),
-                uniforms::pitch_with_map::Value(pitchWithMap)},
+                uniforms::pitch_with_map::Value(pitchWithMap)),
             paintPropertyBinders,
             evaluated,
             parameters.state.getZoom());
-        const auto allAttributeBindings =
-            CircleProgram::computeAllAttributeBindings(*bucket.vertexBuffer, paintPropertyBinders, evaluated);
+        const auto& allAttributeBindings =
+            CircleProgram::computeAllAttributeBindings(*circleBucket.vertexBuffer, paintPropertyBinders, evaluated);
 
         checkRenderability(parameters, CircleProgram::activeBindingCount(allAttributeBindings));
 
-        programInstance.draw(
-            parameters.context,
-            *parameters.renderPass,
-            gfx::Triangles(),
-            parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
-            gfx::StencilMode::disabled(),
-            parameters.colorModeForRenderPass(),
-            gfx::CullFaceMode::disabled(),
-            *bucket.indexBuffer,
-            bucket.segments,
-            allUniformValues,
-            allAttributeBindings,
-            CircleProgram::TextureBindings{},
-            getID()
-        );
+        programInstance.draw(parameters.context,
+                             *parameters.renderPass,
+                             gfx::Triangles(),
+                             parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
+                             gfx::StencilMode::disabled(),
+                             parameters.colorModeForRenderPass(),
+                             gfx::CullFaceMode::disabled(),
+                             *circleBucket.indexBuffer,
+                             segments,
+                             allUniformValues,
+                             allAttributeBindings,
+                             CircleProgram::TextureBindings{},
+                             getID());
+    };
+
+    const bool sortFeaturesByKey = !impl_cast(baseImpl).layout.get<CircleSortKey>().isUndefined();
+    std::multiset<RenderableSegment> renderableSegments;
+
+    for (const RenderTile& renderTile : *renderTiles) {
+        const LayerRenderData* renderData = getRenderDataForPass(renderTile, parameters.pass);
+        if (!renderData) {
+            continue;
+        }
+        auto& bucket = static_cast<CircleBucket&>(*renderData->bucket);
+        if (!sortFeaturesByKey) {
+            drawTile(renderTile, renderData, bucket.segments);
+            continue;
+        }
+        for (auto& segment : bucket.segments) {
+            renderableSegments.emplace(segment, renderTile, renderData, segment.sortKey);
+        }
+    }
+
+    if (sortFeaturesByKey) {
+        for (const auto& renderable : renderableSegments) {
+            drawTile(renderable.tile, renderable.renderData, renderable.segment);
+        }
     }
 }
 

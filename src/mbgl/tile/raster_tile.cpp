@@ -78,4 +78,8 @@ void RasterTile::setNecessity(TileNecessity necessity) {
     loader.setNecessity(necessity);
 }
 
+void RasterTile::setUpdateParameters(const TileUpdateParameters& params) {
+    loader.setUpdateParameters(params);
+}
+
 } // namespace mbgl

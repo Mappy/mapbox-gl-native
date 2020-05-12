@@ -53,13 +53,11 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
                          const bool needsRendering,
                          const bool needsRelayout,
                          const TileParameters& parameters,
-                         const SourceType type,
+                         const style::Source::Impl& sourceImpl,
                          const uint16_t tileSize,
                          const Range<uint8_t> zoomRange,
                          optional<LatLngBounds> bounds,
-                         std::function<std::unique_ptr<Tile>(const OverscaledTileID&)> createTile,
-                         const optional<uint8_t>& sourcePrefetchZoomDelta,
-                         const optional<uint8_t>& maxParentTileOverscaleFactor) {
+                         std::function<std::unique_ptr<Tile>(const OverscaledTileID&)> createTile) {
     // If we need a relayout, abandon any cached tiles; they're now stale.
     if (needsRelayout) {
         cache.clear();
@@ -86,13 +84,19 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
 
     handleWrapJump(parameters.transformState.getLatLng().longitude());
 
+    const auto type = sourceImpl.type;
     // Determine the overzooming/underzooming amounts and required tiles.
     int32_t overscaledZoom = util::coveringZoomLevel(parameters.transformState.getZoom(), type, tileSize);
     int32_t tileZoom = overscaledZoom;
     int32_t panZoom = zoomRange.max;
 
-    std::vector<UnwrappedTileID> idealTiles;
-    std::vector<UnwrappedTileID> panTiles;
+    const optional<uint8_t>& sourcePrefetchZoomDelta = sourceImpl.getPrefetchZoomDelta();
+    const optional<uint8_t>& maxParentTileOverscaleFactor = sourceImpl.getMaxOverscaleFactorForParentTiles();
+    const Duration minimumUpdateInterval = sourceImpl.getMinimumTileUpdateInterval();
+    const bool isVolatile = sourceImpl.isVolatile();
+
+    std::vector<OverscaledTileID> idealTiles;
+    std::vector<OverscaledTileID> panTiles;
 
     if (overscaledZoom >= zoomRange.min) {
         int32_t idealZoom = std::min<int32_t>(zoomRange.max, overscaledZoom);
@@ -118,7 +122,15 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             }
         }
 
-        idealTiles = util::tileCover(parameters.transformState, idealZoom);
+        idealTiles = util::tileCover(parameters.transformState, idealZoom, tileZoom);
+        if (parameters.mode == MapMode::Tile && type != SourceType::Raster && type != SourceType::RasterDEM &&
+            idealTiles.size() > 1) {
+            mbgl::Log::Warning(mbgl::Event::General,
+                               "Provided camera options returned %zu tiles, only %s is taken in Tile mode.",
+                               idealTiles.size(),
+                               util::toString(idealTiles[0]).c_str());
+            idealTiles = {idealTiles[0]};
+        }
     }
 
     // Stores a list of all the tiles that we're definitely going to retain. There are two
@@ -129,6 +141,7 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
 
     auto retainTileFn = [&](Tile& tile, TileNecessity necessity) -> void {
         if (retain.emplace(tile.id).second) {
+            tile.setUpdateParameters({minimumUpdateInterval, isVolatile});
             tile.setNecessity(necessity);
         }
 
@@ -156,14 +169,11 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
         std::unique_ptr<Tile> tile = cache.pop(tileID);
         if (!tile) {
             tile = createTile(tileID);
-            if (tile) {
-                tile->setObserver(observer);
-                tile->setLayers(layers);
-            }
+            if (!tile) return nullptr;
         }
-        if (!tile) {
-            return nullptr;
-        }
+
+        tile->setObserver(observer);
+        tile->setLayers(layers);
         return tiles.emplace(tileID, std::move(tile)).first->second.get();
     };
 
@@ -185,18 +195,11 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             [](const UnwrappedTileID&, Tile&) {},
             panTiles,
             zoomRange,
-            panZoom,
             maxParentTileOverscaleFactor);
     }
 
-    algorithm::updateRenderables(getTileFn,
-                                 createTileFn,
-                                 retainTileFn,
-                                 renderTileFn,
-                                 idealTiles,
-                                 zoomRange,
-                                 tileZoom,
-                                 maxParentTileOverscaleFactor);
+    algorithm::updateRenderables(
+        getTileFn, createTileFn, retainTileFn, renderTileFn, idealTiles, zoomRange, maxParentTileOverscaleFactor);
 
     for (auto previouslyRenderedTile : previouslyRenderedTiles) {
         Tile& tile = previouslyRenderedTile.second;

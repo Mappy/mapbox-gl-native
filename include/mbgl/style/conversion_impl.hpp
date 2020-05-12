@@ -5,6 +5,7 @@
 #include <mbgl/style/expression/image.hpp>
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/property_value.hpp>
+#include <mbgl/style/rotation.hpp>
 #include <mbgl/style/transition_options.hpp>
 #include <mbgl/util/feature.hpp>
 #include <mbgl/util/geojson.hpp>
@@ -95,12 +96,13 @@ class ConversionTraits;
 class Convertible {
 public:
     template <typename T>
+    // NOLINTNEXTLINE(bugprone-forwarding-reference-overload)
     Convertible(T&& value) : vtable(vtableForType<std::decay_t<T>>()) {
         static_assert(sizeof(Storage) >= sizeof(std::decay_t<T>), "Storage must be large enough to hold value type");
         new (static_cast<void*>(&storage)) std::decay_t<T>(std::forward<T>(value));
     }
 
-    Convertible(Convertible&& v) : vtable(v.vtable) {
+    Convertible(Convertible&& v) noexcept : vtable(v.vtable) {
         // NOLINTNEXTLINE(performance-move-const-arg)
         vtable->move(std::move(v.storage), storage);
     }
@@ -109,7 +111,7 @@ public:
         vtable->destroy(storage);
     }
 
-    Convertible& operator=(Convertible&& v) {
+    Convertible& operator=(Convertible&& v) noexcept {
         if (this != &v) {
             vtable->destroy(storage);
             vtable = v.vtable;
@@ -341,6 +343,11 @@ struct ValueFactory<Position> {
     static Value make(const Position& position) {
         return ValueFactory<std::array<float, 3>>::make(position.getSpherical());
     }
+};
+
+template <>
+struct ValueFactory<Rotation> {
+    static Value make(const Rotation& rotation) { return {rotation.getAngle()}; }
 };
 
 template <typename T>

@@ -2,7 +2,6 @@
 
 #include <mbgl/style/expression/expression.hpp>
 #include <mbgl/util/geojson.hpp>
-#include <mbgl/util/geometry_within.hpp>
 #include <mbgl/util/optional.hpp>
 
 namespace mbgl {

@@ -81,6 +81,8 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/tile/tile_id.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/vector_tile.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/async_task.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/util/bounding_volumes.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/util/camera.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/dtoa.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/geo.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/grid_index.test.cpp
@@ -93,6 +95,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/util/pass.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/position.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/projection.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/util/rotation.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/run_loop.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/string.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/text_conversions.test.cpp
@@ -171,11 +174,7 @@ target_compile_definitions(
 
 target_include_directories(
     mbgl-test
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/platform/default/include
-        ${PROJECT_SOURCE_DIR}/platform/gfx/gl/src
-        ${PROJECT_SOURCE_DIR}/src
-        ${PROJECT_SOURCE_DIR}/test/src
+    PRIVATE ${PROJECT_SOURCE_DIR}/platform/default/include ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/test/src
 )
 
 target_include_directories(

@@ -2,6 +2,66 @@
 
 ## master
 
+## maps-v1.6.0
+
+### ✨ New features
+
+- [core] Add support for `Polygon`, `MultiPolygon` geometry types in `distance` expression. ([#16446](https://github.com/mapbox/mapbox-gl-native/pull/16446))
+
+- [core] Introduce a new API for controlling the camera ([#16419]https://github.com/mapbox/mapbox-gl-native/pull/16419)
+
+  Functions `Map::getFreeCameraOptions()` and `Map::setFreeCameraOptions(options)` provides an alternative way of accessing and modifying properties of the underlying camera entity. The API allows the user to treat the camera as a more traditional 3D object by modifying its position and orientation directly as opposed to setting the state implicitly by using `CameraOptions`. Both APIs are fully compatible with each other.
+
+### 🐞 Bug fixes
+
+- [core][tile mode] Labels priority fixes ([#16432](https://github.com/mapbox/mapbox-gl-native/pull/16432))
+
+  This change does the following:
+
+  - strictly arranges all the intersecting labels accordingly to the style-defined priorities
+  - fixes placement order of the variable labels.
+    Before this change, all variable labels that could potentially intersect tile borders were placed first, breaking the style label placement priority order. Now, all the variable labels, which do not actually intersect the tile borders, are placed accordingly to the style-defined priorities
+
+## maps-v1.6.0-rc.2
+
+### ✨ New features
+
+- [core] Introduce Source::setMinimumTileUpdateInterval API ([#16416](https://github.com/mapbox/mapbox-gl-native/pull/16416))
+
+  The `Source::setMinimumTileUpdateInterval(Duration)` method sets the minimum tile update interval, which is used to throttle the tile update network requests.
+
+  The corresponding `Source::getMinimumTileUpdateInterval()` getter is added too.
+
+  Default minimum tile update interval value is `Duration::zero()`.
+
+- [core] Indroduce `distance` expression. ([#16397](https://github.com/mapbox/mapbox-gl-native/pull/16397))
+   
+  The `distance` expression returns the shortest distance between two geometries. The returned value can be consumed as an input into another expression for changing a paint or layout property or filtering features by distance.
+
+  Currently, the `distance` expression supports `Point`, `MultiPoint`, `LineString`, `MultiLineString` geometry types.
+
+- [core] Introduce style::Source::setVolatile()/isVolatile() API ([#16422](https://github.com/mapbox/mapbox-gl-native/pull/16422))
+
+  The `Source::setVolatile(bool)` method sets a flag defining whether or not the fetched tiles for the given source should be stored in the local cache.
+
+  The corresponding `Source::isVolatile()` getter is added too.
+
+  By default, the source is not volatile.
+
+- [ios, macos] Allow specifying multiple fonts or font families for local font rendering ([#16253](https://github.com/mapbox/mapbox-gl-native/pull/16253))
+
+  By default, CJK characters are now set in the font specified by the `text-font` layout property. If the named font is not installed on the device or bundled with the application, the characters are set in one of the fallback fonts passed into the `localFontFamily` parameter of `mbgl::Renderer::Renderer()` and `mbgl::MapSnapshotter::MapSnapshotter()`. This parameter can now contain a list of font family names, font display names, and font PostScript names, each name separated by a newline.
+
+### 🐞 Bug fixes
+
+- [ios, macos] Fixed error receiving local file URL response ([#16428](https://github.com/mapbox/mapbox-gl-native/pull/16428))
+
+- [ios, macos] Corrected metrics of locally rendered fonts ([#16253](https://github.com/mapbox/mapbox-gl-native/pull/16253))
+
+  CJK characters are now laid out according to the font, so fonts with nonsquare glyphs have the correct kerning. This also fixes an issue where the baseline for CJK characters was too low compared to non-CJK characters.
+
+## maps-v1.6.0-rc.1
+
 ### ✨ New features
 
 - [core] Move logging off the main thread ([#16325](https://github.com/mapbox/mapbox-gl-native/pull/16325))
@@ -18,6 +78,41 @@
 
   - `getPlacedSymbolsData()`
     if collecting of the placed symbols data is enabled, returns the reference to the `PlacedSymbolData` vector holding the collected data.
+
+- [core] Enable circle-sort-key property ([#15875](https://github.com/mapbox/mapbox-gl-native/pull/15875/))
+
+  Adds support for `circle-sort-key` property, consistent with `symbol-sort-key`.
+
+  Sorts drawing order by sort key both within-tile and cross-tile.
+
+- [core] Add LocationIndicator layer ([#16340](https://github.com/mapbox/mapbox-gl-native/pull/16340))
+
+  Adds a new layer type, `location-indicator`, that can be used to add a source-less indicator to the map, comprising raster images and a precision radius in meters.
+
+- Add generic setter for Layer's 'source' property ([#16406](https://github.com/mapbox/mapbox-gl-native/pull/16406))
+
+### 🐞 Bug fixes
+
+- [core][tile mode] Reduce cut-off labels (part 2) ([#16369](https://github.com/mapbox/mapbox-gl-native/pull/16369))
+
+  Now, the intersecting symbols are placed across all layers _symbol by symbol_ according to the following rules:
+
+  1. First we look, which of the tile border(s) the symbol intersects and prioritize the the symbol placement accordingly (high priority -> low priority): `vertical & horizontal -> vertical -> horizontal`
+  2. For the symbols that intersect the same tile border(s), assuming the tile border split symbol into several sections, we look at the minimal section length. The symbol with a larger minimal section length is placed first.
+  3. For the symbols that intersect the same tile border(s), and have equal minimal section length, we look at the anchor coordinates.
+  4. Finally, if all the previous criteria are the same, we look at the symbol key hashes.
+
+- [core][tile mode] Fix variable placement for labels with the `icon-text-fit` property set ([#16382](https://github.com/mapbox/mapbox-gl-native/pull/16382))
+
+  The `symbolIntersectsTileEdges()` util in `mbgl::TilePlacement` now considers icon shift for the variable symbols with enabled icon-text-fit setting, thus providing more accurate results.
+
+- [core] Correctly log a warning instead of crashing when a non-existent image is attempted to be removed. ([#16391](https://github.com/mapbox/mapbox-gl-native/pull/16391))
+
+- [core] Fix segfault resulting from an invalid geometry ([#16409](https://github.com/mapbox/mapbox-gl-native/pull/16409))
+
+- [macos] Restored support for macOS 10.11–10.14 ([#16412](https://github.com/mapbox/mapbox-gl-native/pull/16412))
+
+## maps-v1.5.1
 
 ### 🐞 Bug fixes
 
@@ -97,9 +192,9 @@
 - [default] Fix possible crash at RunLoop::wake() ([#16255](https://github.com/mapbox/mapbox-gl-native/pull/16255))
 
 - [android] Update toGeoJSON in android_conversion.hpp ([#16243](https://github.com/mapbox/mapbox-gl-native/pull/16243))
-  
-  Before this chage, `toGeoJSON` method in `android_conversion.hpp` could not convert an Object (Map in android) to GeoJSON object. 
-  
+
+  Before this chage, `toGeoJSON` method in `android_conversion.hpp` could not convert an Object (Map in android) to GeoJSON object.
+
   But `within` expression needs to accept an Object and then convert it to the GeoJSON object, now `toGeoJSON` method can convert both string and Object to GeoJSON.
 
 - [core] Fix `within` expression algorithm so that `false` value will be returned when point is on the boundary.  Allow using different GeoJSON formats as arguments of `within` expression.([#16232](https://github.com/mapbox/mapbox-gl-native/pull/16232))
@@ -135,11 +230,10 @@
 - Signature of a `MapSnapshotter`'s constructor has been changed
 - Signature for a `MapSnapshotter::snapshot` method has been changed
 - Size of an offline regions do not affect ambient cache size ([#15622](https://github.com/mapbox/mapbox-gl-native/pull/15622))
-  
+
 ##### 📌 Known issues
 
 - When feature is exactly on the geometry boundary, `within` expression returns inconsistent values for different zoom levels  ([#16301](https://github.com/mapbox/mapbox-gl-native/issues/16301))
-
 
 ## maps-v1.3.0 (2020.02-relvanillashake)
 
@@ -173,7 +267,7 @@
 
   Breaking code example:
   `auto fs = FileSourceManager::getFileSource(); fs->..`
-  
+
   Posible fix:
   `std::shared_ptr<FileSource> fs = `;
 
@@ -216,19 +310,19 @@
   The new `Source::setPrefetchZoomDelta(optional<uint8_t>)` method allows overriding default tile prefetch setting that is defined by the Map instance.
 
 - [core] Add support for `within expression`. Implement the use of `within expression` with paint propery and filter expression. ([#16157](https://github.com/mapbox/mapbox-gl-native/pull/16157))
-   
+
   The `within expression` enables checking whether a feature is inside a pre-defined geometry set/boundary or not. This `within expression` returns a boolean value, `true` indicates that the feature being evaluated is inside the geometry set. The returned value can be then consumed as input by another expression or used directly by a paint/layer property.
- 
+
   Support for using `within expression` with layout property will be implemented separately.
 
 - [core] Add support for using `within expression` with layout property. ([#16194](https://github.com/mapbox/mapbox-gl-native/pull/16194))
 
 - [core] Add support for `in expression`. ([#16162](https://github.com/mapbox/mapbox-gl-native/pull/16162))
-   
+
   The `in expression` enables checking whether a Number/String/Boolean type item is in a String/Array and returns a boolean value.
 
 - [core] Add support for using `within expression` with features having `'LineString'` geometry type. ([#16220](https://github.com/mapbox/mapbox-gl-native/pull/16220))
-  
+
   `within expression` now supports features with geometry types: `'Point'` or `'LineString'`.
 
 ### 🐞 Bug fixes
@@ -408,7 +502,7 @@
 
   Introduces public [mblg::Renderer::render](https://github.com/mapbox/mapbox-gl-native/pull/16127/files#diff-5a977e0401792825d7fcf522d48df11fR34) API break.
 
-- [core] Refactor DefaultFileSource codebase ([#15768](https://github.com/mapbox/mapbox-gl-native/pull/15768)) 
+- [core] Refactor DefaultFileSource codebase ([#15768](https://github.com/mapbox/mapbox-gl-native/pull/15768))
   - Adds `FileSourceManager` interface that provides access to `FileSource` instances and means of registering / unregistering `FileSource` factories
   - Splits `DefaultFileSource` into smaller parts
   - Adds `DatabaseFileSource` interface and it's default implementation

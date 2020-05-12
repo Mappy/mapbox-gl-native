@@ -7,7 +7,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/expression/formatted.hpp>
 #include <mbgl/util/color.hpp>
 
 namespace mbgl {
@@ -15,10 +14,10 @@ namespace style {
 
 class TransitionOptions;
 
-class FillExtrusionLayer : public Layer {
+class FillExtrusionLayer final : public Layer {
 public:
     FillExtrusionLayer(const std::string& layerID, const std::string& sourceID);
-    ~FillExtrusionLayer() final;
+    ~FillExtrusionLayer() override;
 
     // Paint properties
 

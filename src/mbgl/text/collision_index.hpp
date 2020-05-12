@@ -15,29 +15,34 @@ class PlacedSymbol;
 struct TileDistance;
 
 using CollisionBoundaries = std::array<float, 4>; // [x1, y1, x2, y2]
-
+struct IntersectStatus {
+    enum Flags : uint8_t { None = 0, HorizontalBorders = 1 << 0, VerticalBorders = 1 << 1 };
+    Flags flags = None;
+    // Assuming tile border divides box in two sections
+    int minSectionLength = 0;
+};
 class CollisionIndex {
 public:
     using CollisionGrid = GridIndex<IndexedSubfeature>;
 
     explicit CollisionIndex(const TransformState&, MapMode);
-    bool intersectsTileEdges(const CollisionBox&,
-                             Point<float> shift,
-                             const mat4& posMatrix,
-                             const float textPixelRatio,
-                             const CollisionBoundaries& tileEdges) const;
+    IntersectStatus intersectsTileEdges(const CollisionBox&,
+                                        Point<float> shift,
+                                        const mat4& posMatrix,
+                                        float textPixelRatio,
+                                        const CollisionBoundaries& tileEdges) const;
     std::pair<bool, bool> placeFeature(
         const CollisionFeature& feature,
         Point<float> shift,
         const mat4& posMatrix,
         const mat4& labelPlaneMatrix,
-        const float textPixelRatio,
+        float textPixelRatio,
         const PlacedSymbol& symbol,
-        const float scale,
-        const float fontSize,
-        const bool allowOverlap,
-        const bool pitchWithMap,
-        const bool collisionDebug,
+        float scale,
+        float fontSize,
+        bool allowOverlap,
+        bool pitchWithMap,
+        bool collisionDebug,
         const optional<CollisionBoundaries>& avoidEdges,
         const optional<std::function<bool(const IndexedSubfeature&)>>& collisionGroupPredicate,
         std::vector<ProjectedCollisionBox>& /*out*/);
@@ -62,19 +67,23 @@ private:
         const CollisionFeature& feature,
         const mat4& posMatrix,
         const mat4& labelPlaneMatrix,
-        const float textPixelRatio,
+        float textPixelRatio,
         const PlacedSymbol& symbol,
-        const float scale,
-        const float fontSize,
-        const bool allowOverlap,
-        const bool pitchWithMap,
-        const bool collisionDebug,
+        float scale,
+        float fontSize,
+        bool allowOverlap,
+        bool pitchWithMap,
+        bool collisionDebug,
         const optional<CollisionBoundaries>& avoidEdges,
         const optional<std::function<bool(const IndexedSubfeature&)>>& collisionGroupPredicate,
         std::vector<ProjectedCollisionBox>& /*out*/);
 
-    float approximateTileDistance(const TileDistance& tileDistance, const float lastSegmentAngle, const float pixelsToTileUnits, const float cameraToAnchorDistance, const bool pitchWithMap);
-    
+    float approximateTileDistance(const TileDistance& tileDistance,
+                                  float lastSegmentAngle,
+                                  float pixelsToTileUnits,
+                                  float cameraToAnchorDistance,
+                                  bool pitchWithMap);
+
     std::pair<float,float> projectAnchor(const mat4& posMatrix, const Point<float>& point) const;
     std::pair<Point<float>,float> projectAndGetPerspectiveRatio(const mat4& posMatrix, const Point<float>& point) const;
     Point<float> projectPoint(const mat4& posMatrix, const Point<float>& point) const;

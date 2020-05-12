@@ -15,7 +15,12 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
+<% if (type === 'location-indicator') { -%>
+#include <mbgl/style/rotation.hpp>
+<% } -%>
+<% if (type === 'symbol') { -%>
 #include <mbgl/style/expression/formatted.hpp>
+<% } -%>
 #include <mbgl/util/color.hpp>
 
 <% if (type === 'line' || type === 'symbol') { -%>
@@ -27,14 +32,14 @@ namespace style {
 
 class TransitionOptions;
 
-class <%- camelize(type) %>Layer : public Layer {
+class <%- camelize(type) %>Layer final : public Layer {
 public:
-<% if (type === 'background') { -%>
+<% if ((type === 'background') || (type === 'location-indicator')) { -%>
     <%- camelize(type) %>Layer(const std::string& layerID);
 <% } else { -%>
     <%- camelize(type) %>Layer(const std::string& layerID, const std::string& sourceID);
 <% } -%>
-    ~<%- camelize(type) %>Layer() final;
+    ~<%- camelize(type) %>Layer() override;
 
 <% if (layoutProperties.length) { -%>
     // Layout properties

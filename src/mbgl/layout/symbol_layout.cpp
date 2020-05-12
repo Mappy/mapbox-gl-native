@@ -73,7 +73,7 @@ inline Immutable<style::SymbolLayoutProperties::PossiblyEvaluated> createLayout(
         layout->get<IconPitchAlignment>() = layout->get<IconRotationAlignment>();
     }
 
-    return std::move(layout);
+    return layout;
 }
 
 } // namespace
@@ -371,7 +371,7 @@ void SymbolLayout::prepareSymbols(const GlyphMap& glyphMap,
                                     WritingModeType writingMode,
                                     SymbolAnchorType textAnchor,
                                     TextJustifyType textJustify) {
-                const Shaping result = getShaping(
+                Shaping result = getShaping(
                     /* string */ formattedText,
                     /* maxWidth: ems */
                     isPointPlacement ? layout->evaluate<TextMaxWidth>(zoom, feature, canonicalID) * util::ONE_EM : 0.0f,
@@ -695,6 +695,9 @@ void SymbolLayout::addFeature(const std::size_t layoutFeatureIndex,
         }
     } else if (type == FeatureType::LineString) {
         for (const auto& line : feature.geometry) {
+            // Skip invalid LineStrings.
+            if (line.empty()) continue;
+
             Anchor anchor(line[0].x, line[0].y, 0, minScale);
             addSymbolInstance(anchor, createSymbolInstanceSharedData(line));
         }
@@ -738,10 +741,12 @@ std::vector<float> SymbolLayout::calculateTileDistances(const GeometryCoordinate
                 sumForwardLength += util::dist<float>(line[i + 1], line[i]);
             }
         }
-        for (std::size_t i = ++segment; i-- > 0;) {
+        for (std::size_t i = segment;; --i) {
             tileDistances[i] = sumBackwardLength;
             if (i != 0u) {
                 sumBackwardLength += util::dist<float>(line[i - 1], line[i]);
+            } else {
+                break; // Add break to avoid unsigned integer overflow when i==0
             }
         }
     }

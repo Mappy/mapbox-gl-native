@@ -7,7 +7,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/expression/formatted.hpp>
 #include <mbgl/util/color.hpp>
 
 namespace mbgl {
@@ -15,10 +14,16 @@ namespace style {
 
 class TransitionOptions;
 
-class CircleLayer : public Layer {
+class CircleLayer final : public Layer {
 public:
     CircleLayer(const std::string& layerID, const std::string& sourceID);
-    ~CircleLayer() final;
+    ~CircleLayer() override;
+
+    // Layout properties
+
+    static PropertyValue<float> getDefaultCircleSortKey();
+    const PropertyValue<float>& getCircleSortKey() const;
+    void setCircleSortKey(const PropertyValue<float>&);
 
     // Paint properties
 

@@ -67,7 +67,8 @@ public:
     ~RasterDEMTile() override;
 
     std::unique_ptr<TileRenderData> createRenderData() override;
-    void setNecessity(TileNecessity) final;
+    void setNecessity(TileNecessity) override;
+    void setUpdateParameters(const TileUpdateParameters&) override;
 
     void setError(std::exception_ptr);
     void setMetadata(optional<Timestamp> modified, optional<Timestamp> expires);
@@ -76,8 +77,8 @@ public:
     bool layerPropertiesUpdated(const Immutable<style::LayerProperties>& layerProperties) override;
 
     HillshadeBucket* getBucket() const;
-    void backfillBorder(const RasterDEMTile& borderTile, const DEMTileNeighbors mask);
-    
+    void backfillBorder(const RasterDEMTile& borderTile, DEMTileNeighbors mask);
+
     // neighboringTiles is a bitmask for which neighboring tiles have been backfilled
     // there are max 8 possible neighboring tiles, so each bit represents one neighbor
     DEMTileNeighbors neighboringTiles = DEMTileNeighbors::Empty;

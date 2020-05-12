@@ -1,13 +1,14 @@
 #pragma once
 
-#include <mbgl/map/mode.hpp>
 #include <mbgl/map/camera.hpp>
+#include <mbgl/map/mode.hpp>
+#include <mbgl/util/camera.hpp>
+#include <mbgl/util/constants.hpp>
 #include <mbgl/util/geo.hpp>
 #include <mbgl/util/geometry.hpp>
-#include <mbgl/util/constants.hpp>
+#include <mbgl/util/mat4.hpp>
 #include <mbgl/util/optional.hpp>
 #include <mbgl/util/projection.hpp>
-#include <mbgl/util/mat4.hpp>
 #include <mbgl/util/size.hpp>
 
 #include <cstdint>
@@ -120,11 +121,11 @@ public:
     // North Orientation
     NorthOrientation getNorthOrientation() const;
     double getNorthOrientationAngle() const;
-    void setNorthOrientation(const NorthOrientation);
+    void setNorthOrientation(NorthOrientation);
 
     // Constrain mode
     ConstrainMode getConstrainMode() const;
-    void setConstrainMode(const ConstrainMode);
+    void setConstrainMode(ConstrainMode);
 
     // Viewport mode
     ViewportMode getViewportMode() const;
@@ -216,6 +217,10 @@ public:
 
     void constrain(double& scale, double& x, double& y) const;
     const mat4& getProjectionMatrix() const;
+    const mat4& getInvProjectionMatrix() const;
+
+    FreeCameraOptions getFreeCameraOptions() const;
+    void setFreeCameraOptions(const FreeCameraOptions& options);
 
 private:
     bool rotatedNorth() const;
@@ -242,10 +247,15 @@ private:
     mat4 coordinatePointMatrix(const mat4& projMatrix) const;
     mat4 getPixelMatrix() const;
 
-    void setScalePoint(const double scale, const ScreenCoordinate& point);
+    void setScalePoint(double scale, const ScreenCoordinate& point);
 
     void updateMatricesIfNeeded() const;
     bool needsMatricesUpdate() const { return requestMatricesUpdate; }
+
+    bool setCameraPosition(const vec3& position);
+    bool setCameraOrientation(const Quaternion& orientation);
+    void updateCameraState() const;
+    void updateStateFromCamera();
 
     const mat4& getCoordMatrix() const;
     const mat4& getInvertedMatrix() const;
@@ -275,6 +285,7 @@ private:
     bool axonometric = false;
 
     EdgeInsets edgeInsets;
+    mutable util::Camera camera;
 
     // cache values for spherical mercator math
     double Bc = Projection::worldSize(scale) / util::DEGREES_MAX;
@@ -282,6 +293,7 @@ private:
 
     mutable bool requestMatricesUpdate{true};
     mutable mat4 projectionMatrix;
+    mutable mat4 invProjectionMatrix;
     mutable mat4 coordMatrix;
     mutable mat4 invertedMatrix;
 };

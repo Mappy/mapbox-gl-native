@@ -91,7 +91,7 @@ protected:
     void scheduleAndReplyValue(const TaskFn& task,
                                const ReplyFn& reply,
                                mapbox::base::WeakPtr<Scheduler> replyScheduler) {
-        auto scheduled = [replyScheduler, task, reply] {
+        auto scheduled = [replyScheduler = std::move(replyScheduler), task, reply] {
             auto lock = replyScheduler.lock();
             if (!replyScheduler) return;
             auto scheduledReply = [reply, result = task()] { reply(result); };

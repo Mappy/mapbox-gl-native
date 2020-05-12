@@ -8,7 +8,6 @@
 #include <mbgl/style/layer.hpp>
 #include <mbgl/style/filter.hpp>
 #include <mbgl/style/property_value.hpp>
-#include <mbgl/style/expression/formatted.hpp>
 #include <mbgl/util/color.hpp>
 
 #include <vector>
@@ -18,10 +17,10 @@ namespace style {
 
 class TransitionOptions;
 
-class LineLayer : public Layer {
+class LineLayer final : public Layer {
 public:
     LineLayer(const std::string& layerID, const std::string& sourceID);
-    ~LineLayer() final;
+    ~LineLayer() override;
 
     // Layout properties
 
