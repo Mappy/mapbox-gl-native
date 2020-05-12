@@ -1462,7 +1462,7 @@ public final class LocationComponent {
     public void onSuccess(LocationEngineResult result) {
       LocationComponent component = componentWeakReference.get();
       if (component != null) {
-        component.updateLocation(result.getLastLocation(), false, false);
+        component.updateLocation(result.getLastLocation(), false, true);
       }
     }
 
