@@ -1331,7 +1331,7 @@ public final class LocationComponent {
     if (locationEngine != null) {
       locationEngine.getLastLocation(lastLocationEngineListener);
     } else {
-      updateLocation(getLastKnownLocation(), true, true);
+      updateLocation(getLastKnownLocation(), true, false);
     }
   }
 
