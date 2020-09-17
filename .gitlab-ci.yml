@@ -1,0 +1,32 @@
+stages:
+  - build
+  - test
+
+variables:
+  LC_ALL: "en_US.UTF-8"
+  LANG: "en_US.UTF-8"
+
+.bundler_before: &carthage_init
+  - carthage bootstrap --platform ios --cache-builds
+
+.mappy_branch_only: &mappy_branch_rules
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "mappy"'
+
+
+build_mapbox_directions:
+  stage: build
+  before_script: *carthage_init
+  script:
+    - ./scripts/build_ui.sh
+  rules: *mappy_branch_rules
+
+test_mapbox_directions:
+  stage: test
+  before_script: *carthage_init
+  script:
+    - ./scripts/unit_tests.sh
+  rules: *mappy_branch_rules
+  artifacts:
+    reports:
+      junit: test-reports/TEST-MBDirections.xml
